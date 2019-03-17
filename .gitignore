@@ -1,0 +1,37 @@
+# Jupyter
+.ipynb_checkpoints
+
+# cProfile output
+*.prof
+
+# Python cache
+*.py[cod]
+__pycache__
+
+# Testing caches
+.pytest_cache
+.hypothesis
+
+# Packages
+.eggs
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+var
+sdist
+develop-eggs
+.installed.cfg
+lib
+lib64
+
+# Sphinx
+docs/_build
+
+# Pycharm
+.idea
+
+# coverage
+.coverage
