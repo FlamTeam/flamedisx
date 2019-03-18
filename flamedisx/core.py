@@ -20,13 +20,19 @@ for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
 
 
-def _lookup_axis1(x, indices):
-    """Return values of x at indices along axis 1"""
+def _lookup_axis1(x, indices, fill_value=0):
+    """Return values of x at indices along axis 1,
+    returning fill_value for out-of-range indices"""
     d = indices
-    return np.take_along_axis(
-        x,
-        d.reshape(len(d), -1), axis=1
-    ).reshape(d.shape)
+    imax = x.shape[1]
+    mask = d >= imax
+    d[mask] = 0
+    result = np.take_along_axis(
+            x,
+            d.reshape(len(d), -1), axis=1
+        ).reshape(d.shape)
+    result[mask] = fill_value
+    return result
 
 
 class XenonSource:
@@ -136,11 +142,11 @@ class XenonSource:
 
         d['nq_mle'] = d['eces_mle'].values / self.gimme('work')
         # TODO: set tighter bounds here
-        # Maybe not needed? Just a 1d computation
-        # If we do change it, have to change rate_nphnel computation
-        # indexing to account for nq_min
-        d['nq_min'] = 0
-        d['nq_max'] = 2 * d['nq_mle'] + 5
+        # These bounds make no sense yet
+        # Also, why does this matter for memory so much?
+        # I thought this was just an irrelevant 1d computation
+        d['nq_min'] = d['nq_mle'] - max_sigma * np.sqrt(d['nq_mle'])
+        d['nq_max'] = d['nq_mle'] + max_sigma * np.sqrt(d['nq_mle'])
         d['fel_mle'] = self.gimme('p_electron', d['nq_mle'])
 
         # Find plausble ranges for detected and observed quanta
@@ -149,7 +155,7 @@ class XenonSource:
         #  but these won't work well for outliers along one of the dimensions)
         # TODO: Meh, think about this, considering also computation cost
         # / space width
-        for qi, qn in enumerate(quanta_types):
+        for qn in quanta_types:
             p_q = d['fel_mle'] if qn == 'electron' else 1 - d['fel_mle']
 
             n_det_mle = d[qn + '_detected_mle'] = (
@@ -212,12 +218,14 @@ class XenonSource:
         nph, nel = self.cross_domains('photon_produced', 'electron_produced')
         # ... numbers of total quanta produced
         nq = nel + nph
+        # ... indices in nq arrays
+        _nq_ind = nq - self.data['nq_min'].values.astype(np.int)[:,np.newaxis, np.newaxis]
         # ... differential rate
-        rate_nq = _lookup_axis1(rate_nq, nq)
+        rate_nq = _lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
-        pel = _lookup_axis1(pel, nq)
+        pel = _lookup_axis1(pel, _nq_ind)
         # ... probability fluctuation
-        pel_fluct = _lookup_axis1(pel_fluct, nq)
+        pel_fluct = _lookup_axis1(pel_fluct, _nq_ind)
 
         # Finally, the main computation is simple:
         return rate_nq * beta_binom_pmf(
