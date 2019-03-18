@@ -203,7 +203,7 @@ class XenonSource:
         # Get differential rate and electron probability vs n_quanta
         _nq_1d = self.domain('nq')
         rate_nq = self.gimme('energy_spectrum',
-                             _nq_1d / self.gimme('work')[:, np.newaxis])
+                             _nq_1d * self.gimme('work')[:, np.newaxis])
         pel = self.gimme('p_electron', _nq_1d)
         pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
 
@@ -221,7 +221,7 @@ class XenonSource:
 
         # Finally, the main computation is simple:
         return rate_nq * beta_binom_pmf(
-            nph.astype(np.int),
+            nel.astype(np.int),
             n=nq.astype(np.int),
             p_mean=pel,
             p_sigma=pel_fluct)
