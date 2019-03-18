@@ -3,12 +3,16 @@ import types
 
 import numpy as np
 from scipy import stats
+from scipy.special import gammaln
 import pandas as pd
 
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
 
-special_data_methods = ['energy_spectrum', 'p_electron']
+special_data_methods = [
+    'energy_spectrum',
+    'p_electron',
+    'p_electron_fluctuation']
 
 data_methods = special_data_methods + ['work']
 hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
@@ -39,6 +43,10 @@ class XenonSource:
     @staticmethod
     def p_electron(nq):
         return 0.5 * np.ones_like(nq)
+
+    @staticmethod
+    def p_electron_fluctuation(nq):
+        return 0.01 * np.ones_like(nq)
 
     @staticmethod
     def electron_detection_eff(drift_time,
@@ -188,10 +196,6 @@ class XenonSource:
         return int((self.data[var + '_max']
                     - self.data[var + '_min']).max())
 
-    def rate_quanta(self):
-        # TODO: How for NR? Then I have to integrate...
-        return
-
     def rate_nphnel(self):
         """Return differential rate tensor
         (n_events, |photons_produced|, |electrons_produced|)
@@ -201,6 +205,7 @@ class XenonSource:
         rate_nq = self.gimme('energy_spectrum',
                              _nq_1d / self.gimme('work')[:, np.newaxis])
         pel = self.gimme('p_electron', _nq_1d)
+        pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
 
         # Create tensors with the dimensions of our final result, containing:
         # ... numbers of photons and electrons produced:
@@ -211,11 +216,15 @@ class XenonSource:
         rate_nq = _lookup_axis1(rate_nq, nq)
         # ... probability of a quantum to become an electron
         pel = _lookup_axis1(pel, nq)
+        # ... probability fluctuation
+        pel_fluct = _lookup_axis1(pel_fluct, nq)
 
-        # Finally, the main computation is a simple binomial:
-        return rate_nq * stats.binom.pmf(nph.astype(np.int),
-                                         n=nq.astype(np.int),
-                                         p=pel)
+        # Finally, the main computation is simple:
+        return rate_nq * beta_binom_pmf(
+            nph.astype(np.int),
+            n=nq.astype(np.int),
+            p_mean=pel,
+            p_sigma=pel_fluct)
 
     def detection_p(self, quanta_type):
         """Return (n_events, |detected|, |produced|) tensor
@@ -275,3 +284,22 @@ class XenonSource:
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         std = ndet ** 0.5 * std_per_q + 1e-10
         return stats.norm.pdf(observed, loc=mean, scale=std)
+
+
+def beta_binom_pmf(x, n, p_mean, p_sigma):
+    """Return probability mass function of beta-binomial distribution.
+
+    That is, give the probability of obtaining x successes in n trials,
+    if the success probability p is drawn from a beta distribution
+    with mean p_mean and standard deviation p_sigma.
+    """
+    # Convert (p_mean, p_sigma) to (alpha, beta) params of beta distribution
+    # From Wikipedia:
+    # variance = 1/(4 * (2 * beta + 1)) = 1/(8 * beta + 4)
+    # mean = 1/(1+beta/alpha)
+    b = (1/(8 * p_sigma**2) - 0.5)
+    a = b * p_mean/(1 - p_mean)
+    return np.exp(
+        gammaln(n+1) + gammaln(x+a) + gammaln(n-x+b) + gammaln(a+b) -
+        (gammaln(x+1) + gammaln(n-x+1) +
+         gammaln(a) + gammaln(b) + gammaln(n+a+b)))

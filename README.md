@@ -7,4 +7,3 @@ Under construction.
 
 Current limitations:
 - Electronic recoils only
-- No recombination probability fluctuation
