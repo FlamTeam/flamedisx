@@ -201,7 +201,7 @@ class XenonSource:
         (n_events, |photons_produced|, |electrons_produced|)
         """
         # Get differential rate and electron probability vs n_quanta
-        _nq_1d = self._single_domain('nq')
+        _nq_1d = self.domain('nq')
         rate_nq = self.gimme('energy_spectrum',
                              _nq_1d / self.gimme('work')[:, np.newaxis])
         pel = self.gimme('p_electron', _nq_1d)
@@ -209,7 +209,7 @@ class XenonSource:
 
         # Create tensors with the dimensions of our final result, containing:
         # ... numbers of photons and electrons produced:
-        nph, nel = self._domains('photon_produced', 'electron_produced')
+        nph, nel = self.cross_domains('photon_produced', 'electron_produced')
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... differential rate
@@ -230,25 +230,20 @@ class XenonSource:
         """Return (n_events, |detected|, |produced|) tensor
         encoding P(n_detected | n_produced)
         """
-        n_det, n_prod = self._domains(quanta_type + '_detected',
-                                      quanta_type + '_produced')
+        n_det, n_prod = self.cross_domains(quanta_type + '_detected',
+                                           quanta_type + '_produced')
         p = self.gimme(quanta_type + '_detection_eff')
         p = p.reshape(-1, 1, 1)
         return stats.binom.pmf(n_det, n=n_prod, p=p)
 
-    def _single_domain(self, x):
+    def domain(self, x):
+        """Return (n_events, |x|) matrix containing all possible integer
+        values of x for each event"""
         o = np.newaxis
         n = self._dimsize(x)
-        return np.arange(n)[o, :] + self.data[x + '_min'][:, o]
+        return np.arange(n)[o, :] + self.data[x + '_min'].astype(np.int)[:, o]
 
-    def _domain_detected(self, quanta_type):
-        """Get (n_events, |n_detected|) matrix of possible values of n_detected
-        """
-        # TODO: this echoes _domains, but not quite...
-        # worth avoiding duplication?
-        return self._single_domain(quanta_type + '_detected')
-
-    def _domains(self, x, y):
+    def cross_domains(self, x, y):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
         containing possible integer values of x and y, respectively.
         """
@@ -256,22 +251,15 @@ class XenonSource:
         x_size = self._dimsize(x)
         y_size = self._dimsize(y)
         o = np.newaxis
-        result_x = np.arange(x_size)[o, :, o].repeat(self.n_evts,
-                                                     axis=0).repeat(y_size,
-                                                                    axis=2)
-        result_x += self.data[x + '_min'].astype(np.int)[:, o, o]
-
-        result_y = np.arange(y_size)[o, o, :].repeat(self.n_evts,
-                                                     axis=0).repeat(x_size,
-                                                                    axis=1)
-        result_y += self.data[y + '_min'].astype(np.int)[:, o, o]
+        result_x = self.domain(x)[:, :, o].repeat(y_size, axis=2)
+        result_y = self.domain(y)[:, o, :].repeat(x_size, axis=1)
         return result_x, result_y
 
     def detector_response(self, quanta_type):
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
         for different number of detected quanta.
         """
-        ndet = self._domain_detected(quanta_type)
+        ndet = self.domain(quanta_type + '_detected')
 
         o = np.newaxis
         observed = self.data[signal_name[quanta_type]].values[:, o]

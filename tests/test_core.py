@@ -53,7 +53,7 @@ def test_nphnel(xes: XenonSource):
 
 
 def test_domains(xes: XenonSource):
-    n_det, n_prod = xes._domains('electron_detected', 'electron_produced')
+    n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced')
 
     assert (n_det.shape == n_prod.shape
             == (xes.n_evts,
@@ -70,7 +70,7 @@ def test_domains(xes: XenonSource):
 
 
 def test_domain_detected(xes: XenonSource):
-    dd = xes._domain_detected('photon')
+    dd = xes.domain('photon_detected')
     np.testing.assert_equal(
         dd.min(axis=1),
         np.floor(xes.data['photon_detected_min']).values)
@@ -94,7 +94,7 @@ def test_detector_response(xes: XenonSource):
 
     # Maximum likelihood est. of detected quanta is correct
     max_is = r.argmax(axis=1)
-    domain = xes._domain_detected('photon')
+    domain = xes.domain('photon_detected')
     found_mle = _lookup_axis1(domain, max_is)
     np.testing.assert_array_less(
         np.abs(xes.data['photon_detected_mle'] - found_mle),
