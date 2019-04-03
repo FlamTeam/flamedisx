@@ -11,7 +11,7 @@ Flamedisx aims to increase the practical number of dimensions (e.g. s1, s2, x,
 y, z and time) and parameters (g1, g2, recombination model coefficients, 
 electron lifetime, ...) in LXe TPC likelihoods.
 
-Traditionally, we evaluate (the probability density functions used in) our likelihoods using histograms created from high-statistics MC simulations. We precompute these for several parameter space combinations and interpolate between them. This precomputation time is exponential in the number of likelihood/histogram dimensions *and* the number of parameters used.
+Traditionally, we evaluate (the probability density functions used in) our likelihoods using histograms created from high-statistics MC simulations. We precompute these histograms for several parameter combinations, then interpolate between them during inference ("verical template morphing" in collider physics jargon). The precomputation time is exponential in the number of likelihood/histogram dimensions *and* the number of parameters used.
 
 Flamedisx instead computes the probability density directly at each observed event, without using MC integration (or approximating the model). The commonly used LXe emission model is simple enough that the integral equivalent to an MC simulation can be computed with a few matrix multiplications, at a speed of a few ms -- instead of a high-statistics MC simulation that takes O(minute) or more. This is in the current numpy/CPU-bound prototype implementation (measured on my laptop); with GPUs this can almost certainly be accelerated (the current bottleck is computing the binomial distribution's probability mass function).
 
