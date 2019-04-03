@@ -41,7 +41,7 @@ def test_bounds(xes: XenonSource):
 def test_gimme(xes: XenonSource):
     np.testing.assert_equal(
         xes.gimme('photon_gain_mean'),
-        xes.photon_gain_mean() * np.ones(xes.n_evts))
+        xes.photon_gain_mean * np.ones(xes.n_evts))
 
 
 def test_nphnel(xes: XenonSource):

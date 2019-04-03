@@ -1,5 +1,4 @@
 import inspect
-import types
 
 import numpy as np
 from scipy import stats
@@ -9,10 +8,16 @@ import pandas as pd
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
 
+# Data methods that take an additional positional argument
 special_data_methods = [
     'energy_spectrum',
     'p_electron',
-    'p_electron_fluctuation']
+    'p_electron_fluctuation',
+    'electron_acceptance',
+    'photon_acceptance',
+    's1_acceptance',
+    's2_acceptance'
+]
 
 data_methods = special_data_methods + ['work']
 hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
@@ -54,12 +59,38 @@ class XenonSource:
     def p_electron_fluctuation(nq):
         return 0.01 * np.ones_like(nq)
 
+    # Detection efficiencies
+
     @staticmethod
     def electron_detection_eff(drift_time,
                                *, elife=600, extraction_eff=1):
         return extraction_eff * np.exp(-drift_time / elife)
 
     photon_detection_eff = 0.1
+
+    # Acceptance of selection/detection on photons/electrons detected
+
+    electron_acceptance = 1
+
+    @staticmethod
+    def photon_acceptance(photons_detected):
+        result = np.ones_like(photons_detected)
+        result[photons_detected < 3] = 0
+        return result
+
+    # Acceptance of selections on S1/S2 directly
+
+    @staticmethod
+    def s1_acceptance(s1):
+        result = np.ones_like(s1)
+        result[s1 < 2] = 0
+        return result
+
+    @staticmethod
+    def s2_acceptance(s2):
+        result = np.ones_like(s2)
+        result[s2 < 200] = 0
+        return result
 
     electron_gain_mean = 20
     electron_gain_std = 5
@@ -95,37 +126,47 @@ class XenonSource:
                         self.f_dims[fname].append(pname)
                     else:
                         self.f_params[fname].append(pname)
-            else:
-                def const_maker(slf, x=f):
-                    return x * np.ones(slf.n_evts)
-                setattr(self,
-                        fname,
-                        types.MethodType(const_maker, self))
 
         if data is not None:
             self.set_data(data)
         self._params = params
 
-    def gimme(self, fname, bonus_arg=None):
+    def gimme(self, fname, bonus_arg=None, data=None, params=None):
         if fname in special_data_methods:
             assert bonus_arg is not None
         else:
             assert bonus_arg is None
 
-        args = [self.data[x].values for x in self.f_dims[fname]]
-        if bonus_arg is not None:
-            args = [bonus_arg] + args
+        if data is None:
+            data = self.data
+        if params is None:
+            params = self._params
 
-        kwargs = {k: v for k, v in self._params
-                  if k in self.f_params[fname]}
+        f = getattr(self, fname)
 
-        return getattr(self, fname)(*args, **kwargs)
+        if callable(f):
+            args = [data[x].values for x in self.f_dims[fname]]
+            if bonus_arg is not None:
+                args = [bonus_arg] + args
+
+            kwargs = {k: v for k, v in params.items()
+                      if k in self.f_params[fname]}
+
+            return f(*args, **kwargs)
+
+        else:
+            if bonus_arg is None:
+                return f * np.ones(len(data))
+            return f * np.ones_like(bonus_arg)
 
     def set_data(self, data, max_sigma=5):
         self.data = d = data
         self.n_evts = len(data)
 
         # Annotate data with eff, mean, sigma
+        # according to the nominal model
+        # These can still change during the inference!
+        # TODO: so maybe you shouldn't store them in df...
         for qn in quanta_types:
             for parname in hidden_vars_per_quanta:
                 fname = qn + '_' + parname
@@ -141,12 +182,6 @@ class XenonSource:
         ]) * self.gimme('work')
 
         d['nq_mle'] = d['eces_mle'].values / self.gimme('work')
-        # TODO: set tighter bounds here
-        # These bounds make no sense yet
-        # Also, why does this matter for memory so much?
-        # I thought this was just an irrelevant 1d computation
-        d['nq_min'] = d['nq_mle'] - max_sigma * np.sqrt(d['nq_mle'])
-        d['nq_max'] = d['nq_mle'] + max_sigma * np.sqrt(d['nq_mle'])
         d['fel_mle'] = self.gimme('p_electron', d['nq_mle'])
 
         # Find plausble ranges for detected and observed quanta
@@ -177,6 +212,9 @@ class XenonSource:
                 d[qn + '_detected_' + bound] = stats.binom.ppf(
                     level, n_prod_mle, d[qn + '_detection_eff']
                 ).clip(*clip_range)
+
+        d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
+        d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
 
     def likelihood(self, **params):
         self._params = params
@@ -219,7 +257,7 @@ class XenonSource:
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... indices in nq arrays
-        _nq_ind = nq - self.data['nq_min'].values.astype(np.int)[:,np.newaxis, np.newaxis]
+        _nq_ind = nq - self.data['nq_min'].values.astype(np.int)[:, np.newaxis, np.newaxis]
         # ... differential rate
         rate_nq = _lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
@@ -242,7 +280,8 @@ class XenonSource:
                                            quanta_type + '_produced')
         p = self.gimme(quanta_type + '_detection_eff')
         p = p.reshape(-1, 1, 1)
-        return stats.binom.pmf(n_det, n=n_prod, p=p)
+        result = stats.binom.pmf(n_det, n=n_prod, p=p)
+        return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
         """Return (n_events, |x|) matrix containing all possible integer
@@ -279,7 +318,79 @@ class XenonSource:
         mean = ndet * mean_per_q
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         std = ndet ** 0.5 * std_per_q + 1e-10
-        return stats.norm.pdf(observed, loc=mean, scale=std)
+        result = stats.norm.pdf(observed, loc=mean, scale=std)
+
+        # Add detection/selection efficiency
+        result *= self.gimme(signal_name[quanta_type]
+                             + '_acceptance',
+                             observed)
+        return result
+
+    def simulate(self, energies, data=None, **params):
+        """Simulate events at energies,
+        drawing values of additional observables (e.g. positions)
+        from data.
+
+        Will not return | energies | events due to
+        selection/detection efficiencies
+
+        This is not used in the likelihood computation itself,
+        but it's a useful check.
+        """
+        if not len(params):
+            params = self._params
+        if data is None:
+            data = self.data
+
+        # Keep only dims we need
+        d = data[list(set(sum(self.f_dims.values(), [])))]
+
+        d = d.sample(n=len(energies), replace=True)
+
+        def gimme(*args):
+            return self.gimme(*args, data=d, params=params)
+
+        d['energy'] = energies
+        d['nq'] = np.floor(energies / gimme('work')).astype(np.int)
+        d['p_el_mean'] = gimme('p_electron', d['nq'])
+        d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'])
+
+        d['p_el_actual'] = stats.beta.rvs(
+            *beta_params(d['p_el_mean'], d['p_el_fluct']))
+        d['electron_produced'] = stats.binom.rvs(
+            n=d['nq'],
+            p=d['p_el_actual'])
+        d['photon_produced'] = d['nq'] - d['electron_produced']
+
+        for q in quanta_types:
+            d[q + '_detected'] = stats.binom.rvs(
+                n=d[q + '_produced'],
+                p=gimme(q + '_detection_eff'))
+            d[signal_name[q]] = stats.norm.rvs(
+                loc=d[q + '_detected'] * gimme(q + '_gain_mean'),
+                scale=d[q + '_detected']**0.5 * gimme(q + '_gain_std'))
+
+        acceptance = np.ones(len(d))
+        for q in quanta_types:
+            acceptance *= gimme(q + '_acceptance', d[q + '_detected'])
+            sn = signal_name[q]
+            acceptance *= gimme(sn + '_acceptance', d[sn])
+        d = d.iloc[np.random.rand(len(d)) < acceptance]
+
+        return d
+
+
+def beta_params(mean, sigma):
+    # Convert (p_mean, p_sigma) to (alpha, beta) params of beta distribution
+    # From Wikipedia:
+    # variance = 1/(4 * (2 * beta + 1)) = 1/(8 * beta + 4)
+    # mean = 1/(1+beta/alpha)
+    # =>
+    # beta = (1/variance - 4) / 8
+    # alpha
+    b = (1 / (8 * sigma ** 2) - 0.5)
+    a = b * mean / (1 - mean)
+    return a, b
 
 
 def beta_binom_pmf(x, n, p_mean, p_sigma):
@@ -289,12 +400,7 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     if the success probability p is drawn from a beta distribution
     with mean p_mean and standard deviation p_sigma.
     """
-    # Convert (p_mean, p_sigma) to (alpha, beta) params of beta distribution
-    # From Wikipedia:
-    # variance = 1/(4 * (2 * beta + 1)) = 1/(8 * beta + 4)
-    # mean = 1/(1+beta/alpha)
-    b = (1/(8 * p_sigma**2) - 0.5)
-    a = b * p_mean/(1 - p_mean)
+    a, b = beta_params(p_mean, p_sigma)
     return np.exp(
         gammaln(n+1) + gammaln(x+a) + gammaln(n-x+b) + gammaln(a+b) -
         (gammaln(x+1) + gammaln(n-x+1) +
