@@ -216,7 +216,23 @@ class XenonSource:
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
 
-    def likelihood(self, **params):
+    def likelihood(self, data=None, max_sigma=5, batch_size=10,
+                   progress=lambda x: x, **params):
+        if data is not None:
+            self.set_data(data, max_sigma)
+        del data   # Just so we don't reference it by accident
+
+        # Evaluate in batches to save memory
+        n_batches = np.ceil(len(self.data) / batch_size).astype(np.int)
+        if n_batches > 1:
+            orig_data = self.data
+            result = []
+            for i in progress(list(range(n_batches))):
+                self.data = orig_data[
+                            i * batch_size:(i + 1) * batch_size].copy()
+                result.append(self.likelihood(**params))
+            return np.concatenate(result)
+
         self._params = params
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel()
@@ -321,8 +337,7 @@ class XenonSource:
         result = stats.norm.pdf(observed, loc=mean, scale=std)
 
         # Add detection/selection efficiency
-        result *= self.gimme(signal_name[quanta_type]
-                             + '_acceptance',
+        result *= self.gimme(signal_name[quanta_type] + '_acceptance',
                              observed)
         return result
 
