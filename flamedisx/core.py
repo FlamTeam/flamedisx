@@ -10,7 +10,6 @@ signal_name = dict(photon='s1', electron='s2')
 
 # Data methods that take an additional positional argument
 special_data_methods = [
-    'energy_spectrum',
     'p_electron',
     'p_electron_fluctuation',
     'electron_acceptance',
@@ -24,6 +23,7 @@ hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
 
+o = np.newaxis
 
 def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
@@ -40,13 +40,18 @@ def _lookup_axis1(x, indices, fill_value=0):
     return result
 
 
-class XenonSource:
+class ERSource:
+
+    data_methods = tuple(data_methods + ['rate_at_e'])
+    special_data_methods = tuple(special_data_methods
+                                 + ['rate_at_e'])
 
     ##
     # Model functions
     ##
+
     @staticmethod
-    def energy_spectrum(e):
+    def rate_at_e(e):
         return np.ones_like(e)
 
     work = 13.7e-3
@@ -103,7 +108,6 @@ class XenonSource:
     ##
     data: pd.DataFrame = None
     params: dict = None
-    n_evts = -1
 
     ##
     # Main code body
@@ -112,10 +116,10 @@ class XenonSource:
     def __init__(self, data=None, **params):
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters
-        self.f_dims = {x: [] for x in data_methods}
-        self.f_params = {x: [] for x in data_methods}
+        self.f_dims = {x: [] for x in self.data_methods}
+        self.f_params = {x: [] for x in self.data_methods}
         self.defaults = {}
-        for fname in data_methods:
+        for fname in self.data_methods:
             f = getattr(self, fname)
             if callable(f):
                 for i, (pname, p) in enumerate(
@@ -161,7 +165,8 @@ class XenonSource:
 
     def set_data(self, data, max_sigma=5):
         self.data = d = data
-        self.n_evts = len(data)
+
+        # TODO precompute energy spectra for each event?
 
         # Annotate data with eff, mean, sigma
         # according to the nominal model
@@ -176,13 +181,13 @@ class XenonSource:
         # TODO: Fix for NR!
         # TODO: how to do CES estimate with variable W?
         obs = dict(photon=d['s1'], electron=d['s2'])
-        d['eces_mle'] = sum([
+        d['e_vis'] = sum([
             obs[qn] / (d[qn + '_gain_mean'] * d[qn + '_detection_eff'])
             for qn in quanta_types
         ]) * self.gimme('work')
 
-        d['nq_mle'] = d['eces_mle'].values / self.gimme('work')
-        d['fel_mle'] = self.gimme('p_electron', d['nq_mle'])
+        d['nq_vis_mle'] = d['e_vis'].values / self.gimme('work')
+        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'])
 
         # Find plausble ranges for detected and observed quanta
         # based on the observed S1 and S2 sizes
@@ -213,8 +218,16 @@ class XenonSource:
                     level, n_prod_mle, d[qn + '_detection_eff']
                 ).clip(*clip_range)
 
+        # Estimate total visible quanta
+        d['nq_mle'] = d['e_vis'].values / self.gimme('work')
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
+
+
+    def estimate_nq_fel(self, d):
+        """Estimate number of produced quanta and fraction of
+        produced electrons"""
+
 
     def likelihood(self, data=None, max_sigma=5, batch_size=10,
                    progress=lambda x: x, **params):
@@ -256,14 +269,20 @@ class XenonSource:
         return int((self.data[var + '_max']
                     - self.data[var + '_min']).max())
 
+    def rate_nq(self, nq_1d):
+        """Return differential rate at given number of produced quanta
+        differs for ER and NR"""
+        e = nq_1d * self.gimme('work')
+        return np.ones_like(e) * self.gimme('rate_at_e', e)
+
     def rate_nphnel(self):
         """Return differential rate tensor
         (n_events, |photons_produced|, |electrons_produced|)
         """
         # Get differential rate and electron probability vs n_quanta
         _nq_1d = self.domain('nq')
-        rate_nq = self.gimme('energy_spectrum',
-                             _nq_1d * self.gimme('work')[:, np.newaxis])
+        rate_nq = self.rate_nq(_nq_1d)
+        _nq_1d, rate_nq = self.rate_nq(_nq_1d)
         pel = self.gimme('p_electron', _nq_1d)
         pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
 
@@ -302,7 +321,6 @@ class XenonSource:
     def domain(self, x):
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
-        o = np.newaxis
         n = self._dimsize(x)
         return np.arange(n)[o, :] + self.data[x + '_min'].astype(np.int)[:, o]
 
@@ -313,7 +331,6 @@ class XenonSource:
         # TODO: somehow mask unnecessary elements and save computation time
         x_size = self._dimsize(x)
         y_size = self._dimsize(y)
-        o = np.newaxis
         result_x = self.domain(x)[:, :, o].repeat(y_size, axis=2)
         result_y = self.domain(y)[:, o, :].repeat(x_size, axis=1)
         return result_x, result_y
@@ -324,7 +341,6 @@ class XenonSource:
         """
         ndet = self.domain(quanta_type + '_detected')
 
-        o = np.newaxis
         observed = self.data[signal_name[quanta_type]].values[:, o]
 
         # Lookup signal gain mean and std per detected quanta
@@ -420,3 +436,60 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
         gammaln(n+1) + gammaln(x+a) + gammaln(n-x+b) + gammaln(a+b) -
         (gammaln(x+1) + gammaln(n-x+1) +
          gammaln(a) + gammaln(b) + gammaln(n+a+b)))
+
+
+class NRSource(ERSource):
+
+    data_methods = tuple(data_methods + ['lindhard_l', 'energy_spectrum'])
+    special_data_methods = tuple(special_data_methods
+                                 + ['lindhard_l'])
+
+    @staticmethod
+    def lindhard_l(self, e, lindhard_k=0.11):
+        """Return Lindhard quenching factor at energy e in keV"""
+        eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
+        g = 3 * eps**0.15 + 0.7 * eps**0.6 + eps
+        return lindhard_k * g/(1 + lindhard_k * g)
+
+    @staticmethod
+    def energy_spectrum(x):
+        """Return (energies in keV, diff rate at these energies)
+        each must be a (n_events, n_energies) tensor.
+        """
+        # TODO: doesn't really depend on x... but how else to get n_evts?
+        e = np.geomspace(0.7, 3, 20)[o,:].repeat(len(x), axis=0)
+        return e, np.ones_like(e)
+
+    def rate_nq(self, nq_1d):
+        es, rate_e = self.gimme('energy_spectrum')
+        mean_q_produced = es * self.gimme('lindhard_l') / self.gimme('work')
+
+        # (|nq|, |ne|) tensor giving p(nq | e)
+        p_nq_e = stats.poisson.pmf(nq_1d[:, o],
+                                   mean_q_produced[:, o])
+
+        return (p_nq_e * rate_e[o, :]).sum(axis=1)
+
+    def p_electron(self, nq):
+
+        # From lenardo et al global fit
+        nexni = c['nr_alpha'] * F ** -c['nr_zeta'] * (
+                    1 - np.exp(-c['nr_beta'] * eps))
+        ni = nq * 1 / (1 + nexni)
+        nex = nq - ni
+
+        # Fraction of ions NOT participating in recombination
+        squiggle = c['nr_gamma'] * F ** -c['nr_delta']
+        fnotr = np.log(1 + ni * squiggle) / (ni * squiggle)
+
+        # Fraction of excitons NOT participating in Penning quenching
+        fnotp = 1 / (1 + c['nr_eta'] * eps ** c['nr_lambda'])
+
+        # Finally, number of electrons and photons produced..
+        n_el = ni * fnotr
+        n_ph = fnotp * (nex + ni * (1 - fnotr))
+
+        p_el = n_el /
+
+    def simulate(self, energies):
+        raise NotImplementedError
