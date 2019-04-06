@@ -14,6 +14,7 @@ special_data_methods = [
     'p_electron_fluctuation',
     'electron_acceptance',
     'photon_acceptance',
+    'double_pe_fraction',
     's1_acceptance',
     's2_acceptance'
 ]
@@ -102,6 +103,7 @@ class ERSource:
 
     photon_gain_mean = 1
     photon_gain_std = 0.5
+    double_pe_fraction = 0.15
 
     ##
     # State attributes, set later
@@ -176,17 +178,22 @@ class ERSource:
             for parname in hidden_vars_per_quanta:
                 fname = qn + '_' + parname
                 d[fname] = self.gimme(fname)
+        d['double_pe_fraction'] = self.gimme('double_pe_fraction')
 
-        # Approximate energy reconstruction (CES)
-        # TODO: Fix for NR!
-        # TODO: how to do CES estimate with variable W?
+        # Find likely number of detected quanta
         obs = dict(photon=d['s1'], electron=d['s2'])
-        d['e_vis'] = sum([
-            obs[qn] / (d[qn + '_gain_mean'] * d[qn + '_detection_eff'])
-            for qn in quanta_types
-        ]) * self.gimme('work')
+        for qn in quanta_types:
+            n_det_mle = (obs[qn] / d[qn + '_gain_mean']).astype(np.int)
+            if qn == 'photon':
+                n_det_mle /= (1 + d['double_pe_fraction'])
+            d[qn + '_detected_mle'] = n_det_mle
 
-        d['nq_vis_mle'] = d['e_vis'].values / self.gimme('work')
+        # Approximate energy reconstruction (visible energy only)
+        # TODO: how to do CES estimate if someone wants a variable W?
+        d['nq_vis_mle'] = (
+                d['photon_detected_mle'] / d['photon_detection_eff']
+                + d['electron_detected_mle'] / d['electron_detection_eff'])
+        d['e_vis'] = self.gimme('work') * d['nq_vis_mle']
         d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'])
 
         # Find plausble ranges for detected and observed quanta
@@ -198,10 +205,10 @@ class ERSource:
         for qn in quanta_types:
             p_q = d['fel_mle'] if qn == 'electron' else 1 - d['fel_mle']
 
-            n_det_mle = d[qn + '_detected_mle'] = (
-                    obs[qn] / d[qn + '_gain_mean']).astype(np.int)
             n_prod_mle = d[qn + '_produced_mle'] = (
-                    n_det_mle / d[qn + '_detection_eff']).astype(np.int)
+                    d[qn + '_detected_mle'] / d[qn + '_detection_eff']
+                ).astype(np.int)
+
             # Note this is a different estimate of nq than the CES one!
             nq_mle = (n_prod_mle / p_q).astype(np.int)
 
@@ -218,15 +225,9 @@ class ERSource:
                     level, n_prod_mle, d[qn + '_detection_eff']
                 ).clip(*clip_range)
 
-        # Estimate total visible quanta
-        d['nq_mle'] = d['e_vis'].values / self.gimme('work')
+        # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
-
-
-    def estimate_nq_fel(self, d):
-        """Estimate number of produced quanta and fraction of
-        produced electrons"""
 
 
     def likelihood(self, data=None, max_sigma=5, batch_size=10,
@@ -347,10 +348,24 @@ class ERSource:
         mean_per_q = self.gimme(quanta_type + '_gain_mean')[:, o]
         std_per_q = self.gimme(quanta_type + '_gain_std')[:, o]
 
-        mean = ndet * mean_per_q
+        if quanta_type == 'photon':
+            p_dpe = self.gimme('double_pe_fraction')
+            npe_mean = ndet * (1 + p_dpe)
+            # Slightly more complex due to double PE emission
+            mean = npe_mean * mean_per_q
+            std = (
+                # Variance due to PMT resolution
+                (npe_mean**0.5 * std_per_q)**2
+                # Variance due to variation in number of PE
+                + (ndet * (1 - p_dpe) * p_dpe)
+            )**0.5
+
+        else:
+            mean = ndet * mean_per_q
+            std = ndet**0.5 * std_per_q
+
         # add offset to std to avoid NaNs from norm.pdf if std = 0
-        std = ndet ** 0.5 * std_per_q + 1e-10
-        result = stats.norm.pdf(observed, loc=mean, scale=std)
+        result = stats.norm.pdf(observed, loc=mean, scale=std + 1e-10)
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
@@ -392,6 +407,8 @@ class ERSource:
             n=d['nq'],
             p=d['p_el_actual'])
         d['photon_produced'] = d['nq'] - d['electron_produced']
+
+        # TODO: include DPE!
 
         for q in quanta_types:
             d[q + '_detected'] = stats.binom.rvs(
@@ -470,26 +487,26 @@ class NRSource(ERSource):
 
         return (p_nq_e * rate_e[o, :]).sum(axis=1)
 
-    def p_electron(self, nq):
-
+    def p_electron(self, nq,
+                   alpha=1, zeta=1, beta=1, gamma=1, delta=1,
+                   F=120):
         # From lenardo et al global fit
-        nexni = c['nr_alpha'] * F ** -c['nr_zeta'] * (
-                    1 - np.exp(-c['nr_beta'] * eps))
+        # Note penning quenching is omitted: that should be
+        # factored into the photon detection efficiency
+
+        eps = float('nan')  # TODO derive from nq
+
+        nexni = alpha * F ** -zeta * (1 - np.exp(-beta * eps))
         ni = nq * 1 / (1 + nexni)
-        nex = nq - ni
 
         # Fraction of ions NOT participating in recombination
-        squiggle = c['nr_gamma'] * F ** -c['nr_delta']
+        squiggle = gamma * F ** -delta
         fnotr = np.log(1 + ni * squiggle) / (ni * squiggle)
 
-        # Fraction of excitons NOT participating in Penning quenching
-        fnotp = 1 / (1 + c['nr_eta'] * eps ** c['nr_lambda'])
+        # Finally, number of electrons produced..
+        n_el = ni * fnotr / nq
 
-        # Finally, number of electrons and photons produced..
-        n_el = ni * fnotr
-        n_ph = fnotp * (nex + ni * (1 - fnotr))
+        return n_el/nq
 
-        p_el = n_el /
-
-    def simulate(self, energies):
+    def simulate(self, data=None, **params):
         raise NotImplementedError
