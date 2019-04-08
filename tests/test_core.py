@@ -4,31 +4,37 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from flamedisx import XenonSource
+from flamedisx import ERSource, NRSource
 from flamedisx.core import quanta_types, _lookup_axis1
 
 
-@pytest.fixture
-def xes():
+@pytest.fixture(params=["ER", "NR"])
+def xes(request):
     warnings.filterwarnings("error")
     data = pd.DataFrame([dict(s1=20, s2=3000, drift_time=20),
                          dict(s1=2.4, s2=400, drift_time=500)])
-    x = XenonSource()
+    if request.param == 'ER':
+        x = ERSource()
+    else:
+        x = NRSource()
     x.set_data(data)
     return x
 
 
-def test_likelihood(xes: XenonSource):
+# TODO: add test for NR source
+
+def test_likelihood(xes: ERSource):
     """Test that the likelihood doesn't crash"""
     xes.likelihood()
 
 
-def test_bounds(xes: XenonSource):
+def test_bounds(xes: ERSource):
     """Test bounds on nq_produced and _detected"""
     data = xes.data
     ##
     for qn in quanta_types:
         for p in ('produced', 'detected'):
+            print(qn + '_' + p)
             np.testing.assert_array_less(
                 data['%s_%s_min' % (qn, p)].values,
                 data['%s_%s_mle' % (qn, p)].values)
@@ -38,13 +44,13 @@ def test_bounds(xes: XenonSource):
                 data['%s_%s_max' % (qn, p)].values)
 
 
-def test_gimme(xes: XenonSource):
+def test_gimme(xes: ERSource):
     np.testing.assert_equal(
         xes.gimme('photon_gain_mean'),
         xes.photon_gain_mean * np.ones(xes.n_evts))
 
 
-def test_nphnel(xes: XenonSource):
+def test_nphnel(xes: ERSource):
     """Test (nph, nel) rate matrix"""
     r = xes.rate_nphnel()
     assert r.shape == (xes.n_evts,
@@ -52,7 +58,7 @@ def test_nphnel(xes: XenonSource):
                        xes._dimsize('electron_produced'))
 
 
-def test_domains(xes: XenonSource):
+def test_domains(xes: ERSource):
     n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced')
 
     assert (n_det.shape == n_prod.shape
@@ -69,28 +75,19 @@ def test_domains(xes: XenonSource):
         np.floor(xes.data['electron_produced_min']))
 
 
-def test_domain_detected(xes: XenonSource):
+def test_domain_detected(xes: ERSource):
     dd = xes.domain('photon_detected')
     np.testing.assert_equal(
         dd.min(axis=1),
         np.floor(xes.data['photon_detected_min']).values)
 
 
-def test_detector_response(xes: XenonSource):
+def test_detector_response(xes: ERSource):
     r = xes.detector_response('photon')
     assert r.shape == (xes.n_evts, xes._dimsize('photon_detected'))
 
     # r is p(S1 | detected quanta) as a function of detected quanta
     # so the sum over r isn't meaningful (as long as we're frequentists)
-    # Nonetheless, it sums to one... (well, not exactly,
-    # since we're considering a finite domain)
-    # only for this specific model, e.g. try changing 0.5 to 0.7
-    # in detector_response.
-    # (on the other hand changing norm -> t with 3 dof still works...)
-    # I wonder why...
-    np.testing.assert_almost_equal(
-        r.sum(axis=1),
-        np.ones(xes.n_evts), decimal=3)
 
     # Maximum likelihood est. of detected quanta is correct
     max_is = r.argmax(axis=1)
@@ -101,7 +98,7 @@ def test_detector_response(xes: XenonSource):
         0.5)
 
 
-def test_detection_prob(xes: XenonSource):
+def test_detection_prob(xes: ERSource):
     r = xes.detection_p('electron')
     assert r.shape == (xes.n_evts,
                        xes._dimsize('electron_detected'),

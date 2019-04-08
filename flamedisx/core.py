@@ -14,12 +14,12 @@ special_data_methods = [
     'p_electron_fluctuation',
     'electron_acceptance',
     'photon_acceptance',
-    'double_pe_fraction',
     's1_acceptance',
-    's2_acceptance'
+    's2_acceptance',
+    'penning_quenching_eff'
 ]
 
-data_methods = special_data_methods + ['work']
+data_methods = special_data_methods + ['work', 'double_pe_fraction']
 hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
@@ -65,6 +65,10 @@ class ERSource:
     def p_electron_fluctuation(nq):
         return 0.01 * np.ones_like(nq)
 
+    @staticmethod
+    def penning_quenching_eff(nph):
+        return np.ones_like(nph)
+
     # Detection efficiencies
 
     @staticmethod
@@ -103,7 +107,7 @@ class ERSource:
 
     photon_gain_mean = 1
     photon_gain_std = 0.5
-    double_pe_fraction = 0.15
+    double_pe_fraction = 0.219
 
     ##
     # State attributes, set later
@@ -127,7 +131,7 @@ class ERSource:
                 for i, (pname, p) in enumerate(
                         inspect.signature(f).parameters.items()):
                     if p.default == inspect.Parameter.empty:
-                        if fname in special_data_methods and i == 0:
+                        if fname in self.special_data_methods and i == 0:
                             continue
                         self.f_dims[fname].append(pname)
                     else:
@@ -137,8 +141,12 @@ class ERSource:
             self.set_data(data)
         self._params = params
 
+    @property
+    def n_evts(self):
+        return len(self.data)
+
     def gimme(self, fname, bonus_arg=None, data=None, params=None):
-        if fname in special_data_methods:
+        if fname in self.special_data_methods:
             assert bonus_arg is not None
         else:
             assert bonus_arg is None
@@ -183,16 +191,28 @@ class ERSource:
         # Find likely number of detected quanta
         obs = dict(photon=d['s1'], electron=d['s2'])
         for qn in quanta_types:
-            n_det_mle = (obs[qn] / d[qn + '_gain_mean']).astype(np.int)
+            n_det_mle = (obs[qn] / d[qn + '_gain_mean'])
             if qn == 'photon':
                 n_det_mle /= (1 + d['double_pe_fraction'])
-            d[qn + '_detected_mle'] = n_det_mle
+            d[qn + '_detected_mle'] = n_det_mle.round().astype(np.int)
+
+        # The Penning quenching depends on the number of produced
+        # photons.... But we don't have that yet.
+        # Thus, we invert the function using interpolation
+        # TODO: this will fail when someone gives penning quenching some
+        _nprod_temp = np.logspace(-1, 8, 1000)
+        peff = self.gimme('penning_quenching_eff', _nprod_temp)
+        d['penning_quenching_eff'] = np.interp(
+            d['photon_detected_mle'],
+            _nprod_temp * peff,
+            peff)
 
         # Approximate energy reconstruction (visible energy only)
         # TODO: how to do CES estimate if someone wants a variable W?
         d['nq_vis_mle'] = (
-                d['photon_detected_mle'] / d['photon_detection_eff']
-                + d['electron_detected_mle'] / d['electron_detection_eff'])
+            d['electron_detected_mle'] / d['electron_detection_eff']
+            + (d['photon_detected_mle'] / d['photon_detection_eff']
+               / d['penning_quenching_eff']))
         d['e_vis'] = self.gimme('work') * d['nq_vis_mle']
         d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'])
 
@@ -205,6 +225,11 @@ class ERSource:
         for qn in quanta_types:
             p_q = d['fel_mle'] if qn == 'electron' else 1 - d['fel_mle']
 
+            # If p_q gets very close to 0 or 1, the bounds blow up
+            # this helps restore some sanity
+            # TODO: think more about this
+            p_q = p_q.clip(0.05, 0.95)
+
             n_prod_mle = d[qn + '_produced_mle'] = (
                     d[qn + '_detected_mle'] / d[qn + '_detection_eff']
                 ).astype(np.int)
@@ -215,15 +240,15 @@ class ERSource:
             clip_range = (0, None)
 
             for bound, sign in (('min', -1), ('max', +1)):
-                level = stats.norm.cdf(sign * max_sigma)
+                level = stats.norm.cdf(sign * max_sigma).round().astype(np.int)
 
-                d[qn + '_produced_' + bound] = stats.binom.ppf(
-                    level, nq_mle, p_q
-                ).clip(*clip_range)
+                d[qn + '_produced_' + bound] = (stats.binom.ppf(
+                    level, nq_mle, p_q)
+                    + sign).clip(*clip_range)
 
-                d[qn + '_detected_' + bound] = stats.binom.ppf(
-                    level, n_prod_mle, d[qn + '_detection_eff']
-                ).clip(*clip_range)
+                d[qn + '_detected_' + bound] = (stats.binom.ppf(
+                    level, n_prod_mle, d[qn + '_detection_eff'])
+                    + sign).clip(*clip_range)
 
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
@@ -273,7 +298,7 @@ class ERSource:
     def rate_nq(self, nq_1d):
         """Return differential rate at given number of produced quanta
         differs for ER and NR"""
-        e = nq_1d * self.gimme('work')
+        e = nq_1d * self.gimme('work')[:,o]
         return np.ones_like(e) * self.gimme('rate_at_e', e)
 
     def rate_nphnel(self):
@@ -283,7 +308,6 @@ class ERSource:
         # Get differential rate and electron probability vs n_quanta
         _nq_1d = self.domain('nq')
         rate_nq = self.rate_nq(_nq_1d)
-        _nq_1d, rate_nq = self.rate_nq(_nq_1d)
         pel = self.gimme('p_electron', _nq_1d)
         pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
 
@@ -314,8 +338,10 @@ class ERSource:
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
                                            quanta_type + '_produced')
-        p = self.gimme(quanta_type + '_detection_eff')
-        p = p.reshape(-1, 1, 1)
+        p = self.gimme(quanta_type + '_detection_eff')[:, o, o]
+        if quanta_type == 'photon':
+            # Note *= doesn't work, p will get reshaped
+            p = p * self.gimme('penning_quenching_eff', n_prod)
         result = stats.binom.pmf(n_det, n=n_prod, p=p)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
@@ -349,17 +375,11 @@ class ERSource:
         std_per_q = self.gimme(quanta_type + '_gain_std')[:, o]
 
         if quanta_type == 'photon':
-            p_dpe = self.gimme('double_pe_fraction')
-            npe_mean = ndet * (1 + p_dpe)
-            # Slightly more complex due to double PE emission
-            mean = npe_mean * mean_per_q
-            std = (
-                # Variance due to PMT resolution
-                (npe_mean**0.5 * std_per_q)**2
-                # Variance due to variation in number of PE
-                + (ndet * (1 - p_dpe) * p_dpe)
-            )**0.5
-
+            mean, std = self.dpe_mean_std(
+                ndet=ndet,
+                p_dpe=self.gimme('double_pe_fraction')[:,o],
+                mean_per_q=mean_per_q,
+                std_per_q=std_per_q)
         else:
             mean = ndet * mean_per_q
             std = ndet**0.5 * std_per_q
@@ -371,6 +391,25 @@ class ERSource:
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
                              observed)
         return result
+
+    @staticmethod
+    def dpe_mean_std(ndet, p_dpe, mean_per_q, std_per_q):
+        """Return mean, std of S1 signal for
+        ndet: photons detected
+        p_dpe: double pe emission probability
+        mean_per_q: gain mean per PE
+        std_per_q: gain std per PE
+        """
+        npe_mean = ndet * (1 + p_dpe)
+        # Slightly more complex due to double PE emission
+        mean = npe_mean * mean_per_q
+        std = (
+              # Variance due to PMT resolution
+              (npe_mean ** 0.5 * std_per_q) ** 2
+              # Variance due to variation in number of PE
+              + (ndet * (1 - p_dpe) * p_dpe)
+        ) ** 0.5
+        return mean, std
 
     def simulate(self, energies, data=None, **params):
         """Simulate events at energies,
@@ -397,7 +436,8 @@ class ERSource:
             return self.gimme(*args, data=d, params=params)
 
         d['energy'] = energies
-        d['nq'] = np.floor(energies / gimme('work')).astype(np.int)
+        self.simulate_nq(data=d, params=params)
+
         d['p_el_mean'] = gimme('p_electron', d['nq'])
         d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'])
 
@@ -408,15 +448,23 @@ class ERSource:
             p=d['p_el_actual'])
         d['photon_produced'] = d['nq'] - d['electron_produced']
 
-        # TODO: include DPE!
+        d['electron_detected'] = stats.binom.rvs(
+            n=d['electron_produced'],
+            p=gimme('electron_detection_eff'))
+        d['photon_detected'] = stats.binom.rvs(
+            n=d['electron_produced'],
+            p=(gimme('electron_detection_eff')
+               * gimme('penning_quenching_eff', d['photon_produced'])))
 
-        for q in quanta_types:
-            d[q + '_detected'] = stats.binom.rvs(
-                n=d[q + '_produced'],
-                p=gimme(q + '_detection_eff'))
-            d[signal_name[q]] = stats.norm.rvs(
-                loc=d[q + '_detected'] * gimme(q + '_gain_mean'),
-                scale=d[q + '_detected']**0.5 * gimme(q + '_gain_std'))
+        d['s2'] = stats.norm.rvs(
+            loc=d['electron_detected'] * gimme('electron_gain_mean'),
+            scale=d['electron_detected']**0.5 * gimme('electron_gain_std'))
+
+        d['s1'] = stats.norm.rvs(*self.dpe_mean_std(
+            ndet=d['photon_detected'],
+            p_dpe=gimme('double_pe_fraction'),
+            mean_per_q=gimme('photon_gain_mean'),
+            std_per_q=gimme('std_gain_main')))
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
@@ -426,6 +474,10 @@ class ERSource:
         d = d.iloc[np.random.rand(len(d)) < acceptance]
 
         return d
+
+    def simulate_nq(self, data, params):
+        work = self.gimme('work', data=data, params=params)
+        data['nq'] = np.floor(data['energy'] / work).astype(np.int)
 
 
 def beta_params(mean, sigma):
@@ -454,59 +506,51 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
         (gammaln(x+1) + gammaln(n-x+1) +
          gammaln(a) + gammaln(b) + gammaln(n+a+b)))
 
-
 class NRSource(ERSource):
 
     data_methods = tuple(data_methods + ['lindhard_l', 'energy_spectrum'])
     special_data_methods = tuple(special_data_methods
                                  + ['lindhard_l'])
 
+
     @staticmethod
-    def lindhard_l(self, e, lindhard_k=0.11):
+    def lindhard_l(e, lindhard_k=0.1394):
         """Return Lindhard quenching factor at energy e in keV"""
         eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
         g = 3 * eps**0.15 + 0.7 * eps**0.6 + eps
         return lindhard_k * g/(1 + lindhard_k * g)
 
     @staticmethod
-    def energy_spectrum(x):
+    def energy_spectrum(drift_time):
         """Return (energies in keV, diff rate at these energies)
         each must be a (n_events, n_energies) tensor.
         """
         # TODO: doesn't really depend on x... but how else to get n_evts?
-        e = np.geomspace(0.7, 3, 20)[o,:].repeat(len(x), axis=0)
+        e = np.geomspace(0.7, 3, 20)[o,:].repeat(len(drift_time), axis=0)
         return e, np.ones_like(e)
 
     def rate_nq(self, nq_1d):
         es, rate_e = self.gimme('energy_spectrum')
-        mean_q_produced = es * self.gimme('lindhard_l') / self.gimme('work')
+        mean_q_produced = (
+                es
+                * self.gimme('lindhard_l', es)
+                / self.gimme('work')[:, o])
 
-        # (|nq|, |ne|) tensor giving p(nq | e)
-        p_nq_e = stats.poisson.pmf(nq_1d[:, o],
-                                   mean_q_produced[:, o])
+        # (n_events, |nq|, |ne|) tensor giving p(nq | e)
+        p_nq_e = stats.poisson.pmf(nq_1d[:, :, o],
+                                   mean_q_produced[:, o, :])
 
-        return (p_nq_e * rate_e[o, :]).sum(axis=1)
+        return (p_nq_e * rate_e[:, o, :]).sum(axis=1)
 
-    def p_electron(self, nq,
-                   alpha=1, zeta=1, beta=1, gamma=1, delta=1,
-                   F=120):
-        # From lenardo et al global fit
-        # Note penning quenching is omitted: that should be
-        # factored into the photon detection efficiency
 
-        eps = float('nan')  # TODO derive from nq
+    @staticmethod
+    def penning_quenching_eff(nph, eta=3.3 * 8.2e-5, labda=1.14):
+        return 1 / (1 + eta * nph ** labda)
 
-        nexni = alpha * F ** -zeta * (1 - np.exp(-beta * eps))
-        ni = nq * 1 / (1 + nexni)
-
-        # Fraction of ions NOT participating in recombination
-        squiggle = gamma * F ** -delta
-        fnotr = np.log(1 + ni * squiggle) / (ni * squiggle)
-
-        # Finally, number of electrons produced..
-        n_el = ni * fnotr / nq
-
-        return n_el/nq
-
-    def simulate(self, data=None, **params):
-        raise NotImplementedError
+    def simulate_nq(self, data, params):
+        work = self.gimme('work',
+                          data=data, params=params)
+        lindhard_l = self.gimme('lindhard_l', data['energies'],
+            data=data, params=params)
+        data['nq'] = stats.poisson.rvs(
+            data['energies'] * lindhard_l / work)
