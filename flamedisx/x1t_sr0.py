@@ -54,12 +54,15 @@ def p_el_sr0(e_kev):
 def p_electron_nr(
         nq,
         alpha=1.280, zeta=0.045, beta=273 * .9e-4,
-        gamma=0.0141, delta=0.061,
+        gamma=0.0141, delta=0.062,
         drift_field=120):
     # From lenardo et al global fit
     # TODO: account for Penning quenching in photon detection efficiency
     # TODO: so to make field pos-dependent, override this entire f?
     # could be made easier...
+
+    # prevent /0  # TODO can do better than this
+    nq = nq + 1e-9
 
     # Note: final term depends on nq now, not energy
     # this means beta is different from lenardo et al
@@ -73,7 +76,8 @@ def p_electron_nr(
     # Finally, number of electrons produced..
     n_el = ni * fnotr
 
-    return n_el / nq
+    result = n_el / nq
+    return np.nan_to_num(result).clip(0, 1)
 
 
 ##
@@ -110,10 +114,6 @@ class SR0ERSource(ERSource):
         return p_el_thesis(nq * 13.7e-3)
 
     @staticmethod
-    def p_electron_fluctuation(nq):
-        return 0.01 * np.ones_like(nq)
-
-    @staticmethod
     def electron_detection_eff(drift_time,
                                *, elife=452e3, extraction_eff=0.96):
         return extraction_eff * np.exp(-drift_time / elife)
@@ -132,9 +132,24 @@ class SR0ERSource(ERSource):
     photon_gain_std = 0.5
 
 
+import wimprates
+_es = np.geomspace(1, 50, 100)
+_rs = wimprates.rate_wimp_std(_es, mw=30, sigma_nucleon=1e-45)
+
 
 class SR0NRSource(NRSource, SR0ERSource):
 
     @staticmethod
+    def energy_spectrum(drift_time):
+        """Return (energies in keV, diff rate at these energies)
+        each must be a (n_events, n_energies) tensor.
+        """
+        # TODO: doesn't really depend on x... but how else to get n_evts?
+        return (
+            _es[np.newaxis,:].repeat(len(drift_time), axis=0),
+            _rs[np.newaxis,:].repeat(len(drift_time), axis=0)
+        )
+
+    @staticmethod
     def p_electron(nq):
-        return p_electron_nr(nq)
+        return p_electron_nr(nq).clip(0, 1)

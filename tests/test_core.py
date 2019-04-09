@@ -21,11 +21,14 @@ def xes(request):
     return x
 
 
-# TODO: add test for NR source
-
 def test_likelihood(xes: ERSource):
     """Test that the likelihood doesn't crash"""
     xes.likelihood()
+
+
+def test_simulate(xes: ERSource):
+    """Test the simulator doesn't crash"""
+    xes.simulate(energies=np.linspace(0, 100, int(1e3)))
 
 
 def test_bounds(xes: ERSource):
