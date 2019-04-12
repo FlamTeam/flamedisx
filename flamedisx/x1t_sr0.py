@@ -10,7 +10,7 @@ import wimprates
 ##
 
 def p_el_thesis(e_kev, a=15, b=-27.7, c=32.5, e0=5):
-    eps = np.log10(e_kev / e0)
+    eps = np.log10(e_kev / e0 + 1e-9)
     qy = a * eps ** 2 + b * eps + c
     pel = qy * 13.8e-3
     return pel.clip(1e-9, 1 - 1e-9)
@@ -134,8 +134,10 @@ class SR0ERSource(ERSource):
 
 
 
-_es = np.geomspace(1, 50, 100)
-_rs = wimprates.rate_wimp_std(_es, mw=1e3, sigma_nucleon=1e-45)
+example_wimp_es = np.geomspace(1, 50, 100)
+example_wimp_rs = wimprates.rate_wimp_std(
+    example_wimp_es,
+    mw=1e3, sigma_nucleon=1e-45)
 
 
 class SR0NRSource(NRSource, SR0ERSource):
@@ -145,10 +147,13 @@ class SR0NRSource(NRSource, SR0ERSource):
         """Return (energies in keV, diff rate at these energies)
         each must be a (n_events, n_energies) tensor.
         """
+        de = np.diff(example_wimp_es)
+
         # TODO: doesn't really depend on x... but how else to get n_evts?
+        # TODO: move d_energy multiplication inside core
         return (
-            _es[np.newaxis,:].repeat(len(drift_time), axis=0),
-            _rs[np.newaxis,:].repeat(len(drift_time), axis=0))
+            example_wimp_es[np.newaxis, :-1].repeat(len(drift_time), axis=0),
+            de * example_wimp_rs[np.newaxis, :-1].repeat(len(drift_time), axis=0))
 
     @staticmethod
     def p_electron(nq):

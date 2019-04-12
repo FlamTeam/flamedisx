@@ -210,12 +210,14 @@ class ERSource:
 
         # The Penning quenching depends on the number of produced
         # photons.... But we don't have that yet.
-        # Thus, we invert the function using interpolation
+        # Thus, "rewrite" penning eff vs detected photons
+        # using interpolation
         # TODO: this will fail when someone gives penning quenching some
+        # data-dependent args
         _nprod_temp = np.logspace(-1, 8, 1000)
         peff = self.gimme('penning_quenching_eff', _nprod_temp)
-        d['penning_quenching_eff'] = np.interp(
-            d['photon_detected_mle'],
+        d['penning_quenching_eff_mle'] = np.interp(
+            d['photon_detected_mle'] / d['photon_detection_eff'],
             _nprod_temp * peff,
             peff)
 
@@ -224,7 +226,7 @@ class ERSource:
         d['nq_vis_mle'] = (
             d['electron_detected_mle'] / d['electron_detection_eff']
             + (d['photon_detected_mle'] / d['photon_detection_eff']
-               / d['penning_quenching_eff']))
+               / d['penning_quenching_eff_mle']))
         d['e_vis'] = self.gimme('work') * d['nq_vis_mle']
         d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'])
 
@@ -242,9 +244,12 @@ class ERSource:
             # TODO: think more about this
             p_q = p_q.clip(0.05, 0.95)
 
+            eff = d[qn + '_detection_eff']
+            if qn == 'photon':
+                eff *= d['penning_quenching_eff_mle']
+
             n_prod_mle = d[qn + '_produced_mle'] = (
-                    d[qn + '_detected_mle'] / d[qn + '_detection_eff']
-                ).astype(np.int)
+                    d[qn + '_detected_mle'] / eff).astype(np.int)
 
             # Note this is a different estimate of nq than the CES one!
             nq_mle = (n_prod_mle / p_q).astype(np.int)
@@ -254,12 +259,18 @@ class ERSource:
             for bound, sign in (('min', -1), ('max', +1)):
                 level = stats.norm.cdf(sign * max_sigma)
 
+                # TODO: we actually want confidence intervals here,
+                # not ppfs. But for that we have to think harder...
+                # Consequently the produced bounds are often too strong
+                # and the 'detected' bounds very weak (too loose)
+                # Use approx formula for binom C.I.?
+
                 d[qn + '_produced_' + bound] = (stats.binom.ppf(
                     level, nq_mle, p_q)
                     + sign).clip(*clip_range)
 
                 d[qn + '_detected_' + bound] = (stats.binom.ppf(
-                    level, n_prod_mle, d[qn + '_detection_eff'])
+                    level, n_prod_mle, eff)
                     + sign).clip(*clip_range)
 
         # Bounds on total visible quanta
@@ -546,6 +557,7 @@ class NRSource(ERSource):
         return e, np.ones_like(e)
 
     def rate_nq(self, nq_1d):
+        # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum')
         mean_q_produced = (
                 es
@@ -556,7 +568,7 @@ class NRSource(ERSource):
         p_nq_e = stats.poisson.pmf(nq_1d[:, :, o],
                                    mean_q_produced[:, o, :])
 
-        return (p_nq_e * rate_e[:, o, :]).sum(axis=1)
+        return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
 
 
     @staticmethod

@@ -19,12 +19,7 @@ This approach has several advantages:
   - Each event has its "private" detector model computation at the observed (x, y, z, time), so making the likelihood time- and position dependent incurs no additional computational burden. 
   - The likelihood for a dataset takes O(seconds) to compute, so we can do this at each of optimizer's proposed points during inference. We thus remove the precomputaion step exponential in the number of parameters -- and can thus fit a great deal more parameters.
   - Since the likelihood consists of deterministic matrix multiplications, it can be implemented in tensorflow/pytorch. This enables automatic differentiation, which unlocks the gradient during minimizing, drastically reducing the number of needed interations for a fit or profile likelihood.
-
   
-Current limitations 
--------------------
-
-- This is under construction, so it probably has numerous bugs and little or no documentation.
-- Electronic recoils only (NRs are planned)
+Note this is under construction, so it probably has numerous bugs and little or no documentation.
 
 
