@@ -3,6 +3,7 @@
 """
 import numpy as np
 import straxen
+import wimprates
 
 ##
 # Electron probability
@@ -132,9 +133,9 @@ class SR0ERSource(ERSource):
     photon_gain_std = 0.5
 
 
-import wimprates
+
 _es = np.geomspace(1, 50, 100)
-_rs = wimprates.rate_wimp_std(_es, mw=30, sigma_nucleon=1e-45)
+_rs = wimprates.rate_wimp_std(_es, mw=1e3, sigma_nucleon=1e-45)
 
 
 class SR0NRSource(NRSource, SR0ERSource):
@@ -147,8 +148,7 @@ class SR0NRSource(NRSource, SR0ERSource):
         # TODO: doesn't really depend on x... but how else to get n_evts?
         return (
             _es[np.newaxis,:].repeat(len(drift_time), axis=0),
-            _rs[np.newaxis,:].repeat(len(drift_time), axis=0)
-        )
+            _rs[np.newaxis,:].repeat(len(drift_time), axis=0))
 
     @staticmethod
     def p_electron(nq):

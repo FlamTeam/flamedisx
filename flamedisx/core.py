@@ -47,6 +47,8 @@ class ERSource:
     special_data_methods = tuple(special_data_methods
                                  + ['rate_at_e'])
 
+    # Whether or not to simulate overdispersion in electron/photon split
+    # (e.g. due to non-binomial recombination fluctuation)
     do_pel_fluct = True
 
     ##
@@ -169,6 +171,20 @@ class ERSource:
                 return f * np.ones(len(data))
             return f * np.ones_like(bonus_arg)
 
+    def annotate_data(self, data, **params):
+        """Annotate data with columns needed or inference,
+        using params for maximum likelihood estimates"""
+        old_data = self.data
+        old_params = self._params
+        try:
+            self._params = params
+            self.set_data(data)
+        except Exception:
+            raise
+        finally:
+            self.data = old_data
+            self._params = old_params
+
     def set_data(self, data, max_sigma=5):
         self.data = d = data
 
@@ -252,6 +268,7 @@ class ERSource:
 
     def likelihood(self, data=None, max_sigma=5, batch_size=10,
                    progress=lambda x: x, **params):
+        self._params = params
         if data is not None:
             self.set_data(data, max_sigma)
         del data   # Just so we don't reference it by accident
@@ -267,7 +284,6 @@ class ERSource:
                 result.append(self.likelihood(**params))
             return np.concatenate(result)
 
-        self._params = params
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel()
         p_ph = self.detection_p('photon')
