@@ -260,9 +260,12 @@ class ERSource:
             # TODO: think more about this
             p_q = p_q.clip(0.01, 0.99)
 
-            eff = d[qn + '_detection_eff']
             if qn == 'photon':
-                eff *= d['penning_quenching_eff_mle']
+                # Don't use *=, it will modify in place !
+                eff = (d[qn + '_detection_eff']
+                     * d['penning_quenching_eff_mle'])
+            else:
+                eff = d[qn + '_detection_eff']
 
             n_prod_mle = d[qn + '_produced_mle'] = (
                     d[qn + '_detected_mle'] / eff).astype(np.int)
@@ -274,11 +277,28 @@ class ERSource:
 
             for bound, sign in (('min', -1), ('max', +1)):
 
-                # TODO: have to think harder about this!
-                # How to set good bounds on the produced and
-                # detected quanta?
-                # The formulas below are fudges
-                # with manually tuned bonus/malus sigmas
+                # For detected quanta the MLE is quite accurate
+                # (since fluctuations are tiny)
+                # so let's just use the relative error on the MLE
+                n = d[qn + '_detected_mle']
+                m = d[qn + '_gain_mean']
+                s = d[qn + '_gain_std']
+                if qn == 'photon':
+                    _, scale = self.dpe_mean_std(n, d['double_pe_fraction'],
+                                                 m, s)
+                else:
+                    scale = n ** 0.5 * s / m
+
+                d[qn + '_detected_' + bound] = stats.norm.ppf(
+                    stats.norm.cdf(sign * max_sigma),
+                    loc=d[qn + '_detected_mle'],
+                    scale=scale,
+                ).round().clip(*clip_range).astype(np.int)
+
+                # TODO: For produced quanta I have to think harder!
+                # How to set good bounds?
+                # The formula below is just a fudge with a manually tuned
+                # bonus sigma
 
                 q = 1 - eff
                 d[qn + '_produced_' + bound] = stats.norm.ppf(
@@ -287,10 +307,6 @@ class ERSource:
                     scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
                 ).round().clip(*clip_range).astype(np.int)
 
-                d[qn + '_detected_' + bound] = (stats.binom.ppf(
-                        stats.norm.cdf(sign * (max_sigma - 1)),
-                        n_prod_mle, eff)
-                    + sign).clip(*clip_range)
 
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
