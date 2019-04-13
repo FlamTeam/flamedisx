@@ -137,7 +137,7 @@ class SR0ERSource(SR0Source, ERSource):
     @staticmethod
     def p_electron_fluctuation(nq):
         # q3 = 1.7 keV ~= 123 quanta
-        return 0.041 * (1 - np.exp(-nq/123))
+        return np.clip(0.041 * (1 - np.exp(-nq/123)), 1e-4, None)
 
 
 # Compute events/bin spectrum for a WIMP

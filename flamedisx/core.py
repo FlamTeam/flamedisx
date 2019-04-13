@@ -187,21 +187,21 @@ class ERSource:
                 return f * np.ones(len(data))
             return f * np.ones_like(bonus_arg)
 
-    def annotate_data(self, data, **params):
+    def annotate_data(self, data, max_sigma=3, **params):
         """Annotate data with columns needed or inference,
         using params for maximum likelihood estimates"""
         old_data = self.data
         old_params = self._params
         try:
             self._params = params
-            self.set_data(data)
+            self.set_data(data, max_sigma=max_sigma)
         except Exception:
             raise
         finally:
             self.data = old_data
             self._params = old_params
 
-    def set_data(self, data, max_sigma=5):
+    def set_data(self, data, max_sigma=3):
         self.data = d = data
 
         # TODO precompute energy spectra for each event?
@@ -258,7 +258,7 @@ class ERSource:
             # If p_q gets very close to 0 or 1, the bounds blow up
             # this helps restore some sanity
             # TODO: think more about this
-            p_q = p_q.clip(0.05, 0.95)
+            p_q = p_q.clip(0.01, 0.99)
 
             eff = d[qn + '_detection_eff']
             if qn == 'photon':
@@ -273,27 +273,30 @@ class ERSource:
             clip_range = (0, None)
 
             for bound, sign in (('min', -1), ('max', +1)):
-                level = stats.norm.cdf(sign * max_sigma)
 
-                # TODO: we actually want confidence intervals here,
-                # not ppfs. But for that we have to think harder...
-                # Consequently the produced bounds are often too strong
-                # and the 'detected' bounds very weak (too loose)
-                # Use approx formula for binom C.I.?
+                # TODO: have to think harder about this!
+                # How to set good bounds on the produced and
+                # detected quanta?
+                # The formulas below are fudges
+                # with manually tuned bonus/malus sigmas
 
-                d[qn + '_produced_' + bound] = (stats.binom.ppf(
-                    level, nq_mle, p_q)
-                    + sign).clip(*clip_range)
+                q = 1 - eff
+                d[qn + '_produced_' + bound] = stats.norm.ppf(
+                    stats.norm.cdf(sign * (max_sigma + 3)),
+                    loc=n_prod_mle,
+                    scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
+                ).round().clip(*clip_range).astype(np.int)
 
                 d[qn + '_detected_' + bound] = (stats.binom.ppf(
-                    level, n_prod_mle, eff)
+                        stats.norm.cdf(sign * (max_sigma - 1)),
+                        n_prod_mle, eff)
                     + sign).clip(*clip_range)
 
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
 
-    def likelihood(self, data=None, max_sigma=5, batch_size=10,
+    def likelihood(self, data=None, max_sigma=3, batch_size=10,
                    progress=lambda x: x, **params):
         self._params = params
         if data is not None:
