@@ -2,8 +2,13 @@
 
 """
 import numpy as np
+
+from multihist import Hist1d
 import straxen
 import wimprates
+
+from flamedisx import ERSource, NRSource
+
 
 ##
 # Electron probability
@@ -12,8 +17,7 @@ import wimprates
 def p_el_thesis(e_kev, a=15, b=-27.7, c=32.5, e0=5):
     eps = np.log10(e_kev / e0 + 1e-9)
     qy = a * eps ** 2 + b * eps + c
-    pel = qy * 13.8e-3
-    return pel.clip(1e-9, 1 - 1e-9)
+    return qy * 13.8e-3
 
 
 def p_el_sr0(e_kev):
@@ -77,8 +81,7 @@ def p_electron_nr(
     # Finally, number of electrons produced..
     n_el = ni * fnotr
 
-    result = n_el / nq
-    return np.nan_to_num(result).clip(0, 1)
+    return n_el / nq
 
 
 ##
@@ -101,18 +104,11 @@ s2_map = straxen.InterpolatingMap(
 # Flamedisx sources
 ##
 
-from flamedisx import ERSource, NRSource
+def safe_p(ps):
+    return np.nan_to_num(ps).clip(1e-4, 1 - 1e-4)
 
 
-class SR0ERSource(ERSource):
-
-    @staticmethod
-    def p_electron(nq):
-        # result = np.ones_like(nq) * 0.9
-        # mask = nq != 0
-        # result[mask] = p_el_sr1(nq[mask] * 13.7e-3)
-        # return result
-        return p_el_thesis(nq * 13.7e-3)
+class SR0Source:
 
     @staticmethod
     def electron_detection_eff(drift_time,
@@ -120,41 +116,48 @@ class SR0ERSource(ERSource):
         return extraction_eff * np.exp(-drift_time / elife)
 
     @staticmethod
-    def electron_gain_mean(x_observed, y_observed, g2=11.4 / (1 - 0.63)):
+    def electron_gain_mean(x_observed, y_observed,
+                           g2=11.4 / (1 - 0.63) / 0.96):
         return g2 * s2_map(np.transpose([x_observed, y_observed]))
 
     electron_gain_std = 11.4 * 0.25 / (1 - 0.63)
 
     @staticmethod
-    def photon_detection_eff(x, y, z, g1=0.142):
-        return g1 * s1_map(np.transpose([x, y, z]))
-
-    photon_gain_mean = 1
-    photon_gain_std = 0.5
+    def photon_detection_eff(x, y, z,
+                             mean_eff=0.142 / (1 + 0.219)):
+        return mean_eff * s1_map(np.transpose([x, y, z]))
 
 
+class SR0ERSource(SR0Source, ERSource):
 
+    @staticmethod
+    def p_electron(nq):
+        return safe_p(p_el_thesis(nq * 13.8e-3))
+
+    @staticmethod
+    def p_electron_fluctuation(nq):
+        # q3 = 1.7 keV ~= 123 quanta
+        return 0.041 * (1 - np.exp(-nq/123))
+
+
+# Compute events/bin spectrum for a WIMP
 example_wimp_es = np.geomspace(1, 50, 100)
 example_wimp_rs = wimprates.rate_wimp_std(
     example_wimp_es,
     mw=1e3, sigma_nucleon=1e-45)
+example_sp = Hist1d.from_histogram(
+    example_wimp_rs[:-1] * np.diff(example_wimp_es),
+    example_wimp_es)
 
 
-class SR0NRSource(NRSource, SR0ERSource):
+class SR0NRSource(SR0Source, NRSource):
 
-    @staticmethod
-    def energy_spectrum(drift_time):
-        """Return (energies in keV, diff rate at these energies)
-        each must be a (n_events, n_energies) tensor.
-        """
-        de = np.diff(example_wimp_es)
-
-        # TODO: doesn't really depend on x... but how else to get n_evts?
-        # TODO: move d_energy multiplication inside core
+    def energy_spectrum(self, drift_time):
+        n_evts = len(drift_time)
         return (
-            example_wimp_es[np.newaxis, :-1].repeat(len(drift_time), axis=0),
-            de * example_wimp_rs[np.newaxis, :-1].repeat(len(drift_time), axis=0))
+            example_sp.bin_centers[np.newaxis,:].repeat(n_evts, axis=0),
+            example_sp.histogram[np.newaxis,:].repeat(n_evts, axis=0))
 
     @staticmethod
     def p_electron(nq):
-        return p_electron_nr(nq).clip(0, 1)
+        return safe_p(p_electron_nr(nq))

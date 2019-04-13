@@ -35,3 +35,13 @@ docs/_build
 
 # coverage
 .coverage
+
+# Strax cache
+resource_cache
+
+# Images
+*.png
+
+# Data
+*.pkl
+*.csv

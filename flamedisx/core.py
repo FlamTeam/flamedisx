@@ -4,6 +4,7 @@ import numpy as np
 from scipy import stats
 from scipy.special import gammaln
 import pandas as pd
+from multihist import Hist1d
 
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
@@ -19,7 +20,9 @@ special_data_methods = [
     'penning_quenching_eff'
 ]
 
-data_methods = special_data_methods + ['work', 'double_pe_fraction']
+data_methods = (
+        special_data_methods
+        + ['energy_spectrum', 'work', 'double_pe_fraction'])
 hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
@@ -43,9 +46,8 @@ def _lookup_axis1(x, indices, fill_value=0):
 
 class ERSource:
 
-    data_methods = tuple(data_methods + ['rate_at_e'])
-    special_data_methods = tuple(special_data_methods
-                                 + ['rate_at_e'])
+    data_methods = tuple(data_methods)
+    special_data_methods = tuple(special_data_methods)
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
@@ -55,9 +57,23 @@ class ERSource:
     # Model functions
     ##
 
-    @staticmethod
-    def rate_at_e(e):
-        return np.ones_like(e)
+    def energy_spectrum(self, drift_time):
+        """Return (energies in keV, rate at these energies),
+        both (n_events, n_energies) tensors.
+        """
+        # TODO: doesn't depend on drift_time...
+        n_evts = len(drift_time)
+        return (
+            np.linspace(0, 10, 1000)[o, :].repeat(n_evts, axis=0),
+            np.ones(1000)[o, :].repeat(n_evts, axis=0))
+
+    def energy_spectrum_hist(self):
+        # TODO: fails if e is pos/time dependent
+        es, rs = self.gimme('energy_spectrum')
+        return Hist1d.from_histogram(rs[0, :-1], es[0, :])
+
+    def simulate_es(self, n):
+        return self.energy_spectrum_hist().get_random(n)
 
     work = 13.7e-3
 
@@ -77,7 +93,7 @@ class ERSource:
 
     @staticmethod
     def electron_detection_eff(drift_time,
-                               *, elife=600, extraction_eff=1):
+                               *, elife=600e3, extraction_eff=1):
         return extraction_eff * np.exp(-drift_time / elife)
 
     photon_detection_eff = 0.1
@@ -317,23 +333,36 @@ class ERSource:
         return int((self.data[var + '_max']
                     - self.data[var + '_min']).max())
 
+
     def rate_nq(self, nq_1d):
         """Return differential rate at given number of produced quanta
         differs for ER and NR"""
-        e = nq_1d * self.gimme('work')[:,o]
-        return np.ones_like(e) * self.gimme('rate_at_e', e)
+        # TODO: this implementation echoes that for NR, but I feel there
+        # must be a less clunky way...
+
+        # (n_events, |ne|) tensors
+        es, rate_e = self.gimme('energy_spectrum')
+        q_produced = np.floor(es / self.gimme('work')[:, o]).astype(np.int)
+
+        # (n_events, |nq|, |ne|) tensor giving p(nq | e)
+        p_nq_e = (nq_1d[:, :, o] == q_produced[:, o, :]).astype(np.int)
+
+        return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
 
     def rate_nphnel(self):
         """Return differential rate tensor
         (n_events, |photons_produced|, |electrons_produced|)
         """
         # Get differential rate and electron probability vs n_quanta
+        # these four are (n_events, |nq|) tensors
         _nq_1d = self.domain('nq')
         rate_nq = self.rate_nq(_nq_1d)
         pel = self.gimme('p_electron', _nq_1d)
         pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
 
-        # Create tensors with the dimensions of our final result, containing:
+        # Create tensors with the dimensions of our final result
+        # i.e. (n_events, |photons_produced|, |electrons_produced|),
+        # containing:
         # ... numbers of photons and electrons produced:
         nph, nel = self.cross_domains('photon_produced', 'electron_produced')
         # ... numbers of total quanta produced
@@ -429,15 +458,14 @@ class ERSource:
         std_per_q: gain std per PE
         """
         npe_mean = ndet * (1 + p_dpe)
-        # Slightly more complex due to double PE emission
         mean = npe_mean * mean_per_q
-        std = (
-              # Variance due to PMT resolution
-              (npe_mean ** 0.5 * std_per_q) ** 2
-              # Variance due to variation in number of PE
-              + (ndet * (1 - p_dpe) * p_dpe)
-        ) ** 0.5
-        return mean, std
+
+        # Variance due to PMT resolution
+        var = (npe_mean ** 0.5 * std_per_q)**2
+        # Variance due to binomial variation in double-PE emission
+        var += ndet * p_dpe * (1 - p_dpe)
+
+        return mean, var**0.5
 
     def simulate(self, energies, data=None, **params):
         """Simulate events at energies,
@@ -454,6 +482,10 @@ class ERSource:
             params = self._params
         if data is None:
             data = self.data
+
+        if isinstance(energies, (float, int)):
+            energies = self.simulate_es(int(energies))
+
         # Keep only dims we need
         d = data[list(set(sum(self.f_dims.values(), [])))]
         d = d.sample(n=len(energies), replace=True)
@@ -536,9 +568,8 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
 class NRSource(ERSource):
 
     do_pel_fluct = False
-    data_methods = tuple(data_methods + ['lindhard_l', 'energy_spectrum'])
-    special_data_methods = tuple(special_data_methods
-                                 + ['lindhard_l'])
+    data_methods = tuple(data_methods + ['lindhard_l'])
+    special_data_methods = tuple(special_data_methods + ['lindhard_l'])
 
     @staticmethod
     def lindhard_l(e, lindhard_k=0.138):
@@ -547,12 +578,10 @@ class NRSource(ERSource):
         g = 3 * eps**0.15 + 0.7 * eps**0.6 + eps
         return lindhard_k * g/(1 + lindhard_k * g)
 
-    @staticmethod
-    def energy_spectrum(drift_time):
-        """Return (energies in keV, diff rate at these energies)
-        each must be a (n_events, n_energies) tensor.
+    def energy_spectrum(self, drift_time):
+        """Return (energies in keV, events at these energies),
+        both (n_events, n_energies) tensors.
         """
-        # TODO: doesn't really depend on x... but how else to get n_evts?
         e = np.linspace(0.7, 150, 100)[o,:].repeat(len(drift_time), axis=0)
         return e, np.ones_like(e)
 
@@ -569,7 +598,6 @@ class NRSource(ERSource):
                                    mean_q_produced[:, o, :])
 
         return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
-
 
     @staticmethod
     def penning_quenching_eff(nph, eta=8.2e-5 * 3.3, labda=0.8 * 1.15):
