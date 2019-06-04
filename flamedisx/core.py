@@ -336,8 +336,8 @@ class ERSource:
 
         # (n_events, |photons_produced|, |electrons_produced|)
         y = tf.convert_to_tensor(self.rate_nphnel())
-        p_ph = tf.convert_to_tensor(self.detection_p('photon'))
-        p_el = tf.convert_to_tensor(self.detection_p('electron'))
+        p_ph = self.detection_p('photon')
+        p_el = self.detection_p('electron')
         d_ph = self.detector_response('photon')
         d_el = self.detector_response('electron')
 
@@ -422,7 +422,7 @@ class ERSource:
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('penning_quenching_eff', n_prod)
-        result = stats.binom.pmf(n_det, n=n_prod, p=p)
+        result = tfd.Binomial(total_count=n_prod, probs=p).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
