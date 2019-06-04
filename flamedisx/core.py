@@ -413,8 +413,6 @@ class ERSource:
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
                                            quanta_type + '_produced')
-        n_det = tf.convert_to_tensor(n_det, dtype=tf.float64)
-        n_prod = tf.convert_to_tensor(n_prod, dtype=tf.float64)
         p = self.gimme(quanta_type + '_detection_eff')[:, o, o]
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
@@ -438,7 +436,8 @@ class ERSource:
         y_size = self._dimsize(y)
         result_x = self.domain(x)[:, :, o].repeat(y_size, axis=2)
         result_y = self.domain(y)[:, o, :].repeat(x_size, axis=1)
-        return result_x, result_y
+        return (tf.convert_to_tensor(result_x, dtype=tf.float64),
+                tf.convert_to_tensor(result_y, dtype=tf.float64))
 
     def detector_response(self, quanta_type):
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
