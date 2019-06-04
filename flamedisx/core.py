@@ -1,5 +1,6 @@
 import inspect
 
+import tensorflow as tf
 import numpy as np
 from scipy import stats
 from scipy.special import gammaln
@@ -331,11 +332,11 @@ class ERSource:
             return np.concatenate(result)
 
         # (n_events, |photons_produced|, |electrons_produced|)
-        y = self.rate_nphnel()
-        p_ph = self.detection_p('photon')
-        p_el = self.detection_p('electron')
-        d_ph = self.detector_response('photon')
-        d_el = self.detector_response('electron')
+        y = tf.convert_to_tensor(self.rate_nphnel())
+        p_ph = tf.convert_to_tensor(self.detection_p('photon'))
+        p_el = tf.convert_to_tensor(self.detection_p('electron'))
+        d_ph = tf.convert_to_tensor(self.detector_response('photon'))
+        d_el = tf.convert_to_tensor(self.detector_response('electron'))
 
         # Rearrange dimensions so we can do a single matrix mult
         # Alternatively, you could do
@@ -343,10 +344,10 @@ class ERSource:
         #                          d_ph, p_ph, y, p_el, d_el)
         # but that's about 10x slower!
         p_el = p_el.transpose(0, 2, 1)
-        d_ph = d_ph[:, np.newaxis, :]
-        d_el = d_el[:, :, np.newaxis]
+        d_ph = d_ph[:, tf.newaxis, :]
+        d_el = d_el[:, :, tf.newaxis]
         y = d_ph @ p_ph @ y @ p_el @ d_el
-        return y.reshape(-1)
+        return y.reshape(-1).numpy()
 
     def _dimsize(self, var):
         return int((self.data[var + '_max']
