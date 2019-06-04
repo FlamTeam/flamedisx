@@ -25,13 +25,14 @@ special_data_methods = [
 ]
 
 data_methods = (
-        special_data_methods
-        + ['energy_spectrum', 'work', 'double_pe_fraction'])
+    special_data_methods
+    + ['energy_spectrum', 'work', 'double_pe_fraction'])
 hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
 
 o = tf.newaxis
+
 
 def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
@@ -41,8 +42,8 @@ def _lookup_axis1(x, indices, fill_value=0):
     mask = d >= imax
     d[mask] = 0
     result = np.take_along_axis(
-            x,
-            d.reshape(len(d), -1), axis=1
+        x,
+        d.reshape(len(d), -1), axis=1
         ).reshape(d.shape)
     result[mask] = fill_value
     return result
@@ -96,8 +97,7 @@ class ERSource:
     # Detection efficiencies
 
     @staticmethod
-    def electron_detection_eff(drift_time,
-                               *, elife=600e3, extraction_eff=1):
+    def electron_detection_eff(drift_time, elife=600e3, extraction_eff=1):
         return extraction_eff * np.exp(-drift_time / elife)
 
     photon_detection_eff = 0.1
@@ -267,7 +267,7 @@ class ERSource:
             if qn == 'photon':
                 # Don't use *=, it will modify in place !
                 eff = (d[qn + '_detection_eff']
-                     * d['penning_quenching_eff_mle'])
+                       * d['penning_quenching_eff_mle'])
             else:
                 eff = d[qn + '_detection_eff']
 
@@ -311,7 +311,6 @@ class ERSource:
                     scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
                 ).round().clip(*clip_range).astype(np.int)
 
-
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
@@ -335,7 +334,7 @@ class ERSource:
             return np.concatenate(result)
 
         # (n_events, |photons_produced|, |electrons_produced|)
-        y = tf.convert_to_tensor(self.rate_nphnel())
+        y = self.rate_nphnel()
         p_ph = self.detection_p('photon')
         p_el = self.detection_p('electron')
         d_ph = self.detector_response('photon')
@@ -355,7 +354,6 @@ class ERSource:
     def _dimsize(self, var):
         return int((self.data[var + '_max']
                     - self.data[var + '_min']).max())
-
 
     def rate_nq(self, nq_1d):
         """Return differential rate at given number of produced quanta
@@ -391,7 +389,7 @@ class ERSource:
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... indices in nq arrays
-        _nq_ind = nq - self.data['nq_min'].values.astype(np.int)[:, np.newaxis, np.newaxis]
+        _nq_ind = nq - self.data['nq_min'].values.astype(np.int)[:, o, o]
         # ... differential rate
         rate_nq = _lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
@@ -401,16 +399,13 @@ class ERSource:
 
         # Finally, the main computation is simple:
         if self.do_pel_fluct:
-            return rate_nq * beta_binom_pmf(
-                nel.astype(np.int),
-                n=nq.astype(np.int),
-                p_mean=pel,
-                p_sigma=pel_fluct)
+            return rate_nq * beta_binom_pmf(nel,
+                                            n=nq,
+                                            p_mean=pel,
+                                            p_sigma=pel_fluct)
         else:
-            return rate_nq * stats.binom.pmf(
-                nel.astype(np.int),
-                nq.astype(np.int),
-                np.nan_to_num(pel).clip(0, 1))
+            pel_clip = np.nan_to_num(pel).clip(0, 1)
+            return rate_nq * tfd.Binomial(nq, pel_clip).prob(nel)
 
     def detection_p(self, quanta_type):
         """Return (n_events, |detected|, |produced|) tensor
@@ -460,7 +455,7 @@ class ERSource:
         if quanta_type == 'photon':
             mean, std = self.dpe_mean_std(
                 ndet=ndet,
-                p_dpe=self.gimme('double_pe_fraction')[:,o],
+                p_dpe=self.gimme('double_pe_fraction')[:, o],
                 mean_per_q=mean_per_q,
                 std_per_q=std_per_q)
         else:
@@ -583,16 +578,18 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     That is, give the probability of obtaining x successes in n trials,
     if the success probability p is drawn from a beta distribution
     with mean p_mean and standard deviation p_sigma.
+
+    Implemented using Dirichlet Multinomial distribution which is
+    identically the Beta-Binomial distribution when len(beta_pars) == 2
+
+    TODO: check if the number of successes wasn't reversed in the original
+    code. Should we have [x, n-x] or [n-x, x]?
     """
-    a, b = beta_params(p_mean, p_sigma)
-    return np.exp(
-        gammaln(n+1) + gammaln(x+a) + gammaln(n-x+b) + gammaln(a+b) -
-        (gammaln(x+1) + gammaln(n-x+1) +
-         gammaln(a) + gammaln(b) + gammaln(n+a+b)))
+    beta_pars = beta_params(p_mean, p_sigma)
+    return tfd.DirichletMultinomial(n, beta_pars).prob([x, n-x])
 
 
 class NRSource(ERSource):
-
     do_pel_fluct = False
     data_methods = tuple(data_methods + ['lindhard_l'])
     special_data_methods = tuple(special_data_methods + ['lindhard_l'])
@@ -608,7 +605,7 @@ class NRSource(ERSource):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        e = np.linspace(0.7, 150, 100)[o,:].repeat(len(drift_time), axis=0)
+        e = np.linspace(0.7, 150, 100)[o, :].repeat(len(drift_time), axis=0)
         return e, np.ones_like(e)
 
     def rate_nq(self, nq_1d):
@@ -633,6 +630,6 @@ class NRSource(ERSource):
         work = self.gimme('work',
                           data=data, params=params)
         lindhard_l = self.gimme('lindhard_l', data['energy'],
-            data=data, params=params)
+                                data=data, params=params)
         data['nq'] = stats.poisson.rvs(
             data['energy'].values * lindhard_l / work)
