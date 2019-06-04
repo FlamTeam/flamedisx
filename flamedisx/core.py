@@ -343,7 +343,7 @@ class ERSource:
         #         return np.einsum('ij,ijk,ikl,iml,im->i',
         #                          d_ph, p_ph, y, p_el, d_el)
         # but that's about 10x slower!
-        p_el = p_el.transpose(0, 2, 1)
+        p_el = tf.transpose(p_el, (0, 2, 1))
         d_ph = d_ph[:, tf.newaxis, :]
         d_el = d_el[:, :, tf.newaxis]
         y = d_ph @ p_ph @ y @ p_el @ d_el
