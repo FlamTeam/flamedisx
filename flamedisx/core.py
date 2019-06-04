@@ -418,12 +418,14 @@ class ERSource:
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
                                            quanta_type + '_produced')
+        n_det = tf.convert_to_tensor(n_det, dtype=tf.float32)
+        n_prod = tf.convert_to_tensor(n_prod, dtype=tf.float32)
         p = self.gimme(quanta_type + '_detection_eff')[:, o, o]
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('penning_quenching_eff', n_prod)
-        result = tfd.Binomial(total_count=n_prod.astype(tf.float32),
-                              probs=p.astype(tf.float32)).prob(n_det)
+        p = tf.convert_to_tensor(p, dtype=tf.float32)
+        result = tfd.Binomial(total_count=n_prod, probs=p).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
