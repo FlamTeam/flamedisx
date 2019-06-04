@@ -1,12 +1,14 @@
 import inspect
 
 import tensorflow as tf
-import tensorflow_probability.distributions as tfd
+import tensorflow_probability as tfp
 import numpy as np
 from scipy import stats
 from scipy.special import gammaln
 import pandas as pd
 from multihist import Hist1d
+
+tfd = tfp.distributions
 
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
