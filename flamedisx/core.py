@@ -591,8 +591,9 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     TODO: check if the number of successes wasn't reversed in the original
     code. Should we have [x, n-x] or [n-x, x]?
     """
-    beta_pars = beta_params(p_mean, p_sigma)
-    return tfd.DirichletMultinomial(n, beta_pars).prob([x, n-x])
+    beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
+    counts = tf.stack([x, n-x], axis=-1)
+    return tfd.DirichletMultinomial(n, beta_pars).prob(counts)
 
 
 class NRSource(ERSource):
