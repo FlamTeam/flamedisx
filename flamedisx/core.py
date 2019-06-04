@@ -347,7 +347,7 @@ class ERSource:
         d_ph = d_ph[:, tf.newaxis, :]
         d_el = d_el[:, :, tf.newaxis]
         y = d_ph @ p_ph @ y @ p_el @ d_el
-        return tf.reshape(y, (-1)).numpy()
+        return tf.reshape(y, [-1]).numpy()
 
     def _dimsize(self, var):
         return int((self.data[var + '_max']
