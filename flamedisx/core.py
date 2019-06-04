@@ -1,6 +1,7 @@
 import inspect
 
 import tensorflow as tf
+import tensorflow_probability.distributions as tfd
 import numpy as np
 from scipy import stats
 from scipy.special import gammaln
@@ -28,7 +29,7 @@ hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
 
-o = np.newaxis
+o = tf.newaxis
 
 def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
@@ -335,8 +336,8 @@ class ERSource:
         y = tf.convert_to_tensor(self.rate_nphnel())
         p_ph = tf.convert_to_tensor(self.detection_p('photon'))
         p_el = tf.convert_to_tensor(self.detection_p('electron'))
-        d_ph = tf.convert_to_tensor(self.detector_response('photon'))
-        d_el = tf.convert_to_tensor(self.detector_response('electron'))
+        d_ph = self.detector_response('photon')
+        d_el = self.detector_response('electron')
 
         # Rearrange dimensions so we can do a single matrix mult
         # Alternatively, you could do
@@ -344,8 +345,8 @@ class ERSource:
         #                          d_ph, p_ph, y, p_el, d_el)
         # but that's about 10x slower!
         p_el = tf.transpose(p_el, (0, 2, 1))
-        d_ph = d_ph[:, tf.newaxis, :]
-        d_el = d_el[:, :, tf.newaxis]
+        d_ph = d_ph[:, o, :]
+        d_el = d_el[:, :, o]
         y = d_ph @ p_ph @ y @ p_el @ d_el
         return tf.reshape(y, [-1]).numpy()
 
@@ -462,7 +463,7 @@ class ERSource:
             std = ndet**0.5 * std_per_q
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
-        result = stats.norm.pdf(observed, loc=mean, scale=std + 1e-10)
+        result = tfd.Normal(loc=mean, scale=std + 1e-10).prob(observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
