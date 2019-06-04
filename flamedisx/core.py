@@ -43,7 +43,7 @@ def _lookup_axis1(x, indices, fill_value=0):
     if type(x) is not np.ndarray:
         x = x.numpy()
     if type(indices) is not np.ndarray:
-        indices = indices.numpy()
+        indices = indices.numpy().astype(np.int)
 
     d = indices
     imax = x.shape[1]
