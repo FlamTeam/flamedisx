@@ -40,8 +40,10 @@ def _lookup_axis1(x, indices, fill_value=0):
 
     TODO rewrite for tf, for now just convert back to numpy
     """
-    x = x.numpy()
-    indices = indices.numpy()
+    if type(x) is not np.ndarray:
+        x = x.numpy()
+    if type(indices) is not np.ndarray:
+        indices = indices.numpy()
 
     d = indices
     imax = x.shape[1]
