@@ -36,7 +36,13 @@ o = tf.newaxis
 
 def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
-    returning fill_value for out-of-range indices"""
+    returning fill_value for out-of-range indices.
+
+    TODO rewrite for tf, for now just convert back to numpy
+    """
+    x = x.numpy()
+    indices = indices.numpy()
+
     d = indices
     imax = x.shape[1]
     mask = d >= imax
@@ -46,11 +52,10 @@ def _lookup_axis1(x, indices, fill_value=0):
         d.reshape(len(d), -1), axis=1
         ).reshape(d.shape)
     result[mask] = fill_value
-    return result
+    return tf.convert_to_tensor(result, dtype=tf.float64)
 
 
 class ERSource:
-
     data_methods = tuple(data_methods)
     special_data_methods = tuple(special_data_methods)
 
