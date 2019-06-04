@@ -422,7 +422,8 @@ class ERSource:
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('penning_quenching_eff', n_prod)
-        result = tfd.Binomial(total_count=n_prod, probs=p).prob(n_det)
+        result = tfd.Binomial(total_count=n_prod.astype(tf.float32),
+                              probs=p.astype(tf.float32)).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
