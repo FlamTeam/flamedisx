@@ -63,7 +63,7 @@ class ERSource:
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
-    do_pel_fluct = True
+    do_pel_fluct = False
 
     ##
     # Model functions
@@ -412,7 +412,8 @@ class ERSource:
                                             p_sigma=pel_fluct)
         else:
             pel_clip = np.nan_to_num(pel).clip(0, 1)
-            return rate_nq * tfd.Binomial(nq, pel_clip).prob(nel)
+            return rate_nq * tfd.Binomial(total_count=nq,
+                                          probs=pel_clip).prob(nel)
 
     def detection_p(self, quanta_type):
         """Return (n_events, |detected|, |produced|) tensor
