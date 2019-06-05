@@ -39,7 +39,7 @@ def _lookup_axis1(x, indices, fill_value=0):
     returning fill_value for out-of-range indices.
     """
     x = tf.convert_to_tensor(x)
-    indices = tf.convert_to_tensor(indices, dtype=tf.int32)
+    indices = tf.dtypes.cast(indices, dtype=tf.int32)
 
     result = tf.gather(x,
                        indices,
