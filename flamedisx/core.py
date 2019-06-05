@@ -104,7 +104,7 @@ class ERSource:
     # Detection efficiencies
 
     @staticmethod
-    def electron_detection_eff(drift_time, elife=600e3, extraction_eff=1):
+    def electron_detection_eff(drift_time, *, elife=600e3, extraction_eff=1):
         return extraction_eff * np.exp(-drift_time / elife)
 
     photon_detection_eff = 0.1
@@ -432,7 +432,7 @@ class ERSource:
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
         n = self._dimsize(x)
-        return np.arange(n)[o, :] + self.data[x + '_min'].astype(np.int)[:, o]
+        return np.arange(n)[o, :] + self.data[x + '_min'][:, o]
 
     def cross_domains(self, x, y):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
@@ -591,6 +591,8 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     TODO: check if the number of successes wasn't reversed in the original
     code. Should we have [x, n-x] or [n-x, x]?
     """
+    return tfd.Binomial(total_count=n, probs=p_mean).prob(x)
+
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
     counts = tf.stack([x, n-x], axis=-1)
     return tfd.DirichletMultinomial(n, beta_pars).prob(counts)
