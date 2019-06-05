@@ -33,22 +33,20 @@ for _qn in quanta_types:
 
 o = tf.newaxis
 
-
-def _lookup_axis1(x, indices, fill_value=0):
+def my_lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
-    returning fill_value for out-of-range indices.
+       returning fill_value for out-of-range indices.
     """
-    x = tf.convert_to_tensor(x)
+
+    mask = indices < x.shape[1]
+    a, b = x.shape
+    x = tf.reshape(tf.convert_to_tensor(x), [-1])
     indices = tf.dtypes.cast(indices, dtype=tf.int32)
-
-    result = tf.gather(x,
-                       indices,
-                       axis=1,
-                       batch_dims=None)
-
-    return tf.where(x < indices.shape[1],
-                    result,
-                    tf.zeros_like(x) + fill_value)
+    indices = indices + b * tf.range(a)[:, o, o]
+    result = tf.reshape(tf.gather(x,
+                                  tf.reshape(indices, shape=(-1,))),
+                        shape=indices.shape)
+    return tf.where(mask, result, tf.zeros_like(result) + fill_value)
 
 
 class ERSource:
