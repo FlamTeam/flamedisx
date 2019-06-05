@@ -33,7 +33,7 @@ for _qn in quanta_types:
 
 o = tf.newaxis
 
-def my_lookup_axis1(x, indices, fill_value=0):
+def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
        returning fill_value for out-of-range indices.
     """
