@@ -63,7 +63,7 @@ class ERSource:
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
-    do_pel_fluct = False
+    do_pel_fluct = True
 
     ##
     # Model functions
@@ -592,8 +592,6 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     TODO: check if the number of successes wasn't reversed in the original
     code. Should we have [x, n-x] or [n-x, x]?
     """
-    return tfd.Binomial(total_count=n, probs=p_mean).prob(x)
-
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
     counts = tf.stack([x, n-x], axis=-1)
     return tfd.DirichletMultinomial(n, beta_pars).prob(counts)
