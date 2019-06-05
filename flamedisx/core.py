@@ -37,24 +37,18 @@ o = tf.newaxis
 def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
     returning fill_value for out-of-range indices.
-
-    TODO rewrite for tf, for now just convert back to numpy
     """
-    if type(x) is not np.ndarray:
-        x = x.numpy()
-    if type(indices) is not np.ndarray:
-        indices = indices.numpy().astype(np.int)
+    x = tf.convert_to_tensor(x)
+    indices = tf.convert_to_tensor(indices, dtype=tf.int32)
 
-    d = indices
-    imax = x.shape[1]
-    mask = d >= imax
-    d[mask] = 0
-    result = np.take_along_axis(
-        x,
-        d.reshape(len(d), -1), axis=1
-        ).reshape(d.shape)
-    result[mask] = fill_value
-    return tf.convert_to_tensor(result, dtype=tf.float64)
+    result = tf.gather(x,
+                       indices,
+                       axis=1,
+                       batch_dims=None)
+
+    return tf.where(x < indices.shape[1],
+                    result,
+                    tf.zeros_like(x) + fill_value)
 
 
 class ERSource:
