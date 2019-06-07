@@ -322,7 +322,7 @@ class ERSource:
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
 
         # Precompute tensors for use in gimme
-        for fname, v in self.f_dims:
+        for fname, v in self.f_dims.items():
             self.tensor_data[fname] = [tf.convert_to_tensor(d[x],
                                                             dtype=tf.float32) for x in v]
 
