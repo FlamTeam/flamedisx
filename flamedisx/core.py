@@ -177,7 +177,10 @@ class ERSource:
         f = getattr(self, fname)
 
         if callable(f):
-            args = self.tensor_data[fname]
+            if fname in self.tensor_data.keys():
+                args = self.tensor_data[fname]
+            else:
+                args = [data[x].values for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
@@ -206,6 +209,9 @@ class ERSource:
             self._params = old_params
 
     def set_data(self, data, max_sigma=3):
+        # remove any previously computed tensors
+        self.tensor_data = dict()
+        # Set new data
         self.data = d = data
 
         # TODO precompute energy spectra for each event?
