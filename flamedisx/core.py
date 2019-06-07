@@ -131,7 +131,6 @@ class ERSource:
     ##
     data: pd.DataFrame = None
     params: dict = None
-    tensor_data: dict = None
 
     ##
     # Main code body
@@ -158,6 +157,7 @@ class ERSource:
         if data is not None:
             self.set_data(data)
         self._params = params
+        self.tensor_data = dict()
 
     @property
     def n_evts(self):
