@@ -323,8 +323,7 @@ class ERSource:
 
         # Precompute tensors for use in gimme
         for fname, v in self.f_dims.items():
-            self.tensor_data[fname] = [tf.convert_to_tensor(d[x],
-                                                            dtype=tf.float32) for x in v]
+            self.tensor_data[fname] = [tf.convert_to_tensor(d[x]) for x in v]
 
     def likelihood(self, data=None, max_sigma=3, batch_size=10,
                    progress=lambda x: x, **params):
