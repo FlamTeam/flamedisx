@@ -131,6 +131,7 @@ class ERSource:
     ##
     data: pd.DataFrame = None
     params: dict = None
+    tensor_data: dict = None
 
     ##
     # Main code body
@@ -176,7 +177,7 @@ class ERSource:
         f = getattr(self, fname)
 
         if callable(f):
-            args = [data[x].values for x in self.f_dims[fname]]
+            args = self.tensor_data[fname]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
@@ -313,6 +314,11 @@ class ERSource:
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
+
+        # Precompute tensors for use in gimme
+        for fname, v in self.f_dims:
+            self.tensor_data[fname] = [tf.convert_to_tensor(d[x],
+                                                            dtype=tf.float32) for x in v]
 
     def likelihood(self, data=None, max_sigma=3, batch_size=10,
                    progress=lambda x: x, **params):
