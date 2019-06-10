@@ -2,6 +2,8 @@ import inspect
 
 import tensorflow as tf
 import tensorflow_probability as tfp
+# Remove once tf.repeat is available in the tf api
+from tensorflow.python.ops.ragged.ragged_util import repeat
 import numpy as np
 from scipy import stats
 from scipy.special import gammaln
@@ -453,10 +455,10 @@ class ERSource:
         # TODO: somehow mask unnecessary elements and save computation time
         x_size = self._dimsize(x)
         y_size = self._dimsize(y)
-        result_x = self.domain(x)[:, :, o].repeat(y_size, axis=2)
-        result_y = self.domain(y)[:, o, :].repeat(x_size, axis=1)
-        return (tf.convert_to_tensor(result_x, dtype=tf.float64),
-                tf.convert_to_tensor(result_y, dtype=tf.float64))
+        # Change to tf.repeat once its in the api
+        result_x = repeat(self.domain(x)[:, :, o], y_size, axis=2)
+        result_y = repeat(self.domain(y)[:, o, :], x_size, axis=1)
+        return result_x, result_y
 
     def detector_response(self, quanta_type):
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
