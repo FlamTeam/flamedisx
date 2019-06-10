@@ -639,8 +639,8 @@ class NRSource(ERSource):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        e = np.linspace(0.7, 150, 100)[o, :].repeat(len(drift_time), axis=0)
-        return e, np.ones_like(e)
+        e = repeat(tf.linspace(0.7, 150, 100)[o, :], len(drift_time), axis=0)
+        return e, tf.ones_like(e)
 
     def rate_nq(self, nq_1d):
         # (n_events, |ne|) tensors
@@ -651,10 +651,9 @@ class NRSource(ERSource):
                 / self.gimme('work')[:, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        p_nq_e = stats.poisson.pmf(nq_1d[:, :, o],
-                                   mean_q_produced[:, o, :])
+        p_nq_e = tfd.Poisson(mean_q_produced[:, o, :]).prob(nq_1d[:, :, o])
 
-        return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
+        return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
     @staticmethod
     def penning_quenching_eff(nph, eta=8.2e-5 * 3.3, labda=0.8 * 1.15):
