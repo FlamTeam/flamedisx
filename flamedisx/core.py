@@ -328,6 +328,8 @@ class ERSource:
         # Precompute tensors for use in gimme
         for fname, v in self.f_dims.items():
             self.tensor_data[fname] = [tf.convert_to_tensor(d[x]) for x in v]
+        for fname in ['s1', 's2']:
+            self.tensor_data[fname] = tf.convert_to_tensor(d[fname])
 
     def likelihood(self, data=None, max_sigma=3, batch_size=10,
                    progress=lambda x: x, **params):
@@ -469,7 +471,7 @@ class ERSource:
         ndet = tf.cast(self.domain(quanta_type + '_detected'),
                        dtype=tf.float64)
 
-        observed = self.data[signal_name[quanta_type]].values[:, o]
+        observed = self.tensor_data[signal_name[quanta_type]][self.batch_slice, o]
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean')[:, o]
