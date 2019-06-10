@@ -327,7 +327,6 @@ class ERSource:
         for fname, v in self.f_dims.items():
             self.tensor_data[fname] = [tf.convert_to_tensor(d[x]) for x in v]
 
-    @tf.function
     def likelihood(self, data=None, max_sigma=3, batch_size=10,
                    progress=lambda x: x, **params):
         self._params = params
