@@ -466,7 +466,8 @@ class ERSource:
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
         for different number of detected quanta.
         """
-        ndet = self.domain(quanta_type + '_detected')
+        ndet = tf.cast(self.domain(quanta_type + '_detected'),
+                       dtype=tf.float64)
 
         observed = self.data[signal_name[quanta_type]].values[:, o]
 
