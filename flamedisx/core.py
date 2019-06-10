@@ -42,7 +42,7 @@ def _lookup_axis1(x, indices, fill_value=0):
 
     mask = indices < x.shape[1]
     a, b = x.shape
-    x = tf.reshape(tf.convert_to_tensor(x), [-1])
+    x = tf.reshape(x, [-1])
     indices = tf.dtypes.cast(indices, dtype=tf.int32)
     indices = indices + b * tf.range(a)[:, o, o]
     result = tf.reshape(tf.gather(x,
@@ -399,10 +399,8 @@ class ERSource:
         # these four are (n_events, |nq|) tensors
         _nq_1d = self.domain('nq')
         rate_nq = self.rate_nq(_nq_1d)
-        pel = self.gimme('p_electron',
-                         tf.cast(_nq_1d, dtype=tf.float32))
-        pel_fluct = self.gimme('p_electron_fluctuation',
-                               tf.cast(_nq_1d, dtype=tf.float32))
+        pel = self.gimme('p_electron', _nq_1d)
+        pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
 
         # Create tensors with the dimensions of our final result
         # i.e. (n_events, |photons_produced|, |electrons_produced|),
@@ -412,8 +410,7 @@ class ERSource:
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... indices in nq arrays
-        nq_min = self.data['nq_min'][self.batch_slice].values.astype(np.int)[:, o, o]
-        _nq_ind = nq - nq_min
+        _nq_ind = nq - self.data['nq_min'][self.batch_slice].values[:, o, o]
         # ... differential rate
         rate_nq = _lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
@@ -430,8 +427,8 @@ class ERSource:
         else:
             pel_num = tf.where(tf.math.is_nan(pel), tf.zeros_like(pel), pel)
             pel_clip = tf.clip_by_value(pel_num, 0., 1.)
-            return rate_nq * tfd.Binomial(total_count=tf.cast(nq, dtype=tf.float32),
-                                          probs=pel_clip).prob(tf.cast(nel, dtype=tf.float32))
+            return rate_nq * tfd.Binomial(total_count=nq,
+                                          probs=pel_clip).prob(nel)
 
     def detection_p(self, quanta_type):
         """Return (n_events, |detected|, |produced|) tensor
@@ -439,20 +436,22 @@ class ERSource:
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
                                            quanta_type + '_produced')
+
         p = self.gimme(quanta_type + '_detection_eff')[:, o, o]
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('penning_quenching_eff', n_prod)
-        p = tf.convert_to_tensor(p, dtype=tf.float32)
-        result = tfd.Binomial(total_count=tf.cast(n_prod, dtype=tf.float32),
-                              probs=p).prob(tf.cast(n_det, dtype=tf.float32))
+
+        result = tfd.Binomial(total_count=n_prod,
+                              probs=p).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
         n = self._dimsize(x)
-        return tf.range(n)[o, :] + self.data[x + '_min'][self.batch_slice][:, o]
+        res = tf.range(n)[o, :] + self.data[x + '_min'][self.batch_slice][:, o]
+        return tf.cast(res, dtype=tf.float32)
 
     def cross_domains(self, x, y):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
@@ -470,8 +469,7 @@ class ERSource:
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
         for different number of detected quanta.
         """
-        ndet = tf.cast(self.domain(quanta_type + '_detected'),
-                       dtype=tf.float32)
+        ndet = self.domain(quanta_type + '_detected')
 
         observed = self.tensor_data[signal_name[quanta_type]][self.batch_slice, o]
 
@@ -613,8 +611,8 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     code. Should we have [x, n-x] or [n-x, x]?
     """
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
-    counts = tf.cast(tf.stack([x, n-x], axis=-1), dtype=tf.float32)
-    res = tfd.DirichletMultinomial(tf.cast(n, dtype=tf.float32),
+    counts = tf.stack([x, n-x], axis=-1)
+    res = tfd.DirichletMultinomial(n,
                                    beta_pars,
                                    allow_nan_stats=False).prob(counts)
     return tf.where(tf.math.is_finite(res), res, tf.zeros_like(res))
