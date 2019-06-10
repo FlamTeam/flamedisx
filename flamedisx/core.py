@@ -428,7 +428,7 @@ class ERSource:
                                             p_mean=pel,
                                             p_sigma=pel_fluct)
         else:
-            pel_num = tf.where(tf.is_nan(pel), tf.zeros_like(pel), pel)
+            pel_num = tf.where(tf.math.is_nan(pel), tf.zeros_like(pel), pel)
             pel_clip = tf.clip_by_value(pel_num, 0., 1.)
             return rate_nq * tfd.Binomial(total_count=nq,
                                           probs=pel_clip).prob(nel)
