@@ -409,7 +409,8 @@ class ERSource:
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... indices in nq arrays
-        _nq_ind = nq - self.data['nq_min'].values.astype(np.int)[:, o, o]
+        nq_min = self.data['nq_min'][self.batch_slice].values.astype(np.int)[:, o, o]
+        _nq_ind = nq - nq_min
         # ... differential rate
         rate_nq = _lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
