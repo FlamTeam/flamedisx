@@ -76,7 +76,7 @@ class ERSource:
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
-        es, rs = self.gimme('energy_spectrum').numpy()
+        es, rs = self.gimme('energy_spectrum', numpy=True)
         return Hist1d.from_histogram(rs[0, :-1], es[0, :])
 
     def simulate_es(self, n):
