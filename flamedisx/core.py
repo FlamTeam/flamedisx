@@ -382,12 +382,11 @@ class ERSource:
 
         # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum')
-        q_produced = tf.cast(tf.floor(es / self.gimme('work')[:, o]),
-                             dtype=tf.int32)
+        q_produced = tf.floor(es / self.gimme('work')[:, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
         p_nq_e = tf.cast(tf.equal(nq_1d[:, :, o], q_produced[:, o, :]),
-                         dtype=tf.float64)
+                         dtype=tf.float32)
 
         return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
