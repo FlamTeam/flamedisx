@@ -443,7 +443,8 @@ class ERSource:
             p = p * self.gimme('penning_quenching_eff', n_prod)
 
         result = tfd.Binomial(total_count=n_prod,
-                              probs=p).prob(n_det)
+                              probs=tf.cast(p, dtype=tf.float32),
+                              ).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
