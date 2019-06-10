@@ -158,6 +158,7 @@ class ERSource:
             self.set_data(data)
         self._params = params
         self.tensor_data = dict()
+        self.batch_slice = slice(None)
 
     @property
     def n_evts(self):
@@ -178,9 +179,9 @@ class ERSource:
 
         if callable(f):
             if fname in self.tensor_data.keys():
-                args = self.tensor_data[fname]
+                args = self.tensor_data[fname][self.batch_slice]
             else:
-                args = [data[x].values for x in self.f_dims[fname]]
+                args = [data[x].values[self.batch_slice] for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
@@ -191,7 +192,7 @@ class ERSource:
 
         else:
             if bonus_arg is None:
-                return f * np.ones(len(data))
+                return f * np.ones(len(data))[self.batch_slice]
             return f * np.ones_like(bonus_arg)
 
     def annotate_data(self, data, max_sigma=3, **params):
@@ -211,6 +212,7 @@ class ERSource:
     def set_data(self, data, max_sigma=3):
         # remove any previously computed tensors
         self.tensor_data = dict()
+        self.batch_slice = slice(None)
         # Set new data
         self.data = d = data
 
@@ -333,13 +335,15 @@ class ERSource:
         del data   # Just so we don't reference it by accident
 
         # Evaluate in batches to save memory
-        n_batches = np.ceil(len(self.data) / batch_size).astype(np.int)
+        n_batches = np.ceil(len(self.data[self.batch_slice]) / batch_size).astype(np.int)
         if n_batches > 1:
-            orig_data = self.data
+            # orig_data = self.data
             result = []
             for i in progress(list(range(n_batches))):
-                self.data = orig_data[
-                            i * batch_size:(i + 1) * batch_size].copy()
+                self.batch_slice = slice(i * batch_size,
+                                         (i + 1) * batch_size)
+                # self.data = orig_data[
+                #             i * batch_size:(i + 1) * batch_size].copy()
                 result.append(self.likelihood(**params))
             return np.concatenate(result)
 
