@@ -204,6 +204,7 @@ class ERSource:
             if isinstance(res, np.ndarray):
                 return res
             return res.numpy()
+        return res
 
     def annotate_data(self, data, max_sigma=3, **params):
         """Annotate data with columns needed or inference,
