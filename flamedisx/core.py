@@ -469,7 +469,7 @@ class ERSource:
         for different number of detected quanta.
         """
         ndet = tf.cast(self.domain(quanta_type + '_detected'),
-                       dtype=tf.float64)
+                       dtype=tf.float32)
 
         observed = self.tensor_data[signal_name[quanta_type]][self.batch_slice, o]
 
