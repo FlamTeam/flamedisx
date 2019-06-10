@@ -167,7 +167,7 @@ class ERSource:
     def n_evts(self):
         return len(self.data)
 
-    def gimme(self, fname, bonus_arg=None, data=None, params=None):
+    def gimme(self, fname, bonus_arg=None, data=None, params=None, numpy=False):
         if fname in self.special_data_methods:
             assert bonus_arg is not None
         else:
@@ -192,12 +192,18 @@ class ERSource:
             kwargs = {k: v for k, v in params.items()
                       if k in self.f_params[fname]}
 
-            return f(*args, **kwargs)
+            res = f(*args, **kwargs)
 
         else:
             if bonus_arg is None:
-                return f * tf.ones(len(data))[self.batch_slice]
-            return f * tf.ones_like(bonus_arg)[self.batch_slice]
+                res = f * tf.ones(len(data))[self.batch_slice]
+            else:
+                res =  f * tf.ones_like(bonus_arg)[self.batch_slice]
+
+        if numpy:
+            if isinstance(res, np.ndarray):
+                return res
+            return res.numpy()
 
     def annotate_data(self, data, max_sigma=3, **params):
         """Annotate data with columns needed or inference,
@@ -229,8 +235,8 @@ class ERSource:
         for qn in quanta_types:
             for parname in hidden_vars_per_quanta:
                 fname = qn + '_' + parname
-                d[fname] = self.gimme(fname).numpy()
-        d['double_pe_fraction'] = self.gimme('double_pe_fraction').numpy()
+                d[fname] = self.gimme(fname, numpy=True)
+        d['double_pe_fraction'] = self.gimme('double_pe_fraction', numpy=True)
 
         # Find likely number of detected quanta
         obs = dict(photon=d['s1'], electron=d['s2'])
@@ -247,7 +253,7 @@ class ERSource:
         # TODO: this will fail when someone gives penning quenching some
         # data-dependent args
         _nprod_temp = np.logspace(-1, 8, 1000)
-        peff = self.gimme('penning_quenching_eff', _nprod_temp).numpy()
+        peff = self.gimme('penning_quenching_eff', _nprod_temp, numpy=True)
         d['penning_quenching_eff_mle'] = np.interp(
             d['photon_detected_mle'] / d['photon_detection_eff'],
             _nprod_temp * peff,
@@ -259,8 +265,8 @@ class ERSource:
             d['electron_detected_mle'] / d['electron_detection_eff']
             + (d['photon_detected_mle'] / d['photon_detection_eff']
                / d['penning_quenching_eff_mle']))
-        d['e_vis'] = self.gimme('work').numpy() * d['nq_vis_mle']
-        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle']).numpy()
+        d['e_vis'] = self.gimme('work', numpy=True) * d['nq_vis_mle']
+        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'], numpy=True)
 
         # Find plausble ranges for detected and observed quanta
         # based on the observed S1 and S2 sizes
