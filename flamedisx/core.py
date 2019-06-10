@@ -608,7 +608,7 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     """
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
     counts = tf.stack([x, n-x], axis=-1)
-    res = tfd.DirichletMultinomial(n,
+    res = tfd.DirichletMultinomial(tf.cast(n, dtype=tf.float32),
                                    beta_pars,
                                    allow_nan_stats=False).prob(counts)
     return tf.where(tf.math.is_finite(res), res, tf.zeros_like(res))
