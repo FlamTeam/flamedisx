@@ -184,7 +184,8 @@ class ERSource:
             if fname in self.tensor_data.keys():
                 args = [v[self.batch_slice] for v in self.tensor_data[fname]]
             else:
-                args = list(data[self.f_dims[fname]].values.T[..., self.batch_slice])
+                # args = list(data[self.f_dims[fname]].values.T[..., self.batch_slice])
+                args = [data[x].values[self.batch_slice] for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
