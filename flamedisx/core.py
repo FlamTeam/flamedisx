@@ -366,8 +366,8 @@ class ERSource:
         return tf.reshape(y, [-1]).numpy()
 
     def _dimsize(self, var):
-        return int((self.data[var + '_max']
-                    - self.data[var + '_min']).max())
+        return int((self.data[var + '_max'][self.batch_slice]
+                    - self.data[var + '_min'][self.batch_slice]).max())
 
     def rate_nq(self, nq_1d):
         """Return differential rate at given number of produced quanta
@@ -441,7 +441,7 @@ class ERSource:
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
         n = self._dimsize(x)
-        return np.arange(n)[o, :] + self.data[x + '_min'][:, o]
+        return tf.range(n)[o, :] + self.data[x + '_min'][self.batch_slice][:, o]
 
     def cross_domains(self, x, y):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
