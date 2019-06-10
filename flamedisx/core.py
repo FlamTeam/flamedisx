@@ -611,7 +611,7 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     code. Should we have [x, n-x] or [n-x, x]?
     """
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
-    counts = tf.cast(tf.stack([x, n-x], axis=-1), dtype=tf.float64)
+    counts = tf.cast(tf.stack([x, n-x], axis=-1), dtype=tf.float32)
     res = tfd.DirichletMultinomial(tf.cast(n, dtype=tf.float32),
                                    beta_pars,
                                    allow_nan_stats=False).prob(counts)
