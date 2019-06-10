@@ -48,7 +48,8 @@ def _lookup_axis1(x, indices, fill_value=0):
     result = tf.reshape(tf.gather(x,
                                   tf.reshape(indices, shape=(-1,))),
                         shape=indices.shape)
-    return tf.where(mask, result, tf.zeros_like(result) + fill_value)
+    return tf.cast(tf.where(mask, result, tf.zeros_like(result) + fill_value),
+                   dtype=tf.float32)
 
 
 class ERSource:
