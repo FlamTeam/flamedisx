@@ -70,9 +70,8 @@ class ERSource:
         """
         # TODO: doesn't depend on drift_time...
         n_evts = len(drift_time)
-        return (
-            np.linspace(0, 10, 1000)[o, :].repeat(n_evts, axis=0),
-            np.ones(1000)[o, :].repeat(n_evts, axis=0))
+        return (repeat(tf.linspace(0, 10, 1000)[o, :], n_evts, axis=0),
+                repeat(tf.ones(1000)[o, :], n_evts, axis=0))
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
@@ -99,33 +98,39 @@ class ERSource:
     # Detection efficiencies
 
     @staticmethod
-    def electron_detection_eff(drift_time, *, elife=600e3, extraction_eff=1):
-        return extraction_eff * np.exp(-drift_time / elife)
+    def electron_detection_eff(drift_time, *, elife=600e3, extraction_eff=1.):
+        return extraction_eff * tf.exp(-drift_time / elife)
 
     photon_detection_eff = 0.1
 
     # Acceptance of selection/detection on photons/electrons detected
 
-    electron_acceptance = 1
+    electron_acceptance = 1.
 
     @staticmethod
     def photon_acceptance(photons_detected):
-        return np.where(photons_detected < 3, 0, 1)
+        return tf.where(photons_detected < 3,
+                        tf.zeros_like(photons_detected),
+                        tf.ones_like(photons_detected))
 
     # Acceptance of selections on S1/S2 directly
 
     @staticmethod
     def s1_acceptance(s1):
-        return np.where(s1 < 2, 0, 1)
+        return tf.where(s1 < 2,
+                        tf.zeros_like(s1),
+                        tf.ones_like(s1))
 
     @staticmethod
     def s2_acceptance(s2):
-        return np.where(s2 < 200, 0, 1)
+        return tf.where(s2 < 200,
+                        tf.zeros_like(s2),
+                        tf.ones_like(s2))
 
-    electron_gain_mean = 20
-    electron_gain_std = 5
+    electron_gain_mean = 20.
+    electron_gain_std = 5.
 
-    photon_gain_mean = 1
+    photon_gain_mean = 1.
     photon_gain_std = 0.5
     double_pe_fraction = 0.219
 
