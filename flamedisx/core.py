@@ -342,13 +342,12 @@ class ERSource:
         # Evaluate in batches to save memory
         n_batches = np.ceil(len(self.data[self.batch_slice]) / batch_size).astype(np.int)
         if n_batches > 1:
-            # orig_data = self.data
+            orig_data = self.data
             result = []
             for i in progress(list(range(n_batches))):
                 self.batch_slice = slice(i * batch_size,
                                          (i + 1) * batch_size)
-                # self.data = orig_data[
-                #             i * batch_size:(i + 1) * batch_size].copy()
+                self.data = orig_data[self.batch_slice].copy()
                 result.append(self.likelihood(**params))
             return np.concatenate(result)
 
