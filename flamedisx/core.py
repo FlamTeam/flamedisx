@@ -430,7 +430,7 @@ class ERSource:
         else:
             pel_num = tf.where(tf.math.is_nan(pel), tf.zeros_like(pel), pel)
             pel_clip = tf.clip_by_value(pel_num, 0., 1.)
-            return rate_nq * tfd.Binomial(total_count=nq,
+            return rate_nq * tfd.Binomial(total_count=tf.cast(nq, dtype=tf.float32),
                                           probs=pel_clip).prob(nel)
 
     def detection_p(self, quanta_type):
