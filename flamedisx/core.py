@@ -401,7 +401,7 @@ class ERSource:
         pel = self.gimme('p_electron',
                          tf.cast(_nq_1d, dtype=tf.float64))
         pel_fluct = self.gimme('p_electron_fluctuation',
-                               tf.cast(_nq_1d, dtype=tf.float64))
+                               tf.cast(_nq_1d, dtype=tf.float32))
 
         # Create tensors with the dimensions of our final result
         # i.e. (n_events, |photons_produced|, |electrons_produced|),
@@ -441,9 +441,9 @@ class ERSource:
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('penning_quenching_eff', n_prod)
-        p = tf.convert_to_tensor(p, dtype=tf.float64)
-        result = tfd.Binomial(total_count=tf.cast(n_prod, dtype=tf.float64),
-                              probs=p).prob(tf.cast(n_det, dtype=tf.float64))
+        p = tf.convert_to_tensor(p, dtype=tf.float32)
+        result = tfd.Binomial(total_count=tf.cast(n_prod, dtype=tf.float32),
+                              probs=p).prob(tf.cast(n_det, dtype=tf.float32))
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
