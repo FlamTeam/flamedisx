@@ -431,7 +431,7 @@ class ERSource:
             pel_num = tf.where(tf.math.is_nan(pel), tf.zeros_like(pel), pel)
             pel_clip = tf.clip_by_value(pel_num, 0., 1.)
             return rate_nq * tfd.Binomial(total_count=tf.cast(nq, dtype=tf.float32),
-                                          probs=pel_clip).prob(nel)
+                                          probs=pel_clip).prob(tf.cast(nel, dtype=tf.float32))
 
     def detection_p(self, quanta_type):
         """Return (n_events, |detected|, |produced|) tensor
