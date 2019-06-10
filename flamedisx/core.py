@@ -327,6 +327,7 @@ class ERSource:
         for fname, v in self.f_dims.items():
             self.tensor_data[fname] = [tf.convert_to_tensor(d[x]) for x in v]
 
+    @tf.function
     def likelihood(self, data=None, max_sigma=3, batch_size=10,
                    progress=lambda x: x, **params):
         self._params = params
@@ -380,7 +381,7 @@ class ERSource:
         q_produced = np.floor(es / self.gimme('work')[:, o]).astype(np.int)
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        p_nq_e = (nq_1d[:, :, o] == q_produced[:, o, :]).astype(np.int)
+        p_nq_e = tf.equal(nq_1d[:, :, o], q_produced[:, o, :]).astype(np.int)
 
         return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
 
