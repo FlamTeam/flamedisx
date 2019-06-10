@@ -377,12 +377,12 @@ class ERSource:
 
         # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum')
-        q_produced = np.floor(es / self.gimme('work')[:, o]).astype(np.int)
+        q_produced = tf.floor(es / self.gimme('work')[:, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        p_nq_e = tf.equal(nq_1d[:, :, o], q_produced[:, o, :]).astype(np.int)
+        p_nq_e = tf.equal(nq_1d[:, :, o], q_produced[:, o, :])
 
-        return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
+        return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
     def rate_nphnel(self):
         """Return differential rate tensor
