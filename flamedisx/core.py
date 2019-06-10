@@ -440,7 +440,8 @@ class ERSource:
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('penning_quenching_eff', n_prod)
         p = tf.convert_to_tensor(p, dtype=tf.float64)
-        result = tfd.Binomial(total_count=n_prod, probs=p).prob(n_det)
+        result = tfd.Binomial(total_count=tf.cast(n_prod, dtype=tf.float64),
+                              probs=p).prob(tf.cast(n_det, dtype=tf.float64))
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
