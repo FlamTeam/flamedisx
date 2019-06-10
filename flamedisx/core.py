@@ -399,7 +399,7 @@ class ERSource:
         _nq_1d = self.domain('nq')
         rate_nq = self.rate_nq(_nq_1d)
         pel = self.gimme('p_electron',
-                         tf.cast(_nq_1d, dtype=tf.float64))
+                         tf.cast(_nq_1d, dtype=tf.float32))
         pel_fluct = self.gimme('p_electron_fluctuation',
                                tf.cast(_nq_1d, dtype=tf.float32))
 
