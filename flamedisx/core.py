@@ -221,7 +221,8 @@ class ERSource:
             # make sure output is tensor (or tuple of tensors)
             if isinstance(res, tuple):
                 if not isinstance(res[0], np.ndarray):
-                    [assert v.dtype is tf.float32 for v in res]
+                    for v in res:
+                        assert v.dtype is tf.float32
                 return tuple([v
                               if isinstance(v, tf.Tensor)
                               else tf.convert_to_tensor(v, dtype=tf.float32)
