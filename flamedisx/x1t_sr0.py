@@ -2,19 +2,12 @@
 
 """
 import numpy as np
-import tensorflow as tf
 
 from multihist import Hist1d
 import straxen
 import wimprates
 
 from flamedisx import ERSource, NRSource
-
-def make_tensor(func):
-    def inner(*args, **kwargs):
-        return tf.convert_to_tensor(func(*args, **kwargs),
-                                    dtype=tf.float32)
-    return inner
 
 ##
 # Electron probability
@@ -117,13 +110,11 @@ def safe_p(ps):
 class SR0Source:
 
     @staticmethod
-    @make_tensor
     def electron_detection_eff(drift_time,
                                *, elife=452e3, extraction_eff=0.96):
         return extraction_eff * np.exp(-drift_time / elife)
 
     @staticmethod
-    @make_tensor
     def electron_gain_mean(x_observed, y_observed,
                            g2=11.4 / (1 - 0.63) / 0.96):
         return g2 * s2_map(np.transpose([x_observed, y_observed]))
@@ -131,7 +122,6 @@ class SR0Source:
     electron_gain_std = 11.4 * 0.25 / (1 - 0.63)
 
     @staticmethod
-    @make_tensor
     def photon_detection_eff(x, y, z,
                              mean_eff=0.142 / (1 + 0.219)):
         return mean_eff * s1_map(np.transpose([x, y, z]))
@@ -140,12 +130,10 @@ class SR0Source:
 class SR0ERSource(SR0Source, ERSource):
 
     @staticmethod
-    @make_tensor
     def p_electron(nq):
         return safe_p(p_el_thesis(nq * 13.8e-3))
 
     @staticmethod
-    @make_tensor
     def p_electron_fluctuation(nq):
         # q3 = 1.7 keV ~= 123 quanta
         return np.clip(0.041 * (1 - np.exp(-nq/123)), 1e-4, None)
@@ -163,7 +151,6 @@ example_sp = Hist1d.from_histogram(
 
 class SR0NRSource(SR0Source, NRSource):
 
-    @make_tensor
     def energy_spectrum(self, drift_time):
         n_evts = len(drift_time)
         return (
@@ -171,6 +158,5 @@ class SR0NRSource(SR0Source, NRSource):
             example_sp.histogram[np.newaxis,:].repeat(n_evts, axis=0))
 
     @staticmethod
-    @make_tensor
     def p_electron(nq):
         return safe_p(p_electron_nr(nq))
