@@ -219,11 +219,13 @@ class ERSource:
             # make sure output is tensor (or tuple of tensors)
             if isinstance(res, tuple):
                 return tuple([v
-                              if tf.is_tensor(v)
+                              if isinstance(v, tf.Tensor)
                               else tf.convert_to_tensor(v, dtype=tf.float32)
                               for v in res])
             else:
-                return res if tf.is_tensor(res) else tf.convert_to_tensor(res, dtype=tf.float32)
+                return (res
+                        if isinstance(res, tf.Tensor)
+                        else tf.convert_to_tensor(res, dtype=tf.float32))
 
 
     def annotate_data(self, data, max_sigma=3, **params):
