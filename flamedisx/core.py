@@ -70,7 +70,7 @@ class ERSource:
         """
         # TODO: doesn't depend on drift_time...
         n_evts = len(drift_time)
-        return (repeat(tf.linspace(0, 10, 1000)[o, :], n_evts, axis=0),
+        return (repeat(tf.linspace(0., 10., 1000)[o, :], n_evts, axis=0),
                 repeat(tf.ones(1000)[o, :], n_evts, axis=0))
 
     def energy_spectrum_hist(self):
