@@ -71,7 +71,7 @@ class ERSource:
         # TODO: doesn't depend on drift_time...
         n_evts = len(drift_time)
         return (repeat(tf.linspace(0., 10., 1000)[o, :], n_evts, axis=0),
-                repeat(tf.ones(1000)[o, :], n_evts, axis=0))
+                repeat(tf.ones(1000, dtype=tf.float32)[o, :], n_evts, axis=0))
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
@@ -85,11 +85,11 @@ class ERSource:
 
     @staticmethod
     def p_electron(nq):
-        return 0.5 * tf.ones_like(nq)
+        return 0.5 * tf.ones_like(nq, dtype=tf.float32)
 
     @staticmethod
     def p_electron_fluctuation(nq):
-        return 0.01 * tf.ones_like(nq)
+        return 0.01 * tf.ones_like(nq, dtype=tf.float32)
 
     @staticmethod
     def penning_quenching_eff(nph):
@@ -110,22 +110,22 @@ class ERSource:
     @staticmethod
     def photon_acceptance(photons_detected):
         return tf.where(photons_detected < 3,
-                        tf.zeros_like(photons_detected),
-                        tf.ones_like(photons_detected))
+                        tf.zeros_like(photons_detected, dtype=tf.float32),
+                        tf.ones_like(photons_detected, dtype=tf.float32))
 
     # Acceptance of selections on S1/S2 directly
 
     @staticmethod
     def s1_acceptance(s1):
         return tf.where(s1 < 2,
-                        tf.zeros_like(s1),
-                        tf.ones_like(s1))
+                        tf.zeros_like(s1, dtype=tf.float32),
+                        tf.ones_like(s1, dtype=tf.float32))
 
     @staticmethod
     def s2_acceptance(s2):
         return tf.where(s2 < 200,
-                        tf.zeros_like(s2),
-                        tf.ones_like(s2))
+                        tf.zeros_like(s2, dtype=tf.float32),
+                        tf.ones_like(s2, dtype=tf.float32))
 
     electron_gain_mean = 20.
     electron_gain_std = 5.
@@ -629,8 +629,8 @@ def beta_params(mean, sigma):
     # =>
     # beta = (1/variance - 4) / 8
     # alpha
-    b = (1 / (8 * sigma ** 2) - 0.5)
-    a = b * mean / (1 - mean)
+    b = (1. / (8. * sigma ** 2) - 0.5)
+    a = b * mean / (1. - mean)
     return a, b
 
 
@@ -652,7 +652,9 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     res = tfd.DirichletMultinomial(n,
                                    beta_pars,
                                    allow_nan_stats=False).prob(counts)
-    return tf.where(tf.math.is_finite(res), res, tf.zeros_like(res))
+    return tf.where(tf.math.is_finite(res),
+                    res,
+                    tf.zeros_like(res, dtype=tf.float32))
 
 
 class NRSource(ERSource):
@@ -664,7 +666,7 @@ class NRSource(ERSource):
     def lindhard_l(e, lindhard_k=0.138):
         """Return Lindhard quenching factor at energy e in keV"""
         eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
-        g = 3 * eps**0.15 + 0.7 * eps**0.6 + eps
+        g = 3. * eps**0.15 + 0.7 * eps**0.6 + eps
         return lindhard_k * g/(1 + lindhard_k * g)
 
     def energy_spectrum(self, drift_time):
