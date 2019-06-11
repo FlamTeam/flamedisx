@@ -222,14 +222,14 @@ class ERSource:
             if isinstance(res, tuple):
                 if not isinstance(res[0], np.ndarray):
                     for v in res:
-                        assert v.dtype is tf.float32
+                        assert v.dtype is tf.float32, f'{v.dtype}'
                 return tuple([v
                               if isinstance(v, tf.Tensor)
                               else tf.convert_to_tensor(v, dtype=tf.float32)
                               for v in res])
             else:
                 if not isinstance(res, np.ndarray):
-                    assert res.dtype is tf.float32
+                    assert res.dtype is tf.float32, f'{res.dtype}'
                 return (res
                         if isinstance(res, tf.Tensor)
                         else tf.convert_to_tensor(res, dtype=tf.float32))
@@ -455,14 +455,16 @@ class ERSource:
         pel_fluct = _lookup_axis1(pel_fluct, _nq_ind)
 
         # Finally, the main computation is simple:
+        pel_num = tf.where(tf.math.is_nan(pel),
+                           tf.zeros_like(pel, dtype=tf.float32),
+                           pel)
+        pel_clip = tf.clip_by_value(pel_num, 0., 1.)
         if self.do_pel_fluct:
             return rate_nq * beta_binom_pmf(nel,
                                             n=nq,
-                                            p_mean=pel,
+                                            p_mean=pel_clip,
                                             p_sigma=pel_fluct)
         else:
-            pel_num = tf.where(tf.math.is_nan(pel), tf.zeros_like(pel), pel)
-            pel_clip = tf.clip_by_value(pel_num, 0., 1.)
             return rate_nq * tfd.Binomial(total_count=nq,
                                           probs=pel_clip).prob(nel)
 
