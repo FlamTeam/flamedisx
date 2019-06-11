@@ -276,7 +276,7 @@ class ERSource:
         # using interpolation
         # TODO: this will fail when someone gives penning quenching some
         # data-dependent args
-        _nprod_temp = np.logspace(-1, 8, 1000)
+        _nprod_temp = np.logspace(-1., 8., 1000)
         peff = self.gimme('penning_quenching_eff', _nprod_temp, numpy_out=True)
         d['penning_quenching_eff_mle'] = np.interp(
             d['photon_detected_mle'] / d['photon_detection_eff'],
@@ -567,6 +567,8 @@ class ERSource:
         d = d.sample(n=len(energies), replace=True)
 
         def gimme(*args):
+            args = [v.values if isinstance(v, pd.Series) else v
+                    for v in args]
             return self.gimme(*args,
                               data=d,
                               params=params,
@@ -667,8 +669,8 @@ class NRSource(ERSource):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        e = repeat(tf.linspace(0.7, 150, 100)[o, :], len(drift_time), axis=0)
-        return e, tf.ones_like(e)
+        e = repeat(tf.linspace(0.7, 150., 100)[o, :], len(drift_time), axis=0)
+        return e, tf.ones_like(e, dtype=tf.float32)
 
     def rate_nq(self, nq_1d):
         # (n_events, |ne|) tensors
@@ -685,7 +687,7 @@ class NRSource(ERSource):
 
     @staticmethod
     def penning_quenching_eff(nph, eta=8.2e-5 * 3.3, labda=0.8 * 1.15):
-        return 1 / (1 + eta * nph ** labda)
+        return 1. / (1. + eta * nph ** labda)
 
     def simulate_nq(self, data, params):
         work = self.gimme('work',
