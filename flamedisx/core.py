@@ -603,9 +603,10 @@ class ERSource:
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
-            acceptance *= gimme(q + '_acceptance', d[q + '_detected'])
+            acceptance *= gimme(q + '_acceptance',
+                                d[q + '_detected'], numpy_out=True)
             sn = signal_name[q]
-            acceptance *= gimme(sn + '_acceptance', d[sn])
+            acceptance *= gimme(sn + '_acceptance', d[sn], numpy_out=True)
         d = d.iloc[np.random.rand(len(d)) < acceptance]
         return d
 
