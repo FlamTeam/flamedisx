@@ -567,7 +567,10 @@ class ERSource:
         d = d.sample(n=len(energies), replace=True)
 
         def gimme(*args):
-            return self.gimme(*args, data=d, params=params)
+            return self.gimme(*args,
+                              data=d,
+                              params=params,
+                              numpy_out=True)
 
         d['energy'] = energies
         self.simulate_nq(data=d, params=params)
@@ -603,10 +606,9 @@ class ERSource:
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
-            acceptance *= gimme(q + '_acceptance',
-                                d[q + '_detected'], numpy_out=True)
+            acceptance *= gimme(q + '_acceptance', d[q + '_detected'])
             sn = signal_name[q]
-            acceptance *= gimme(sn + '_acceptance', d[sn], numpy_out=True)
+            acceptance *= gimme(sn + '_acceptance', d[sn])
         d = d.iloc[np.random.rand(len(d)) < acceptance]
         return d
 
