@@ -458,7 +458,7 @@ class ERSource:
         pel_num = tf.where(tf.math.is_nan(pel),
                            tf.zeros_like(pel, dtype=tf.float32),
                            pel)
-        pel_clip = tf.clip_by_value(pel_num, 0., 1.)
+        pel_clip = tf.clip_by_value(pel_num, 1e-6, 1. - 1e-6)
         pel_fluct_clip = tf.clip_by_value(pel_fluct, 1e-6, 1.)
         if self.do_pel_fluct:
             return rate_nq * beta_binom_pmf(nel,
