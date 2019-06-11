@@ -2,6 +2,7 @@
 
 """
 import numpy as np
+import tensorflow as tf
 
 from multihist import Hist1d
 import straxen
