@@ -200,9 +200,11 @@ class ERSource:
             res = f(*args, **kwargs)
         else:
             if bonus_arg is None:
-                res = f * tf.ones(len(data))[self.batch_slice]
+                res = f * tf.ones(len(data),
+                                  dtype=tf.float32)[self.batch_slice]
             else:
-                res = f * tf.ones_like(bonus_arg)[self.batch_slice]
+                res = f * tf.ones_like(bonus_arg,
+                                       dtype=tf.float32)[self.batch_slice]
 
         # Convert to numpy array if numpy_out else output tensor
         if numpy_out:
