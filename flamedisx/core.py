@@ -464,7 +464,7 @@ class ERSource:
             return rate_nq * beta_binom_pmf(nel,
                                             n=nq,
                                             p_mean=pel_clip,
-                                            p_sigma=pel_fluct)
+                                            p_sigma=pel_fluct_clip)
         else:
             return rate_nq * tfd.Binomial(total_count=nq,
                                           probs=pel_clip).prob(nel)
