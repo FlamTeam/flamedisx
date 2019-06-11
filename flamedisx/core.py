@@ -75,8 +75,8 @@ class ERSource:
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
-        es, rs = self.gimme('energy_spectrum')
-        return Hist1d.from_histogram(rs.numpy()[0, :-1], es.numpy()[0, :])
+        es, rs = self.gimme('energy_spectrum', numpy_out=True)
+        return Hist1d.from_histogram(rs[0, :-1], es[0, :])
 
     def simulate_es(self, n):
         return self.energy_spectrum_hist().get_random(n)
@@ -674,7 +674,8 @@ class NRSource(ERSource):
         """Return Lindhard quenching factor at energy e in keV"""
         eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
         g = 3. * eps**0.15 + 0.7 * eps**0.6 + eps
-        return lindhard_k * g/(1 + lindhard_k * g)
+        res = lindhard_k * g/(1. + lindhard_k * g)
+        return tf.convert_to_tensor(res, dtype=tf.float32)
 
     def energy_spectrum(self, drift_time):
         """Return (energies in keV, events at these energies),
