@@ -436,7 +436,10 @@ class ERSource:
         _nq_1d = self.domain('nq')
         rate_nq = self.rate_nq(_nq_1d)
         pel = self.gimme('p_electron', _nq_1d)
-        pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
+        pel_fluct = tf.clip_by_value(self.gimme('p_electron_fluctuation',
+                                                _nq_1d),
+                                     1e-6,
+                                     1.)
 
         # Create tensors with the dimensions of our final result
         # i.e. (n_events, |photons_produced|, |electrons_produced|),
