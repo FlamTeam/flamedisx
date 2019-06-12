@@ -186,7 +186,6 @@ class ERSource:
 
         if callable(f):
             if fname in self.tensor_data.keys():
-                print('Woop woop')
                 args = [v for v in self.tensor_data[fname]]
             else:
                 args = [data[x].values for x in self.f_dims[fname]]
@@ -248,12 +247,14 @@ class ERSource:
             self.data = old_data
             self._params = old_params
 
-    def set_data(self, data, max_sigma=3):
+    def set_data(self, data, max_sigma=3, **params):
         # remove any previously computed tensors
         self.tensor_data = dict()
         # Set new data
         self.data = d = data
 
+
+        self._params = params
         # TODO precompute energy spectra for each event?
 
         # Annotate data with eff, mean, sigma
@@ -555,6 +556,7 @@ class ERSource:
             params = self._params
         if data is None:
             data = self.data
+        self.set_data(data, **params)
 
         if isinstance(energies, (float, int)):
             energies = self.simulate_es(int(energies))
@@ -565,8 +567,6 @@ class ERSource:
 
         def gimme(*args):
             return self.gimme(*args,
-                              data=d,
-                              params=params,
                               numpy_out=True)
 
         d['energy'] = energies
