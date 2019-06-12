@@ -655,13 +655,19 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     TODO: check if the number of successes wasn't reversed in the original
     code. Should we have [x, n-x] or [n-x, x]?
     """
+    # Test float64
+    x = tf.cast(x, dtype=tf.float64)
+    n = tf.cast(n, dtype=tf.float64)
+    p_mean = tf.cast(p_mean, dtype=tf.float64)
+    p_sigma = tf.cast(p_sigma, dtype=tf.float64)
+
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
-    counts = tf.cast(tf.stack([x, n-x], axis=-1), dtype=tf.int32)
-    n = tf.cast(n, dtype=tf.int32)
+    counts = tf.stack([x, n-x], axis=-1)
     res = tfd.DirichletMultinomial(n,
                                    beta_pars,
                                    validate_args=True,
                                    allow_nan_stats=False).prob(counts)
+    res = tf.cast(res, dtype=tf.float32)
     return tf.where(tf.math.is_finite(res),
                     res,
                     tf.zeros_like(res, dtype=tf.float32))
