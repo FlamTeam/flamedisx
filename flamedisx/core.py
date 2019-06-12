@@ -294,7 +294,7 @@ class ERSource:
             + (d['photon_detected_mle'] / d['photon_detection_eff']
                / d['penning_quenching_eff_mle']))
         d['e_vis'] = self.gimme('work', numpy_out=True) * d['nq_vis_mle']
-        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'],
+        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'].values,
                                   numpy_out=True)
 
         # Find plausble ranges for detected and observed quanta
