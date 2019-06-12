@@ -186,6 +186,7 @@ class ERSource:
 
         if callable(f):
             if fname in self.tensor_data.keys():
+                print('Woop woop')
                 args = [v for v in self.tensor_data[fname]]
             else:
                 args = [data[x].values for x in self.f_dims[fname]]
