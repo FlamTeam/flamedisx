@@ -637,6 +637,9 @@ def beta_params(mean, sigma):
     # =>
     # beta = (1/variance - 4) / 8
     # alpha
+    mean = tf.cast(mean, dtype=tf.float64)
+    sigma = tf.cast(sigma, dtype=tf.float64)
+
     b = (1. / (8. * sigma ** 2) - 0.5)
     a = b * mean / (1. - mean)
     return a, b
@@ -656,18 +659,20 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     code. Should we have [x, n-x] or [n-x, x]?
     """
     # Test float64
-    x = tf.cast(x, dtype=tf.float64)
-    n = tf.cast(n, dtype=tf.float64)
-    p_mean = tf.cast(p_mean, dtype=tf.float64)
-    p_sigma = tf.cast(p_sigma, dtype=tf.float64)
+    # x = tf.cast(x, dtype=tf.float64)
+    # n = tf.cast(n, dtype=tf.float64)
+    # p_mean = tf.cast(p_mean, dtype=tf.float64)
+    # p_sigma = tf.cast(p_sigma, dtype=tf.float64)
 
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
+    beta_pars = tf.cast(beta_pars, dtype=tf.float32)
+
     counts = tf.stack([x, n-x], axis=-1)
     res = tfd.DirichletMultinomial(n,
                                    beta_pars,
                                    validate_args=True,
                                    allow_nan_stats=False).prob(counts)
-    res = tf.cast(res, dtype=tf.float32)
+    #res = tf.cast(res, dtype=tf.float32)
     return tf.where(tf.math.is_finite(res),
                     res,
                     tf.zeros_like(res, dtype=tf.float32))
