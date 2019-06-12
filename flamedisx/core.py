@@ -368,8 +368,7 @@ class ERSource:
         for fname in ['s1', 's2']:
             self.tensor_data[fname] = tf.convert_to_tensor(d[fname], dtype=tf.float32)
 
-    def likelihood(self, data=None, max_sigma=3,
-                   progress=lambda x: x, **params):
+    def likelihood(self, data=None, max_sigma=3, **params):
         self._params = params
         if data is not None:
             self.set_data(data, max_sigma)
@@ -564,8 +563,6 @@ class ERSource:
         d = d.sample(n=len(energies), replace=True)
 
         def gimme(*args):
-            args = [v.values if isinstance(v, pd.Series) else v
-                    for v in args]
             return self.gimme(*args,
                               data=d,
                               params=params,
@@ -574,8 +571,8 @@ class ERSource:
         d['energy'] = energies
         self.simulate_nq(data=d, params=params)
 
-        d['p_el_mean'] = gimme('p_electron', d['nq'])
-        d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'])
+        d['p_el_mean'] = gimme('p_electron', d['nq'].values)
+        d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
 
         d['p_el_actual'] = stats.beta.rvs(
             *beta_params(d['p_el_mean'], d['p_el_fluct']))
@@ -591,7 +588,7 @@ class ERSource:
         d['photon_detected'] = stats.binom.rvs(
             n=d['photon_produced'],
             p=(gimme('photon_detection_eff')
-               * gimme('penning_quenching_eff', d['photon_produced'])))
+               * gimme('penning_quenching_eff', d['photon_produced'].values)))
 
         d['s2'] = stats.norm.rvs(
             loc=d['electron_detected'] * gimme('electron_gain_mean'),
@@ -605,9 +602,9 @@ class ERSource:
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
-            acceptance *= gimme(q + '_acceptance', d[q + '_detected'])
+            acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
             sn = signal_name[q]
-            acceptance *= gimme(sn + '_acceptance', d[sn])
+            acceptance *= gimme(sn + '_acceptance', d[sn].values)
         d = d.iloc[np.random.rand(len(d)) < acceptance]
         return d
 
