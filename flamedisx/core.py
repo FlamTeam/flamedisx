@@ -166,7 +166,6 @@ class ERSource:
             self.set_data(data)
         self._params = params
         self.tensor_data = dict()
-        self.batch_slice = slice(None)
 
     @property
     def n_evts(self):
@@ -187,10 +186,9 @@ class ERSource:
 
         if callable(f):
             if fname in self.tensor_data.keys():
-                args = [v[self.batch_slice] for v in self.tensor_data[fname]]
+                args = [v for v in self.tensor_data[fname]]
             else:
-                # args = list(data[self.f_dims[fname]].values.T[..., self.batch_slice])
-                args = [data[x].values[self.batch_slice] for x in self.f_dims[fname]]
+                args = [data[x].values for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
@@ -201,10 +199,10 @@ class ERSource:
         else:
             if bonus_arg is None:
                 res = f * tf.ones(len(data),
-                                  dtype=tf.float32)[self.batch_slice]
+                                  dtype=tf.float32)
             else:
                 res = f * tf.ones_like(bonus_arg,
-                                       dtype=tf.float32)[self.batch_slice]
+                                       dtype=tf.float32)
 
         # Convert to numpy array if numpy_out else output tensor
         if numpy_out:
@@ -252,7 +250,6 @@ class ERSource:
     def set_data(self, data, max_sigma=3):
         # remove any previously computed tensors
         self.tensor_data = dict()
-        self.batch_slice = slice(None)
         # Set new data
         self.data = d = data
 
@@ -371,22 +368,12 @@ class ERSource:
         for fname in ['s1', 's2']:
             self.tensor_data[fname] = tf.convert_to_tensor(d[fname], dtype=tf.float32)
 
-    def likelihood(self, data=None, max_sigma=3, batch_size=10,
+    def likelihood(self, data=None, max_sigma=3,
                    progress=lambda x: x, **params):
         self._params = params
         if data is not None:
             self.set_data(data, max_sigma)
         del data   # Just so we don't reference it by accident
-
-        # Evaluate in batches to save memory
-        n_batches = np.ceil(len(self.data[self.batch_slice]) / batch_size).astype(np.int)
-        if n_batches > 1:
-            result = []
-            for i in progress(list(range(n_batches))):
-                self.batch_slice = slice(i * batch_size,
-                                         (i + 1) * batch_size)
-                result.append(self.likelihood(**params))
-            return np.concatenate(result)
 
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel()
@@ -407,8 +394,8 @@ class ERSource:
         return tf.reshape(y, [-1]).numpy()
 
     def _dimsize(self, var):
-        return int((self.data[var + '_max'][self.batch_slice]
-                    - self.data[var + '_min'][self.batch_slice]).max())
+        return int((self.data[var + '_max']
+                    - self.data[var + '_min']).max())
 
     def rate_nq(self, nq_1d):
         """Return differential rate at given number of produced quanta
@@ -446,7 +433,7 @@ class ERSource:
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... indices in nq arrays
-        _nq_ind = nq - self.data['nq_min'][self.batch_slice].values[:, o, o]
+        _nq_ind = nq - self.data['nq_min'].values[:, o, o]
         # ... differential rate
         rate_nq = _lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
@@ -490,7 +477,7 @@ class ERSource:
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
         n = self._dimsize(x)
-        res = tf.range(n)[o, :] + self.data[x + '_min'][self.batch_slice][:, o]
+        res = tf.range(n)[o, :] + self.data[x + '_min'][:, o]
         return tf.cast(res, dtype=tf.float32)
 
     def cross_domains(self, x, y):
@@ -511,7 +498,7 @@ class ERSource:
         """
         ndet = self.domain(quanta_type + '_detected')
 
-        observed = self.tensor_data[signal_name[quanta_type]][self.batch_slice, o]
+        observed = self.tensor_data[signal_name[quanta_type]][:, o]
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean')[:, o]
