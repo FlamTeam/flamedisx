@@ -1,10 +1,16 @@
 import inspect
 
+import tensorflow as tf
+import tensorflow_probability as tfp
+# Remove once tf.repeat is available in the tf api
+from tensorflow.python.ops.ragged.ragged_util import repeat
 import numpy as np
 from scipy import stats
 from scipy.special import gammaln
 import pandas as pd
 from multihist import Hist1d
+
+tfd = tfp.distributions
 
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
@@ -21,31 +27,32 @@ special_data_methods = [
 ]
 
 data_methods = (
-        special_data_methods
-        + ['energy_spectrum', 'work', 'double_pe_fraction'])
+    special_data_methods
+    + ['energy_spectrum', 'work', 'double_pe_fraction'])
 hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
 
-o = np.newaxis
+o = tf.newaxis
 
 def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
-    returning fill_value for out-of-range indices"""
-    d = indices
-    imax = x.shape[1]
-    mask = d >= imax
-    d[mask] = 0
-    result = np.take_along_axis(
-            x,
-            d.reshape(len(d), -1), axis=1
-        ).reshape(d.shape)
-    result[mask] = fill_value
-    return result
+       returning fill_value for out-of-range indices.
+    """
+
+    mask = indices < x.shape[1]
+    a, b = x.shape
+    x = tf.reshape(x, [-1])
+    indices = tf.dtypes.cast(indices, dtype=tf.int32)
+    indices = indices + b * tf.range(a)[:, o, o]
+    result = tf.reshape(tf.gather(x,
+                                  tf.reshape(indices, shape=(-1,))),
+                        shape=indices.shape)
+    return tf.cast(tf.where(mask, result, tf.zeros_like(result) + fill_value),
+                   dtype=tf.float32)
 
 
 class ERSource:
-
     data_methods = tuple(data_methods)
     special_data_methods = tuple(special_data_methods)
 
@@ -63,13 +70,12 @@ class ERSource:
         """
         # TODO: doesn't depend on drift_time...
         n_evts = len(drift_time)
-        return (
-            np.linspace(0, 10, 1000)[o, :].repeat(n_evts, axis=0),
-            np.ones(1000)[o, :].repeat(n_evts, axis=0))
+        return (repeat(tf.linspace(0., 10., 1000)[o, :], n_evts, axis=0),
+                repeat(tf.ones(1000, dtype=tf.float32)[o, :], n_evts, axis=0))
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
-        es, rs = self.gimme('energy_spectrum')
+        es, rs = self.gimme('energy_spectrum', numpy_out=True)
         return Hist1d.from_histogram(rs[0, :-1], es[0, :])
 
     def simulate_es(self, n):
@@ -79,47 +85,52 @@ class ERSource:
 
     @staticmethod
     def p_electron(nq):
-        return 0.5 * np.ones_like(nq)
+        return 0.5 * tf.ones_like(nq, dtype=tf.float32)
 
     @staticmethod
     def p_electron_fluctuation(nq):
-        return 0.01 * np.ones_like(nq)
+        return 0.01 * tf.ones_like(nq, dtype=tf.float32)
 
     @staticmethod
     def penning_quenching_eff(nph):
-        return np.ones_like(nph)
+        return tf.ones_like(nph, dtype=tf.float32)
 
     # Detection efficiencies
 
     @staticmethod
-    def electron_detection_eff(drift_time,
-                               *, elife=600e3, extraction_eff=1):
-        return extraction_eff * np.exp(-drift_time / elife)
+    def electron_detection_eff(drift_time, *, elife=600e3, extraction_eff=1.):
+        return extraction_eff * tf.exp(-drift_time / elife)
 
     photon_detection_eff = 0.1
 
     # Acceptance of selection/detection on photons/electrons detected
 
-    electron_acceptance = 1
+    electron_acceptance = 1.
 
     @staticmethod
     def photon_acceptance(photons_detected):
-        return np.where(photons_detected < 3, 0, 1)
+        return tf.where(photons_detected < 3,
+                        tf.zeros_like(photons_detected, dtype=tf.float32),
+                        tf.ones_like(photons_detected, dtype=tf.float32))
 
     # Acceptance of selections on S1/S2 directly
 
     @staticmethod
     def s1_acceptance(s1):
-        return np.where(s1 < 2, 0, 1)
+        return tf.where(s1 < 2,
+                        tf.zeros_like(s1, dtype=tf.float32),
+                        tf.ones_like(s1, dtype=tf.float32))
 
     @staticmethod
     def s2_acceptance(s2):
-        return np.where(s2 < 200, 0, 1)
+        return tf.where(s2 < 200,
+                        tf.zeros_like(s2, dtype=tf.float32),
+                        tf.ones_like(s2, dtype=tf.float32))
 
-    electron_gain_mean = 20
-    electron_gain_std = 5
+    electron_gain_mean = 20.
+    electron_gain_std = 5.
 
-    photon_gain_mean = 1
+    photon_gain_mean = 1.
     photon_gain_std = 0.5
     double_pe_fraction = 0.219
 
@@ -154,12 +165,13 @@ class ERSource:
         if data is not None:
             self.set_data(data)
         self._params = params
+        self.tensor_data = dict()
 
     @property
     def n_evts(self):
         return len(self.data)
 
-    def gimme(self, fname, bonus_arg=None, data=None, params=None):
+    def gimme(self, fname, bonus_arg=None, data=None, params=None, numpy_out=False):
         if fname in self.special_data_methods:
             assert bonus_arg is not None
         else:
@@ -173,19 +185,53 @@ class ERSource:
         f = getattr(self, fname)
 
         if callable(f):
-            args = [data[x].values for x in self.f_dims[fname]]
+            if fname in self.tensor_data.keys():
+                args = [v for v in self.tensor_data[fname]]
+            else:
+                args = [data[x].values for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
             kwargs = {k: v for k, v in params.items()
                       if k in self.f_params[fname]}
 
-            return f(*args, **kwargs)
-
+            res = f(*args, **kwargs)
         else:
             if bonus_arg is None:
-                return f * np.ones(len(data))
-            return f * np.ones_like(bonus_arg)
+                res = f * tf.ones(len(data),
+                                  dtype=tf.float32)
+            else:
+                res = f * tf.ones_like(bonus_arg,
+                                       dtype=tf.float32)
+
+        # Convert to numpy array if numpy_out else output tensor
+        if numpy_out:
+            # res can be tuple
+            # Assume elements are either numpy array or tf tensors
+            if isinstance(res, tuple):
+                return tuple([v
+                              if isinstance(v, np.ndarray)
+                              else v.numpy()
+                              for v in res])
+            else:
+                return res if isinstance(res, np.ndarray) else res.numpy()
+        else:
+            # make sure output is tensor (or tuple of tensors)
+            if isinstance(res, tuple):
+                if not isinstance(res[0], np.ndarray):
+                    for v in res:
+                        assert v.dtype is tf.float32, f'{v.dtype}'
+                return tuple([v
+                              if isinstance(v, tf.Tensor)
+                              else tf.convert_to_tensor(v, dtype=tf.float32)
+                              for v in res])
+            else:
+                if not isinstance(res, np.ndarray):
+                    assert res.dtype is tf.float32, f'{res.dtype}'
+                return (res
+                        if isinstance(res, tf.Tensor)
+                        else tf.convert_to_tensor(res, dtype=tf.float32))
+
 
     def annotate_data(self, data, max_sigma=3, **params):
         """Annotate data with columns needed or inference,
@@ -201,9 +247,14 @@ class ERSource:
             self.data = old_data
             self._params = old_params
 
-    def set_data(self, data, max_sigma=3):
+    def set_data(self, data, max_sigma=3, **params):
+        # remove any previously computed tensors
+        self.tensor_data = dict()
+        # Set new data
         self.data = d = data
 
+
+        self._params = params
         # TODO precompute energy spectra for each event?
 
         # Annotate data with eff, mean, sigma
@@ -213,8 +264,9 @@ class ERSource:
         for qn in quanta_types:
             for parname in hidden_vars_per_quanta:
                 fname = qn + '_' + parname
-                d[fname] = self.gimme(fname)
-        d['double_pe_fraction'] = self.gimme('double_pe_fraction')
+                d[fname] = self.gimme(fname, numpy_out=True)
+        d['double_pe_fraction'] = self.gimme('double_pe_fraction',
+                                             numpy_out=True)
 
         # Find likely number of detected quanta
         obs = dict(photon=d['s1'], electron=d['s2'])
@@ -230,8 +282,8 @@ class ERSource:
         # using interpolation
         # TODO: this will fail when someone gives penning quenching some
         # data-dependent args
-        _nprod_temp = np.logspace(-1, 8, 1000)
-        peff = self.gimme('penning_quenching_eff', _nprod_temp)
+        _nprod_temp = np.logspace(-1., 8., 1000)
+        peff = self.gimme('penning_quenching_eff', _nprod_temp, numpy_out=True)
         d['penning_quenching_eff_mle'] = np.interp(
             d['photon_detected_mle'] / d['photon_detection_eff'],
             _nprod_temp * peff,
@@ -243,8 +295,9 @@ class ERSource:
             d['electron_detected_mle'] / d['electron_detection_eff']
             + (d['photon_detected_mle'] / d['photon_detection_eff']
                / d['penning_quenching_eff_mle']))
-        d['e_vis'] = self.gimme('work') * d['nq_vis_mle']
-        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'])
+        d['e_vis'] = self.gimme('work', numpy_out=True) * d['nq_vis_mle']
+        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'].values,
+                                  numpy_out=True)
 
         # Find plausble ranges for detected and observed quanta
         # based on the observed S1 and S2 sizes
@@ -263,7 +316,7 @@ class ERSource:
             if qn == 'photon':
                 # Don't use *=, it will modify in place !
                 eff = (d[qn + '_detection_eff']
-                     * d['penning_quenching_eff_mle'])
+                       * d['penning_quenching_eff_mle'])
             else:
                 eff = d[qn + '_detection_eff']
 
@@ -307,28 +360,21 @@ class ERSource:
                     scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
                 ).round().clip(*clip_range).astype(np.int)
 
-
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
 
-    def likelihood(self, data=None, max_sigma=3, batch_size=10,
-                   progress=lambda x: x, **params):
+        # Precompute tensors for use in gimme
+        for fname, v in self.f_dims.items():
+            self.tensor_data[fname] = [tf.convert_to_tensor(d[x].values, dtype=tf.float32) for x in v]
+        for fname in ['s1', 's2']:
+            self.tensor_data[fname] = tf.convert_to_tensor(d[fname].values, dtype=tf.float32)
+
+    def likelihood(self, data=None, max_sigma=3, **params):
         self._params = params
         if data is not None:
             self.set_data(data, max_sigma)
         del data   # Just so we don't reference it by accident
-
-        # Evaluate in batches to save memory
-        n_batches = np.ceil(len(self.data) / batch_size).astype(np.int)
-        if n_batches > 1:
-            orig_data = self.data
-            result = []
-            for i in progress(list(range(n_batches))):
-                self.data = orig_data[
-                            i * batch_size:(i + 1) * batch_size].copy()
-                result.append(self.likelihood(**params))
-            return np.concatenate(result)
 
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel()
@@ -342,16 +388,15 @@ class ERSource:
         #         return np.einsum('ij,ijk,ikl,iml,im->i',
         #                          d_ph, p_ph, y, p_el, d_el)
         # but that's about 10x slower!
-        p_el = p_el.transpose(0, 2, 1)
-        d_ph = d_ph[:, np.newaxis, :]
-        d_el = d_el[:, :, np.newaxis]
+        p_el = tf.transpose(p_el, (0, 2, 1))
+        d_ph = d_ph[:, o, :]
+        d_el = d_el[:, :, o]
         y = d_ph @ p_ph @ y @ p_el @ d_el
-        return y.reshape(-1)
+        return tf.reshape(y, [-1]).numpy()
 
     def _dimsize(self, var):
         return int((self.data[var + '_max']
                     - self.data[var + '_min']).max())
-
 
     def rate_nq(self, nq_1d):
         """Return differential rate at given number of produced quanta
@@ -361,12 +406,14 @@ class ERSource:
 
         # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum')
-        q_produced = np.floor(es / self.gimme('work')[:, o]).astype(np.int)
+        q_produced = tf.cast(tf.floor(es / self.gimme('work')[:, o]),
+                             dtype=tf.float32)
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        p_nq_e = (nq_1d[:, :, o] == q_produced[:, o, :]).astype(np.int)
+        p_nq_e = tf.cast(tf.equal(nq_1d[:, :, o], q_produced[:, o, :]),
+                         dtype=tf.float32)
 
-        return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
+        return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
     def rate_nphnel(self):
         """Return differential rate tensor
@@ -387,7 +434,7 @@ class ERSource:
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... indices in nq arrays
-        _nq_ind = nq - self.data['nq_min'].values.astype(np.int)[:, np.newaxis, np.newaxis]
+        _nq_ind = nq - self.data['nq_min'].values[:, o, o]
         # ... differential rate
         rate_nq = _lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
@@ -396,17 +443,19 @@ class ERSource:
         pel_fluct = _lookup_axis1(pel_fluct, _nq_ind)
 
         # Finally, the main computation is simple:
+        pel_num = tf.where(tf.math.is_nan(pel),
+                           tf.zeros_like(pel, dtype=tf.float32),
+                           pel)
+        pel_clip = tf.clip_by_value(pel_num, 1e-6, 1. - 1e-6)
+        pel_fluct_clip = tf.clip_by_value(pel_fluct, 1e-6, 1.)
         if self.do_pel_fluct:
-            return rate_nq * beta_binom_pmf(
-                nel.astype(np.int),
-                n=nq.astype(np.int),
-                p_mean=pel,
-                p_sigma=pel_fluct)
+            return rate_nq * beta_binom_pmf(nel,
+                                            n=nq,
+                                            p_mean=pel_clip,
+                                            p_sigma=pel_fluct_clip)
         else:
-            return rate_nq * stats.binom.pmf(
-                nel.astype(np.int),
-                nq.astype(np.int),
-                np.nan_to_num(pel).clip(0, 1))
+            return rate_nq * tfd.Binomial(total_count=nq,
+                                          probs=pel_clip).prob(nel)
 
     def detection_p(self, quanta_type):
         """Return (n_events, |detected|, |produced|) tensor
@@ -414,18 +463,23 @@ class ERSource:
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
                                            quanta_type + '_produced')
+
         p = self.gimme(quanta_type + '_detection_eff')[:, o, o]
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('penning_quenching_eff', n_prod)
-        result = stats.binom.pmf(n_det, n=n_prod, p=p)
+
+        result = tfd.Binomial(total_count=n_prod,
+                              probs=tf.cast(p, dtype=tf.float32),
+                              ).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
     def domain(self, x):
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
         n = self._dimsize(x)
-        return np.arange(n)[o, :] + self.data[x + '_min'].astype(np.int)[:, o]
+        res = tf.range(n)[o, :] + self.data[x + '_min'][:, o]
+        return tf.cast(res, dtype=tf.float32)
 
     def cross_domains(self, x, y):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
@@ -434,8 +488,9 @@ class ERSource:
         # TODO: somehow mask unnecessary elements and save computation time
         x_size = self._dimsize(x)
         y_size = self._dimsize(y)
-        result_x = self.domain(x)[:, :, o].repeat(y_size, axis=2)
-        result_y = self.domain(y)[:, o, :].repeat(x_size, axis=1)
+        # Change to tf.repeat once its in the api
+        result_x = repeat(self.domain(x)[:, :, o], y_size, axis=2)
+        result_y = repeat(self.domain(y)[:, o, :], x_size, axis=1)
         return result_x, result_y
 
     def detector_response(self, quanta_type):
@@ -444,7 +499,7 @@ class ERSource:
         """
         ndet = self.domain(quanta_type + '_detected')
 
-        observed = self.data[signal_name[quanta_type]].values[:, o]
+        observed = self.tensor_data[signal_name[quanta_type]][:, o]
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean')[:, o]
@@ -453,7 +508,7 @@ class ERSource:
         if quanta_type == 'photon':
             mean, std = self.dpe_mean_std(
                 ndet=ndet,
-                p_dpe=self.gimme('double_pe_fraction')[:,o],
+                p_dpe=self.gimme('double_pe_fraction')[:, o],
                 mean_per_q=mean_per_q,
                 std_per_q=std_per_q)
         else:
@@ -461,7 +516,7 @@ class ERSource:
             std = ndet**0.5 * std_per_q
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
-        result = stats.norm.pdf(observed, loc=mean, scale=std + 1e-10)
+        result = tfd.Normal(loc=mean, scale=std + 1e-10).prob(observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
@@ -502,21 +557,26 @@ class ERSource:
         if data is None:
             data = self.data
 
+        self.set_data(data, **params)
+
         if isinstance(energies, (float, int)):
             energies = self.simulate_es(int(energies))
 
         # Keep only dims we need
-        d = data[list(set(sum(self.f_dims.values(), [])))]
+        d = data[list(set(sum(self.f_dims.values(), []))) + ['s1', 's2']]
         d = d.sample(n=len(energies), replace=True)
 
+        self.set_data(d, **params)
+
         def gimme(*args):
-            return self.gimme(*args, data=d, params=params)
+            return self.gimme(*args,
+                              numpy_out=True)
 
         d['energy'] = energies
         self.simulate_nq(data=d, params=params)
 
-        d['p_el_mean'] = gimme('p_electron', d['nq'])
-        d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'])
+        d['p_el_mean'] = gimme('p_electron', d['nq'].values)
+        d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
 
         d['p_el_actual'] = stats.beta.rvs(
             *beta_params(d['p_el_mean'], d['p_el_fluct']))
@@ -532,7 +592,7 @@ class ERSource:
         d['photon_detected'] = stats.binom.rvs(
             n=d['photon_produced'],
             p=(gimme('photon_detection_eff')
-               * gimme('penning_quenching_eff', d['photon_produced'])))
+               * gimme('penning_quenching_eff', d['photon_produced'].values)))
 
         d['s2'] = stats.norm.rvs(
             loc=d['electron_detected'] * gimme('electron_gain_mean'),
@@ -546,10 +606,11 @@ class ERSource:
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
-            acceptance *= gimme(q + '_acceptance', d[q + '_detected'])
+            acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
             sn = signal_name[q]
-            acceptance *= gimme(sn + '_acceptance', d[sn])
-        d = d.iloc[np.random.rand(len(d)) < acceptance]
+            acceptance *= gimme(sn + '_acceptance', d[sn].values)
+        d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
+        self.set_data(d, **params)
         return d
 
     def simulate_nq(self, data, params):
@@ -565,8 +626,8 @@ def beta_params(mean, sigma):
     # =>
     # beta = (1/variance - 4) / 8
     # alpha
-    b = (1 / (8 * sigma ** 2) - 0.5)
-    a = b * mean / (1 - mean)
+    b = (1. / (8. * sigma ** 2) - 0.5)
+    a = b * mean / (1. - mean)
     return a, b
 
 
@@ -576,16 +637,35 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     That is, give the probability of obtaining x successes in n trials,
     if the success probability p is drawn from a beta distribution
     with mean p_mean and standard deviation p_sigma.
+
+    Implemented using Dirichlet Multinomial distribution which is
+    identically the Beta-Binomial distribution when len(beta_pars) == 2
+
+    TODO: check if the number of successes wasn't reversed in the original
+    code. Should we have [x, n-x] or [n-x, x]?
     """
-    a, b = beta_params(p_mean, p_sigma)
-    return np.exp(
-        gammaln(n+1) + gammaln(x+a) + gammaln(n-x+b) + gammaln(a+b) -
-        (gammaln(x+1) + gammaln(n-x+1) +
-         gammaln(a) + gammaln(b) + gammaln(n+a+b)))
+
+    beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
+
+    # DirichletMultinomial only gives correct output on float64 tensors!
+    # Cast inputs to float64 explicitly!
+    beta_pars = tf.cast(beta_pars, dtype=tf.float64)
+    x = tf.cast(x, dtype=tf.float64)
+    n = tf.cast(n, dtype=tf.float64)
+
+    counts = tf.stack([x, n-x], axis=-1)
+    res = tfd.DirichletMultinomial(n,
+                                   beta_pars,
+                                   # validate_args=True,
+                                   # allow_nan_stats=False
+                                   ).prob(counts)
+    res = tf.cast(res, dtype=tf.float32)
+    return tf.where(tf.math.is_finite(res),
+                    res,
+                    tf.zeros_like(res, dtype=tf.float32))
 
 
 class NRSource(ERSource):
-
     do_pel_fluct = False
     data_methods = tuple(data_methods + ['lindhard_l'])
     special_data_methods = tuple(special_data_methods + ['lindhard_l'])
@@ -594,15 +674,16 @@ class NRSource(ERSource):
     def lindhard_l(e, lindhard_k=0.138):
         """Return Lindhard quenching factor at energy e in keV"""
         eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
-        g = 3 * eps**0.15 + 0.7 * eps**0.6 + eps
-        return lindhard_k * g/(1 + lindhard_k * g)
+        g = 3. * eps**0.15 + 0.7 * eps**0.6 + eps
+        res = lindhard_k * g/(1. + lindhard_k * g)
+        return tf.convert_to_tensor(res, dtype=tf.float32)
 
     def energy_spectrum(self, drift_time):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        e = np.linspace(0.7, 150, 100)[o,:].repeat(len(drift_time), axis=0)
-        return e, np.ones_like(e)
+        e = repeat(tf.linspace(0.7, 150., 100)[o, :], len(drift_time), axis=0)
+        return e, tf.ones_like(e, dtype=tf.float32)
 
     def rate_nq(self, nq_1d):
         # (n_events, |ne|) tensors
@@ -613,19 +694,18 @@ class NRSource(ERSource):
                 / self.gimme('work')[:, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        p_nq_e = stats.poisson.pmf(nq_1d[:, :, o],
-                                   mean_q_produced[:, o, :])
+        p_nq_e = tfd.Poisson(mean_q_produced[:, o, :]).prob(nq_1d[:, :, o])
 
-        return (p_nq_e * rate_e[:, o, :]).sum(axis=2)
+        return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
     @staticmethod
     def penning_quenching_eff(nph, eta=8.2e-5 * 3.3, labda=0.8 * 1.15):
-        return 1 / (1 + eta * nph ** labda)
+        return 1. / (1. + eta * nph ** labda)
 
     def simulate_nq(self, data, params):
         work = self.gimme('work',
                           data=data, params=params)
         lindhard_l = self.gimme('lindhard_l', data['energy'],
-            data=data, params=params)
+                                data=data, params=params)
         data['nq'] = stats.poisson.rvs(
             data['energy'].values * lindhard_l / work)
