@@ -609,7 +609,7 @@ class ERSource:
             acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
             sn = signal_name[q]
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
-        d = d.iloc[np.random.rand(len(d)) < acceptance]
+        d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
         self.set_data(d, **params)
         return d
 
