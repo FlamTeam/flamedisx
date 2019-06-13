@@ -557,7 +557,7 @@ class ERSource:
         if data is None:
             data = self.data
 
-        self.tensor_data = dict()
+        #self.tensor_data = dict()
         self.set_data(data, **params)# is this necessary? Yes if we give something position dependent
         
         if isinstance(energies, (float, int)):
