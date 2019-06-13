@@ -568,7 +568,7 @@ class ERSource:
         d = data[list(set(sum(self.f_dims.values(), []))) + ['s1', 's2']]
         d = d.sample(n=len(energies), replace=True)
 
-        self.set_data(d, **params)
+        #self.set_data(d, **params)
 
         def gimme(*args):
             return self.gimme(*args,
