@@ -557,7 +557,9 @@ class ERSource:
         if data is None:
             data = self.data
 
-        self.set_data(data, **params)
+        #self.set_data(data, **params)# is this necessary?
+        
+        self.tensor_data = dict()
 
         if isinstance(energies, (float, int)):
             energies = self.simulate_es(int(energies))
