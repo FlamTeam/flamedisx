@@ -118,14 +118,14 @@ class SR0Source:
     @staticmethod
     def electron_gain_mean(x_observed, y_observed,
                            g2=11.4 / (1 - 0.63) / 0.96):
-        return g2 * s2_map(np.transpose([x_observed, y_observed]))
+        return g2 * s2_map(tf.transpose([x_observed, y_observed]).numpy())
 
     electron_gain_std = 11.4 * 0.25 / (1 - 0.63)
 
     @staticmethod
     def photon_detection_eff(x, y, z,
                              mean_eff=0.142 / (1 + 0.219)):
-        return mean_eff * s1_map(np.transpose([x, y, z]))
+        return mean_eff * s1_map(tf.transpose([x, y, z]).numpy())
 
 
 class SR0ERSource(SR0Source, ERSource):
