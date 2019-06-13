@@ -557,10 +557,9 @@ class ERSource:
         if data is None:
             data = self.data
 
-        #self.set_data(data, **params)# is this necessary?
-        
         self.tensor_data = dict()
-
+        self.set_data(data, **params)# is this necessary? Yes if we give something position dependent
+        
         if isinstance(energies, (float, int)):
             energies = self.simulate_es(int(energies))
 
@@ -619,7 +618,7 @@ class ERSource:
             sn = signal_name[q]
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
         d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
-        #self.set_data(d, **params)
+        self.set_data(d, **params)
         return d
 
     def simulate_nq(self, data, params):
