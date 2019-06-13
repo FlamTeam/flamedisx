@@ -568,7 +568,14 @@ class ERSource:
         d = data[list(set(sum(self.f_dims.values(), []))) + ['s1', 's2']]
         d = d.sample(n=len(energies), replace=True)
 
-        #self.set_data(d, **params)
+        self.set_data(d, **params)
+
+        if isinstance(energies, (float, int)):
+            energies = self.simulate_es(int(energies))
+
+        # Keep only dims we need
+        d = data[list(set(sum(self.f_dims.values(), []))) + ['s1', 's2']]
+        d = d.sample(n=len(energies), replace=True)
 
         def gimme(*args):
             return self.gimme(*args,
@@ -612,7 +619,7 @@ class ERSource:
             sn = signal_name[q]
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
         d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
-        self.set_data(d, **params)
+        #self.set_data(d, **params)
         return d
 
     def simulate_nq(self, data, params):
