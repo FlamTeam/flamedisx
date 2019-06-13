@@ -569,13 +569,6 @@ class ERSource:
 
         self.set_data(d, **params)
 
-        if isinstance(energies, (float, int)):
-            energies = self.simulate_es(int(energies))
-
-        # Keep only dims we need
-        d = data[list(set(sum(self.f_dims.values(), []))) + ['s1', 's2']]
-        d = d.sample(n=len(energies), replace=True)
-
         def gimme(*args):
             return self.gimme(*args,
                               numpy_out=True)
