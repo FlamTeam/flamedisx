@@ -6,7 +6,6 @@ import tensorflow_probability as tfp
 from tensorflow.python.ops.ragged.ragged_util import repeat
 import numpy as np
 from scipy import stats
-from scipy.special import gammaln
 import pandas as pd
 from multihist import Hist1d
 
@@ -39,16 +38,26 @@ def _lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
        returning fill_value for out-of-range indices.
     """
-
-    mask = indices < x.shape[1]
+    # Save shape of x and flatten
     a, b = x.shape
     x = tf.reshape(x, [-1])
+
+    legal_index = indices < b
+
+    # Convert indices to legal indices in flat array
     indices = tf.dtypes.cast(indices, dtype=tf.int32)
+    indices = tf.clip_by_value(indices, 0, b - 1)
     indices = indices + b * tf.range(a)[:, o, o]
+
+    # Do indexing
     result = tf.reshape(tf.gather(x,
                                   tf.reshape(indices, shape=(-1,))),
                         shape=indices.shape)
-    return tf.cast(tf.where(mask, result, tf.zeros_like(result) + fill_value),
+
+    # Replace illegal indices with fill_value, cast to float explicitly
+    return tf.cast(tf.where(legal_index,
+                            result,
+                            tf.zeros_like(result) + fill_value),
                    dtype=tf.float32)
 
 
@@ -252,8 +261,6 @@ class ERSource:
         self.tensor_data = dict()
         # Set new data
         self.data = d = data
-
-
         self._params = params
         # TODO precompute energy spectra for each event?
 
@@ -306,12 +313,6 @@ class ERSource:
         # TODO: Meh, think about this, considering also computation cost
         # / space width
         for qn in quanta_types:
-            p_q = d['fel_mle'] if qn == 'electron' else 1 - d['fel_mle']
-
-            # If p_q gets very close to 0 or 1, the bounds blow up
-            # this helps restore some sanity
-            # TODO: think more about this
-            p_q = p_q.clip(0.01, 0.99)
 
             if qn == 'photon':
                 # Don't use *=, it will modify in place !
@@ -323,39 +324,34 @@ class ERSource:
             n_prod_mle = d[qn + '_produced_mle'] = (
                     d[qn + '_detected_mle'] / eff).astype(np.int)
 
-            # Note this is a different estimate of nq than the CES one!
-            nq_mle = (n_prod_mle / p_q).astype(np.int)
-
+            # Prepare for bounds computation
             clip_range = (0, None)
+            n = d[qn + '_detected_mle'].values
+            m = d[qn + '_gain_mean'].values
+            s = d[qn + '_gain_std'].values
+            if qn == 'photon':
+                _, scale = self.dpe_mean_std(n, d['double_pe_fraction'],
+                                             m, s)
+                scale = scale.values
+            else:
+                scale = n ** 0.5 * s / m
 
             for bound, sign in (('min', -1), ('max', +1)):
-
                 # For detected quanta the MLE is quite accurate
                 # (since fluctuations are tiny)
                 # so let's just use the relative error on the MLE
-                n = d[qn + '_detected_mle']
-                m = d[qn + '_gain_mean']
-                s = d[qn + '_gain_std']
-                if qn == 'photon':
-                    _, scale = self.dpe_mean_std(n, d['double_pe_fraction'],
-                                                 m, s)
-                else:
-                    scale = n ** 0.5 * s / m
-
                 d[qn + '_detected_' + bound] = stats.norm.ppf(
                     stats.norm.cdf(sign * max_sigma),
-                    loc=d[qn + '_detected_mle'],
+                    loc=n,
                     scale=scale,
                 ).round().clip(*clip_range).astype(np.int)
 
                 # TODO: For produced quanta I have to think harder!
-                # How to set good bounds?
-                # The formula below is just a fudge with a manually tuned
-                # bonus sigma
-
-                q = 1 - eff
+                # Don't remember where this came from, changed 1 - eff to
+                # 1 / eff ???
+                q = 1 / eff
                 d[qn + '_produced_' + bound] = stats.norm.ppf(
-                    stats.norm.cdf(sign * (max_sigma + 3)),
+                    stats.norm.cdf(sign * max_sigma),
                     loc=n_prod_mle,
                     scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
                 ).round().clip(*clip_range).astype(np.int)
@@ -370,11 +366,24 @@ class ERSource:
         for fname in ['s1', 's2']:
             self.tensor_data[fname] = tf.convert_to_tensor(d[fname].values, dtype=tf.float32)
 
-    def likelihood(self, data=None, max_sigma=3, **params):
+    def likelihood(self, data=None, max_sigma=3, batch_size=None,
+                   progress=lambda x: x, **params):
         self._params = params
         if data is not None:
             self.set_data(data, max_sigma)
         del data   # Just so we don't reference it by accident
+
+        if batch_size is not None:
+            # Evaluate in batches, in case we have limited memory
+            n_batches = np.ceil(len(self.data) / batch_size).astype(np.int)
+            if n_batches > 1:
+                orig_data = self.data
+                result = []
+                for i in progress(list(range(n_batches))):
+                    d = orig_data[i * batch_size:(i + 1) * batch_size].copy()
+                    result.append(
+                        self.likelihood(d, max_sigma=max_sigma, **params))
+                return np.concatenate(result)
 
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel()
@@ -557,9 +566,9 @@ class ERSource:
         if data is None:
             data = self.data
 
-        #self.tensor_data = dict()
-        self.set_data(data, **params)# is this necessary? Yes if we give something position dependent
-        
+        # This is necessary if the energy spectrum is position dependent
+        self.set_data(data.copy(), **params)
+
         if isinstance(energies, (float, int)):
             energies = self.simulate_es(int(energies))
 
@@ -611,11 +620,12 @@ class ERSource:
             sn = signal_name[q]
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
         d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
+
         self.set_data(d, **params)
         return d
 
     def simulate_nq(self, data, params):
-        work = self.gimme('work', data=data, params=params)
+        work = self.gimme('work', data=data, params=params, numpy_out=True)
         data['nq'] = np.floor(data['energy'].values / work).astype(np.int)
 
 
@@ -705,8 +715,8 @@ class NRSource(ERSource):
 
     def simulate_nq(self, data, params):
         work = self.gimme('work',
-                          data=data, params=params)
-        lindhard_l = self.gimme('lindhard_l', data['energy'],
-                                data=data, params=params)
+                          data=data, params=params, numpy_out=True)
+        lindhard_l = self.gimme('lindhard_l', data['energy'].values,
+                                data=data, params=params, numpy_out=True)
         data['nq'] = stats.poisson.rvs(
             data['energy'].values * lindhard_l / work)
