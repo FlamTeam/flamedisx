@@ -5,10 +5,11 @@ import numpy as np
 import tensorflow as tf
 
 from multihist import Hist1d
-import straxen
 import wimprates
 
 from flamedisx import ERSource, NRSource
+from flamedisx.xenon_corrections import (
+    InterpolatingMap, get_resource, pax_file)
 
 ##
 # Electron probability
@@ -89,15 +90,11 @@ def p_electron_nr(
 ##
 
 
-s1_map = straxen.InterpolatingMap(
-        straxen.get_resource(
-            straxen.pax_file(
+s1_map = InterpolatingMap(get_resource(pax_file(
                 'XENON1T_s1_xyz_ly_kr83m_SR0_pax-642_fdc-AdCorrTPF.json')))
 
-s2_map = straxen.InterpolatingMap(
-        straxen.get_resource(
-            straxen.pax_file(
-                'XENON1T_s2_xy_ly_SR0_24Feb2017.json')))
+s2_map = InterpolatingMap(get_resource(pax_file(
+    'XENON1T_s2_xy_ly_SR0_24Feb2017.json')))
 
 
 ##
