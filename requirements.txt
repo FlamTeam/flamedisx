@@ -3,5 +3,6 @@ scipy
 pandas
 multihist
 wimprates
+tqdm
 tensorflow==2.0.0-beta1
 tensorflow_probability==0.7.0-rc0

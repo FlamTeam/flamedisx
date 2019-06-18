@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+import tensorflow as tf
 
 from flamedisx import ERSource, NRSource
 from flamedisx.core import quanta_types
@@ -37,8 +38,10 @@ def xes(request):
 
 
 def test_likelihood(xes: ERSource):
-    """Test that the likelihood doesn't crash"""
-    xes.likelihood()
+    """Test likelihood and batched_likelihood give the same answer"""
+    y = xes.likelihood()
+    y2 = xes.batched_likelihood()
+    np.testing.assert_array_equal(y.numpy(), y2)
 
 
 def test_simulate(xes: ERSource):
@@ -63,8 +66,18 @@ def test_bounds(xes: ERSource):
 
 
 def test_gimme(xes: ERSource):
+    x = xes.gimme('photon_gain_mean')
+    assert isinstance(x, tf.Tensor)
+    assert x.dtype == tf.float32
+
+    y = xes.gimme('photon_gain_mean', numpy_out=True)
+    assert isinstance(y, np.ndarray)
+    assert y.dtype == np.float32
+
+    np.testing.assert_array_equal(x.numpy(), y)
+
     np.testing.assert_equal(
-        xes.gimme('photon_gain_mean').numpy(),
+        y,
         xes.photon_gain_mean * np.ones(xes.n_evts))
 
 
@@ -72,8 +85,8 @@ def test_nphnel(xes: ERSource):
     """Test (nph, nel) rate matrix"""
     r = xes.rate_nphnel().numpy()
     assert r.shape == (xes.n_evts,
-                       xes._dimsize('photon_produced'),
-                       xes._dimsize('electron_produced'))
+                       xes._dimsize('photon_produced').numpy(),
+                       xes._dimsize('electron_produced').numpy())
 
 
 def test_domains(xes: ERSource):
@@ -83,8 +96,8 @@ def test_domains(xes: ERSource):
 
     assert (n_det.shape == n_prod.shape
             == (xes.n_evts,
-                xes._dimsize('electron_detected'),
-                xes._dimsize('electron_produced')))
+                xes._dimsize('electron_detected').numpy(),
+                xes._dimsize('electron_produced').numpy()))
 
     np.testing.assert_equal(
         np.amin(n_det, axis=(1, 2)),
@@ -104,7 +117,7 @@ def test_domain_detected(xes: ERSource):
 
 def test_detector_response(xes: ERSource):
     r = xes.detector_response('photon').numpy()
-    assert r.shape == (xes.n_evts, xes._dimsize('photon_detected'))
+    assert r.shape == (xes.n_evts, xes._dimsize('photon_detected').numpy())
 
     # r is p(S1 | detected quanta) as a function of detected quanta
     # so the sum over r isn't meaningful (as long as we're frequentists)
@@ -121,8 +134,8 @@ def test_detector_response(xes: ERSource):
 def test_detection_prob(xes: ERSource):
     r = xes.detection_p('electron').numpy()
     assert r.shape == (xes.n_evts,
-                       xes._dimsize('electron_detected'),
-                       xes._dimsize('electron_produced'))
+                       xes._dimsize('electron_detected').numpy(),
+                       xes._dimsize('electron_produced').numpy())
 
     # Sum of probability over detected electrons must be
     #  A) in [0, 1] for any value of electrons_produced

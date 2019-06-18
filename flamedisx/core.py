@@ -1,13 +1,17 @@
 import inspect
 
+from multihist import Hist1d
+import numpy as np
+import pandas as pd
+from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
 # Remove once tf.repeat is available in the tf api
 from tensorflow.python.ops.ragged.ragged_util import repeat
-import numpy as np
-from scipy import stats
-import pandas as pd
-from multihist import Hist1d
+from tqdm import tqdm
+
+import flamedisx as fd
+export, __all__ = fd.exporter()
 
 tfd = tfp.distributions
 
@@ -34,33 +38,8 @@ for _qn in quanta_types:
 
 o = tf.newaxis
 
-def _lookup_axis1(x, indices, fill_value=0):
-    """Return values of x at indices along axis 1,
-       returning fill_value for out-of-range indices.
-    """
-    # Save shape of x and flatten
-    a, b = x.shape
-    x = tf.reshape(x, [-1])
 
-    legal_index = indices < b
-
-    # Convert indices to legal indices in flat array
-    indices = tf.dtypes.cast(indices, dtype=tf.int32)
-    indices = tf.clip_by_value(indices, 0, b - 1)
-    indices = indices + b * tf.range(a)[:, o, o]
-
-    # Do indexing
-    result = tf.reshape(tf.gather(x,
-                                  tf.reshape(indices, shape=(-1,))),
-                        shape=indices.shape)
-
-    # Replace illegal indices with fill_value, cast to float explicitly
-    return tf.cast(tf.where(legal_index,
-                            result,
-                            tf.zeros_like(result) + fill_value),
-                   dtype=tf.float32)
-
-
+@export
 class ERSource:
     data_methods = tuple(data_methods)
     special_data_methods = tuple(special_data_methods)
@@ -68,6 +47,9 @@ class ERSource:
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
     do_pel_fluct = True
+
+    # tuple with columns needed from data to run add_extra_columns
+    extra_needed_columns = tuple()
 
     ##
     # Model functions
@@ -174,94 +156,73 @@ class ERSource:
         if data is not None:
             self.set_data(data)
         self._params = params
-        self.tensor_data = dict()
+
+        # Dictionary that maps
+        # observable dimension -> tensor
+        self._tensor_cache = dict()
 
     @property
     def n_evts(self):
         return len(self.data)
 
-    def gimme(self, fname, bonus_arg=None, data=None, params=None, numpy_out=False):
-        if fname in self.special_data_methods:
-            assert bonus_arg is not None
-        else:
-            assert bonus_arg is None
+    def gimme(self, fname, bonus_arg=None, numpy_out=False):
+        """Evaluate the model function fname with all required arguments
 
-        if data is None:
-            data = self.data
-        if params is None:
-            params = self._params
+        :param fname: Name of the model function to compute
+        :param bonus_arg: If fname takes a bonus argument, the data for it
+        :param numpy_out: If True, return (tuple of) numpy arrays,
+        otherwise (tuple of) tensors.
+
+        Before using gimme, you must use set_data to
+        populate the internal caches.
+        """
+        assert (bonus_arg is not None) == (fname in self.special_data_methods)
 
         f = getattr(self, fname)
 
         if callable(f):
-            if fname in self.tensor_data.keys():
-                args = [v for v in self.tensor_data[fname]]
-            else:
-                args = [data[x].values for x in self.f_dims[fname]]
+            args = [self._tensor_cache.get(x, self.data[x].values)
+                    for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
-            kwargs = {k: v for k, v in params.items()
+            kwargs = {k: v for k, v in self._params.items()
                       if k in self.f_params[fname]}
 
             res = f(*args, **kwargs)
         else:
             if bonus_arg is None:
-                res = f * tf.ones(len(data),
-                                  dtype=tf.float32)
+                x = tf.ones(len(self.data), dtype=tf.float32)
             else:
-                res = f * tf.ones_like(bonus_arg,
-                                       dtype=tf.float32)
+                x = tf.ones_like(bonus_arg, dtype=tf.float32)
+            res = f * x
 
-        # Convert to numpy array if numpy_out else output tensor
         if numpy_out:
-            # res can be tuple
-            # Assume elements are either numpy array or tf tensors
-            if isinstance(res, tuple):
-                return tuple([v
-                              if isinstance(v, np.ndarray)
-                              else v.numpy()
-                              for v in res])
-            else:
-                return res if isinstance(res, np.ndarray) else res.numpy()
-        else:
-            # make sure output is tensor (or tuple of tensors)
-            if isinstance(res, tuple):
-                if not isinstance(res[0], np.ndarray):
-                    for v in res:
-                        assert v.dtype is tf.float32, f'{v.dtype}'
-                return tuple([v
-                              if isinstance(v, tf.Tensor)
-                              else tf.convert_to_tensor(v, dtype=tf.float32)
-                              for v in res])
-            else:
-                if not isinstance(res, np.ndarray):
-                    assert res.dtype is tf.float32, f'{res.dtype}'
-                return (res
-                        if isinstance(res, tf.Tensor)
-                        else tf.convert_to_tensor(res, dtype=tf.float32))
+            return fd.tf_to_np(res)
+        return fd.np_to_tf(res)
 
+    def annotate_data(self, data, max_sigma=3, restore_prev=True, **params):
+        """Annotate data with columns needed for inference.
+        :param data: data to set
+        :param max_sigma: Maximum sigma level to consider for bound estimation
+        :param restore_prev: Restore previous state (default is true)
+        (data, params, tensor cache)
 
-    def annotate_data(self, data, max_sigma=3, **params):
-        """Annotate data with columns needed or inference,
-        using params for maximum likelihood estimates"""
+        Other kwargs are interpreted as model parameters, used in the bound
+        estimation.
+        """
+        # Store ref to old state, in case we have to restore it
         old_data = self.data
         old_params = self._params
-        try:
-            self._params = params
-            self.set_data(data, max_sigma=max_sigma)
-        except Exception:
-            raise
-        finally:
-            self.data = old_data
-            self._params = old_params
+        old_tensor_cache = self._tensor_cache
 
-    def set_data(self, data, max_sigma=3, **params):
-        # remove any previously computed tensors
-        self.tensor_data = dict()
         # Set new data
-        self.data = d = data
+        self._tensor_cache = dict()
         self._params = params
+        self.data = d = data
+
+        self.add_extra_columns(d)
+
         # TODO precompute energy spectra for each event?
 
         # Annotate data with eff, mean, sigma
@@ -360,52 +321,99 @@ class ERSource:
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
 
-        # Precompute tensors for use in gimme
-        for fname, v in self.f_dims.items():
-            self.tensor_data[fname] = [tf.convert_to_tensor(d[x].values, dtype=tf.float32) for x in v]
-        for fname in ['s1', 's2']:
-            self.tensor_data[fname] = tf.convert_to_tensor(d[fname].values, dtype=tf.float32)
+        if restore_prev:
+            # Restore state
+            self._tensor_cache = old_tensor_cache
+            self.data = old_data
+            self._params = old_params
 
-    def likelihood(self, data=None, max_sigma=3, batch_size=None,
-                   progress=lambda x: x, **params):
+    @staticmethod
+    def add_extra_columns(data):
+        """Add additional columns to data
+
+        You must add any columns from data you use here to
+        extra_needed.columns.
+
+        :param data: pandas DataFrame
+        """
+        pass
+
+    def set_data(self, data, max_sigma=3, annotated=False, **params):
+        """Set new data to be used for inference
+
+        :param data: data to set
+        :param max_sigma: Maximum sigma level to consider for bound estimation
+        :param annotated: Whether data has already been annotated. If False
+        (default), will call annotate on it first.
+
+        Other kwargs are interpreted as model parameters, used in the bound
+        estimation.
+        """
+        # Set new data and params
+        # tensor cache can only be set after annotation
+        self._tensor_cache = dict()
+        self.data = data
         self._params = params
+
+        if not annotated:
+            self.annotate_data(data,
+                               max_sigma=max_sigma,
+                               restore_prev=False,
+                               **params)
+
+        for x in set(sum(self.f_dims.values(), ['s1', 's2'])):
+            self._tensor_cache[x] = fd.np_to_tf(data[x].values)
+
+    def batched_likelihood(self, batch_size=50,
+                           data=None, max_sigma=3, progress=True,
+                           **params):
         if data is not None:
-            self.set_data(data, max_sigma)
-        del data   # Just so we don't reference it by accident
+            self.set_data(data, max_sigma, **params)
+        n_batches = np.ceil(len(self.data) / batch_size).astype(np.int)
+        progress = tqdm if progress else lambda x: x
+        orig_data = self.data
 
-        if batch_size is not None:
-            # Evaluate in batches, in case we have limited memory
-            n_batches = np.ceil(len(self.data) / batch_size).astype(np.int)
-            if n_batches > 1:
-                orig_data = self.data
-                result = []
-                for i in progress(list(range(n_batches))):
-                    d = orig_data[i * batch_size:(i + 1) * batch_size].copy()
-                    result.append(
-                        self.likelihood(d, max_sigma=max_sigma, **params))
-                return np.concatenate(result)
+        result = []
+        for i in progress(list(range(n_batches))):
+            d = orig_data[i * batch_size:(i + 1) * batch_size].copy()
+            self.set_data(d, annotated=True, **params)
+            result.append(self._likelihood(**params).numpy())
 
+        self.set_data(orig_data, annotated=True)
+        return np.concatenate(result)[:len(orig_data)]
+
+    @tf.function
+    def likelihood(self, **params):
+        return self._likelihood(**params)
+
+    def _likelihood(self, **params):
+        self._params = params
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel()
+
         p_ph = self.detection_p('photon')
         p_el = self.detection_p('electron')
         d_ph = self.detector_response('photon')
         d_el = self.detector_response('electron')
 
         # Rearrange dimensions so we can do a single matrix mult
-        # Alternatively, you could do
-        #         return np.einsum('ij,ijk,ikl,iml,im->i',
-        #                          d_ph, p_ph, y, p_el, d_el)
-        # but that's about 10x slower!
         p_el = tf.transpose(p_el, (0, 2, 1))
         d_ph = d_ph[:, o, :]
         d_el = d_el[:, :, o]
         y = d_ph @ p_ph @ y @ p_el @ d_el
-        return tf.reshape(y, [-1]).numpy()
+        return tf.reshape(y, [-1])
 
     def _dimsize(self, var):
-        return int((self.data[var + '_max']
-                    - self.data[var + '_min']).max())
+        ma = self._tensor_cache.get(
+            var + '_max',
+            fd.np_to_tf(self.data[var + '_max'].values))
+        mi = self._tensor_cache.get(
+            var + '_min',
+            fd.np_to_tf(self.data[var + '_min'].values))
+        return tf.cast(tf.reduce_max(ma - mi), tf.int32)
+        # return len(self._tensor_cache.get(x, self.data[x].values))
+        # return int((self.data[var + '_max']
+        #             - self.data[var + '_min']).max())
 
     def rate_nq(self, nq_1d):
         """Return differential rate at given number of produced quanta
@@ -445,11 +453,11 @@ class ERSource:
         # ... indices in nq arrays
         _nq_ind = nq - self.data['nq_min'].values[:, o, o]
         # ... differential rate
-        rate_nq = _lookup_axis1(rate_nq, _nq_ind)
+        rate_nq = fd.lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
-        pel = _lookup_axis1(pel, _nq_ind)
+        pel = fd.lookup_axis1(pel, _nq_ind)
         # ... probability fluctuation
-        pel_fluct = _lookup_axis1(pel_fluct, _nq_ind)
+        pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
 
         # Finally, the main computation is simple:
         pel_num = tf.where(tf.math.is_nan(pel),
@@ -508,7 +516,7 @@ class ERSource:
         """
         ndet = self.domain(quanta_type + '_detected')
 
-        observed = self.tensor_data[signal_name[quanta_type]][:, o]
+        observed = self._tensor_cache[signal_name[quanta_type]][:, o]
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean')[:, o]
@@ -534,11 +542,11 @@ class ERSource:
 
     @staticmethod
     def dpe_mean_std(ndet, p_dpe, mean_per_q, std_per_q):
-        """Return mean, std of S1 signal for
-        ndet: photons detected
-        p_dpe: double pe emission probability
-        mean_per_q: gain mean per PE
-        std_per_q: gain std per PE
+        """Return (mean, std) of S1 signals
+        :param ndet: photons detected
+        :param p_dpe: double pe emission probability
+        :param mean_per_q: gain mean per PE
+        :param std_per_q: gain std per PE
         """
         npe_mean = ndet * (1 + p_dpe)
         mean = npe_mean * mean_per_q
@@ -555,11 +563,8 @@ class ERSource:
         drawing values of additional observables (e.g. positions)
         from data.
 
-        Will not return | energies | events due to
+        Will not return | energies | events lost due to
         selection/detection efficiencies
-
-        This is not used in the likelihood computation itself,
-        but it's a useful check.
         """
         if not len(params):
             params = self._params
@@ -572,18 +577,18 @@ class ERSource:
         if isinstance(energies, (float, int)):
             energies = self.simulate_es(int(energies))
 
-        # Keep only dims we need
-        d = data[list(set(sum(self.f_dims.values(), []))) + ['s1', 's2']]
+        # Create and set  new dataset, with just the dimensions we need
+        d = data[list(set(sum(
+            self.f_dims.values(),
+            ['s1', 's2'] + list(self.extra_needed_columns))))]
         d = d.sample(n=len(energies), replace=True)
-
         self.set_data(d, **params)
 
         def gimme(*args):
-            return self.gimme(*args,
-                              numpy_out=True)
+            return self.gimme(*args, numpy_out=True)
 
         d['energy'] = energies
-        self.simulate_nq(data=d, params=params)
+        self.simulate_nq(data=d)
 
         d['p_el_mean'] = gimme('p_electron', d['nq'].values)
         d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
@@ -621,16 +626,19 @@ class ERSource:
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
         d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
 
+        # This is useful, so we already have inference bounds on the
+        # returned data.
         self.set_data(d, **params)
         return d
 
-    def simulate_nq(self, data, params):
-        work = self.gimme('work', data=data, params=params, numpy_out=True)
+    def simulate_nq(self, data):
+        work = self.gimme('work', numpy_out=True)
         data['nq'] = np.floor(data['energy'].values / work).astype(np.int)
 
 
 def beta_params(mean, sigma):
-    # Convert (p_mean, p_sigma) to (alpha, beta) params of beta distribution
+    """Convert (p_mean, p_sigma) to (alpha, beta) params of beta distribution
+    """
     # From Wikipedia:
     # variance = 1/(4 * (2 * beta + 1)) = 1/(8 * beta + 4)
     # mean = 1/(1+beta/alpha)
@@ -651,10 +659,9 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
 
     Implemented using Dirichlet Multinomial distribution which is
     identically the Beta-Binomial distribution when len(beta_pars) == 2
-
-    TODO: check if the number of successes wasn't reversed in the original
-    code. Should we have [x, n-x] or [n-x, x]?
     """
+    # TODO: check if the number of successes wasn't reversed in the original
+    # code. Should we have [x, n-x] or [n-x, x]?
 
     beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
 
@@ -676,6 +683,7 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
                     tf.zeros_like(res, dtype=tf.float32))
 
 
+@export
 class NRSource(ERSource):
     do_pel_fluct = False
     data_methods = tuple(data_methods + ['lindhard_l'])
@@ -687,7 +695,7 @@ class NRSource(ERSource):
         eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
         g = 3. * eps**0.15 + 0.7 * eps**0.6 + eps
         res = lindhard_k * g/(1. + lindhard_k * g)
-        return tf.convert_to_tensor(res, dtype=tf.float32)
+        return res
 
     def energy_spectrum(self, drift_time):
         """Return (energies in keV, events at these energies),
@@ -713,10 +721,9 @@ class NRSource(ERSource):
     def penning_quenching_eff(nph, eta=8.2e-5 * 3.3, labda=0.8 * 1.15):
         return 1. / (1. + eta * nph ** labda)
 
-    def simulate_nq(self, data, params):
-        work = self.gimme('work',
-                          data=data, params=params, numpy_out=True)
+    def simulate_nq(self, data,):
+        work = self.gimme('work', numpy_out=True)
         lindhard_l = self.gimme('lindhard_l', data['energy'].values,
-                                data=data, params=params, numpy_out=True)
+                                numpy_out=True)
         data['nq'] = stats.poisson.rvs(
             data['energy'].values * lindhard_l / work)

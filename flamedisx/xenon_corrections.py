@@ -11,7 +11,11 @@ import urllib.request
 import numpy as np
 from scipy.spatial import cKDTree
 
+import flamedisx as fd
+export, __all__ = fd.exporter()
 
+
+@export
 class InterpolateAndExtrapolate(object):
     """Linearly interpolate- and extrapolate using inverse-distance
     weighted averaging between nearby points.
@@ -44,6 +48,7 @@ class InterpolateAndExtrapolate(object):
         return result
 
 
+@export
 class InterpolatingMap(object):
     """Correction map that computes values using inverse-weighted distance
     interpolation.
@@ -113,6 +118,7 @@ class InterpolatingMap(object):
 cache_dict = dict()
 
 
+@export
 def get_resource(x, fmt='text'):
     """Return contents of file or URL x
     :param binary: Resource is binary. Return bytes instead of a string.
@@ -183,6 +189,7 @@ def get_resource(x, fmt='text'):
     return result
 
 
+@export
 def hashablize(obj):
     """Convert a container hierarchy into one that can be hashed.
     See http://stackoverflow.com/questions/985294
@@ -202,6 +209,7 @@ def hashablize(obj):
         return obj
 
 
+@export
 def deterministic_hash(thing, length=10):
     """Return a base32 lowercase string of length determined from hashing
     a container hierarchy
@@ -210,6 +218,7 @@ def deterministic_hash(thing, length=10):
     return b32encode(digest)[:length].decode('ascii').lower()
 
 
+@export
 def pax_file(x):
     """Return URL to file hosted in the pax repository master branch"""
     return 'https://raw.githubusercontent.com/XENON1T/pax/master/pax/data/' + x
