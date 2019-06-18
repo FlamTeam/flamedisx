@@ -7,16 +7,17 @@ import tensorflow as tf
 from multihist import Hist1d
 import wimprates
 
-from flamedisx import ERSource, NRSource
-from flamedisx.xenon_corrections import (
-    InterpolatingMap, get_resource, pax_file)
+import flamedisx as fd
+
+export, __all__ = fd.exporter()
+
 
 ##
 # Electron probability
 ##
 
 def p_el_thesis(e_kev, a=15, b=-27.7, c=32.5, e0=5):
-    eps = np.log10(e_kev / e0 + 1e-9)
+    eps = fd.tf_log10(e_kev / e0 + 1e-9)
     qy = a * eps ** 2 + b * eps + c
     return qy * 13.8e-3
 
@@ -29,7 +30,7 @@ def p_el_sr0(e_kev):
     as published in https://arxiv.org/abs/1902.11297
     (median posterior).
     """
-    e_kev = np.asarray(e_kev)
+    e_kev = tf.convert_to_tensor(e_kev, dtype=tf.float32)
 
     # Parameters from Table II, for SR0
     mean_nexni = 0.15
@@ -47,13 +48,14 @@ def p_el_sr0(e_kev):
         fi = 1 / (1 + mean_nexni)
         nq = e_kev / w_bbf
         ni, nex = nq * fi, nq * (1 - fi)
-        wiggle_er = gamma_er * np.exp(-e_kev / omega_er) * F ** (-delta_er)
-        r_er = 1 - np.log(1 + ni * wiggle_er) / (ni * wiggle_er)
-        r_er /= (1 + np.exp(-(e_kev - q0) / q1))
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-delta_er)
+        r_er = 1 - tf.math.log(1 + ni * wiggle_er) / (ni * wiggle_er)
+        r_er /= (1 + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1 - r_er) / nq
 
     # placeholder value for e = 0 (better than NaN)
-    p_el[e_kev == 0] = 1
+    p_el = tf.where(e_kev == 0, tf.ones_like(p_el), p_el)
+
     return p_el
 
 
@@ -72,12 +74,12 @@ def p_electron_nr(
 
     # Note: final term depends on nq now, not energy
     # this means beta is different from lenardo et al
-    nexni = alpha * drift_field ** -zeta * (1 - np.exp(-beta * nq))
+    nexni = alpha * drift_field ** -zeta * (1 - tf.exp(-beta * nq))
     ni = nq * 1 / (1 + nexni)
 
     # Fraction of ions NOT participating in recombination
     squiggle = gamma * drift_field ** -delta
-    fnotr = np.log(1 + ni * squiggle) / (ni * squiggle)
+    fnotr = tf.math.log(1 + ni * squiggle) / (ni * squiggle)
 
     # Finally, number of electrons produced..
     n_el = ni * fnotr
@@ -90,46 +92,56 @@ def p_electron_nr(
 ##
 
 
-s1_map = InterpolatingMap(get_resource(pax_file(
-                'XENON1T_s1_xyz_ly_kr83m_SR0_pax-642_fdc-AdCorrTPF.json')))
-
-s2_map = InterpolatingMap(get_resource(pax_file(
-    'XENON1T_s2_xy_ly_SR0_24Feb2017.json')))
+s1_map, s2_map = [
+    fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
+    for x in ('XENON1T_s1_xyz_ly_kr83m_SR0_pax-642_fdc-AdCorrTPF.json',
+              'XENON1T_s2_xy_ly_SR0_24Feb2017.json')]
 
 
 ##
 # Flamedisx sources
 ##
 
-def safe_p(ps):
-    return np.nan_to_num(ps).clip(1e-4, 1 - 1e-4)
 
-
+@export
 class SR0Source:
+    extra_needed_columns = ('x_observed', 'y_observed',
+                            'x', 'y', 'z')
+
+    @staticmethod
+    def add_extra_columns(d):
+        d['s2_relative_ly'] = s2_map(
+            np.transpose([d['x_observed'].values,
+                          d['y_observed'].values]))
+        d['s1_relative_ly'] = s1_map(
+            np.transpose([d['x'].values,
+                          d['y'].values,
+                          d['z'].values]))
 
     @staticmethod
     def electron_detection_eff(drift_time,
                                *, elife=452e3, extraction_eff=0.96):
-        return extraction_eff * np.exp(-drift_time / elife)
+        return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
-    def electron_gain_mean(x_observed, y_observed,
+    def electron_gain_mean(s2_relative_ly,
                            g2=11.4 / (1 - 0.63) / 0.96):
-        return g2 * s2_map(tf.transpose([x_observed, y_observed]).numpy())
+        return g2 * s2_relative_ly
 
     electron_gain_std = 11.4 * 0.25 / (1 - 0.63)
 
     @staticmethod
-    def photon_detection_eff(x, y, z,
+    def photon_detection_eff(s1_relative_ly,
                              mean_eff=0.142 / (1 + 0.219)):
-        return mean_eff * s1_map(tf.transpose([x, y, z]).numpy())
+        return mean_eff * s1_relative_ly
 
 
-class SR0ERSource(SR0Source, ERSource):
+@export
+class SR0ERSource(SR0Source, fd.ERSource):
 
     @staticmethod
     def p_electron(nq):
-        return safe_p(p_el_thesis(nq * 13.8e-3))
+        return fd.safe_p(p_el_thesis(nq * 13.8e-3))
 
     @staticmethod
     def p_electron_fluctuation(nq):
@@ -149,7 +161,8 @@ example_sp = Hist1d.from_histogram(
     example_wimp_es)
 
 
-class SR0NRSource(SR0Source, NRSource):
+@export
+class SR0NRSource(SR0Source, fd.NRSource):
 
     def energy_spectrum(self, drift_time):
         n_evts = len(drift_time)
@@ -159,4 +172,4 @@ class SR0NRSource(SR0Source, NRSource):
 
     @staticmethod
     def p_electron(nq):
-        return safe_p(p_electron_nr(nq))
+        return fd.safe_p(p_electron_nr(nq))
