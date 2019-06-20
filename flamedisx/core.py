@@ -140,18 +140,26 @@ class ERSource:
         # Discover possible parameters
         self.f_dims = {x: [] for x in self.data_methods}
         self.f_params = {x: [] for x in self.data_methods}
-        self.defaults = {}
+        self.defaults = dict()
         for fname in self.data_methods:
             f = getattr(self, fname)
-            if callable(f):
-                for i, (pname, p) in enumerate(
-                        inspect.signature(f).parameters.items()):
-                    if p.default == inspect.Parameter.empty:
-                        if fname in self.special_data_methods and i == 0:
-                            continue
+            if not callable(f):
+                # Constant
+                continue
+            for i, (pname, p) in enumerate(
+                    inspect.signature(f).parameters.items()):
+                if p.default == inspect.Parameter.empty:
+                    if not (fname in self.special_data_methods and i == 0):
+                        # It's an observable dimension
                         self.f_dims[fname].append(pname)
-                    else:
-                        self.f_params[fname].append(pname)
+                else:
+                    # It's a parameter that can be fitted
+                    self.f_params[fname].append(pname)
+                    if (pname in self.defaults
+                            and p.default != self.defaults[pname]):
+                        raise ValueError(f"Inconsistent defaults for {pname}")
+                    self.defaults[pname] = tf.convert_to_tensor(
+                        p.default, dtype=tf.float32)
 
         if data is not None:
             self.set_data(data)
@@ -181,13 +189,15 @@ class ERSource:
         f = getattr(self, fname)
 
         if callable(f):
-            args = [self._tensor_cache.get(x, self.data[x].values)
+            args = [self._tensor_cache.get(
+                        x,
+                        fd.np_to_tf(self.data[x].values))
                     for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
-            kwargs = {k: v for k, v in self._params.items()
-                      if k in self.f_params[fname]}
+            kwargs = {pname: self._params.get(pname, self.defaults[pname])
+                      for pname in self.f_params[fname]}
 
             res = f(*args, **kwargs)
         else:
@@ -382,7 +392,55 @@ class ERSource:
         self.set_data(orig_data, annotated=True)
         return np.concatenate(result)[:len(orig_data)]
 
-    @tf.function
+    def mu_interpolator(self, interpolation_method='star',
+                        **params):
+        """Return interpolator for number of expected events
+        Parameters must be specified as kwarg=(start, stop, n_anchors)
+        """
+        if interpolation_method != 'star':
+            raise NotImplementedError(
+                f"mu interpolation method {interpolation_method} "
+                f"not implemented")
+
+        base_mu = tf.constant(self.estimate_mu(), dtype=tf.float32)
+        pspaces = dict()    # parameter -> tf.linspace of anchors
+        mus = dict()        # parameter -> tensor of mus
+        for pname, pspace_spec in params.items():
+            pspaces[pname] = tf.linspace(*pspace_spec)
+            mus[pname] = tf.convert_to_tensor(
+                [self.estimate_mu(**{pname: x})
+                 for x in np.linspace(*pspace_spec)],
+                dtype=tf.float32)
+
+        @tf.function
+        def mu_itp(**kwargs):
+            mu = base_mu
+            for pname, v in kwargs.items():
+                mu *= tfp.math.interp_regular_1d_grid(
+                    x=v,
+                    x_ref_min=params[pname][0],
+                    x_ref_max=params[pname][1],
+                    y_ref=mus[pname]) / base_mu
+            return mu
+
+        return mu_itp
+
+    def estimate_mu(self, data=None, n_trials=int(1e4), **params):
+        """Return estimate of total expected number of events
+        :param data: Data used for drawing auxiliary observables
+        (e.g. position and time)
+        :param n_trials: Number of events to simulate for efficiency estimate
+        """
+        if data is None:
+            data = self.data
+
+        _, spectra = self.gimme('energy_spectrum', numpy_out=True)
+        mean_rate = spectra.sum(axis=1).mean(axis=0)
+
+        eff = len(self.simulate(n_trials, data=data, **params)) / n_trials
+
+        return eff * mean_rate
+
     def likelihood(self, **params):
         return self._likelihood(**params)
 
@@ -570,6 +628,8 @@ class ERSource:
             params = self._params
         if data is None:
             data = self.data
+        orig_data = self.data
+        orig_params = self._params
 
         # This is necessary if the energy spectrum is position dependent
         self.set_data(data.copy(), **params)
@@ -629,6 +689,9 @@ class ERSource:
         # This is useful, so we already have inference bounds on the
         # returned data.
         self.set_data(d, **params)
+
+        # Restore original data
+        self.set_data(orig_data, **orig_params)
         return d
 
     def simulate_nq(self, data):
