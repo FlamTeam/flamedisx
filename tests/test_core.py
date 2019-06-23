@@ -163,8 +163,8 @@ def test_estimate_mu(xes: fd.ERSource):
 
 
 def test_build_likelihood(xes: fd.ERSource):
-    lf = fd.log_likelihood(
+    lf = fd.LogLikelihood(
         sources=dict(er=xes),
         elife=(100e3, 500e3, 5),
         data=xes.data)
-    lf(elife=200e3)
+    lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
