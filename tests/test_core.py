@@ -6,7 +6,7 @@ import pytest
 import tensorflow as tf
 
 import flamedisx as fd
-from flamedisx.core import quanta_types
+from flamedisx.source import quanta_types
 
 
 def np_lookup_axis1(x, indices, fill_value=0):

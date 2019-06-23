@@ -330,14 +330,10 @@ class ERSource:
                     scale=scale,
                 ).round().clip(*self._clip_range(qn)).astype(np.int)
 
-                # d[qn + '_produced_' + bound] = fd.binom_n_bound(
-                #     n_detected=d[qn + '_detected_' + bound].values,
-                #     p=eff,
-                #     sigma=sign * max_sigma,
-                # ).round().clip(*clip_range).astype(np.int)
-
-                # For produced quanta, I have to think harder..
+                # For produced quanta, it is trickier, since the number
+                # of detected quanta is also uncertain.
                 # TODO: where did this derivation come from again?
+                # TODO: maybe do a second bound based on CES
                 q = 1 / eff
                 d[qn + '_produced_' + bound] = stats.norm.ppf(
                     stats.norm.cdf(sign * max_sigma),
