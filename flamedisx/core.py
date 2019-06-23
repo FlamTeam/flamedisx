@@ -61,8 +61,11 @@ class ERSource:
         """
         # TODO: doesn't depend on drift_time...
         n_evts = len(drift_time)
-        return (repeat(tf.linspace(0., 10., 1000)[o, :], n_evts, axis=0),
-                repeat(tf.ones(1000, dtype=tf.float32)[o, :], n_evts, axis=0))
+        return (repeat(tf.cast(tf.linspace(0., 10., 1000)[o, :],
+                               dtype=fd.float_type()),
+                       n_evts, axis=0),
+                repeat(tf.ones(1000, dtype=fd.float_type())[o, :],
+                       n_evts, axis=0))
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
@@ -76,15 +79,15 @@ class ERSource:
 
     @staticmethod
     def p_electron(nq):
-        return 0.5 * tf.ones_like(nq, dtype=tf.float32)
+        return 0.5 * tf.ones_like(nq, dtype=fd.float_type())
 
     @staticmethod
     def p_electron_fluctuation(nq):
-        return 0.01 * tf.ones_like(nq, dtype=tf.float32)
+        return 0.01 * tf.ones_like(nq, dtype=fd.float_type())
 
     @staticmethod
     def penning_quenching_eff(nph):
-        return tf.ones_like(nph, dtype=tf.float32)
+        return tf.ones_like(nph, dtype=fd.float_type())
 
     # Detection efficiencies
 
@@ -101,22 +104,22 @@ class ERSource:
     @staticmethod
     def photon_acceptance(photons_detected):
         return tf.where(photons_detected < 3,
-                        tf.zeros_like(photons_detected, dtype=tf.float32),
-                        tf.ones_like(photons_detected, dtype=tf.float32))
+                        tf.zeros_like(photons_detected, dtype=fd.float_type()),
+                        tf.ones_like(photons_detected, dtype=fd.float_type()))
 
     # Acceptance of selections on S1/S2 directly
 
     @staticmethod
     def s1_acceptance(s1):
         return tf.where(s1 < 2,
-                        tf.zeros_like(s1, dtype=tf.float32),
-                        tf.ones_like(s1, dtype=tf.float32))
+                        tf.zeros_like(s1, dtype=fd.float_type()),
+                        tf.ones_like(s1, dtype=fd.float_type()))
 
     @staticmethod
     def s2_acceptance(s2):
         return tf.where(s2 < 200,
-                        tf.zeros_like(s2, dtype=tf.float32),
-                        tf.ones_like(s2, dtype=tf.float32))
+                        tf.zeros_like(s2, dtype=fd.float_type()),
+                        tf.ones_like(s2, dtype=fd.float_type()))
 
     electron_gain_mean = 20.
     electron_gain_std = 5.
@@ -159,7 +162,7 @@ class ERSource:
                             and p.default != self.defaults[pname]):
                         raise ValueError(f"Inconsistent defaults for {pname}")
                     self.defaults[pname] = tf.convert_to_tensor(
-                        p.default, dtype=tf.float32)
+                        p.default, dtype=fd.float_type())
 
         if data is not None:
             self.set_data(data)
@@ -202,9 +205,9 @@ class ERSource:
             res = f(*args, **kwargs)
         else:
             if bonus_arg is None:
-                x = tf.ones(len(self.data), dtype=tf.float32)
+                x = tf.ones(len(self.data), dtype=fd.float_type())
             else:
-                x = tf.ones_like(bonus_arg, dtype=tf.float32)
+                x = tf.ones_like(bonus_arg, dtype=fd.float_type())
             res = f * x
 
         if numpy_out:
@@ -393,6 +396,7 @@ class ERSource:
         return np.concatenate(result)[:len(orig_data)]
 
     def mu_interpolator(self, interpolation_method='star',
+                        n_trials=int(1e5),
                         **params):
         """Return interpolator for number of expected events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
@@ -402,17 +406,18 @@ class ERSource:
                 f"mu interpolation method {interpolation_method} "
                 f"not implemented")
 
-        base_mu = tf.constant(self.estimate_mu(), dtype=tf.float32)
+        base_mu = tf.constant(self.estimate_mu(n_trials=n_trials),
+                              dtype=fd.float_type())
         pspaces = dict()    # parameter -> tf.linspace of anchors
         mus = dict()        # parameter -> tensor of mus
-        for pname, pspace_spec in params.items():
+        for pname, pspace_spec in tqdm(params.items(),
+                                       desc="Estimating mus"):
             pspaces[pname] = tf.linspace(*pspace_spec)
             mus[pname] = tf.convert_to_tensor(
-                [self.estimate_mu(**{pname: x})
+                [self.estimate_mu(**{pname: x}, n_trials=n_trials)
                  for x in np.linspace(*pspace_spec)],
-                dtype=tf.float32)
+                dtype=fd.float_type())
 
-        @tf.function
         def mu_itp(**kwargs):
             mu = base_mu
             for pname, v in kwargs.items():
@@ -425,7 +430,7 @@ class ERSource:
 
         return mu_itp
 
-    def estimate_mu(self, data=None, n_trials=int(1e4), **params):
+    def estimate_mu(self, data=None, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param data: Data used for drawing auxiliary observables
         (e.g. position and time)
@@ -482,11 +487,11 @@ class ERSource:
         # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum')
         q_produced = tf.cast(tf.floor(es / self.gimme('work')[:, o]),
-                             dtype=tf.float32)
+                             dtype=fd.float_type())
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
         p_nq_e = tf.cast(tf.equal(nq_1d[:, :, o], q_produced[:, o, :]),
-                         dtype=tf.float32)
+                         dtype=fd.float_type())
 
         return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
@@ -519,7 +524,7 @@ class ERSource:
 
         # Finally, the main computation is simple:
         pel_num = tf.where(tf.math.is_nan(pel),
-                           tf.zeros_like(pel, dtype=tf.float32),
+                           tf.zeros_like(pel, dtype=fd.float_type()),
                            pel)
         pel_clip = tf.clip_by_value(pel_num, 1e-6, 1. - 1e-6)
         pel_fluct_clip = tf.clip_by_value(pel_fluct, 1e-6, 1.)
@@ -545,7 +550,7 @@ class ERSource:
             p = p * self.gimme('penning_quenching_eff', n_prod)
 
         result = tfd.Binomial(total_count=n_prod,
-                              probs=tf.cast(p, dtype=tf.float32),
+                              probs=tf.cast(p, dtype=fd.float_type()),
                               ).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
@@ -554,7 +559,7 @@ class ERSource:
         values of x for each event"""
         n = self._dimsize(x)
         res = tf.range(n)[o, :] + self.data[x + '_min'][:, o]
-        return tf.cast(res, dtype=tf.float32)
+        return tf.cast(res, dtype=fd.float_type())
 
     def cross_domains(self, x, y):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
@@ -740,10 +745,10 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
                                    # validate_args=True,
                                    # allow_nan_stats=False
                                    ).prob(counts)
-    res = tf.cast(res, dtype=tf.float32)
+    res = tf.cast(res, dtype=fd.float_type())
     return tf.where(tf.math.is_finite(res),
                     res,
-                    tf.zeros_like(res, dtype=tf.float32))
+                    tf.zeros_like(res, dtype=fd.float_type()))
 
 
 @export
@@ -764,8 +769,10 @@ class NRSource(ERSource):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        e = repeat(tf.linspace(0.7, 150., 100)[o, :], len(drift_time), axis=0)
-        return e, tf.ones_like(e, dtype=tf.float32)
+        e = repeat(tf.cast(tf.linspace(0.7, 150., 100)[o, :],
+                           fd.float_type()),
+                   len(drift_time), axis=0)
+        return e, tf.ones_like(e, dtype=fd.float_type())
 
     def rate_nq(self, nq_1d):
         # (n_events, |ne|) tensors
