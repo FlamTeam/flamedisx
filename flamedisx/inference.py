@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+from tqdm import tqdm
 import typing as ty
 
 export, __all__ = fd.exporter()
@@ -87,7 +88,7 @@ class LogLikelihood:
                 rm = ptensor[self._param_i(rmname)]
             else:
                 rm = 1.
-            source_kwargs = self._source_kwargs(sname, ptensor)
+            source_kwargs = self._source_kwargs(ptensor)
 
             mu += rm * self.mu_itps[sname](**source_kwargs)
             lls += rm * s.likelihood(**source_kwargs)
@@ -103,9 +104,9 @@ class LogLikelihood:
             list(self.param_defaults.values()),
             fd.float_type())
 
-    def _source_kwargs(self, sname, ptensor):
+    def _source_kwargs(self, ptensor):
         """Return {param: value} dictionary with keyword arguments
-        for source sname, with values extracted from ptensor"""
+        for source, with values extracted from ptensor"""
         return {pname: ptensor[self._param_i(pname)]
                 for pname in self.param_names
                 if not pname.endswith('_rate_multiplier')}
@@ -161,10 +162,12 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * guess
 
-    def inverse_hessian(self, params):
+    def inverse_hessian(self, params, save_ram=True):
         """Return inverse hessian (square numpy matrix)
         of -2 log_likelihood at params
         """
+        # TODO: add more memory-efficient computation method
+
         # I could only get higher-order derivatives to work
         # after splitting the parameter vector in separate variables,
         # and using the un-@tf.function'ed likelihood.
@@ -175,6 +178,29 @@ class LogLikelihood:
         xc = [tf.Variable(q)
               for q in fd.tf_to_np(params)]
 
+        if save_ram:
+            # Slower but more RAM-efficient algorithm
+            n = len(self.param_names)
+            hessian = np.zeros((n, n))
+            for i1 in tqdm(range(n),
+                           desc='Computing hessian'):
+                with tf.GradientTape(persistent=True) as t2:
+                    with tf.GradientTape() as t:
+                        ptensor = tf.stack(xc)
+                        y = self._minus_ll(ptensor)
+                    grad = t.gradient(y, xc[i1])
+                for i2 in range(n):
+                    if i2 > i1:
+                        continue
+                    hessian[i1, i2] = t2.gradient(grad, xc[i2]).numpy()
+                del t2
+            for i1 in range(n):
+                for i2 in range(n):
+                    if i2 > i1:
+                        hessian[i1, i2] = hessian[i2, i1]
+            return np.linalg.inv(hessian)
+
+        # Faster RAM-guzzling algorithm
         with tf.GradientTape(persistent=True) as t2:
             with tf.GradientTape(persistent=True) as t:
                 ptensor = tf.stack(xc)
@@ -189,11 +215,42 @@ class LogLikelihood:
 
         return np.linalg.inv(hessian)
 
-    def errors_and_corr(self, bestfit):
-        """Return (1 sigma errors, correlation coefficients)
-        given the bestfit
-        """
-        cov = self.inverse_hessian(bestfit)
-        std_errs = np.diag(cov) ** 0.5
-        corr = cov * np.outer(1 / std_errs, 1 / std_errs)
-        return std_errs, corr
+    def summary(self, bestfit, inverse_hessian=None, precision=3):
+        """Print summary information about best fit"""
+        if inverse_hessian is None:
+            inverse_hessian = self.inverse_hessian(bestfit)
+        stderr, cov = cov_to_std(inverse_hessian)
+        for i, pname in enumerate(self.param_names):
+            template = "{pname}: {x:.{precision}g} +- {xerr:.{precision}g}"
+            print(template.format(
+                pname=pname,
+                x=bestfit[i],
+                xerr=stderr[i],
+                precision=precision))
+
+        df = pd.DataFrame(
+            {p1: {p2: cov[i1, i2]
+                  for i2, p2 in enumerate(self.param_names)}
+             for i1, p1 in enumerate(self.param_names)},
+            columns=self.param_names)
+
+        # Get rows in the correct order
+        df['index'] = [self.param_names.index(x)
+                       for x in df.index.values]
+        df = df.sort_values(by='index')
+        del df['index']
+
+        print("Correlation matrix:")
+        pd.set_option('precision', 3)
+        print(df)
+        pd.reset_option('precision')
+
+
+@export
+def cov_to_std(cov):
+    """Return (std errors, correlation coefficent matrix)
+    given covariance matrix cov
+    """
+    std_errs = np.diag(cov) ** 0.5
+    corr = cov * np.outer(1 / std_errs, 1 / std_errs)
+    return std_errs, corr

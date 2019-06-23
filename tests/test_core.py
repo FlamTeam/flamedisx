@@ -58,11 +58,11 @@ def test_bounds(xes: fd.ERSource):
             print(qn + '_' + p)
             np.testing.assert_array_less(
                 data['%s_%s_min' % (qn, p)].values,
-                data['%s_%s_mle' % (qn, p)].values)
+                data['%s_%s_mle' % (qn, p)].values + 1e-5)
 
             np.testing.assert_array_less(
                 data['%s_%s_mle' % (qn, p)].values,
-                data['%s_%s_max' % (qn, p)].values)
+                data['%s_%s_max' % (qn, p)].values + 1e-5)
 
 
 def test_gimme(xes: fd.ERSource):
