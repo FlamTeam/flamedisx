@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import stats
 import tensorflow as tf
 
 o = tf.newaxis
@@ -88,3 +89,15 @@ def safe_p(ps):
                   tf.cast(ps, dtype=float_type()))
     ps = tf.clip_by_value(ps, 1e-5, 1 - 1e-5)
     return ps
+
+
+@export
+def binom_n_bound(n_detected, p, sigma=1):
+    """Given n_detected quanta and detected probability p,
+    give a sigma-level confidence bound on the total number
+    of detected quanta.
+    """
+    # From https://stats.stackexchange.com/a/1353
+    return n_detected + stats.nbinom.ppf(stats.norm.cdf(sigma),
+                                         n=n_detected,
+                                         p=p)

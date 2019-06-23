@@ -98,14 +98,21 @@ class ERSource:
     photon_detection_eff = 0.1
 
     # Acceptance of selection/detection on photons/electrons detected
+    # The min_xxx attributes are also used in the bound computations
+    min_s1_photons_detected = 3.
+    min_s2_electrons_detected = 3.
 
-    electron_acceptance = 1.
+    def electron_acceptance(self, electrons_detected):
+        return tf.where(
+            electrons_detected < self.min_s2_electrons_detected,
+            tf.zeros_like(electrons_detected, dtype=fd.float_type()),
+            tf.ones_like(electrons_detected, dtype=fd.float_type()))
 
-    @staticmethod
-    def photon_acceptance(photons_detected):
-        return tf.where(photons_detected < 3,
-                        tf.zeros_like(photons_detected, dtype=fd.float_type()),
-                        tf.ones_like(photons_detected, dtype=fd.float_type()))
+    def photon_acceptance(self, photons_detected):
+        return tf.where(
+            photons_detected < self.min_s1_photons_detected,
+            tf.zeros_like(photons_detected, dtype=fd.float_type()),
+            tf.ones_like(photons_detected, dtype=fd.float_type()))
 
     # Acceptance of selections on S1/S2 directly
 
@@ -214,6 +221,11 @@ class ERSource:
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
 
+    def _clip_range(self, qn):
+        return (self.min_s1_photons_detected if qn == 'photon'
+                else self.min_s2_electrons_detected,
+                None)
+
     def annotate_data(self, data, max_sigma=3, restore_prev=True, **params):
         """Annotate data with columns needed for inference.
         :param data: data to set
@@ -255,7 +267,8 @@ class ERSource:
             n_det_mle = (obs[qn] / d[qn + '_gain_mean'])
             if qn == 'photon':
                 n_det_mle /= (1 + d['double_pe_fraction'])
-            d[qn + '_detected_mle'] = n_det_mle.round().astype(np.int)
+            d[qn + '_detected_mle'] = n_det_mle.round().astype(np.int).clip(
+                *self._clip_range(qn))
 
         # The Penning quenching depends on the number of produced
         # photons.... But we don't have that yet.
@@ -287,19 +300,16 @@ class ERSource:
         # TODO: Meh, think about this, considering also computation cost
         # / space width
         for qn in quanta_types:
-
+            # We need the copy, otherwise the in-place modification below
+            # will have the side effect of messing up the dataframe column!
+            eff = d[qn + '_detection_eff'].values.copy()
             if qn == 'photon':
-                # Don't use *=, it will modify in place !
-                eff = (d[qn + '_detection_eff']
-                       * d['penning_quenching_eff_mle'])
-            else:
-                eff = d[qn + '_detection_eff']
+                eff *= d['penning_quenching_eff_mle'].values
 
             n_prod_mle = d[qn + '_produced_mle'] = (
                     d[qn + '_detected_mle'] / eff).astype(np.int)
 
             # Prepare for bounds computation
-            clip_range = (0, None)
             n = d[qn + '_detected_mle'].values
             m = d[qn + '_gain_mean'].values
             s = d[qn + '_gain_std'].values
@@ -318,17 +328,22 @@ class ERSource:
                     stats.norm.cdf(sign * max_sigma),
                     loc=n,
                     scale=scale,
-                ).round().clip(*clip_range).astype(np.int)
+                ).round().clip(*self._clip_range(qn)).astype(np.int)
 
-                # TODO: For produced quanta I have to think harder!
-                # Don't remember where this came from, changed 1 - eff to
-                # 1 / eff ???
+                # d[qn + '_produced_' + bound] = fd.binom_n_bound(
+                #     n_detected=d[qn + '_detected_' + bound].values,
+                #     p=eff,
+                #     sigma=sign * max_sigma,
+                # ).round().clip(*clip_range).astype(np.int)
+
+                # For produced quanta, I have to think harder..
+                # TODO: where did this derivation come from again?
                 q = 1 / eff
                 d[qn + '_produced_' + bound] = stats.norm.ppf(
                     stats.norm.cdf(sign * max_sigma),
                     loc=n_prod_mle,
                     scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
-                ).round().clip(*clip_range).astype(np.int)
+                ).round().clip(*self._clip_range(qn)).astype(np.int)
 
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
