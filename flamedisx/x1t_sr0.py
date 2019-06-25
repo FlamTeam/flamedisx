@@ -16,7 +16,7 @@ export, __all__ = fd.exporter()
 # Electron probability
 ##
 
-def p_el_thesis(e_kev, a=15, b=-27.7, c=32.5, e0=5):
+def p_el_thesis(e_kev, a=15, b=-27.7, c=32.5, e0=5.):
     eps = fd.tf_log10(e_kev / e0 + 1e-9)
     qy = a * eps ** 2 + b * eps + c
     return qy * 13.8e-3
@@ -30,7 +30,7 @@ def p_el_sr0(e_kev):
     as published in https://arxiv.org/abs/1902.11297
     (median posterior).
     """
-    e_kev = tf.convert_to_tensor(e_kev, dtype=tf.float32)
+    e_kev = tf.convert_to_tensor(e_kev, dtype=fd.float_type())
 
     # Parameters from Table II, for SR0
     mean_nexni = 0.15
@@ -140,8 +140,10 @@ class SR0Source:
 class SR0ERSource(SR0Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq):
-        return fd.safe_p(p_el_thesis(nq * 13.8e-3))
+    def p_electron(nq, erqy_a=15, erqy_b=-27.7, erqy_c=32.5, erqy_e0=5.):
+        return fd.safe_p(p_el_thesis(nq * 13.8e-3,
+                                     a=erqy_a, b=erqy_b, c=erqy_c,
+                                     e0=erqy_e0))
 
     @staticmethod
     def p_electron_fluctuation(nq):

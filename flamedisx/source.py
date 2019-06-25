@@ -61,8 +61,11 @@ class ERSource:
         """
         # TODO: doesn't depend on drift_time...
         n_evts = len(drift_time)
-        return (repeat(tf.linspace(0., 10., 1000)[o, :], n_evts, axis=0),
-                repeat(tf.ones(1000, dtype=tf.float32)[o, :], n_evts, axis=0))
+        return (repeat(tf.cast(tf.linspace(0., 10., 1000)[o, :],
+                               dtype=fd.float_type()),
+                       n_evts, axis=0),
+                repeat(tf.ones(1000, dtype=fd.float_type())[o, :],
+                       n_evts, axis=0))
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
@@ -76,15 +79,15 @@ class ERSource:
 
     @staticmethod
     def p_electron(nq):
-        return 0.5 * tf.ones_like(nq, dtype=tf.float32)
+        return 0.5 * tf.ones_like(nq, dtype=fd.float_type())
 
     @staticmethod
     def p_electron_fluctuation(nq):
-        return 0.01 * tf.ones_like(nq, dtype=tf.float32)
+        return 0.01 * tf.ones_like(nq, dtype=fd.float_type())
 
     @staticmethod
     def penning_quenching_eff(nph):
-        return tf.ones_like(nph, dtype=tf.float32)
+        return tf.ones_like(nph, dtype=fd.float_type())
 
     # Detection efficiencies
 
@@ -95,28 +98,35 @@ class ERSource:
     photon_detection_eff = 0.1
 
     # Acceptance of selection/detection on photons/electrons detected
+    # The min_xxx attributes are also used in the bound computations
+    min_s1_photons_detected = 3.
+    min_s2_electrons_detected = 3.
 
-    electron_acceptance = 1.
+    def electron_acceptance(self, electrons_detected):
+        return tf.where(
+            electrons_detected < self.min_s2_electrons_detected,
+            tf.zeros_like(electrons_detected, dtype=fd.float_type()),
+            tf.ones_like(electrons_detected, dtype=fd.float_type()))
 
-    @staticmethod
-    def photon_acceptance(photons_detected):
-        return tf.where(photons_detected < 3,
-                        tf.zeros_like(photons_detected, dtype=tf.float32),
-                        tf.ones_like(photons_detected, dtype=tf.float32))
+    def photon_acceptance(self, photons_detected):
+        return tf.where(
+            photons_detected < self.min_s1_photons_detected,
+            tf.zeros_like(photons_detected, dtype=fd.float_type()),
+            tf.ones_like(photons_detected, dtype=fd.float_type()))
 
     # Acceptance of selections on S1/S2 directly
 
     @staticmethod
     def s1_acceptance(s1):
         return tf.where(s1 < 2,
-                        tf.zeros_like(s1, dtype=tf.float32),
-                        tf.ones_like(s1, dtype=tf.float32))
+                        tf.zeros_like(s1, dtype=fd.float_type()),
+                        tf.ones_like(s1, dtype=fd.float_type()))
 
     @staticmethod
     def s2_acceptance(s2):
         return tf.where(s2 < 200,
-                        tf.zeros_like(s2, dtype=tf.float32),
-                        tf.ones_like(s2, dtype=tf.float32))
+                        tf.zeros_like(s2, dtype=fd.float_type()),
+                        tf.ones_like(s2, dtype=fd.float_type()))
 
     electron_gain_mean = 20.
     electron_gain_std = 5.
@@ -140,18 +150,26 @@ class ERSource:
         # Discover possible parameters
         self.f_dims = {x: [] for x in self.data_methods}
         self.f_params = {x: [] for x in self.data_methods}
-        self.defaults = {}
+        self.defaults = dict()
         for fname in self.data_methods:
             f = getattr(self, fname)
-            if callable(f):
-                for i, (pname, p) in enumerate(
-                        inspect.signature(f).parameters.items()):
-                    if p.default == inspect.Parameter.empty:
-                        if fname in self.special_data_methods and i == 0:
-                            continue
+            if not callable(f):
+                # Constant
+                continue
+            for i, (pname, p) in enumerate(
+                    inspect.signature(f).parameters.items()):
+                if p.default == inspect.Parameter.empty:
+                    if not (fname in self.special_data_methods and i == 0):
+                        # It's an observable dimension
                         self.f_dims[fname].append(pname)
-                    else:
-                        self.f_params[fname].append(pname)
+                else:
+                    # It's a parameter that can be fitted
+                    self.f_params[fname].append(pname)
+                    if (pname in self.defaults
+                            and p.default != self.defaults[pname]):
+                        raise ValueError(f"Inconsistent defaults for {pname}")
+                    self.defaults[pname] = tf.convert_to_tensor(
+                        p.default, dtype=fd.float_type())
 
         if data is not None:
             self.set_data(data)
@@ -181,25 +199,32 @@ class ERSource:
         f = getattr(self, fname)
 
         if callable(f):
-            args = [self._tensor_cache.get(x, self.data[x].values)
+            args = [self._tensor_cache.get(
+                        x,
+                        fd.np_to_tf(self.data[x].values))
                     for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
 
-            kwargs = {k: v for k, v in self._params.items()
-                      if k in self.f_params[fname]}
+            kwargs = {pname: self._params.get(pname, self.defaults[pname])
+                      for pname in self.f_params[fname]}
 
             res = f(*args, **kwargs)
         else:
             if bonus_arg is None:
-                x = tf.ones(len(self.data), dtype=tf.float32)
+                x = tf.ones(len(self.data), dtype=fd.float_type())
             else:
-                x = tf.ones_like(bonus_arg, dtype=tf.float32)
+                x = tf.ones_like(bonus_arg, dtype=fd.float_type())
             res = f * x
 
         if numpy_out:
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
+
+    def _clip_range(self, qn):
+        return (self.min_s1_photons_detected if qn == 'photon'
+                else self.min_s2_electrons_detected,
+                None)
 
     def annotate_data(self, data, max_sigma=3, restore_prev=True, **params):
         """Annotate data with columns needed for inference.
@@ -242,7 +267,8 @@ class ERSource:
             n_det_mle = (obs[qn] / d[qn + '_gain_mean'])
             if qn == 'photon':
                 n_det_mle /= (1 + d['double_pe_fraction'])
-            d[qn + '_detected_mle'] = n_det_mle.round().astype(np.int)
+            d[qn + '_detected_mle'] = n_det_mle.round().astype(np.int).clip(
+                *self._clip_range(qn))
 
         # The Penning quenching depends on the number of produced
         # photons.... But we don't have that yet.
@@ -274,19 +300,16 @@ class ERSource:
         # TODO: Meh, think about this, considering also computation cost
         # / space width
         for qn in quanta_types:
-
+            # We need the copy, otherwise the in-place modification below
+            # will have the side effect of messing up the dataframe column!
+            eff = d[qn + '_detection_eff'].values.copy()
             if qn == 'photon':
-                # Don't use *=, it will modify in place !
-                eff = (d[qn + '_detection_eff']
-                       * d['penning_quenching_eff_mle'])
-            else:
-                eff = d[qn + '_detection_eff']
+                eff *= d['penning_quenching_eff_mle'].values
 
             n_prod_mle = d[qn + '_produced_mle'] = (
                     d[qn + '_detected_mle'] / eff).astype(np.int)
 
             # Prepare for bounds computation
-            clip_range = (0, None)
             n = d[qn + '_detected_mle'].values
             m = d[qn + '_gain_mean'].values
             s = d[qn + '_gain_std'].values
@@ -305,17 +328,18 @@ class ERSource:
                     stats.norm.cdf(sign * max_sigma),
                     loc=n,
                     scale=scale,
-                ).round().clip(*clip_range).astype(np.int)
+                ).round().clip(*self._clip_range(qn)).astype(np.int)
 
-                # TODO: For produced quanta I have to think harder!
-                # Don't remember where this came from, changed 1 - eff to
-                # 1 / eff ???
+                # For produced quanta, it is trickier, since the number
+                # of detected quanta is also uncertain.
+                # TODO: where did this derivation come from again?
+                # TODO: maybe do a second bound based on CES
                 q = 1 / eff
                 d[qn + '_produced_' + bound] = stats.norm.ppf(
                     stats.norm.cdf(sign * max_sigma),
                     loc=n_prod_mle,
                     scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
-                ).round().clip(*clip_range).astype(np.int)
+                ).round().clip(*self._clip_range(qn)).astype(np.int)
 
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
@@ -382,7 +406,57 @@ class ERSource:
         self.set_data(orig_data, annotated=True)
         return np.concatenate(result)[:len(orig_data)]
 
-    @tf.function
+    def mu_interpolator(self, interpolation_method='star',
+                        n_trials=int(1e5),
+                        **params):
+        """Return interpolator for number of expected events
+        Parameters must be specified as kwarg=(start, stop, n_anchors)
+        """
+        if interpolation_method != 'star':
+            raise NotImplementedError(
+                f"mu interpolation method {interpolation_method} "
+                f"not implemented")
+
+        base_mu = tf.constant(self.estimate_mu(n_trials=n_trials),
+                              dtype=fd.float_type())
+        pspaces = dict()    # parameter -> tf.linspace of anchors
+        mus = dict()        # parameter -> tensor of mus
+        for pname, pspace_spec in tqdm(params.items(),
+                                       desc="Estimating mus"):
+            pspaces[pname] = tf.linspace(*pspace_spec)
+            mus[pname] = tf.convert_to_tensor(
+                [self.estimate_mu(**{pname: x}, n_trials=n_trials)
+                 for x in np.linspace(*pspace_spec)],
+                dtype=fd.float_type())
+
+        def mu_itp(**kwargs):
+            mu = base_mu
+            for pname, v in kwargs.items():
+                mu *= tfp.math.interp_regular_1d_grid(
+                    x=v,
+                    x_ref_min=params[pname][0],
+                    x_ref_max=params[pname][1],
+                    y_ref=mus[pname]) / base_mu
+            return mu
+
+        return mu_itp
+
+    def estimate_mu(self, data=None, n_trials=int(1e5), **params):
+        """Return estimate of total expected number of events
+        :param data: Data used for drawing auxiliary observables
+        (e.g. position and time)
+        :param n_trials: Number of events to simulate for efficiency estimate
+        """
+        if data is None:
+            data = self.data
+
+        _, spectra = self.gimme('energy_spectrum', numpy_out=True)
+        mean_rate = spectra.sum(axis=1).mean(axis=0)
+
+        eff = len(self.simulate(n_trials, data=data, **params)) / n_trials
+
+        return eff * mean_rate
+
     def likelihood(self, **params):
         return self._likelihood(**params)
 
@@ -424,11 +498,11 @@ class ERSource:
         # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum')
         q_produced = tf.cast(tf.floor(es / self.gimme('work')[:, o]),
-                             dtype=tf.float32)
+                             dtype=fd.float_type())
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
         p_nq_e = tf.cast(tf.equal(nq_1d[:, :, o], q_produced[:, o, :]),
-                         dtype=tf.float32)
+                         dtype=fd.float_type())
 
         return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
@@ -461,7 +535,7 @@ class ERSource:
 
         # Finally, the main computation is simple:
         pel_num = tf.where(tf.math.is_nan(pel),
-                           tf.zeros_like(pel, dtype=tf.float32),
+                           tf.zeros_like(pel, dtype=fd.float_type()),
                            pel)
         pel_clip = tf.clip_by_value(pel_num, 1e-6, 1. - 1e-6)
         pel_fluct_clip = tf.clip_by_value(pel_fluct, 1e-6, 1.)
@@ -487,7 +561,7 @@ class ERSource:
             p = p * self.gimme('penning_quenching_eff', n_prod)
 
         result = tfd.Binomial(total_count=n_prod,
-                              probs=tf.cast(p, dtype=tf.float32),
+                              probs=tf.cast(p, dtype=fd.float_type()),
                               ).prob(n_det)
         return result * self.gimme(quanta_type + '_acceptance', n_det)
 
@@ -496,7 +570,7 @@ class ERSource:
         values of x for each event"""
         n = self._dimsize(x)
         res = tf.range(n)[o, :] + self.data[x + '_min'][:, o]
-        return tf.cast(res, dtype=tf.float32)
+        return tf.cast(res, dtype=fd.float_type())
 
     def cross_domains(self, x, y):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
@@ -570,6 +644,8 @@ class ERSource:
             params = self._params
         if data is None:
             data = self.data
+        orig_data = self.data
+        orig_params = self._params
 
         # This is necessary if the energy spectrum is position dependent
         self.set_data(data.copy(), **params)
@@ -629,6 +705,9 @@ class ERSource:
         # This is useful, so we already have inference bounds on the
         # returned data.
         self.set_data(d, **params)
+
+        # Restore original data
+        self.set_data(orig_data, **orig_params)
         return d
 
     def simulate_nq(self, data):
@@ -677,10 +756,10 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
                                    # validate_args=True,
                                    # allow_nan_stats=False
                                    ).prob(counts)
-    res = tf.cast(res, dtype=tf.float32)
+    res = tf.cast(res, dtype=fd.float_type())
     return tf.where(tf.math.is_finite(res),
                     res,
-                    tf.zeros_like(res, dtype=tf.float32))
+                    tf.zeros_like(res, dtype=fd.float_type()))
 
 
 @export
@@ -701,8 +780,10 @@ class NRSource(ERSource):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        e = repeat(tf.linspace(0.7, 150., 100)[o, :], len(drift_time), axis=0)
-        return e, tf.ones_like(e, dtype=tf.float32)
+        e = repeat(tf.cast(tf.linspace(0.7, 150., 100)[o, :],
+                           fd.float_type()),
+                   len(drift_time), axis=0)
+        return e, tf.ones_like(e, dtype=fd.float_type())
 
     def rate_nq(self, nq_1d):
         # (n_events, |ne|) tensors

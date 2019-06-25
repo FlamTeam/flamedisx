@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 import tensorflow as tf
 
-from flamedisx import ERSource, NRSource
-from flamedisx.core import quanta_types
+import flamedisx as fd
+from flamedisx.source import quanta_types
 
 
 def np_lookup_axis1(x, indices, fill_value=0):
@@ -26,30 +26,30 @@ def np_lookup_axis1(x, indices, fill_value=0):
 
 @pytest.fixture(params=["ER", "NR"])
 def xes(request):
-    warnings.filterwarnings("error")
+    # warnings.filterwarnings("error")
     data = pd.DataFrame([dict(s1=20, s2=3000, drift_time=20),
                          dict(s1=2.4, s2=400, drift_time=500)])
     if request.param == 'ER':
-        x = ERSource()
+        x = fd.ERSource()
     else:
-        x = NRSource()
+        x = fd.NRSource()
     x.set_data(data)
     return x
 
 
-def test_likelihood(xes: ERSource):
+def test_likelihood(xes: fd.ERSource):
     """Test likelihood and batched_likelihood give the same answer"""
     y = xes.likelihood()
     y2 = xes.batched_likelihood()
     np.testing.assert_array_equal(y.numpy(), y2)
 
 
-def test_simulate(xes: ERSource):
+def test_simulate(xes: fd.ERSource):
     """Test the simulator doesn't crash"""
     xes.simulate(energies=np.linspace(0., 100., int(1e3)))
 
 
-def test_bounds(xes: ERSource):
+def test_bounds(xes: fd.ERSource):
     """Test bounds on nq_produced and _detected"""
     data = xes.data
     ##
@@ -58,14 +58,14 @@ def test_bounds(xes: ERSource):
             print(qn + '_' + p)
             np.testing.assert_array_less(
                 data['%s_%s_min' % (qn, p)].values,
-                data['%s_%s_mle' % (qn, p)].values)
+                data['%s_%s_mle' % (qn, p)].values + 1e-5)
 
             np.testing.assert_array_less(
                 data['%s_%s_mle' % (qn, p)].values,
-                data['%s_%s_max' % (qn, p)].values)
+                data['%s_%s_max' % (qn, p)].values + 1e-5)
 
 
-def test_gimme(xes: ERSource):
+def test_gimme(xes: fd.ERSource):
     x = xes.gimme('photon_gain_mean')
     assert isinstance(x, tf.Tensor)
     assert x.dtype == tf.float32
@@ -81,7 +81,7 @@ def test_gimme(xes: ERSource):
         xes.photon_gain_mean * np.ones(xes.n_evts))
 
 
-def test_nphnel(xes: ERSource):
+def test_nphnel(xes: fd.ERSource):
     """Test (nph, nel) rate matrix"""
     r = xes.rate_nphnel().numpy()
     assert r.shape == (xes.n_evts,
@@ -89,7 +89,7 @@ def test_nphnel(xes: ERSource):
                        xes._dimsize('electron_produced').numpy())
 
 
-def test_domains(xes: ERSource):
+def test_domains(xes: fd.ERSource):
     n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced')
     n_det = n_det.numpy()
     n_prod = n_prod.numpy()
@@ -108,14 +108,14 @@ def test_domains(xes: ERSource):
         np.floor(xes.data['electron_produced_min']))
 
 
-def test_domain_detected(xes: ERSource):
+def test_domain_detected(xes: fd.ERSource):
     dd = xes.domain('photon_detected').numpy()
     np.testing.assert_equal(
         dd.min(axis=1),
         np.floor(xes.data['photon_detected_min']).values)
 
 
-def test_detector_response(xes: ERSource):
+def test_detector_response(xes: fd.ERSource):
     r = xes.detector_response('photon').numpy()
     assert r.shape == (xes.n_evts, xes._dimsize('photon_detected').numpy())
 
@@ -131,7 +131,7 @@ def test_detector_response(xes: ERSource):
         0.5)
 
 
-def test_detection_prob(xes: ERSource):
+def test_detection_prob(xes: fd.ERSource):
     r = xes.detection_p('electron').numpy()
     assert r.shape == (xes.n_evts,
                        xes._dimsize('electron_detected').numpy(),
@@ -156,3 +156,15 @@ def test_detection_prob(xes: ERSource):
         np_lookup_axis1(rs, mle_is),
         np.ones(xes.n_evts),
         decimal=4)
+
+
+def test_estimate_mu(xes: fd.ERSource):
+    xes.estimate_mu()
+
+
+def test_build_likelihood(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes),
+        elife=(100e3, 500e3, 5),
+        data=xes.data)
+    lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))

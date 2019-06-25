@@ -1,7 +1,9 @@
 import numpy as np
+from scipy import stats
 import tensorflow as tf
 
 o = tf.newaxis
+FLOAT_TYPE = tf.float32
 
 
 def exporter():
@@ -16,7 +18,12 @@ def exporter():
 
 
 export, __all__ = exporter()
-__all__.append('exporter')
+__all__ += ['float_type', 'exporter']
+
+
+@export
+def float_type():
+    return FLOAT_TYPE
 
 
 @export
@@ -44,7 +51,7 @@ def lookup_axis1(x, indices, fill_value=0):
     return tf.cast(tf.where(legal_index,
                             result,
                             tf.zeros_like(result) + fill_value),
-                   dtype=tf.float32)
+                   dtype=float_type())
 
 
 @export
@@ -64,7 +71,7 @@ def np_to_tf(x):
         return tuple([np_to_tf(y) for y in x])
     if isinstance(x, tf.Tensor):
         return x
-    return tf.convert_to_tensor(x, dtype=tf.float32)
+    return tf.convert_to_tensor(x, dtype=float_type())
 
 
 @export
@@ -78,7 +85,7 @@ def safe_p(ps):
     NaNs are replaced by 1e-5.
     """
     ps = tf.where(tf.math.is_nan(ps),
-                  tf.zeros_like(ps),
-                  ps)
+                  tf.zeros_like(ps, dtype=float_type()),
+                  tf.cast(ps, dtype=float_type()))
     ps = tf.clip_by_value(ps, 1e-5, 1 - 1e-5)
     return ps
