@@ -188,7 +188,7 @@ class LogLikelihood:
                     if i2 > i1:
                         continue
 
-                    xc = [tf.Variable(q) if q in fd.tf_to_np(params[i],params[j]) 
+                    xc = [tf.Variable(q) if q in fd.tf_to_np(params[i1],params[i2]) 
                             else tf.constant(q)
                             for q in fd.tf_to_np(params) 
                             ]
