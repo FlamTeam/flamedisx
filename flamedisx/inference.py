@@ -175,25 +175,30 @@ class LogLikelihood:
         # Tensorflow has tf.hessians, but:
         # https://github.com/tensorflow/tensorflow/issues/29781
 
-        xc = [tf.Variable(q)
-              for q in fd.tf_to_np(params)]
+        #xc = [tf.Variable(q)
+        #      for q in fd.tf_to_np(params)]
 
         if save_ram:
             # Slower but more RAM-efficient algorithm
             n = len(self.param_names)
             hessian = np.zeros((n, n))
-            for i1 in tqdm(range(n),
-                           desc='Computing hessian'):
-                with tf.GradientTape(persistent=True) as t2:
-                    with tf.GradientTape() as t:
-                        ptensor = tf.stack(xc)
-                        y = self._minus_ll(ptensor)
-                    grad = t.gradient(y, xc[i1])
+            for i1 in tqdm(range(n):
+                desc='Computing hessian'):
                 for i2 in range(n):
                     if i2 > i1:
                         continue
-                    hessian[i1, i2] = t2.gradient(grad, xc[i2]).numpy()
-                del t2
+
+                    xc = [tf.Variable(q) for q in fd.tf_to_np(params) 
+                            if q in fd.tf_to_np(params[i],params[j]) 
+                            else tf.constant(q)
+                            ]
+                    with tf.GradientTape(persistent=True) as t2:
+                        with tf.GradientTape() as t:
+                            ptensor = tf.stack(xc)
+                            y = self._minus_ll(ptensor)
+                        grad = t.gradient(y, xc[i1])
+                        hessian[i1, i2] = t2.gradient(grad, xc[i2]).numpy()
+                    del t2
             for i1 in range(n):
                 for i2 in range(n):
                     if i2 > i1:
