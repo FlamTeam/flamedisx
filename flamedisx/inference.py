@@ -182,7 +182,7 @@ class LogLikelihood:
             # Slower but more RAM-efficient algorithm
             n = len(self.param_names)
             hessian = np.zeros((n, n))
-            for i1 in tqdm(range(n):
+            for i1 in tqdm(range(n)):
                 desc='Computing hessian'):
                 for i2 in range(n):
                     if i2 > i1:
