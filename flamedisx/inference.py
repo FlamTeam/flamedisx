@@ -188,9 +188,9 @@ class LogLikelihood:
                     if i2 > i1:
                         continue
 
-                    xc = [tf.Variable(q) for q in fd.tf_to_np(params) 
-                            if q in fd.tf_to_np(params[i],params[j]) 
+                    xc = [tf.Variable(q) if q in fd.tf_to_np(params[i],params[j]) 
                             else tf.constant(q)
+                            for q in fd.tf_to_np(params) 
                             ]
                     with tf.GradientTape(persistent=True) as t2:
                         with tf.GradientTape() as t:
