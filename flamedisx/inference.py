@@ -188,13 +188,13 @@ class LogLikelihood:
                     if i2 > i1:
                         continue
 
-                    xc = [tf.Variable(q) if q in [fd.tf_to_np(params[i1]), 
-                                                  fd.tf_to_np(params[i2])]
-                            else tf.constant(q)
+                    xc = [tf.constant(q)
                             for q in fd.tf_to_np(params) 
                             ]
                     with tf.GradientTape(persistent=True) as t2:
+                        t2.watch(xc[i2])
                         with tf.GradientTape() as t:
+                            t.watch(xc[i1])
                             ptensor = tf.stack(xc)
                             y = self._minus_ll(ptensor)
                         grad = t.gradient(y, xc[i1])
