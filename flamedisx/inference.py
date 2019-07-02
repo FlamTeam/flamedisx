@@ -91,7 +91,7 @@ class LogLikelihood:
             source_kwargs = self._source_kwargs(ptensor)
 
             mu += rm * self.mu_itps[sname](**source_kwargs)
-            lls += rm * s.likelihood(**source_kwargs)
+            lls += rm * s.batched_likelihood(**source_kwargs)
 
         return -mu + tf.reduce_sum(fd.tf_log10(lls))
 
