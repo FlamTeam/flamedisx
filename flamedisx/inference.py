@@ -121,8 +121,7 @@ class LogLikelihood:
         return {k: v
                 for k, v in zip(self.param_names, values)}
 
-    def bestfit(self, guess=None, optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
-                                               total_num_examples=len(self.data)),
+    def bestfit(self, guess=None,
             #optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
                 get_lowlevel_result=False, **kwargs):
@@ -135,6 +134,8 @@ class LogLikelihood:
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
         """
+        optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
+                                               total_num_examples=len(self.data)),
         if guess is None:
             guess = self.guess()
         guess = fd.np_to_tf(guess)
