@@ -158,9 +158,9 @@ class LogLikelihood:
             #    t.watch(x_norm)
             #    y = self._minus_ll(x_norm * guess)
             #return y, t.gradient(y, x_norm)
-            return y, optimizer.get_gradients(y,x_norm)
+            return optimizer.get_gradients(y,x_norm)
 
-        res = optimizer.minimize(objective(x_norm), x_norm, **kwargs)
+        res = optimizer.minimize(objective, x_norm, **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
