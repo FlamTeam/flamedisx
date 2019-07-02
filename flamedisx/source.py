@@ -457,6 +457,7 @@ class ERSource:
 
         return eff * mean_rate
 
+    @tf.function
     def likelihood(self, **params):
         return self._likelihood(**params)
 

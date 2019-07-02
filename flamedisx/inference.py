@@ -121,8 +121,7 @@ class LogLikelihood:
         return {k: v
                 for k, v in zip(self.param_names, values)}
 
-    def bestfit(self, guess=None,
-            #optimizer=tfp.optimizer.lbfgs_minimize,
+    def bestfit(self, guess=None,optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
                 get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
@@ -134,8 +133,8 @@ class LogLikelihood:
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
         """
-        optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
-                                               total_num_examples=len(self.data))
+        #optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
+        #                                       total_num_examples=len(self.data))
         if guess is None:
             guess = self.guess()
         guess = fd.np_to_tf(guess)
@@ -143,9 +142,9 @@ class LogLikelihood:
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
-        #if llr_tolerance is not None:
-        #    kwargs.setdefault('f_relative_tolerance',
-        #                      llr_tolerance/self._minus_ll(guess))
+        if llr_tolerance is not None:
+            kwargs.setdefault('f_relative_tolerance',
+                              llr_tolerance/self._minus_ll(guess))
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
@@ -153,12 +152,11 @@ class LogLikelihood:
         x_norm = tf.ones(len(guess), dtype=fd.float_type())
         @tf.function
         def objective(x_norm):
-            y = self._minus_ll(x_norm * guess)
-            #with tf.GradientTape() as t:
-            #    t.watch(x_norm)
-            #    y = self._minus_ll(x_norm * guess)
-            #return y, t.gradient(y, x_norm)
-            return optimizer.get_gradients(y,x_norm)
+            with tf.GradientTape() as t:
+                t.watch(x_norm)
+                y = self._minus_ll(x_norm * guess)
+            return y, t.gradient(y, x_norm)
+            #return optimizer.get_gradients(y,x_norm)
 
         res = optimizer.minimize(objective, x_norm, **kwargs)
         if get_lowlevel_result:
