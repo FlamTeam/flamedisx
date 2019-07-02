@@ -122,10 +122,10 @@ class LogLikelihood:
                 for k, v in zip(self.param_names, values)}
 
     def bestfit(self, guess=None, optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
-                                               total_num_examples=len(self.data),
+                                               total_num_examples=len(self.data)),
             #optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
-                get_lowlevel_result=False, **kwargs)
+                get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
 
         :param guess: Guess parameters: array or tensor of same length
