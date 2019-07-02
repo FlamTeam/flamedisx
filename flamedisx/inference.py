@@ -143,9 +143,9 @@ class LogLikelihood:
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
-        if llr_tolerance is not None:
-            kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self._minus_ll(guess))
+        #if llr_tolerance is not None:
+        #    kwargs.setdefault('f_relative_tolerance',
+        #                      llr_tolerance/self._minus_ll(guess))
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
