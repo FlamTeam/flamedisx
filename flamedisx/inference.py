@@ -91,7 +91,7 @@ class LogLikelihood:
             source_kwargs = self._source_kwargs(ptensor)
 
             mu += rm * self.mu_itps[sname](**source_kwargs)
-            lls += rm * s.batched_likelihood(**source_kwargs)
+            lls += rm * s.likelihood(**source_kwargs)
 
         return -mu + tf.reduce_sum(fd.tf_log10(lls))
 
@@ -121,7 +121,9 @@ class LogLikelihood:
         return {k: v
                 for k, v in zip(self.param_names, values)}
 
-    def bestfit(self, guess=None, optimizer=tfp.optimizer.lbfgs_minimize,
+    def bestfit(self, guess=None, optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
+                                               total_num_examples=len(self.data),
+            #optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
                 get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
@@ -150,12 +152,14 @@ class LogLikelihood:
         x_norm = tf.ones(len(guess), dtype=fd.float_type())
         @tf.function
         def objective(x_norm):
-            with tf.GradientTape() as t:
-                t.watch(x_norm)
-                y = self._minus_ll(x_norm * guess)
-            return y, t.gradient(y, x_norm)
+            y = self._minus_ll(x_norm * guess)
+            #with tf.GradientTape() as t:
+            #    t.watch(x_norm)
+            #    y = self._minus_ll(x_norm * guess)
+            #return y, t.gradient(y, x_norm)
+            return y, optimizer.get_gradients(y,x_norm)
 
-        res = optimizer(objective, x_norm, **kwargs)
+        res = optimizer.minimize(objective, x_norm, **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
