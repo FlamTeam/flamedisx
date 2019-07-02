@@ -125,7 +125,7 @@ class LogLikelihood:
                                                total_num_examples=len(self.data),
             #optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
-                get_lowlevel_result=False, **kwargs):
+                get_lowlevel_result=False, **kwargs)
         """Return best-fit parameter tensor
 
         :param guess: Guess parameters: array or tensor of same length
