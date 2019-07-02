@@ -135,7 +135,7 @@ class LogLikelihood:
         relative tolerance threshold)
         """
         optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
-                                               total_num_examples=len(self.data)),
+                                               total_num_examples=len(self.data))
         if guess is None:
             guess = self.guess()
         guess = fd.np_to_tf(guess)
