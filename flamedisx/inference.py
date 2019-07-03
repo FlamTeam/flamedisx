@@ -161,7 +161,7 @@ class LogLikelihood:
             #return optimizer.get_gradients(y,x_norm)
 
         res = optimizer(objective, x_norm,
-                maximum_iterations=tf.constant(1e5,dtype=fd.float_type()),
+                maximum_iterations=tf.constant(100,dtype=tf.int32),
                 l1_regularizer=tf.constant(0,dtype=fd.float_type()), **kwargs)
         if get_lowlevel_result:
             return res
