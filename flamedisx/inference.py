@@ -160,7 +160,7 @@ class LogLikelihood:
             return y, t.gradient(y, x_norm)
             #return optimizer.get_gradients(y,x_norm)
 
-        res = optimizer(objective, x_norm,maximum_iterations=1e5, **kwargs)
+        res = optimizer(objective, x_norm,maximum_iterations=1e5,l1_regularizer=0, **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
