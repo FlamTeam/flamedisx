@@ -121,7 +121,8 @@ class LogLikelihood:
         return {k: v
                 for k, v in zip(self.param_names, values)}
 
-    def bestfit(self, guess=None,optimizer=tfp.optimizer.lbfgs_minimize,
+    def bestfit(self, guess=None,optimizer = proximal_hessian_sparse_minimize,
+                #optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
                 get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
@@ -143,7 +144,8 @@ class LogLikelihood:
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
-            kwargs.setdefault('f_relative_tolerance',
+            kwargs.setdefault('tolerance',
+            #kwargs.setdefault('f_relative_tolerance',
                               llr_tolerance/self._minus_ll(guess))
 
         # Minimize multipliers to the guess, rather than the guess itself
@@ -158,7 +160,7 @@ class LogLikelihood:
             return y, t.gradient(y, x_norm)
             #return optimizer.get_gradients(y,x_norm)
 
-        res = optimizer(objective, x_norm, **kwargs)
+        res = optimizer(objective, x_norm,maximum_iterations=1e5 **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
