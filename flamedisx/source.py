@@ -145,7 +145,7 @@ class ERSource:
     # Main code body
     ##
 
-    def __init__(self, data=None, **params):
+    def __init__(self, data=None, n_batches = 10,  **params):
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters
         self.f_dims = {x: [] for x in self.data_methods}
@@ -177,13 +177,13 @@ class ERSource:
 
         # Dictionary that maps
         # observable dimension -> tensor
+        self._tensor_cache_list = list()
         self._tensor_cache = dict()
-
     @property
     def n_evts(self):
         return len(self.data)
 
-    def gimme(self, fname, bonus_arg=None, numpy_out=False):
+    def gimme(self, i_batch=None, fname, bonus_arg=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
@@ -194,28 +194,52 @@ class ERSource:
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
+        # TODO: make a clean way to keep track of i_slice in gimme and all
+        # the functions that call gimme
         assert (bonus_arg is not None) == (fname in self.special_data_methods)
 
         f = getattr(self, fname)
+        if i_batch is None:
+            if callable(f):
+                args = [self._tensor_cache.get(
+                            x,
+                            fd.np_to_tf(self.data[x].values))
+                        for x in self.f_dims[fname]]
+                if bonus_arg is not None:
+                    args = [bonus_arg] + args
 
-        if callable(f):
-            args = [self._tensor_cache.get(
-                        x,
-                        fd.np_to_tf(self.data[x].values))
-                    for x in self.f_dims[fname]]
-            if bonus_arg is not None:
-                args = [bonus_arg] + args
+                kwargs = {pname: self._params.get(pname, self.defaults[pname])
+                        for pname in self.f_params[fname]}
 
-            kwargs = {pname: self._params.get(pname, self.defaults[pname])
-                      for pname in self.f_params[fname]}
-
-            res = f(*args, **kwargs)
-        else:
-            if bonus_arg is None:
-                x = tf.ones(len(self.data), dtype=fd.float_type())
+                res = f(*args, **kwargs)
             else:
-                x = tf.ones_like(bonus_arg, dtype=fd.float_type())
-            res = f * x
+                if bonus_arg is None:
+                    x = tf.ones(len(self.data), dtype=fd.float_type())
+                else:
+                    x = tf.ones_like(bonus_arg, dtype=fd.float_type())
+                res = f * x
+        else:
+            if callable(f):
+                args = [self._tensor_cache_list[i_batch].get(
+                            x,
+                            fd.np_to_tf(self.data[x].values))
+                        for x in self.f_dims[fname]]
+                if bonus_arg is not None:
+                    args = [bonus_arg] + args
+
+                kwargs = {pname: self._params.get(pname, self.defaults[pname])
+                        for pname in self.f_params[fname]}
+
+                res = f(*args, **kwargs)
+            else:
+                if bonus_arg is None:
+                    keys=self._tensor_cache_list[i_batch].keys()
+                    x = tf.ones(len(self._tensor_cache_list[i_batch][keys[0]]),
+                            dtype=fd.float_type())
+                else:
+                    x = tf.ones_like(bonus_arg, dtype=fd.float_type())
+                res = f * x
+
 
         if numpy_out:
             return fd.tf_to_np(res)
@@ -362,7 +386,7 @@ class ERSource:
         """
         pass
 
-    def set_data(self, data, max_sigma=3, annotated=False, **params):
+    def set_data(self, data, n_batches=10, max_sigma=3, annotated=False, **params):
         """Set new data to be used for inference
 
         :param data: data to set
@@ -375,10 +399,12 @@ class ERSource:
         """
         # Set new data and params
         # tensor cache can only be set after annotation
+        # TODO: make a clean way to give the number of batches
         self._tensor_cache = dict()
+        self._tensor_cache_list = list ()
         self.data = data
         self._params = params
-
+        new_t_dict= dict()
         if not annotated:
             self.annotate_data(data,
                                max_sigma=max_sigma,
@@ -387,6 +413,16 @@ class ERSource:
 
         for x in set(sum(self.f_dims.values(), ['s1', 's2'])):
             self._tensor_cache[x] = fd.np_to_tf(data[x].values)
+        slices = np.floor(np.linspace(0,len(self._tensor_cache['s1']),n_batches+1))
+        for i in range(len(slices[:-1])):
+            for k in self._tensor_cache.keys():
+                if i == 0:
+                    new_t_dict[k]=self._tensor_cache[k][int(slices[i]):int(slices[i+1])]
+                else:
+                    new_t_dict[k]=self._tensor_cache[k][int(slices[i]+1):int(slices[i+1])]
+            self._tensor_cache_list.append(new_t_dict)
+        # Clean _tensor_cache
+        self._tensor_cache=dict()
 
     def batched_likelihood(self, batch_size=50,
                            data=None, max_sigma=3, progress=True,
