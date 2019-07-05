@@ -194,7 +194,7 @@ class ERSource:
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
-        # TODO: make a clean way to keep track of i_slice in gimme and all
+        # TODO: make a clean way to keep track of i_batch in gimme and all
         # the functions that call gimme
         assert (bonus_arg is not None) == (fname in self.special_data_methods)
 
@@ -448,6 +448,7 @@ class ERSource:
         """Return interpolator for number of expected events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
         """
+        # TODO: is the mu also to be batched?
         if interpolation_method != 'star':
             raise NotImplementedError(
                 f"mu interpolation method {interpolation_method} "
@@ -483,6 +484,7 @@ class ERSource:
         (e.g. position and time)
         :param n_trials: Number of events to simulate for efficiency estimate
         """
+        # TODO: is the mu also to be batched?
         if data is None:
             data = self.data
 
@@ -493,18 +495,18 @@ class ERSource:
 
         return eff * mean_rate
 
-    def likelihood(self, **params):
-        return self._likelihood(**params)
+    def likelihood(self, i_batch, **params):
+        return self._likelihood(i_batch, **params)
 
-    def _likelihood(self, **params):
+    def _likelihood(self,i_batch, **params):
         self._params = params
         # (n_events, |photons_produced|, |electrons_produced|)
-        y = self.rate_nphnel()
+        y = self.rate_nphnel(i_batch)
 
-        p_ph = self.detection_p('photon')
-        p_el = self.detection_p('electron')
-        d_ph = self.detector_response('photon')
-        d_el = self.detector_response('electron')
+        p_ph = self.detection_p('photon', i_batch)
+        p_el = self.detection_p('electron', i_batch)
+        d_ph = self.detector_response('photon', i_batch)
+        d_el = self.detector_response('electron', i_batch)
 
         # Rearrange dimensions so we can do a single matrix mult
         p_el = tf.transpose(p_el, (0, 2, 1))
@@ -513,11 +515,11 @@ class ERSource:
         y = d_ph @ p_ph @ y @ p_el @ d_el
         return tf.reshape(y, [-1])
 
-    def _dimsize(self, var):
-        ma = self._tensor_cache.get(
+    def _dimsize(self, var, i_batch):
+        ma = self._tensor_cache_list[i_batch].get(
             var + '_max',
             fd.np_to_tf(self.data[var + '_max'].values))
-        mi = self._tensor_cache.get(
+        mi = self._tensor_cache_list[i_batch].get(
             var + '_min',
             fd.np_to_tf(self.data[var + '_min'].values))
         return tf.cast(tf.reduce_max(ma - mi), tf.int32)
@@ -525,15 +527,15 @@ class ERSource:
         # return int((self.data[var + '_max']
         #             - self.data[var + '_min']).max())
 
-    def rate_nq(self, nq_1d):
+    def rate_nq(self, nq_1d, i_batch):
         """Return differential rate at given number of produced quanta
         differs for ER and NR"""
         # TODO: this implementation echoes that for NR, but I feel there
         # must be a less clunky way...
 
         # (n_events, |ne|) tensors
-        es, rate_e = self.gimme('energy_spectrum')
-        q_produced = tf.cast(tf.floor(es / self.gimme('work')[:, o]),
+        es, rate_e = self.gimme('energy_spectrum',i_batch=i_batch)
+        q_produced = tf.cast(tf.floor(es / self.gimme('work',i_batch=i_batch)[:, o]),
                              dtype=fd.float_type())
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
@@ -542,25 +544,26 @@ class ERSource:
 
         return tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
 
-    def rate_nphnel(self):
+    def rate_nphnel(self, i_batch):
         """Return differential rate tensor
         (n_events, |photons_produced|, |electrons_produced|)
         """
         # Get differential rate and electron probability vs n_quanta
         # these four are (n_events, |nq|) tensors
-        _nq_1d = self.domain('nq')
-        rate_nq = self.rate_nq(_nq_1d)
-        pel = self.gimme('p_electron', _nq_1d)
-        pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d)
+        _nq_1d = self.domain('nq',i_batch)
+        rate_nq = self.rate_nq(_nq_1d, i_batch)
+        pel = self.gimme('p_electron', _nq_1d, i_batch=i_batch)
+        pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d, i_batch=i_batch)
 
         # Create tensors with the dimensions of our final result
         # i.e. (n_events, |photons_produced|, |electrons_produced|),
         # containing:
         # ... numbers of photons and electrons produced:
-        nph, nel = self.cross_domains('photon_produced', 'electron_produced')
+        # TODO: probably modify cross_domains or domain to accomodate batches
+        nph, nel = self.cross_domains('photon_produced', 'electron_produced', i_batch)
         # ... numbers of total quanta produced
         nq = nel + nph
-        # ... indices in nq arrays
+        # ... indices in nq arrays TODO: maybe modify?
         _nq_ind = nq - self.data['nq_min'].values[:, o, o]
         # ... differential rate
         rate_nq = fd.lookup_axis1(rate_nq, _nq_ind)
@@ -584,58 +587,65 @@ class ERSource:
             return rate_nq * tfd.Binomial(total_count=nq,
                                           probs=pel_clip).prob(nel)
 
-    def detection_p(self, quanta_type):
+    def detection_p(self, quanta_type, i_batch):
         """Return (n_events, |detected|, |produced|) tensor
         encoding P(n_detected | n_produced)
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
-                                           quanta_type + '_produced')
+                                           quanta_type + '_produced',
+                                           i_batch)
 
-        p = self.gimme(quanta_type + '_detection_eff')[:, o, o]
+        p = self.gimme(quanta_type + '_detection_eff',
+                        i_batch=i_batch)[:, o, o]
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
-            p = p * self.gimme('penning_quenching_eff', n_prod)
+            p = p * self.gimme('penning_quenching_eff', n_prod,
+                                i_batch=i_batch)
 
         result = tfd.Binomial(total_count=n_prod,
                               probs=tf.cast(p, dtype=fd.float_type()),
                               ).prob(n_det)
-        return result * self.gimme(quanta_type + '_acceptance', n_det)
+        return result * self.gimme(quanta_type + '_acceptance', n_det,
+                                    i_batch = i_batch)
 
-    def domain(self, x):
+    def domain(self, x, i_batch):
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
-        n = self._dimsize(x)
-        res = tf.range(n)[o, :] + self.data[x + '_min'][:, o]
+        n = self._dimsize(x, i_batch)
+        if (x+'_min') is in self._tensor_cache_list[i_batch].keys():
+            res = tf.range(n)[o, :] + self._tensor_cache_list[i_batch][x+'_min'][:,o]
+        else
+            res= tf.range(n)[o, :] + self.data[x + '_min'][:, o]
         return tf.cast(res, dtype=fd.float_type())
 
-    def cross_domains(self, x, y):
+    def cross_domains(self, x, y, i_batch):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
         containing possible integer values of x and y, respectively.
         """
         # TODO: somehow mask unnecessary elements and save computation time
-        x_size = self._dimsize(x)
-        y_size = self._dimsize(y)
-        # Change to tf.repeat once its in the api
-        result_x = repeat(self.domain(x)[:, :, o], y_size, axis=2)
-        result_y = repeat(self.domain(y)[:, o, :], x_size, axis=1)
+        x_size = self._dimsize(x,i_batch)
+        y_size = self._dimsize(y,i_batch)
+        # Change to tf.repeat once it's in the api
+        result_x = repeat(self.domain(x, i_batch)[:, :, o], y_size, axis=2)
+        result_y = repeat(self.domain(y, i_batch)[:, o, :], x_size, axis=1)
         return result_x, result_y
 
-    def detector_response(self, quanta_type):
+    def detector_response(self, quanta_type, i_batch):
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
         for different number of detected quanta.
         """
-        ndet = self.domain(quanta_type + '_detected')
+        ndet = self.domain(quanta_type + '_detected', i_batch)
 
-        observed = self._tensor_cache[signal_name[quanta_type]][:, o]
+        observed = self._tensor_cache_list[i_batch][signal_name[quanta_type]][:, o]
 
         # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme(quanta_type + '_gain_mean')[:, o]
-        std_per_q = self.gimme(quanta_type + '_gain_std')[:, o]
+        mean_per_q = self.gimme(quanta_type + '_gain_mean', i_batch=i_ibatch)[:, o]
+        std_per_q = self.gimme(quanta_type + '_gain_std',i_batch=i_batch)[:, o]
 
         if quanta_type == 'photon':
             mean, std = self.dpe_mean_std(
                 ndet=ndet,
-                p_dpe=self.gimme('double_pe_fraction')[:, o],
+                p_dpe=self.gimme('double_pe_fraction',i_batch=i_batch)[:, o],
                 mean_per_q=mean_per_q,
                 std_per_q=std_per_q)
         else:
@@ -647,7 +657,7 @@ class ERSource:
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
-                             observed)
+                             observed, i_batch=i_batch)
         return result
 
     @staticmethod
