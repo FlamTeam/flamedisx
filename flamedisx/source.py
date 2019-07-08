@@ -194,8 +194,7 @@ class ERSource:
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
-        # TODO: make a clean way to keep track of i_batch in gimme and all
-        # the functions that call gimme
+        # TODO: make a clean way to keep track of i_batch or have it as input
         assert (bonus_arg is not None) == (fname in self.special_data_methods)
 
         f = getattr(self, fname)
@@ -559,11 +558,11 @@ class ERSource:
         # i.e. (n_events, |photons_produced|, |electrons_produced|),
         # containing:
         # ... numbers of photons and electrons produced:
-        # TODO: probably modify cross_domains or domain to accomodate batches
         nph, nel = self.cross_domains('photon_produced', 'electron_produced', i_batch)
         # ... numbers of total quanta produced
         nq = nel + nph
-        # ... indices in nq arrays TODO: maybe modify?
+        # ... indices in nq arrays 
+        # TODO: maybe modify to look in _tensor_batch_list?
         _nq_ind = nq - self.data['nq_min'].values[:, o, o]
         # ... differential rate
         rate_nq = fd.lookup_axis1(rate_nq, _nq_ind)
@@ -686,6 +685,7 @@ class ERSource:
         Will not return | energies | events lost due to
         selection/detection efficiencies
         """
+        # TODO: does this need batches as well? should work...
         if not len(params):
             params = self._params
         if data is None:
@@ -810,6 +810,7 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
 
 @export
 class NRSource(ERSource):
+    # TODO: needs batching as well!!
     do_pel_fluct = False
     data_methods = tuple(data_methods + ['lindhard_l'])
     special_data_methods = tuple(special_data_methods + ['lindhard_l'])

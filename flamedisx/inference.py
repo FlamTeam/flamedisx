@@ -15,7 +15,7 @@ class LogLikelihood:
     data: pd.DataFrame
     sources: ty.Dict[str, fd.ERSource]
     mu_iterpolators: ty.Dict[str, ty.Callable]
-
+    # TODO: make a way to give n_batches and keep track of i_batch
     def __init__(
             self,
             sources: ty.Dict[str, fd.ERSource],
@@ -23,6 +23,7 @@ class LogLikelihood:
             # source_params: ty.Union[
             #     None, ty.Dict[str, ty.Dict[str, tuple]]] = None,
             free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
+            n_batches=10,
             n_trials=int(1e5),
             **common_params):
 
@@ -51,7 +52,7 @@ class LogLikelihood:
 
         # Set data. Have to copy it, since data is modified by set_data
         for sname, s in sources.items():
-            s.set_data(data.copy())
+            s.set_data(data.copy(),n_batches=n_batches)
 
         self.data = data
         self.sources = sources
@@ -66,21 +67,24 @@ class LogLikelihood:
         self.param_specs = common_params
 
     @tf.function
-    def log_likelihood(self, ptensor):
+    def log_likelihood(self, i_batch, ptensor):
         return self._log_likelihood(ptensor)
 
     @tf.function
-    def minus_ll(self, ptensor):
+    def minus_ll(self, i_batch, ptensor):
         return self._minus_ll(ptensor)
 
-    def _log_likelihood(self, ptensor):
+    def _log_likelihood(self, i_batch, ptensor):
         if not len(ptensor) == len(self.param_names):
             raise ValueError(
                 f"Likelihood takes {len(self.param_names)} params "
                 f"but you gave {len(ptensor)}")
 
         mu = tf.constant(0., dtype=fd.float_type())
-        lls = tf.zeros(len(self.data), dtype=fd.float_type())
+        # TODO: compute the likelihoods for the lenght of the batch
+        lls = tf.zeros(len(self.sources._tensor_cache_list[i_batch]),
+                dtype=fd.float_type())
+                # data), dtype=fd.float_type())
 
         for sname, s in self.sources.items():
             rmname = sname + '_rate_multiplier'
@@ -91,12 +95,12 @@ class LogLikelihood:
             source_kwargs = self._source_kwargs(ptensor)
 
             mu += rm * self.mu_itps[sname](**source_kwargs)
-            lls += rm * s.likelihood(**source_kwargs)
+            lls += rm * s.likelihood(i_batch, **source_kwargs)
 
         return -mu + tf.reduce_sum(fd.tf_log10(lls))
 
     def _minus_ll(self, ptensor):
-        return -2 * self._log_likelihood(ptensor)
+        return -2 * self._log_likelihood(i_batch, ptensor)
 
     def guess(self):
         """Return tensor of parameter guesses"""
@@ -123,6 +127,7 @@ class LogLikelihood:
 
     def bestfit(self, guess=None,optimizer = tfp.optimizer.proximal_hessian_sparse_minimize,
                 #optimizer=tfp.optimizer.lbfgs_minimize,
+                n_batches=n_batches,
                 llr_tolerance=0.01,
                 get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
@@ -134,8 +139,7 @@ class LogLikelihood:
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
         """
-        #optimizer = tfp.optimizer.VariationalSGD(batch_size=10,
-        #                                       total_num_examples=len(self.data))
+        # TODO: loop over the batches
         if guess is None:
             guess = self.guess()
         guess = fd.np_to_tf(guess)
@@ -152,11 +156,12 @@ class LogLikelihood:
         # This is a basic kind of standardization that helps make the gradient
         # vector reasonable.
         x_norm = tf.ones(len(guess), dtype=fd.float_type())
+        # for i in range(n_batches):
         @tf.function
-        def objective(x_norm):
+        def objective(x_norm, i_batch):
             with tf.GradientTape() as t:
                 t.watch(x_norm)
-                y = self._minus_ll(x_norm * guess)
+                y = self._minus_ll(x_norm * guess, i_batch=i_batch)
             return y, t.gradient(y, x_norm)
             #return optimizer.get_gradients(y,x_norm)
 
