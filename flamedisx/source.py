@@ -536,6 +536,7 @@ class ERSource:
         es, rate_e = self.gimme('energy_spectrum',i_batch=i_batch)
         q_produced = tf.cast(tf.floor(es / self.gimme('work',i_batch=i_batch)[:, o]),
                              dtype=fd.float_type())
+        print(q_produced.shape)
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
         p_nq_e = tf.cast(tf.equal(nq_1d[:, :, o], q_produced[:, o, :]),
@@ -550,6 +551,7 @@ class ERSource:
         # Get differential rate and electron probability vs n_quanta
         # these four are (n_events, |nq|) tensors
         _nq_1d = self.domain('nq',i_batch)
+        print(_nq_1d.shape)
         rate_nq = self.rate_nq(_nq_1d, i_batch)
         pel = self.gimme('p_electron', _nq_1d, i_batch=i_batch)
         pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d, i_batch=i_batch)
