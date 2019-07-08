@@ -63,7 +63,7 @@ class LogLikelihood:
             sname: s.mu_interpolator(n_trials=n_trials,
                                      **common_params)
             for sname, s in sources.items()}
-
+        print(sources.keys())
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_params
 
