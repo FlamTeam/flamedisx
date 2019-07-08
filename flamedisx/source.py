@@ -563,7 +563,8 @@ class ERSource:
         nq = nel + nph
         # ... indices in nq arrays 
         # TODO: maybe modify to look in _tensor_batch_list?
-        _nq_ind = nq - self.data['nq_min'].values[:, o, o]
+        _nq_ind = nq - self._tensor_cache_list[i_batch]['nq_min'].values[:,o,o]
+        #_nq_ind = nq - self.data['nq_min'].values[:, o, o]
         # ... differential rate
         rate_nq = fd.lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
