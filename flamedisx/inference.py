@@ -82,7 +82,7 @@ class LogLikelihood:
 
         mu = tf.constant(0., dtype=fd.float_type())
         # TODO: compute the likelihoods for the lenght of the batch
-        lls = tf.zeros(len(self.sources[0]._tensor_cache_list[i_batch]),
+        lls = tf.zeros(len(self.sources['er']._tensor_cache_list[i_batch]),
                 dtype=fd.float_type())
                 # data), dtype=fd.float_type())
 
