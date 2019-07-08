@@ -183,7 +183,7 @@ class ERSource:
     def n_evts(self):
         return len(self.data)
 
-    def gimme(self, i_batch=None, fname, bonus_arg=None, numpy_out=False):
+    def gimme(self, fname,i_batch=None, bonus_arg=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
