@@ -53,7 +53,8 @@ class LogLikelihood:
         # Set data. Have to copy it, since data is modified by set_data
         for sname, s in sources.items():
             s.set_data(data.copy(),n_batches=n_batches)
-
+        
+        self.n_batches=n_batches
         self.data = data
         self.sources = sources
         self.param_defaults = param_defaults
@@ -125,7 +126,7 @@ class LogLikelihood:
         return {k: v
                 for k, v in zip(self.param_names, values)}
 
-    def bestfit(self, guess=None, n_batches,
+    def bestfit(self, guess=None, n_batches=None,
                 optimizer = tfp.optimizer.proximal_hessian_sparse_minimize,
                 #optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
@@ -143,7 +144,8 @@ class LogLikelihood:
         if guess is None:
             guess = self.guess()
         guess = fd.np_to_tf(guess)
-
+        if n_batches is None:
+            n_batches = self.n_batches
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
