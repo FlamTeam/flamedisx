@@ -152,7 +152,7 @@ class LogLikelihood:
         if llr_tolerance is not None:
             #kwargs.setdefault('tolerance',
             kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self._minus_ll(guess,i_batch=0))
+                              llr_tolerance/self._minus_ll(0,guess))
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
