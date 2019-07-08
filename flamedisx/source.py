@@ -179,6 +179,7 @@ class ERSource:
         # observable dimension -> tensor
         self._tensor_cache_list = list()
         self._tensor_cache = dict()
+        self._batched_data = list()
     @property
     def n_evts(self):
         return len(self.data)
@@ -420,6 +421,11 @@ class ERSource:
                 else:
                     new_t_dict[k]=self._tensor_cache[k][int(slices[i]+1):int(slices[i+1])]
             self._tensor_cache_list.append(new_t_dict)
+            if i==0:
+                self._batched_data.append(self.data[slices[i]:slices[i+1])
+            else:
+                self._batched_data.append(self.data[slices[i]+1:slices[i+1])
+
         # Clean _tensor_cache
         self._tensor_cache=dict()
 
@@ -517,10 +523,10 @@ class ERSource:
     def _dimsize(self, var, i_batch):
         ma = self._tensor_cache_list[i_batch].get(
             var + '_max',
-            fd.np_to_tf(self.data[var + '_max'].values))
+            fd.np_to_tf(self._batched_data[i_batch][var + '_max'].values))
         mi = self._tensor_cache_list[i_batch].get(
             var + '_min',
-            fd.np_to_tf(self.data[var + '_min'].values))
+            fd.np_to_tf(self._batched_data[i_batch][var + '_min'].values))
         return tf.cast(tf.reduce_max(ma - mi), tf.int32)
         # return len(self._tensor_cache.get(x, self.data[x].values))
         # return int((self.data[var + '_max']
@@ -614,10 +620,10 @@ class ERSource:
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
         n = self._dimsize(x, i_batch)
-        if (x+'_min') in self._tensor_cache_list[i_batch].keys():
+        if x+'_min' in self._tensor_cache_list[i_batch].keys():
             res = tf.range(n)[o, :] + self._tensor_cache_list[i_batch][x+'_min'][:,o]
         else:
-            res= tf.range(n)[o, :] + self.data[x + '_min'][:, o]
+            res= tf.range(n)[o, :] + self._batched_data[i_batch][x + '_min'][:, o]
         return tf.cast(res, dtype=fd.float_type())
 
     def cross_domains(self, x, y, i_batch):
