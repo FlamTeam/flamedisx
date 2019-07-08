@@ -63,7 +63,6 @@ class LogLikelihood:
             sname: s.mu_interpolator(n_trials=n_trials,
                                      **common_params)
             for sname, s in sources.items()}
-        print(sources.keys())
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_params
 
@@ -83,7 +82,7 @@ class LogLikelihood:
 
         mu = tf.constant(0., dtype=fd.float_type())
         # TODO: compute the likelihoods for the lenght of the batch
-        lls = tf.zeros(len(self.sources._tensor_cache_list[i_batch]),
+        lls = tf.zeros(len(self.sources[0]._tensor_cache_list[i_batch]),
                 dtype=fd.float_type())
                 # data), dtype=fd.float_type())
 
