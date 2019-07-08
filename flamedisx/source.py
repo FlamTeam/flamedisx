@@ -232,7 +232,7 @@ class ERSource:
                 res = f(*args, **kwargs)
             else:
                 if bonus_arg is None:
-                    keys=self._tensor_cache_list[i_batch].keys()
+                    keys=list(self._tensor_cache_list[i_batch].keys())
                     x = tf.ones(len(self._tensor_cache_list[i_batch][keys[0]]),
                             dtype=fd.float_type())
                 else:
