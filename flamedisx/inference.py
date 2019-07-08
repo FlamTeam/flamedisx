@@ -140,7 +140,7 @@ class LogLikelihood:
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
         """
-        # TODO: loop over the batches
+        # TODO: loop over the batches and rewrite optimizer
         if guess is None:
             guess = self.guess()
         guess = fd.np_to_tf(guess)
@@ -150,9 +150,9 @@ class LogLikelihood:
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
-            kwargs.setdefault('tolerance',
-            #kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self._minus_ll(guess))
+            #kwargs.setdefault('tolerance',
+            kwargs.setdefault('f_relative_tolerance',
+                              llr_tolerance/self._minus_ll(guess,i_batch=0))
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
@@ -160,16 +160,17 @@ class LogLikelihood:
         x_norm = tf.ones(len(guess), dtype=fd.float_type())
         # for i in range(n_batches):
         @tf.function
-        def objective(x_norm, i_batch):
-            with tf.GradientTape() as t:
-                t.watch(x_norm)
-                y = self._minus_ll(x_norm * guess, i_batch=i_batch)
-            return y, t.gradient(y, x_norm)
-            #return optimizer.get_gradients(y,x_norm)
+        def objective(x_norm, n_batches):
+            y = tf.constant(0,dtype=fd.float_type())
+            grad = tf.constant(0,dtype=fs.float_type())
+            for i in range(n_batches):
+                with tf.GradientTape() as t:
+                    t.watch(x_norm)
+                    y += self._minus_ll(x_norm * guess, i_batch=i)
+                    grad += t.gradient(y,x_norm)
+            return y, grad
 
-        res = optimizer(objective, x_norm,
-                maximum_iterations=tf.constant(100,dtype=tf.int32),
-                l1_regularizer=tf.constant(0,dtype=fd.float_type()), **kwargs)
+        res = optimizer(objective, x_norm, **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
