@@ -611,7 +611,7 @@ class ERSource:
         """Return (n_events, |x|) matrix containing all possible integer
         values of x for each event"""
         n = self._dimsize(x, i_batch)
-        if (x+'_min') is in self._tensor_cache_list[i_batch].keys():
+        if (x+'_min') in self._tensor_cache_list[i_batch].keys():
             res = tf.range(n)[o, :] + self._tensor_cache_list[i_batch][x+'_min'][:,o]
         else
             res= tf.range(n)[o, :] + self.data[x + '_min'][:, o]
