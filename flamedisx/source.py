@@ -461,7 +461,7 @@ class ERSource:
                                        desc="Estimating mus"):
             pspaces[pname] = tf.linspace(*pspace_spec)
             mus[pname] = tf.convert_to_tensor(
-                [self.estimate_mu(**{pname: x}, n_trials=n_trials)
+                 [self.estimate_mu(**{pname: x}, n_trials=n_trials)
                  for x in np.linspace(*pspace_spec)],
                 dtype=fd.float_type())
 
@@ -533,7 +533,7 @@ class ERSource:
         # must be a less clunky way...
 
         # (n_events, |ne|) tensors
-        es, rate_e = self.gimme('energy_spectrum',i_bat ch=i_batch)
+        es, rate_e = self.gimme('energy_spectrum',i_batch=i_batch)
         q_produced = tf.cast(tf.floor(es / self.gimme('work',i_batch=i_batch)[:, o]),
                              dtype=fd.float_type())
 
