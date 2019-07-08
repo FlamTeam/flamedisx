@@ -533,7 +533,7 @@ class ERSource:
         # must be a less clunky way...
 
         # (n_events, |ne|) tensors
-        es, rate_e = self.gimme('energy_spectrum',i_batch=i_batch)
+        es, rate_e = self.gimme('energy_spectrum',i_bat ch=i_batch)
         q_produced = tf.cast(tf.floor(es / self.gimme('work',i_batch=i_batch)[:, o]),
                              dtype=fd.float_type())
 
@@ -554,7 +554,7 @@ class ERSource:
         pel = self.gimme('p_electron', _nq_1d, i_batch=i_batch)
         pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d, i_batch=i_batch)
 
-        # Create tensors with the dimensions of our final result
+        # Create tensors with the dimensions of our fin al result
         # i.e. (n_events, |photons_produced|, |electrons_produced|),
         # containing:
         # ... numbers of photons and electrons produced:
@@ -587,7 +587,7 @@ class ERSource:
                                           probs=pel_clip).prob(nel)
 
     def detection_p(self, quanta_type, i_batch):
-        """Return (n_events, |detected|, |produced|) tensor
+        """Return (n_events, |detected|, |produced|) te nsor
         encoding P(n_detected | n_produced)
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
@@ -613,7 +613,7 @@ class ERSource:
         n = self._dimsize(x, i_batch)
         if (x+'_min') in self._tensor_cache_list[i_batch].keys():
             res = tf.range(n)[o, :] + self._tensor_cache_list[i_batch][x+'_min'][:,o]
-        else
+        else:
             res= tf.range(n)[o, :] + self.data[x + '_min'][:, o]
         return tf.cast(res, dtype=fd.float_type())
 
