@@ -207,7 +207,7 @@ class LogLikelihood:
             hessian = np.zeros((n, n))
             for ib in tqdm(range(n_batches),
                     desc = 'Computing hessian'):
-                h_comp = np.zeroes((n,n))
+                h_comp = np.zeros((n,n))
                 for i1 in range(n):
                     for i2 in range(n):
                         if i2 > i1:
