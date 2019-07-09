@@ -404,7 +404,6 @@ class ERSource:
         self._tensor_cache_list = list ()
         self.data = data
         self._params = params
-        new_t_dict= dict()
         if not annotated:
             self.annotate_data(data,
                                max_sigma=max_sigma,
@@ -415,11 +414,13 @@ class ERSource:
             self._tensor_cache[x] = fd.np_to_tf(data[x].values)
         slices = np.floor(np.linspace(0,len(self._tensor_cache['s1']),n_batches+1))
         for i in range(len(slices[:-1])):
+            new_t_dict= dict()
             for k in self._tensor_cache.keys():
                 if i == 0:
                     new_t_dict[k]=self._tensor_cache[k][int(slices[i]):int(slices[i+1])]
                 else:
                     new_t_dict[k]=self._tensor_cache[k][int(slices[i]+1):int(slices[i+1])]
+
             self._tensor_cache_list.append(new_t_dict)
             if i==0:
                 self._batched_data.append(self.data[int(slices[i]):int(slices[i+1])])
