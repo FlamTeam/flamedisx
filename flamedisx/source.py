@@ -422,9 +422,9 @@ class ERSource:
                     new_t_dict[k]=self._tensor_cache[k][int(slices[i]+1):int(slices[i+1])]
             self._tensor_cache_list.append(new_t_dict)
             if i==0:
-                self._batched_data.append(self.data[slices[i]:slices[i+1])
+                self._batched_data.append(self.data[slices[i]:slices[i+1]])
             else:
-                self._batched_data.append(self.data[slices[i]+1:slices[i+1])
+                self._batched_data.append(self.data[slices[i]+1:slices[i+1]])
 
         # Clean _tensor_cache
         self._tensor_cache=dict()
