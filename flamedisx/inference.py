@@ -174,7 +174,7 @@ class LogLikelihood:
             for i in range(n_batches):
                 with tf.GradientTape() as t:
                     t.watch(x_norm)
-                    y += self._minus_ll(x_norm * guess, i_batch=i)
+                    y += self._minus_ll(i,x_norm * guess)
                     grad += t.gradient(y,x_norm)
             return y, grad
 
