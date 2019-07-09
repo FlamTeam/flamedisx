@@ -647,7 +647,7 @@ class ERSource:
         observed = self._tensor_cache_list[i_batch][signal_name[quanta_type]][:, o]
 
         # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme(quanta_type + '_gain_mean', i_batch=i_ibatch)[:, o]
+        mean_per_q = self.gimme(quanta_type + '_gain_mean', i_batch=i_batch)[:, o]
         std_per_q = self.gimme(quanta_type + '_gain_std',i_batch=i_batch)[:, o]
 
         if quanta_type == 'photon':
