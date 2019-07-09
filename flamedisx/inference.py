@@ -132,8 +132,8 @@ class LogLikelihood:
                 for k, v in zip(self.param_names, values)}
 
     def bestfit(self, guess=None, n_batches=None,
-                optimizer = tfp.optimizer.proximal_hessian_sparse_minimize,
-                #optimizer=tfp.optimizer.lbfgs_minimize,
+                #optimizer = tfp.optimizer.proximal_hessian_sparse_minimize,
+                optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
                 get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
