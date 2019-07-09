@@ -185,7 +185,7 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * guess
 
-    def inverse_hessian(self, params, save_ram=True):
+    def inverse_hessian(self, params, n_batches=None, save_ram=True):
         """Return inverse hessian (square numpy matrix)
         of -2 log_likelihood at params
         """
@@ -198,31 +198,33 @@ class LogLikelihood:
         # Tensorflow has tf.hessians, but:
         # https://github.com/tensorflow/tensorflow/issues/29781
 
-        #xc = [tf.Variable(q)
-        #      for q in fd.tf_to_np(params)]
+        if n_batches is None:
+            n_batches = self.n_batches
 
         if save_ram:
             # Slower but more RAM-efficient algorithm
             n = len(self.param_names)
             hessian = np.zeros((n, n))
-            for i1 in tqdm(range(n),
-                    desc='Computing hessian'):
-                for i2 in range(n):
-                    if i2 > i1:
-                        continue
-
-                    xc = [tf.constant(q)
-                            for q in fd.tf_to_np(params) 
-                            ]
-                    with tf.GradientTape(persistent=True) as t2:
-                        t2.watch(xc[i2])
-                        with tf.GradientTape() as t:
-                            t.watch(xc[i1])
-                            ptensor = tf.stack(xc)
-                            y = self._minus_ll(ptensor)
-                        grad = t.gradient(y, xc[i1])
-                        hessian[i1, i2] = t2.gradient(grad, xc[i2]).numpy()
-                    del t2
+            for ib in tqdm(range(n_batches),
+                    desc = 'Computing hessian'):
+                h_comp = np.zeroes((n,n))
+                for i1 in range(n):
+                    for i2 in range(n):
+                        if i2 > i1:
+                            continue
+                        xc = [tf.constant(q)
+                                for q in fd.tf_to_np(params) 
+                                ]
+                        with tf.GradientTape(persistent=True) as t2:
+                            t2.watch(xc[i2])
+                            with tf.GradientTape() as t:
+                                t.watch(xc[i1])
+                                ptensor = tf.stack(xc)
+                                y = self._minus_ll(ib,ptensor)
+                            grad = t.gradient(y, xc[i1])
+                            h_comp[i1, i2] = t2.gradient(grad, xc[i2]).numpy()
+                        del t2
+                hessian+=h_comp
             for i1 in range(n):
                 for i2 in range(n):
                     if i2 > i1:
