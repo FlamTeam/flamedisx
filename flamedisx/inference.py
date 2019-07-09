@@ -168,7 +168,7 @@ class LogLikelihood:
         x_norm = tf.ones(len(guess), dtype=fd.float_type())
         # for i in range(n_batches):
         @tf.function
-        def objective(x_norm, n_batches):
+        def objective(x_norm):
             y = tf.constant(0,dtype=fd.float_type())
             grad = tf.constant(0,dtype=fs.float_type())
             for i in range(n_batches):
