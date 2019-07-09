@@ -68,11 +68,11 @@ class LogLikelihood:
 
     @tf.function
     def log_likelihood(self, i_batch, ptensor):
-        return self._log_likelihood(ptensor)
+        return self._log_likelihood(i_batch,ptensor)
 
     @tf.function
     def minus_ll(self, i_batch, ptensor):
-        return self._minus_ll(_batch,ptensor)
+        return self._minus_ll(i_batch,ptensor)
 
     def _log_likelihood(self, i_batch, ptensor):
         if not len(ptensor) == len(self.param_names):
