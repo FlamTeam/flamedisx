@@ -67,8 +67,8 @@ class LogLikelihood:
         self.param_specs = common_params
         #DIAGNOSIS
         for i in range(self.n_batches):
-            print('batched_data len:'len(self.sources['er']._batched_data[i]))
-            print('_tensor_batch len:' len(self.sources['er']._tensor_cache_list[i_batch]['s1'])
+            print('batched_data len:', len(self.sources['er']._batched_data[i]))
+            print('_tensor_batch len:', len(self.sources['er']._tensor_cache_list[i_batch]['s1'])
 
 
 
