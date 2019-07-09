@@ -170,7 +170,7 @@ class LogLikelihood:
         @tf.function
         def objective(x_norm):
             y = tf.constant(0,dtype=fd.float_type())
-            grad = tf.constant(0,dtype=fs.float_type())
+            grad = tf.constant(0,dtype=fd.float_type())
             for i in range(n_batches):
                 with tf.GradientTape() as t:
                     t.watch(x_norm)
