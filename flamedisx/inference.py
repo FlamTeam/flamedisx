@@ -149,6 +149,7 @@ class LogLikelihood:
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
+            ll=0
             for i in range(n_batches):
                 ll+=self._minus_ll(i,guess)
             #kwargs.setdefault('tolerance',
