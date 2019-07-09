@@ -239,50 +239,6 @@ class LogLikelihood:
              for g in grads])
 
         return np.linalg.inv(hessian)
-    def hessian(self, params, save_ram=True):
-        """Return inverse hessian (square numpy matrix)
-        of -2 log_likelihood at params
-        """
-        # TODO: add more memory-efficient computation method
-
-        # I could only get higher-order derivatives to work
-        # after splitting the parameter vector in separate variables,
-        # and using the un-@tf.function'ed likelihood.
-        #
-        # Tensorflow has tf.hessians, but:
-        # https://github.com/tensorflow/tensorflow/issues/29781
-
-        #xc = [tf.Variable(q)
-        #      for q in fd.tf_to_np(params)]
-
-        if save_ram:
-            # Slower but more RAM-efficient algorithm
-            n = len(self.param_names)
-            hessian = np.zeros((n, n))
-            for i1 in tqdm(range(n),
-                    desc='Computing hessian'):
-                for i2 in range(n):
-                    if i2 > i1:
-                        continue
-
-                    xc = [tf.constant(q)
-                            for q in fd.tf_to_np(params) 
-                            ]
-                    with tf.GradientTape(persistent=True) as t2:
-                        t2.watch(xc[i2])
-                        with tf.GradientTape() as t:
-                            t.watch(xc[i1])
-                            ptensor = tf.stack(xc)
-                            y = self._minus_ll(ptensor)
-                        grad = t.gradient(y, xc[i1])
-                        hessian[i1, i2] = t2.gradient(grad, xc[i2]).numpy()
-                    del t2
-            for i1 in range(n):
-                for i2 in range(n):
-                    if i2 > i1:
-                        hessian[i1, i2] = hessian[i2, i1]
-            return hessian
-
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
