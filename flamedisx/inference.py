@@ -15,20 +15,15 @@ class LogLikelihood:
     data: pd.DataFrame
     sources: ty.Dict[str, fd.ERSource]
     mu_iterpolators: ty.Dict[str, ty.Callable]
-    # TODO: make a way to give n_batches and keep track of i_batch
+
     def __init__(
             self,
             sources: ty.Dict[str, fd.ERSource],
             data: pd.DataFrame,
-            # source_params: ty.Union[
-            #     None, ty.Dict[str, ty.Dict[str, tuple]]] = None,
             free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
-            n_batches=10,
+            batch_size=10,
             n_trials=int(1e5),
             **common_params):
-
-        # if source_params is None:
-        #     source_params = dict()
 
         param_defaults = dict()
 
@@ -52,9 +47,9 @@ class LogLikelihood:
 
         # Set data. Have to copy it, since data is modified by set_data
         for sname, s in sources.items():
-            s.set_data(data.copy(),n_batches=n_batches)
-        
-        self.n_batches=n_batches
+            s.set_data(data.copy(), batch_size=batch_size)
+
+        self.n_batches = s.n_batches
         self.data = data
         self.sources = sources
         self.param_defaults = param_defaults
@@ -66,47 +61,27 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_params
 
-    @tf.function
-    def log_likelihood(self, i_batch, ptensor):
-        return self._log_likelihood(i_batch,ptensor)
+    def log_likelihood(self, ptensor):
+        return sum([self._log_likelihood(ptensor, i_batch=i_batch)
+                    for i_batch in range(self.n_batches)])
 
-    @tf.function
-    def minus_ll(self, i_batch, ptensor):
-        return self._minus_ll(i_batch,ptensor)
+    def minus_ll(self, ptensor):
+        return -2 * self.log_likelihood(ptensor)
 
-    def _log_likelihood(self, i_batch, ptensor):
+    def mu(self, ptensor):
+        return self._mu(ptensor)
+
+    def _check_ptensor(self, ptensor):
         if not len(ptensor) == len(self.param_names):
             raise ValueError(
                 f"Likelihood takes {len(self.param_names)} params "
                 f"but you gave {len(ptensor)}")
 
-        mu = tf.constant(0., dtype=fd.float_type())
-        # TODO: compute the likelihoods for the lenght of the batch
-        lls = tf.zeros(len(self.sources['er']._tensor_cache_list[i_batch]['s1']),
-                dtype=fd.float_type())
-                # data), dtype=fd.float_type())
-
-        for sname, s in self.sources.items():
-            rmname = sname + '_rate_multiplier'
-            if rmname in self.param_names:
-                rm = ptensor[self._param_i(rmname)]
-            else:
-                rm = 1.
-            source_kwargs = self._source_kwargs(ptensor)
-
-            mu += rm * self.mu_itps[sname](**source_kwargs)
-            lls += rm * s.likelihood(i_batch, **source_kwargs)
-
-        return -mu + tf.reduce_sum(fd.tf_log10(lls))
-
-    def _minus_ll(self, i_batch, ptensor):
-        return -2 * self._log_likelihood(i_batch, ptensor)
-
-    def guess(self):
-        """Return tensor of parameter guesses"""
-        return tf.convert_to_tensor(
-            list(self.param_defaults.values()),
-            fd.float_type())
+    def _get_rate_mult(self, sname, ptensor):
+        rmname = sname + '_rate_multiplier'
+        if rmname in self.param_names:
+            return ptensor[self._param_i(rmname)]
+        return 1.
 
     def _source_kwargs(self, ptensor):
         """Return {param: value} dictionary with keyword arguments
@@ -119,14 +94,49 @@ class LogLikelihood:
         """Return index of parameter pname"""
         return self.param_names.index(pname)
 
+    def _mu(self, ptensor):
+        self._check_ptensor(ptensor)
+
+        mu = tf.constant(0., dtype=fd.float_type())
+        for sname, s in self.sources.items():
+            mu += (self._get_rate_mult(sname, ptensor)
+                   * self.mu_itps[sname](**self._source_kwargs(ptensor)))
+        return mu
+
+    def _log_likelihood(self, ptensor, i_batch=None):
+        self._check_ptensor(ptensor)
+
+        first_source = self.sources[list(self.sources.keys())[0]]
+        lls = tf.zeros(first_source.n_events(i_batch=i_batch),
+                       dtype=fd.float_type())
+
+        for sname, s in self.sources.items():
+            lls += (
+                self._get_rate_mult(sname, ptensor)
+                * s.differential_rate(i_batch, **self._source_kwargs(ptensor)))
+
+        ll = tf.reduce_sum(tf.math.log(lls))
+
+        if i_batch is None or i_batch == 0:
+            return -self._mu(ptensor) + ll
+        return ll
+
+    def _minus_ll(self, ptensor, i_batch=None):
+        return -2 * self._log_likelihood(ptensor, i_batch)
+
+    def guess(self):
+        """Return tensor of parameter guesses"""
+        return tf.convert_to_tensor(
+            list(self.param_defaults.values()),
+            fd.float_type())
+
     def params_to_dict(self, values):
         """Return parameter {name: value} dictionary"""
         values = fd.tf_to_np(values)
         return {k: v
                 for k, v in zip(self.param_names, values)}
 
-    def bestfit(self, guess=None, n_batches=None,
-                #optimizer = tfp.optimizer.proximal_hessian_sparse_minimize,
+    def bestfit(self, guess=None,
                 optimizer=tfp.optimizer.lbfgs_minimize,
                 llr_tolerance=0.01,
                 get_lowlevel_result=False, **kwargs):
@@ -139,20 +149,18 @@ class LogLikelihood:
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
         """
-        # TODO: loop over the batches and rewrite optimizer
         if guess is None:
             guess = self.guess()
         guess = fd.np_to_tf(guess)
-        if n_batches is None:
-            n_batches = self.n_batches
+
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
-            ll=0
-            for i in range(n_batches):
-                ll+=self._minus_ll(i,guess)
-            #kwargs.setdefault('tolerance',
+            # TODO replace
+            ll = 0
+            for i_batch in range(self.n_batches):
+                ll += self._minus_ll(guess, i_batch=i_batch)
             kwargs.setdefault('f_relative_tolerance',
                               llr_tolerance/ll)
 
@@ -160,16 +168,14 @@ class LogLikelihood:
         # This is a basic kind of standardization that helps make the gradient
         # vector reasonable.
         x_norm = tf.ones(len(guess), dtype=fd.float_type())
-        # for i in range(n_batches):
-        @tf.function
         def objective(x_norm):
-            y = tf.constant(0,dtype=fd.float_type())
-            grad = tf.constant(0,dtype=fd.float_type())
-            for i in range(n_batches):
+            y = tf.constant(0, dtype=fd.float_type())
+            grad = tf.constant(0, dtype=fd.float_type())
+            for i_batch in range(self.n_batches):
                 with tf.GradientTape() as t:
                     t.watch(x_norm)
-                    y += self._minus_ll(i,x_norm * guess)
-                    grad += t.gradient(y,x_norm)
+                    y += self._minus_ll(x_norm * guess, i_batch=i_batch)
+                    grad += t.gradient(y, x_norm)
             return y, grad
 
         res = optimizer(objective, x_norm, **kwargs)
@@ -179,12 +185,10 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * guess
 
-    def inverse_hessian(self, params, n_batches=None, save_ram=True):
+    def inverse_hessian(self, params, save_ram=True):
         """Return inverse hessian (square numpy matrix)
         of -2 log_likelihood at params
         """
-        # TODO: add more memory-efficient computation method
-
         # I could only get higher-order derivatives to work
         # after splitting the parameter vector in separate variables,
         # and using the un-@tf.function'ed likelihood.
@@ -192,51 +196,50 @@ class LogLikelihood:
         # Tensorflow has tf.hessians, but:
         # https://github.com/tensorflow/tensorflow/issues/29781
 
-        if n_batches is None:
-            n_batches = self.n_batches
+        n = len(self.param_names)
+        hessian = np.zeros((n, n))
 
         if save_ram:
-            # Slower but more RAM-efficient algorithm
-            n = len(self.param_names)
-            hessian = np.zeros((n, n))
-            for ib in tqdm(range(n_batches),
-                    desc = 'Computing hessian'):
-                h_comp = np.zeros((n,n))
+            # Evaluate likelihood separately for each derivative.
+            for i_batch in tqdm(range(self.n_batches),
+                                desc='Computing hessian'):
                 for i1 in range(n):
                     for i2 in range(n):
                         if i2 > i1:
                             continue
-                        xc = [tf.constant(q)
-                                for q in fd.tf_to_np(params) 
-                                ]
+
+                        xc = [tf.constant(q) for q in fd.tf_to_np(params)]
                         with tf.GradientTape(persistent=True) as t2:
                             t2.watch(xc[i2])
                             with tf.GradientTape() as t:
                                 t.watch(xc[i1])
                                 ptensor = tf.stack(xc)
-                                y = self._minus_ll(ib,ptensor)
+                                y = self._minus_ll(ptensor, i_batch=i_batch)
                             grad = t.gradient(y, xc[i1])
-                            h_comp[i1, i2] = t2.gradient(grad, xc[i2]).numpy()
+                            hessian[i1, i2] += t2.gradient(grad, xc[i2]).numpy()
                         del t2
-                hessian+=h_comp
+
             for i1 in range(n):
                 for i2 in range(n):
                     if i2 > i1:
                         hessian[i1, i2] = hessian[i2, i1]
-            return np.linalg.inv(hessian)
 
-        # Faster RAM-guzzling algorithm
-        with tf.GradientTape(persistent=True) as t2:
-            with tf.GradientTape(persistent=True) as t:
-                ptensor = tf.stack(xc)
-                y = self._minus_ll(ptensor)
-
-            grads = [t.gradient(y, q) for q in xc]
-
-        hessian = np.vstack(
-            [np.array([t2.gradient(g, x)
-                       for x in xc])
-             for g in grads])
+        else:
+            # Faster, RAM-guzzling algorithm
+            # Do a single computation, tracing all the variables.
+            # TODO: take advantage of symmetry! Currently 2x wastage!
+            for i_batch in tqdm(range(self.n_batches),
+                                desc='Computing hessian'):
+                xc = [tf.Variable(q) for q in fd.tf_to_np(params)]
+                with tf.GradientTape(persistent=True) as t2:
+                    with tf.GradientTape(persistent=True) as t:
+                        ptensor = tf.stack(xc)
+                        y = self._minus_ll(ptensor, i_batch=i_batch)
+                    grads = [t.gradient(y, q) for q in xc]
+                hessian += np.vstack(
+                    [np.array([t2.gradient(g, x)
+                               for x in xc])
+                    for g in grads])
 
         return np.linalg.inv(hessian)
 
