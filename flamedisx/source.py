@@ -56,9 +56,10 @@ class Source:
     def __init__(self,
                  data,
                  batch_size=10,
-                 max_sigma=5,
+                 max_sigma=3,
                  data_is_annotated=False,
                  _skip_tf_init=False,
+                 _skip_bounds_computation=False,
                  **params):
         self.max_sigma = max_sigma
         self._params = params
@@ -89,7 +90,6 @@ class Source:
                     self.defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
 
-
         if batch_size is None:
             batch_size = len(data)
         self.batch_size = batch_size
@@ -97,7 +97,7 @@ class Source:
             self.n_events() / self.batch_size).astype(np.int)
 
         if not data_is_annotated:
-            self._annotate()
+            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
         if not _skip_tf_init:
             self._populate_tensor_cache()
 
@@ -184,9 +184,10 @@ class Source:
 
     @classmethod
     def annotate_data(cls, data, **params):
+        """Add columns to data with inference information"""
         return cls(data, _skip_tf_init=True, **params)
 
-    def _annotate(self):
+    def _annotate(self, _skip_bounds_computation=False):
         """Annotate self.data with columns needed for inference.
         """
         d = self.data
@@ -204,6 +205,9 @@ class Source:
                     raise
         d['double_pe_fraction'] = self.gimme('double_pe_fraction',
                                              numpy_out=True)
+
+        if _skip_bounds_computation:
+            return
 
         # Find likely number of detected quanta
         obs = dict(photon=d['s1'], electron=d['s2'])
@@ -299,6 +303,12 @@ class Source:
         :param data: pandas DataFrame
         """
         pass
+
+    def batched_differential_rate(self, progress=True, **params):
+        progress = (lambda x: x) if not progress else tqdm
+        return np.concatenate([
+            fd.tf_to_np(self.differential_rate(i_batch=i_batch, **params))
+            for i_batch in progress(range(self.n_batches))])
 
     def differential_rate(self, i_batch=None, **params):
         self._params = params
@@ -493,7 +503,7 @@ class Source:
     ##
 
     @classmethod
-    def simulate(cls, energies, data, **params):
+    def simulate(cls, energies, data=None, **params):
         """Simulate events at energies,
         drawing values of additional observables (e.g. positions)
         from data.
@@ -508,11 +518,17 @@ class Source:
             energies = s.simulate_es(int(energies))
 
         # Create and set new dataset, with just the dimensions we need
+        # (note we should NOT include s1 and s2 here, we're going to simulate
+        # them)
         d = data[list(set(sum(
             s.f_dims.values(),
-            ['s1', 's2'] + list(s.extra_needed_columns))))]
+            list(s.extra_needed_columns))))]
         d = d.sample(n=len(energies), replace=True)
-        s = cls(data=d, _skip_tf_init=True, **params)
+        s = cls(data=d,
+                _skip_tf_init=True,
+                _skip_bounds_computation=True,
+                **params)
+        assert 'e_vis' not in d.columns
 
         def gimme(*args):
             return s.gimme(*args, numpy_out=True)
@@ -556,16 +572,14 @@ class Source:
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
         d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
 
-        # This is useful, so we already have inference bounds on the
-        # returned data.
-        # TODO ??? already set data??? s1 or s2??!
-        s._annotate()
+        # Now that we have s1 and s2 values, we can do the full annotate,
+        # populating columns like e_vis, photon_produced_mle, etc.
+        cls.annotate_data(d, **params)
+        assert 'e_vis' in d.columns
         return d
 
     def _simulate_nq(self):
         raise NotImplementedError
-        work = self.gimme('work', numpy_out=True)
-        self.data['nq'] = np.floor(self.data['energy'].values / work).astype(np.int)
 
     @classmethod
     def mu_interpolator(cls,
@@ -607,7 +621,7 @@ class Source:
         return mu_itp
 
     @classmethod
-    def estimate_mu(cls, data, n_trials=int(1e5), **params):
+    def estimate_mu(cls, data=None, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param data: Data used for drawing auxiliary observables
         (e.g. position and time)
