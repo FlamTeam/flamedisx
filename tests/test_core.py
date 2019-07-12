@@ -30,21 +30,20 @@ def xes(request):
     data = pd.DataFrame([dict(s1=20, s2=3000, drift_time=20),
                          dict(s1=2.4, s2=400, drift_time=500)])
     if request.param == 'ER':
-        x = fd.ERSource()
+        x = fd.ERSource(data, n_batches=2, max_sigma=5)
     else:
-        x = fd.NRSource()
-    x.set_data(data, n_batches=2)
+        x = fd.NRSource(data, n_batches=2, max_sigma=5)
     return x
 
 
 def test_simulate(xes: fd.ERSource):
     """Test the simulator doesn't crash"""
-    xes.simulate(energies=np.linspace(0., 100., int(1e3)))
+    xes.simulate(data=xes.data, energies=np.linspace(0., 100., int(1e3)))
 
 
 def test_bounds(xes: fd.ERSource):
     """Test bounds on nq_produced and _detected"""
-    data = xes._data.data
+    data = xes.data
     ##
     for qn in quanta_types:
         for p in ('produced', 'detected'):
@@ -94,18 +93,18 @@ def test_domains(xes: fd.ERSource):
 
     np.testing.assert_equal(
         np.amin(n_det, axis=(1, 2)),
-        np.floor(xes._data.data['electron_detected_min']))
+        np.floor(xes.data['electron_detected_min']))
 
     np.testing.assert_equal(
         np.amin(n_prod, axis=(1, 2)),
-        np.floor(xes._data.data['electron_produced_min']))
+        np.floor(xes.data['electron_produced_min']))
 
 
 def test_domain_detected(xes: fd.ERSource):
     dd = xes.domain('photon_detected').numpy()
     np.testing.assert_equal(
         dd.min(axis=1),
-        np.floor(xes._data.data['photon_detected_min']).values)
+        np.floor(xes.data['photon_detected_min']).values)
 
 
 def test_detector_response(xes: fd.ERSource):
@@ -120,7 +119,7 @@ def test_detector_response(xes: fd.ERSource):
     domain = xes.domain('photon_detected').numpy()
     found_mle = np_lookup_axis1(domain, max_is)
     np.testing.assert_array_less(
-        np.abs(xes._data.data['photon_detected_mle'] - found_mle),
+        np.abs(xes.data['photon_detected_mle'] - found_mle),
         0.5)
 
 
@@ -143,8 +142,8 @@ def test_detection_prob(xes: fd.ERSource):
     #    where all reasonably probable electrons_detected values
     #    should be probed
     mle_is = np.round(
-        xes._data.data['electron_produced_mle']
-        - xes._data.data['electron_produced_min']).values.astype(np.int)
+        xes.data['electron_produced_mle']
+        - xes.data['electron_produced_min']).values.astype(np.int)
     np.testing.assert_almost_equal(
         np_lookup_axis1(rs, mle_is),
         np.ones(n_events),
@@ -152,7 +151,7 @@ def test_detection_prob(xes: fd.ERSource):
 
 
 def test_estimate_mu(xes: fd.ERSource):
-    xes.estimate_mu()
+    xes.estimate_mu(xes.data)
 
 
 def test_diff_rate(xes: fd.ERSource):
@@ -162,19 +161,17 @@ def test_diff_rate(xes: fd.ERSource):
     # Need very high sigma for this
     # so extending the bounds due to not-batching does not
     # matter anymore
-    xes.set_data(data=xes._data.data, max_sigma=8)
-
     y = xes.differential_rate(i_batch=None)
     y2 = np.concatenate([
         fd.tf_to_np(xes.differential_rate(i_batch=batch_i))
-        for batch_i in range(xes._data.n_batches)])
+        for batch_i in range(xes.n_batches)])
     np.testing.assert_array_equal(y.numpy(), y2)
 
 def test_inference(xes: fd.ERSource):
     lf = fd.LogLikelihood(
-        sources=dict(er=xes),
+        sources=dict(er=xes.__class__),
         elife=(100e3, 500e3, 5),
-        data=xes._data.data)
+        data=xes.data)
 
     # Test eager version
     y1 = lf._log_likelihood(fd.np_to_tf(np.array([200e3,])))

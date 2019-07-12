@@ -13,17 +13,17 @@ export, __all__ = fd.exporter()
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
     data: pd.DataFrame
-    sources: ty.Dict[str, fd.ERSource]
+    sources: ty.Dict[str, fd.Source]
     mu_iterpolators: ty.Dict[str, ty.Callable]
 
     def __init__(
             self,
-            sources: ty.Dict[str, fd.ERSource],
+            sources: ty.Dict[str, fd.Source.__class__],
             data: pd.DataFrame,
             free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
             batch_size=10,
             n_trials=int(1e5),
-            **common_params):
+            **common_param_specs):
 
         param_defaults = dict()
 
@@ -36,30 +36,34 @@ class LogLikelihood:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
             param_defaults[sn + '_rate_multiplier'] = 1
 
-        for pname in common_params:
+        # Create sources. Have to copy data, it's modified by set_data
+        self.sources = {
+            sname: sclass(data.copy(), batch_size=batch_size)
+            for sname, sclass in sources.items()}
+        del sources    # so we don't use it by accident
+
+        for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
             # sources
-            defs = [s.defaults[pname] for s in sources.values()]
+            defs = [s.defaults[pname] for s in self.sources.values()]
             if len(set([x.numpy() for x in defs])) > 1:
                 raise ValueError(
                     f"Inconsistent defaults {defs} for common parameters")
             param_defaults[pname] = defs[0]
 
-        # Set data. Have to copy it, since data is modified by set_data
-        for sname, s in sources.items():
-            s.set_data(data.copy(), batch_size=batch_size)
+        first_source = self.sources[list(self.sources.keys())[0]]
 
-        self.n_batches = s.n_batches
-        self.data = data
-        self.sources = sources
+        self.n_batches = first_source.n_batches
+        self.data = first_source.data
         self.param_defaults = param_defaults
         self.param_names = list(param_defaults.keys())
         self.mu_itps = {
             sname: s.mu_interpolator(n_trials=n_trials,
-                                     **common_params)
-            for sname, s in sources.items()}
+                                     data=s.data,
+                                     **common_param_specs)
+            for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
-        self.param_specs = common_params
+        self.param_specs = common_param_specs
 
     def log_likelihood(self, ptensor):
         return sum([self._log_likelihood(ptensor, i_batch=i_batch)
