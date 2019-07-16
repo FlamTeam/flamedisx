@@ -65,6 +65,7 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
+    @tf.function
     def log_likelihood(self, ptensor):
         return sum([self._log_likelihood(ptensor, i_batch=i_batch)
                     for i_batch in range(self.n_batches)])
@@ -117,7 +118,7 @@ class LogLikelihood:
         for sname, s in self.sources.items():
             lls += (
                 self._get_rate_mult(sname, ptensor)
-                * s.differential_rate(i_batch, **self._source_kwargs(ptensor)))
+                * s._differential_rate(i_batch, **self._source_kwargs(ptensor)))
 
         ll = tf.reduce_sum(tf.math.log(lls))
 
@@ -161,12 +162,8 @@ class LogLikelihood:
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
-            # TODO replace
-            ll = 0
-            for i_batch in range(self.n_batches):
-                ll += self._minus_ll(guess, i_batch=i_batch)
             kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/ll)
+                              llr_tolerance/self.minus_ll(guess))
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient

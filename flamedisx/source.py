@@ -322,6 +322,9 @@ class Source:
 
     @tf.function
     def differential_rate(self, i_batch=None, **params):
+        return _differential_rate(self, i_batch=None, **params)
+
+    def _differential_rate(self, i_batch=None, **params):
         self._params = params
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel(i_batch)
