@@ -1,6 +1,8 @@
 import numpy as np
-from scipy import stats
 import tensorflow as tf
+import tensorflow_probability as tfp
+# Remove once tf.repeat is available in the tf api
+from tensorflow.python.ops.ragged.ragged_util import repeat  # yes, it IS used!
 
 o = tf.newaxis
 FLOAT_TYPE = tf.float32
@@ -18,7 +20,7 @@ def exporter():
 
 
 export, __all__ = exporter()
-__all__ += ['float_type', 'exporter']
+__all__ += ['float_type', 'exporter', 'repeat']
 
 
 @export
@@ -89,3 +91,53 @@ def safe_p(ps):
                   tf.cast(ps, dtype=float_type()))
     ps = tf.clip_by_value(ps, 1e-5, 1 - 1e-5)
     return ps
+
+
+@export
+def beta_params(mean, sigma):
+    """Convert (p_mean, p_sigma) to (alpha, beta) params of beta distribution
+    """
+    # From Wikipedia:
+    # variance = 1/(4 * (2 * beta + 1)) = 1/(8 * beta + 4)
+    # mean = 1/(1+beta/alpha)
+    # =>
+    # beta = (1/variance - 4) / 8
+    # alpha
+    b = (1. / (8. * sigma ** 2) - 0.5)
+    a = b * mean / (1. - mean)
+    return a, b
+
+
+@export
+def beta_binom_pmf(x, n, p_mean, p_sigma):
+    """Return probability mass function of beta-binomial distribution.
+
+    That is, give the probability of obtaining x successes in n trials,
+    if the success probability p is drawn from a beta distribution
+    with mean p_mean and standard deviation p_sigma.
+
+    Implemented using Dirichlet Multinomial distribution which is
+    identically the Beta-Binomial distribution when len(beta_pars) == 2
+    """
+    # TODO: check if the number of successes wasn't reversed in the original
+    # code. Should we have [x, n-x] or [n-x, x]?
+
+    beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
+
+    # DirichletMultinomial only gives correct output on float64 tensors!
+    # Cast inputs to float64 explicitly!
+    beta_pars = tf.cast(beta_pars, dtype=tf.float64)
+    x = tf.cast(x, dtype=tf.float64)
+    n = tf.cast(n, dtype=tf.float64)
+
+    counts = tf.stack([x, n-x], axis=-1)
+    res = tfp.distributions.DirichletMultinomial(
+        n,
+        beta_pars,
+        # validate_args=True,
+        # allow_nan_stats=False
+        ).prob(counts)
+    res = tf.cast(res, dtype=float_type())
+    return tf.where(tf.math.is_finite(res),
+                    res,
+                    tf.zeros_like(res, dtype=float_type()))

@@ -1,5 +1,3 @@
-import warnings
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -24,29 +22,23 @@ def np_lookup_axis1(x, indices, fill_value=0):
     return result
 
 
+n_events = 2
+
 @pytest.fixture(params=["ER", "NR"])
 def xes(request):
     # warnings.filterwarnings("error")
     data = pd.DataFrame([dict(s1=20, s2=3000, drift_time=20),
                          dict(s1=2.4, s2=400, drift_time=500)])
     if request.param == 'ER':
-        x = fd.ERSource()
+        x = fd.ERSource(data, n_batches=2, max_sigma=5)
     else:
-        x = fd.NRSource()
-    x.set_data(data)
+        x = fd.NRSource(data, n_batches=2, max_sigma=5)
     return x
-
-
-def test_likelihood(xes: fd.ERSource):
-    """Test likelihood and batched_likelihood give the same answer"""
-    y = xes.likelihood()
-    y2 = xes.batched_likelihood()
-    np.testing.assert_array_equal(y.numpy(), y2)
 
 
 def test_simulate(xes: fd.ERSource):
     """Test the simulator doesn't crash"""
-    xes.simulate(energies=np.linspace(0., 100., int(1e3)))
+    xes.simulate(data=xes.data, energies=np.linspace(0., 100., int(1e3)))
 
 
 def test_bounds(xes: fd.ERSource):
@@ -78,15 +70,15 @@ def test_gimme(xes: fd.ERSource):
 
     np.testing.assert_equal(
         y,
-        xes.photon_gain_mean * np.ones(xes.n_evts))
+        xes.photon_gain_mean * np.ones(n_events))
 
 
 def test_nphnel(xes: fd.ERSource):
     """Test (nph, nel) rate matrix"""
     r = xes.rate_nphnel().numpy()
-    assert r.shape == (xes.n_evts,
-                       xes._dimsize('photon_produced').numpy(),
-                       xes._dimsize('electron_produced').numpy())
+    assert r.shape == (n_events,
+                       xes.dimsizes['photon_produced'],
+                       xes.dimsizes['electron_produced'])
 
 
 def test_domains(xes: fd.ERSource):
@@ -95,9 +87,9 @@ def test_domains(xes: fd.ERSource):
     n_prod = n_prod.numpy()
 
     assert (n_det.shape == n_prod.shape
-            == (xes.n_evts,
-                xes._dimsize('electron_detected').numpy(),
-                xes._dimsize('electron_produced').numpy()))
+            == (n_events,
+                xes.dimsizes['electron_detected'],
+                xes.dimsizes['electron_produced']))
 
     np.testing.assert_equal(
         np.amin(n_det, axis=(1, 2)),
@@ -117,7 +109,7 @@ def test_domain_detected(xes: fd.ERSource):
 
 def test_detector_response(xes: fd.ERSource):
     r = xes.detector_response('photon').numpy()
-    assert r.shape == (xes.n_evts, xes._dimsize('photon_detected').numpy())
+    assert r.shape == (n_events, xes.dimsizes['photon_detected'])
 
     # r is p(S1 | detected quanta) as a function of detected quanta
     # so the sum over r isn't meaningful (as long as we're frequentists)
@@ -133,9 +125,9 @@ def test_detector_response(xes: fd.ERSource):
 
 def test_detection_prob(xes: fd.ERSource):
     r = xes.detection_p('electron').numpy()
-    assert r.shape == (xes.n_evts,
-                       xes._dimsize('electron_detected').numpy(),
-                       xes._dimsize('electron_produced').numpy())
+    assert r.shape == (n_events,
+                       xes.dimsizes['electron_detected'],
+                       xes.dimsizes['electron_produced'])
 
     # Sum of probability over detected electrons must be
     #  A) in [0, 1] for any value of electrons_produced
@@ -154,17 +146,39 @@ def test_detection_prob(xes: fd.ERSource):
         - xes.data['electron_produced_min']).values.astype(np.int)
     np.testing.assert_almost_equal(
         np_lookup_axis1(rs, mle_is),
-        np.ones(xes.n_evts),
+        np.ones(n_events),
         decimal=4)
 
 
 def test_estimate_mu(xes: fd.ERSource):
-    xes.estimate_mu()
+    xes.estimate_mu(xes.data)
 
 
-def test_build_likelihood(xes: fd.ERSource):
+def test_diff_rate(xes: fd.ERSource):
+    """Test differential_rate give the same answer
+    whether it is batched or not"""
+
+    # Need very high sigma for this
+    # so extending the bounds due to not-batching does not
+    # matter anymore
+    y = xes.differential_rate(i_batch=None)
+    y2 = np.concatenate([
+        fd.tf_to_np(xes.differential_rate(i_batch=batch_i))
+        for batch_i in range(xes.n_batches)])
+    np.testing.assert_array_equal(y.numpy(), y2)
+
+def test_inference(xes: fd.ERSource):
     lf = fd.LogLikelihood(
-        sources=dict(er=xes),
+        sources=dict(er=xes.__class__),
         elife=(100e3, 500e3, 5),
         data=xes.data)
-    lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
+
+    # Test eager version
+    y1 = lf._log_likelihood(fd.np_to_tf(np.array([200e3,])))
+
+    # # Test graph version
+    # print("GRAPH MODE TEST NOW")
+    # y2 = lf.log_likelihood(fd.np_to_tf(np.array([200e3, ])))
+    # np.testing.assert_array_equal(y1, y1)
+    #
+    # # TODO: test fit and hessian
