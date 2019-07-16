@@ -135,6 +135,7 @@ def get_resource(x, fmt='text'):
         cache_fn = deterministic_hash(x)
         cache_folders = ['./resource_cache',
                          '/tmp/straxen_resource_cache',
+                         '/project2/lgrandi/strax_resource_cache',
                          '/dali/lgrandi/strax/resource_cache']
         for cache_folder in cache_folders:
             try:
