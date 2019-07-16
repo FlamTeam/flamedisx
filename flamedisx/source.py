@@ -338,18 +338,6 @@ class Source:
         y = d_ph @ p_ph @ y @ p_el @ d_el
         return tf.reshape(y, [-1])
 
-    def _dimsize(self, var):
-        """Return size of the dimension var
-
-        Note this is the same across batches
-        to ensure graphs have the same shape
-        # TODO: really needed?
-        """
-        ma = self._fetch(var + '_max')
-        mi = self._fetch(var + '_min')
-        # TODO why no + 1??
-        return tf.cast(tf.reduce_max(ma - mi), tf.int32)
-
     def rate_nq(self, nq_1d, i_batch=None):
         """Return differential rate at given number of produced quanta
         differs for ER and NR"""

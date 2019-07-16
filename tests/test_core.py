@@ -77,8 +77,8 @@ def test_nphnel(xes: fd.ERSource):
     """Test (nph, nel) rate matrix"""
     r = xes.rate_nphnel().numpy()
     assert r.shape == (n_events,
-                       xes._dimsize('photon_produced').numpy(),
-                       xes._dimsize('electron_produced').numpy())
+                       xes.dimsizes['photon_produced'],
+                       xes.dimsizes['electron_produced'])
 
 
 def test_domains(xes: fd.ERSource):
@@ -88,8 +88,8 @@ def test_domains(xes: fd.ERSource):
 
     assert (n_det.shape == n_prod.shape
             == (n_events,
-                xes._dimsize('electron_detected').numpy(),
-                xes._dimsize('electron_produced').numpy()))
+                xes.dimsizes['electron_detected'],
+                xes.dimsizes['electron_produced']))
 
     np.testing.assert_equal(
         np.amin(n_det, axis=(1, 2)),
@@ -109,7 +109,7 @@ def test_domain_detected(xes: fd.ERSource):
 
 def test_detector_response(xes: fd.ERSource):
     r = xes.detector_response('photon').numpy()
-    assert r.shape == (n_events, xes._dimsize('photon_detected').numpy())
+    assert r.shape == (n_events, xes.dimsizes['photon_detected'])
 
     # r is p(S1 | detected quanta) as a function of detected quanta
     # so the sum over r isn't meaningful (as long as we're frequentists)
@@ -126,8 +126,8 @@ def test_detector_response(xes: fd.ERSource):
 def test_detection_prob(xes: fd.ERSource):
     r = xes.detection_p('electron').numpy()
     assert r.shape == (n_events,
-                       xes._dimsize('electron_detected').numpy(),
-                       xes._dimsize('electron_produced').numpy())
+                       xes.dimsizes['electron_detected'],
+                       xes.dimsizes['electron_produced'])
 
     # Sum of probability over detected electrons must be
     #  A) in [0, 1] for any value of electrons_produced
