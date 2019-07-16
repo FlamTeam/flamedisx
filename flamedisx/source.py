@@ -108,6 +108,16 @@ class Source:
             if (np.issubdtype(self.data[x].dtype, np.integer)
                 or np.issubdtype(self.data[x].dtype, np.floating))}
 
+        self.dimsizes = dict()
+        for var in ['nq',
+                  'photon_detected',
+                  'electron_detected',
+                  'photon_produced',
+                  'electron_produced']:
+            ma = self._fetch(var + '_max')
+            mi = self._fetch(var + '_min')
+            self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
+
         # Split up tensors for batched evaluation
         start = np.arange(self.n_batches) * self.batch_size
         stop = np.concatenate([start[1:], [self.n_events()]])
@@ -310,6 +320,7 @@ class Source:
             fd.tf_to_np(self.differential_rate(i_batch=i_batch, **params))
             for i_batch in progress(range(self.n_batches))])
 
+    @tf.function
     def differential_rate(self, i_batch=None, **params):
         self._params = params
         # (n_events, |photons_produced|, |electrons_produced|)
@@ -384,7 +395,6 @@ class Source:
         pel = fd.lookup_axis1(pel, _nq_ind)
         # ... probability fluctuation
         pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
-
         # Finally, the main computation is simple:
         pel_num = tf.where(tf.math.is_nan(pel),
                            tf.zeros_like(pel, dtype=fd.float_type()),
@@ -426,10 +436,9 @@ class Source:
     def domain(self, x, i_batch=None):
         """Return (n_events, |possible x values|) matrix containing all possible integer
         values of x for each event"""
-        result1 = tf.cast(tf.range(self._dimsize(x)),
+        result1 = tf.cast(tf.range(self.dimsizes[x]),
                           dtype=fd.float_type())[o, :]
         result2 = self._fetch(x + '_min', i_batch=i_batch)[:, o]
-
         return result1 + result2
 
     def cross_domains(self, x, y, i_batch=None):
@@ -437,8 +446,8 @@ class Source:
         containing possible integer values of x and y, respectively.
         """
         # TODO: somehow mask unnecessary elements and save computation time
-        x_size = self._dimsize(x)
-        y_size = self._dimsize(y)
+        x_size = self.dimsizes[x]
+        y_size = self.dimsizes[y]
         # Change to tf.repeat once it's in the api
         result_x = fd.repeat(self.domain(x, i_batch)[:, :, o], y_size, axis=2)
         result_y = fd.repeat(self.domain(y, i_batch)[:, o, :], x_size, axis=1)
