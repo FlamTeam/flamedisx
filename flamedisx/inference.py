@@ -189,7 +189,7 @@ class LogLikelihood:
         return res.position * guess
 
     def inverse_hessian(self, params):
-        """Return inverse hessian (square numpy matrix)
+        """Return inverse hessian (square tensor)
         of -2 log_likelihood at params
         """
         # Currently does not work with Autograph
@@ -198,7 +198,7 @@ class LogLikelihood:
         # https://github.com/tensorflow/tensorflow/issues/29781
 
 
-        # In case params in numpy vector
+        # In case params is a numpy vector
         params = fd.np_to_tf(params)
 
         args = tf.unstack(params)  # list of tensors
@@ -217,7 +217,7 @@ class LogLikelihood:
                 # compute first order derivatives
                 grads = t.gradient(z, args)
             # compute all second order derivatives
-            # could be optimized to compute only i>j matrix elements
+            # could be optimized to compute only i>=j matrix elements
             hessian += tf.stack([t2.gradient(grad, s) for grad in grads])
             del t2
 
