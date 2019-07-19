@@ -188,68 +188,47 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * guess
 
-    def inverse_hessian(self, params, save_ram=True):
-        """Return inverse hessian (square numpy matrix)
+    def inverse_hessian(self, params):
+        """Return inverse hessian (square tensor)
         of -2 log_likelihood at params
         """
-        # I could only get higher-order derivatives to work
-        # after splitting the parameter vector in separate variables,
-        # and using the un-@tf.function'ed likelihood.
+        # Currently does not work with Autograph
         #
-        # Tensorflow has tf.hessians, but:
+        # Also Tensorflow has tf.hessians, but:
         # https://github.com/tensorflow/tensorflow/issues/29781
 
-        n = len(self.param_names)
-        hessian = np.zeros((n, n))
 
-        if save_ram:
-            # Evaluate likelihood separately for each derivative.
-            for i_batch in tqdm(range(self.n_batches),
-                                desc='Computing hessian'):
-                for i1 in range(n):
-                    for i2 in range(n):
-                        if i2 > i1:
-                            continue
+        # In case params is a numpy vector
+        params = fd.np_to_tf(params)
 
-                        xc = [tf.constant(q) for q in fd.tf_to_np(params)]
-                        with tf.GradientTape(persistent=True) as t2:
-                            t2.watch(xc[i2])
-                            with tf.GradientTape() as t:
-                                t.watch(xc[i1])
-                                ptensor = tf.stack(xc)
-                                y = self._minus_ll(ptensor, i_batch=i_batch)
-                            grad = t.gradient(y, xc[i1])
-                            hessian[i1, i2] += t2.gradient(grad, xc[i2]).numpy()
-                        del t2
+        args = tf.unstack(params)  # list of tensors
+        n = len(args)
 
-            for i1 in range(n):
-                for i2 in range(n):
-                    if i2 > i1:
-                        hessian[i1, i2] = hessian[i2, i1]
+        hessian = tf.zeros((n, n), dtype=fd.float_type())
 
-        else:
-            # Faster, RAM-guzzling algorithm
-            # Do a single computation, tracing all the variables.
-            # TODO: take advantage of symmetry! Currently 2x wastage!
-            for i_batch in tqdm(range(self.n_batches),
-                                desc='Computing hessian'):
-                xc = [tf.Variable(q) for q in fd.tf_to_np(params)]
-                with tf.GradientTape(persistent=True) as t2:
-                    with tf.GradientTape(persistent=True) as t:
-                        ptensor = tf.stack(xc)
-                        y = self._minus_ll(ptensor, i_batch=i_batch)
-                    grads = [t.gradient(y, q) for q in xc]
-                hessian += np.vstack(
-                    [np.array([t2.gradient(g, x)
-                               for x in xc])
-                    for g in grads])
+        for i_batch in range(self.n_batches):
+            with tf.GradientTape(persistent=True) as t2:
+                t2.watch(args)
+                with tf.GradientTape() as t:
+                    t.watch(args)
 
-        return np.linalg.inv(hessian)
+                    s= tf.stack(args)
+                    z = self._minus_ll(s, i_batch=i_batch)
+                # compute first order derivatives
+                grads = t.gradient(z, args)
+            # compute all second order derivatives
+            # could be optimized to compute only i>=j matrix elements
+            hessian += tf.stack([t2.gradient(grad, s) for grad in grads])
+            del t2
+
+        return tf.linalg.inv(hessian)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
         if inverse_hessian is None:
             inverse_hessian = self.inverse_hessian(bestfit)
+        inverse_hessian = fd.tf_to_np(inverse_hessian)
+
         stderr, cov = cov_to_std(inverse_hessian)
         for i, pname in enumerate(self.param_names):
             template = "{pname}: {x:.{precision}g} +- {xerr:.{precision}g}"
