@@ -129,7 +129,7 @@ class Source:
     def n_events(self, i_batch=None):
         if i_batch is None:
             return len(self.data)
-        if i_batch == self.n_batches - 1:
+        if i_batch in (self.n_batches - 1, -1):
             return self.n_events() - self.batch_size * (self.n_batches - 1)
         return self.batch_size
 
