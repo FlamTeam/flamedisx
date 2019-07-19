@@ -206,7 +206,7 @@ class LogLikelihood:
 
         hessian = tf.zeros((n, n), dtype=fd.float_type())
 
-        for i_batch in tf.range(self.n_batches):
+        for i_batch in range(self.n_batches):
             with tf.GradientTape(persistent=True) as t2:
                 t2.watch(args)
                 with tf.GradientTape() as t:
