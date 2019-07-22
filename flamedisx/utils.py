@@ -120,8 +120,11 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     with mean p_mean and standard deviation p_sigma.
     """
     a, b = beta_params(p_mean, p_sigma)
-    return tf.exp(
+    res = tf.exp(
         lgamma(n + 1.) + lgamma(x + a) + lgamma(n - x + b)
         + lgamma(a + b)
         - (lgamma(x + 1.) + lgamma(n - x + 1.)
            + lgamma(a) + lgamma(b) + lgamma(n + a + b)))
+    return tf.where(tf.math.is_finite(res),
+                    res,
+                    tf.zeros_like(res, dtype=float_type()))
