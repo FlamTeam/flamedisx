@@ -34,20 +34,22 @@ def lookup_axis1(x, indices, fill_value=0):
        returning fill_value for out-of-range indices.
     """
     # Save shape of x and flatten
+    ind_shape = indices.shape
     a, b = x.shape
     x = tf.reshape(x, [-1])
 
     legal_index = indices < b
 
     # Convert indices to legal indices in flat array
+    indices = tf.clip_by_value(indices, 0., b - 1.)
+    indices = indices + b * tf.range(a, dtype=float_type())[:, o, o]
+    indices = tf.reshape(indices, shape=(-1,))
     indices = tf.dtypes.cast(indices, dtype=tf.int32)
-    indices = tf.clip_by_value(indices, 0, b - 1)
-    indices = indices + b * tf.range(a)[:, o, o]
 
     # Do indexing
     result = tf.reshape(tf.gather(x,
-                                  tf.reshape(indices, shape=(-1,))),
-                        shape=indices.shape)
+                                  indices),
+                        shape=ind_shape)
 
     # Replace illegal indices with fill_value, cast to float explicitly
     return tf.cast(tf.where(legal_index,
