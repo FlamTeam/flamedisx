@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
-from tf.math import lgamma
 import tensorflow_probability as tfp
 # Remove once tf.repeat is available in the tf api
 from tensorflow.python.ops.ragged.ragged_util import repeat  # yes, it IS used!
+lgamma = tf.math.lgamma
 
 o = tf.newaxis
 FLOAT_TYPE = tf.float32
