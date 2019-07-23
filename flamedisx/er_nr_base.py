@@ -173,7 +173,7 @@ class NRSource(ERSource):
         # Finally, number of electrons produced..
         n_el = ni * fnotr
 
-        return n_el / nq
+        return fd.safe_p(n_el / nq)
 
     @staticmethod
     def lindhard_l(e, lindhard_k=0.138):

@@ -27,8 +27,10 @@ n_events = 2
 @pytest.fixture(params=["ER", "NR"])
 def xes(request):
     # warnings.filterwarnings("error")
-    data = pd.DataFrame([dict(s1=20, s2=3000, drift_time=20),
-                         dict(s1=2.4, s2=400, drift_time=500)])
+    data = pd.DataFrame([dict(s1=20., s2=3000., drift_time=20.,
+                              x=0., y=0, z=-5., r=0., theta=0),
+                         dict(s1=2.4, s2=400., drift_time=500.,
+                              x=0., y=0., z=-50., r=0., theta=0.)])
     if request.param == 'ER':
         x = fd.ERSource(data, n_batches=2, max_sigma=5)
     else:
