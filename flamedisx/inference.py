@@ -22,6 +22,7 @@ class LogLikelihood:
             data: pd.DataFrame,
             free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
             batch_size=10,
+            max_sigma=3,
             n_trials=int(1e5),
             **common_param_specs):
 
@@ -38,7 +39,9 @@ class LogLikelihood:
 
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
-            sname: sclass(data.copy(), batch_size=batch_size)
+            sname: sclass(data.copy(),
+                          max_sigma=max_sigma,
+                          batch_size=batch_size)
             for sname, sclass in sources.items()}
         del sources    # so we don't use it by accident
 
@@ -130,10 +133,8 @@ class LogLikelihood:
         return -2 * self._log_likelihood(ptensor, i_batch)
 
     def guess(self):
-        """Return tensor of parameter guesses"""
-        return tf.convert_to_tensor(
-            list(self.param_defaults.values()),
-            fd.float_type())
+        """Return array of parameter guesses"""
+        return np.array(list(self.param_defaults.values()))
 
     def params_to_dict(self, values):
         """Return parameter {name: value} dictionary"""
@@ -154,21 +155,27 @@ class LogLikelihood:
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
         """
-        if guess is None:
-            guess = self.guess()
-        guess = fd.np_to_tf(guess)
+        _guess = self.guess()
+        if isinstance(guess, dict):
+            # Modify guess with user-specified vars
+            for k, v in guess.items():
+                _guess[self._param_i(k)] = v
+        elif isinstance(guess, (np.ndarray, tf.Tensor)):
+            _guess = fd.tf_to_np(guess)
+        _guess = fd.np_to_tf(_guess)
+        del guess
 
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
             kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self.minus_ll(guess))
+                              llr_tolerance/self.minus_ll(_guess))
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
         # vector reasonable.
-        x_norm = tf.ones(len(guess), dtype=fd.float_type())
+        x_norm = tf.ones(len(_guess), dtype=fd.float_type())
 
         @tf.function
         def objective(x_norm):
@@ -177,7 +184,7 @@ class LogLikelihood:
             for i_batch in range(self.n_batches):
                 with tf.GradientTape() as t:
                     t.watch(x_norm)
-                    y += self._minus_ll(x_norm * guess, i_batch=i_batch)
+                    y += self._minus_ll(x_norm * _guess, i_batch=i_batch)
                     grad += t.gradient(y, x_norm)
             return y, grad
 
@@ -186,7 +193,7 @@ class LogLikelihood:
             return res
         if res.failed:
             raise ValueError(f"Optimizer failure! Result: {res}")
-        return res.position * guess
+        return res.position * _guess
 
     def inverse_hessian(self, params):
         """Return inverse hessian (square tensor)
