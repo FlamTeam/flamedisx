@@ -16,12 +16,6 @@ export, __all__ = fd.exporter()
 # Electron probability
 ##
 
-def p_el_thesis(e_kev, a=15, b=-27.7, c=32.5, e0=5.):
-    eps = fd.tf_log10(e_kev / e0 + 1e-9)
-    qy = a * eps ** 2 + b * eps + c
-    return qy * 13.8e-3
-
-
 def p_el_sr0(e_kev):
     """Return probability of created quanta to become an electron
     for different deposited energies e_kev.
@@ -59,32 +53,6 @@ def p_el_sr0(e_kev):
     return p_el
 
 
-def p_electron_nr(
-        nq,
-        alpha=1.280, zeta=0.045, beta=273 * .9e-4,
-        gamma=0.0141, delta=0.062,
-        drift_field=120):
-    # From lenardo et al global fit
-    # TODO: account for Penning quenching in photon detection efficiency
-    # TODO: so to make field pos-dependent, override this entire f?
-    # could be made easier...
-
-    # prevent /0  # TODO can do better than this
-    nq = nq + 1e-9
-
-    # Note: final term depends on nq now, not energy
-    # this means beta is different from lenardo et al
-    nexni = alpha * drift_field ** -zeta * (1 - tf.exp(-beta * nq))
-    ni = nq * 1 / (1 + nexni)
-
-    # Fraction of ions NOT participating in recombination
-    squiggle = gamma * drift_field ** -delta
-    fnotr = tf.math.log(1 + ni * squiggle) / (ni * squiggle)
-
-    # Finally, number of electrons produced..
-    n_el = ni * fnotr
-
-    return n_el / nq
 
 
 ##
@@ -105,8 +73,11 @@ s1_map, s2_map = [
 
 @export
 class SR0Source:
-    extra_needed_columns = ('x_observed', 'y_observed',
-                            'x', 'y', 'z')
+    # TODO: add p_el_sr0
+
+    extra_needed_columns = tuple(
+        list(fd.ERSource.extra_needed_columns)
+        + ['x_observed', 'y_observed'])
 
     @staticmethod
     def add_extra_columns(d):
@@ -117,11 +88,6 @@ class SR0Source:
             np.transpose([d['x'].values,
                           d['y'].values,
                           d['z'].values]))
-
-    @staticmethod
-    def electron_detection_eff(drift_time,
-                               *, elife=452e3, extraction_eff=0.96):
-        return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
@@ -135,26 +101,16 @@ class SR0Source:
                              mean_eff=0.142 / (1 + 0.219)):
         return mean_eff * s1_relative_ly
 
+    def simulate_aux(cls):
+        raise NotImplementedError
 
-@export
+
 class SR0ERSource(SR0Source, fd.ERSource):
-
-    @staticmethod
-    def p_electron(nq, erqy_a=15, erqy_b=-27.7, erqy_c=32.5, erqy_e0=5.):
-        return fd.safe_p(p_el_thesis(nq * 13.8e-3,
-                                     a=erqy_a, b=erqy_b, c=erqy_c,
-                                     e0=erqy_e0))
-
-    @staticmethod
-    def p_electron_fluctuation(nq):
-        # q3 = 1.7 keV ~= 123 quanta
-        return tf.clip_by_value(0.041 * (1. - tf.exp(-nq / 123.)),
-                                1e-4,
-                                float('inf'))
+    pass
 
 
 # Compute events/bin spectrum for a WIMP
-example_wimp_es = np.geomspace(1, 50, 100)
+example_wimp_es = np.geomspace(0.7, 50, 100)
 example_wimp_rs = wimprates.rate_wimp_std(
     example_wimp_es,
     mw=1e3, sigma_nucleon=1e-45)
@@ -164,14 +120,10 @@ example_sp = Hist1d.from_histogram(
 
 
 @export
-class SR0NRSource(SR0Source, fd.NRSource):
+class SR0WIMPSource(SR0Source, fd.NRSource):
 
     def energy_spectrum(self, drift_time):
         n_evts = len(drift_time)
         return (
             example_sp.bin_centers[np.newaxis,:].repeat(n_evts, axis=0),
             example_sp.histogram[np.newaxis,:].repeat(n_evts, axis=0))
-
-    @staticmethod
-    def p_electron(nq):
-        return fd.safe_p(p_electron_nr(nq))

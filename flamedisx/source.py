@@ -45,7 +45,9 @@ class Source:
     do_pel_fluct = True
 
     # tuple with columns needed from data to run add_extra_columns
-    extra_needed_columns = tuple()
+    # I guess we don't really need x y z by default, but they are just so nice
+    # we should keep them around regardless.
+    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta'])
 
     _params: dict = None
     data: pd.DataFrame
@@ -220,13 +222,15 @@ class Source:
             return
 
         # Find likely number of detected quanta
+        # Don't round them yet, we'll do that after estimating quantities
+        # derived from this
         obs = dict(photon=d['s1'], electron=d['s2'])
         for qn in quanta_types:
             n_det_mle = (obs[qn] / d[qn + '_gain_mean'])
             if qn == 'photon':
                 n_det_mle /= (1 + d['double_pe_fraction'])
-            d[qn + '_detected_mle'] = n_det_mle.round().astype(np.int).clip(
-                *self._q_det_clip_range(qn))
+            d[qn + '_detected_mle'] = \
+                n_det_mle.clip(*self._q_det_clip_range(qn))
 
         # The Penning quenching depends on the number of produced
         # photons.... But we don't have that yet.
@@ -243,13 +247,23 @@ class Source:
 
         # Approximate energy reconstruction (visible energy only)
         # TODO: how to do CES estimate if someone wants a variable W?
-        d['nq_vis_mle'] = (
-            d['electron_detected_mle'] / d['electron_detection_eff']
-            + (d['photon_detected_mle'] / d['photon_detection_eff']
-               / d['penning_quenching_eff_mle']))
-        d['e_vis'] = self.gimme('work', numpy_out=True) * d['nq_vis_mle']
+        work = self.gimme('work', numpy_out=True)
+        d['e_charge_vis'] = work * (
+            d['electron_detected_mle'] / d['electron_detection_eff'])
+        d['e_light_vis'] = work * (
+            d['photon_detected_mle'] / (
+                d['photon_detection_eff'] / d['penning_quenching_eff_mle']))
+        d['e_vis'] = d['e_charge_vis'] + d['e_light_vis']
+        d['nq_vis_mle'] = d['e_vis'] / work
         d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'].values,
                                   numpy_out=True)
+
+        # .round().astype(np.int).clip(
+        #     *self._q_det_clip_range(qn))
+
+        # .round().astype(np.int).clip(
+        #     *self._q_det_clip_range(qn))
+
 
         # Find plausble ranges for detected and observed quanta
         # based on the observed S1 and S2 sizes
@@ -298,6 +312,10 @@ class Source:
                     loc=n_prod_mle,
                     scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
+
+            # Finally, round the detected MLEs
+            d[qn + '_detected_mle'] = \
+                d[qn + '_detected_mle'].values.round().astype(np.int)
 
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
@@ -503,27 +521,50 @@ class Source:
     ##
 
     @classmethod
+    def simulate_aux(cls, n_events):
+        raise NotImplementedError
+
+    @classmethod
     def simulate(cls, energies, data=None, **params):
-        """Simulate events at energies,
-        drawing values of additional observables (e.g. positions)
-        from data.
+        """Simulate events at energies.
+
+        If data is given, we will draw auxiliary observables (e.g. positions)
+        from it. Otherwise we will call _simulate_aux to do this.
 
         Will not return | energies | events lost due to
         selection/detection efficiencies
         """
+        if isinstance(energies, (float, int)):
+            n_to_sim = int(energies)
+        else:
+            n_to_sim = len(energies)
+
+        if data is None:
+            data = cls.simulate_aux(n_to_sim)
+            # Add fake s1, s2 necessary for set_data to succeed
+            data['s1'] = 1
+            data['s2'] = 100
+        else:
+            data = data.copy()  # In case someone passes in a slice
+            # Annoying, f_dims isn't a class property...
+            s = cls(data=data, _skip_tf_init=True, **params)
+            # Drop dimensions we do not need / like
+            data = data[list(set(sum(
+                s.f_dims.values(),
+                list(s.extra_needed_columns))))].copy()
+
         # simulate_es cannot be a class method; the energy-spectrum might
         # be position/time/other dependent.
-        s = cls(data=data, _skip_tf_init=True, **params)
+        s = cls(data=data,
+                _skip_tf_init=True, _skip_bounds_computation=True,
+                **params)
         if isinstance(energies, (float, int)):
-            energies = s.simulate_es(int(energies))
+            energies = s.simulate_es(n_to_sim)
 
         # Create and set new dataset, with just the dimensions we need
         # (note we should NOT include s1 and s2 here, we're going to simulate
         # them)
-        d = data[list(set(sum(
-            s.f_dims.values(),
-            list(s.extra_needed_columns))))]
-        d = d.sample(n=len(energies), replace=True)
+        d = data.sample(n=len(energies), replace=True)
         s = cls(data=d,
                 _skip_tf_init=True,
                 _skip_bounds_computation=True,
@@ -546,7 +587,6 @@ class Source:
             n=d['nq'],
             p=d['p_el_actual'])
         d['photon_produced'] = d['nq'] - d['electron_produced']
-
         d['electron_detected'] = stats.binom.rvs(
             n=d['electron_produced'],
             p=gimme('electron_detection_eff'))

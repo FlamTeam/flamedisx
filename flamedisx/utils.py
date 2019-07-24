@@ -3,6 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 # Remove once tf.repeat is available in the tf api
 from tensorflow.python.ops.ragged.ragged_util import repeat  # yes, it IS used!
+lgamma = tf.math.lgamma
 
 o = tf.newaxis
 FLOAT_TYPE = tf.float32
@@ -117,29 +118,13 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     That is, give the probability of obtaining x successes in n trials,
     if the success probability p is drawn from a beta distribution
     with mean p_mean and standard deviation p_sigma.
-
-    Implemented using Dirichlet Multinomial distribution which is
-    identically the Beta-Binomial distribution when len(beta_pars) == 2
     """
-    # TODO: check if the number of successes wasn't reversed in the original
-    # code. Should we have [x, n-x] or [n-x, x]?
-
-    beta_pars = tf.stack(beta_params(p_mean, p_sigma), axis=-1)
-
-    # DirichletMultinomial only gives correct output on float64 tensors!
-    # Cast inputs to float64 explicitly!
-    beta_pars = tf.cast(beta_pars, dtype=tf.float64)
-    x = tf.cast(x, dtype=tf.float64)
-    n = tf.cast(n, dtype=tf.float64)
-
-    counts = tf.stack([x, n-x], axis=-1)
-    res = tfp.distributions.DirichletMultinomial(
-        n,
-        beta_pars,
-        # validate_args=True,
-        # allow_nan_stats=False
-        ).prob(counts)
-    res = tf.cast(res, dtype=float_type())
+    a, b = beta_params(p_mean, p_sigma)
+    res = tf.exp(
+        lgamma(n + 1.) + lgamma(x + a) + lgamma(n - x + b)
+        + lgamma(a + b)
+        - (lgamma(x + 1.) + lgamma(n - x + 1.)
+           + lgamma(a) + lgamma(b) + lgamma(n + a + b)))
     return tf.where(tf.math.is_finite(res),
                     res,
                     tf.zeros_like(res, dtype=float_type()))
