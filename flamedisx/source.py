@@ -149,7 +149,8 @@ class Source:
                 x,
                 fd.np_to_tf(self.data[x].values))
         else:
-            return self.tensor_cache_list[i_batch][x]
+            return tf.gather(self.tensor_cache_list,
+                             i_batch)[x]
 
     def gimme(self, fname, bonus_arg=None, i_batch=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
@@ -338,12 +339,14 @@ class Source:
             fd.tf_to_np(self.differential_rate(i_batch=i_batch, **params))
             for i_batch in progress(range(self.n_batches))])
 
-    @tf.function
     def differential_rate(self, i_batch=None, **params):
-        return self._differential_rate(i_batch=i_batch, **params)
-
-    def _differential_rate(self, i_batch=None, **params):
         self._params = params
+        return self._differential_rate(i_batch=tf.constant(i_batch))
+
+    @tf.function
+    def _differential_rate(self, i_batch):
+        print('dif_rate_tracing')
+        tf.print('dif_rate_calling')
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel(i_batch)
 
