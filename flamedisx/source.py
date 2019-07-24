@@ -104,11 +104,27 @@ class Source:
             self._populate_tensor_cache()
 
     def _populate_tensor_cache(self):
-        self._tensor_cache = {
-            x: fd.np_to_tf(self.data[x].values)
-            for x in self.data.columns
-            if (np.issubdtype(self.data[x].dtype, np.integer)
-                or np.issubdtype(self.data[x].dtype, np.floating))}
+        # Cache only float and int cols
+        cols_to_cache = [x for x in self.data.columns
+                         if (np.issubdtype(self.data[x].dtype, np.integer)
+                             or np.issubdtype(self.data[x].dtype, np.floating)
+                             )]
+
+        self._tensor_cache = {x: fd.np_to_tf(self.data[x].values)
+                              for x in cols_to_cache}
+
+        self.name_id = tf.lookup.StaticVocabularyTable(
+            tf.lookup.KeyValueTensorInitializer(tf.constant(cols_to_cache),
+                                                tf.range(len(cols_to_cache),
+                                                         dtype=tf.dtypes.int64)
+                                                ),
+            num_oov_buckets=1,
+            lookup_key_dtype=tf.dtypes.string,
+        )
+
+        # Create one big data tensor (n_events, n_cols)
+        self.data_tensor = tf.constant(self.data[cols_to_cache].values,
+                                       dtype=fd.float_type())
 
         self.dimsizes = dict()
         for var in ['nq',
@@ -149,8 +165,13 @@ class Source:
                 x,
                 fd.np_to_tf(self.data[x].values))
         else:
-            return tf.gather(self.tensor_cache_list,
-                             i_batch)[x]
+            #return tf.gather(self.tensor_cache_list,
+            #                 i_batch)[x]
+            col_id = self.name_id.lookup(tf.constant(x))
+            col_id = tf.dtypes.cast(col_id, tf.dtypes.int32)
+            start = i_batch * tf.constant(self.batch_size)
+            stop = start + tf.constant(self.batch_size)
+            return self.data_tensor[start:stop,col_id]
 
     def gimme(self, fname, bonus_arg=None, i_batch=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
