@@ -1,3 +1,8 @@
+0.1.2 / 2019-07-24
+-------------------
+- Speedup ER computation, add tutorial (#11)
+- Optimize lookup-axis1 (#10)
+
 0.1.1 / 2019-07-21
 -------------------
 - 5x speedup for Hessian (#9)
