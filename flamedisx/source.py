@@ -53,7 +53,6 @@ class Source:
     data: pd.DataFrame
 
     _tensor_cache: typing.Dict[str, tf.Tensor]
-    _tensor_cache_list: typing.List[typing.Dict[str, tf.Tensor]]
 
     def __init__(self,
                  data,
@@ -136,19 +135,12 @@ class Source:
             mi = self._fetch(var + '_min')
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
-        # Split up tensors for batched evaluation
-        start = np.arange(self.n_batches) * self.batch_size
-        stop = np.concatenate([start[1:], [self.n_events()]])
-        self.tensor_cache_list = [
-            {k: v[start[i]:stop[i]]
-             for k, v in self._tensor_cache.items()}
-            for i in range(self.n_batches)]
-
     def n_events(self, i_batch=None):
         if i_batch is None:
             return len(self.data)
-        if i_batch in (self.n_batches - 1, -1):
-            return self.n_events() - self.batch_size * (self.n_batches - 1)
+        if tf.equal(i_batch, tf.constant(self.n_batches - 1,
+                                         dtype=tf.dtypes.int32)):
+            return len(self.data) - self.batch_size * (self.n_batches - 1)
         return self.batch_size
 
     def _fetch(self, x, i_batch=None):
@@ -160,15 +152,12 @@ class Source:
         if not hasattr(self, '_tensor_cache'):
             # We're inside annotate, just return the column
             return fd.np_to_tf(self.data[x].values)
+
+        col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant(x)),
+                                tf.dtypes.int32)
         if i_batch is None:
-            return self._tensor_cache.get(
-                x,
-                fd.np_to_tf(self.data[x].values))
+            return self.data_tensor[:,col_id]
         else:
-            #return tf.gather(self.tensor_cache_list,
-            #                 i_batch)[x]
-            col_id = self.name_id.lookup(tf.constant(x))
-            col_id = tf.dtypes.cast(col_id, tf.dtypes.int32)
             start = i_batch * tf.constant(self.batch_size)
             stop = start + tf.constant(self.batch_size)
             return self.data_tensor[start:stop,col_id]
