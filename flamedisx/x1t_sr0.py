@@ -124,6 +124,9 @@ class SR0WIMPSource(SR0Source, fd.NRSource):
 
     def energy_spectrum(self, drift_time):
         n_evts = len(drift_time)
-        return (
-            example_sp.bin_centers[np.newaxis,:].repeat(n_evts, axis=0),
-            example_sp.histogram[np.newaxis,:].repeat(n_evts, axis=0))
+        return (fd.repeat(example_sp.bin_centers[np.newaxis,:],
+                          repeats=n_evts,
+                          axis=0),
+                fd.repeat(example_sp.histogram[np.newaxis,:],
+                          repeats=n_evts,
+                          axis=0))
