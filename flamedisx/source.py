@@ -97,6 +97,13 @@ class Source:
         self.n_batches = np.ceil(
             self.n_events() / self.batch_size).astype(np.int)
 
+        #Extend dataframe with nans to nearest batch_size multiple
+        n_padding = self.n_batches * batch_size - len(data)
+        df_pad = pd.DataFrame(np.nan,
+                              index=list(range(n_padding)),
+                              columns=data.columns)
+        self.data = pd.concat([data, df_pad])
+
         if not data_is_annotated:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
         if not _skip_tf_init:
@@ -139,9 +146,10 @@ class Source:
         if i_batch is None:
             return len(self.data)
         if tf.equal(i_batch, tf.constant(self.n_batches - 1,
-                                         dtype=tf.dtypes.int32)):
-            return len(self.data) - self.batch_size * (self.n_batches - 1)
-        return self.batch_size
+                                         dtype=fd.int_type())):
+            return tf.constant(len(self.data) - self.batch_size * (self.n_batches - 1),
+                               dtype=fd.int_type())
+        return tf.constant(self.batch_size, dtype=fd.int_type())
 
     def _fetch(self, x, i_batch=None):
         """Return a tensor column from the original dataframe (self.data)
@@ -154,7 +162,7 @@ class Source:
             return fd.np_to_tf(self.data[x].values)
 
         col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant(x)),
-                                tf.dtypes.int32)
+                                fd.int_type())
         if i_batch is None:
             return self.data_tensor[:,col_id]
         else:
