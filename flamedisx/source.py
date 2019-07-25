@@ -65,6 +65,7 @@ class Source:
         self.max_sigma = max_sigma
         self._params = params
         self.data = data
+        del data
 
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters
@@ -92,22 +93,22 @@ class Source:
                         p.default, dtype=fd.float_type())
 
         if batch_size is None:
-            batch_size = len(data)
+            batch_size = len(self.data)
         self.batch_size = batch_size
         self.n_batches = np.ceil(
             self.n_events() / self.batch_size).astype(np.int)
 
+        #Extend dataframe with nans to nearest batch_size multiple
+        n_padding = self.n_batches * batch_size - len(self.data)
+        if n_padding > 0:
+            df_pad = pd.DataFrame(0.,
+                                  index=list(range(n_padding)),
+                                  columns=self.data.columns)
+            self.data = pd.concat([self.data, df_pad], ignore_index=True)
+
+
         if not data_is_annotated:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
-
-        #Extend dataframe with nans to nearest batch_size multiple
-        n_padding = self.n_batches * batch_size - len(data)
-        if n_padding > 0:
-            df_pad = pd.DataFrame(np.nan,
-                                  index=list(range(n_padding)),
-                                  columns=data.columns)
-            self.data = pd.concat([data, df_pad], ignore_index=True)
-
         if not _skip_tf_init:
             self._populate_tensor_cache()
 
