@@ -176,7 +176,7 @@ class NRSource(ERSource):
         return fd.safe_p(n_el / nq)
 
     @staticmethod
-    def lindhard_l(e, lindhard_k=0.138):
+    def lindhard_l(e, lindhard_k=tf.constant(0.138)):
         """Return Lindhard quenching factor at energy e in keV"""
         eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
         g = 3. * eps**0.15 + 0.7 * eps**0.6 + eps
