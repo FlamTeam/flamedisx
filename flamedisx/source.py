@@ -97,15 +97,17 @@ class Source:
         self.n_batches = np.ceil(
             self.n_events() / self.batch_size).astype(np.int)
 
-        #Extend dataframe with nans to nearest batch_size multiple
-        n_padding = self.n_batches * batch_size - len(data)
-        df_pad = pd.DataFrame(np.nan,
-                              index=list(range(n_padding)),
-                              columns=data.columns)
-        self.data = pd.concat([data, df_pad])
-
         if not data_is_annotated:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+
+        #Extend dataframe with nans to nearest batch_size multiple
+        n_padding = self.n_batches * batch_size - len(data)
+        if n_padding > 0:
+            df_pad = pd.DataFrame(np.nan,
+                                  index=list(range(n_padding)),
+                                  columns=data.columns)
+            self.data = pd.concat([data, df_pad], ignore_index=True)
+
         if not _skip_tf_init:
             self._populate_tensor_cache()
 
