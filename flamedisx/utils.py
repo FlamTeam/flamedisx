@@ -52,7 +52,7 @@ def lookup_axis1(x, indices, fill_value=0):
     indices = tf.clip_by_value(indices, 0., b - 1.)
     indices = indices + b * tf.range(a, dtype=float_type())[:, o, o]
     indices = tf.reshape(indices, shape=(-1,))
-    indices = tf.dtypes.cast(indices, dtype=fd.int_type())
+    indices = tf.dtypes.cast(indices, dtype=int_type())
 
     # Do indexing
     result = tf.reshape(tf.gather(x,
