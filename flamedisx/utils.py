@@ -41,7 +41,6 @@ def lookup_axis1(x, indices, fill_value=0):
        returning fill_value for out-of-range indices.
     """
     # Save shape of x and flatten
-    print('lookup_axis1:', x)
     ind_shape = indices.shape
     a, b = x.shape
     x = tf.reshape(x, [-1])
