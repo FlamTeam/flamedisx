@@ -98,6 +98,9 @@ class Source:
         self.n_batches = np.ceil(
             self.n_events() / self.batch_size).astype(np.int)
 
+        if not data_is_annotated:
+            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+
         #Extend dataframe with nans to nearest batch_size multiple
         n_padding = self.n_batches * batch_size - len(self.data)
         if n_padding > 0:
@@ -106,9 +109,6 @@ class Source:
                                   columns=self.data.columns)
             self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
-
-        if not data_is_annotated:
-            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
         if not _skip_tf_init:
             self._populate_tensor_cache()
 
@@ -134,6 +134,9 @@ class Source:
         # Create one big data tensor (n_events, n_cols)
         self.data_tensor = tf.constant(self.data[cols_to_cache].values,
                                        dtype=fd.float_type())
+        self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
+                                                         -1,
+                                                         len(cols_to_cache)])
 
         self.dimsizes = dict()
         for var in ['nq',
@@ -167,11 +170,9 @@ class Source:
         col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant(x)),
                                 fd.int_type())
         if i_batch is None:
-            return self.data_tensor[:,col_id]
+            return tf.reshape(self.data_tensor[:,:,col_id], [-1])
         else:
-            start = i_batch * tf.constant(self.batch_size)
-            stop = start + tf.constant(self.batch_size)
-            return self.data_tensor[start:stop,col_id]
+            return self.data_tensor[i_batch,:,col_id]
 
     def gimme(self, fname, bonus_arg=None, i_batch=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
