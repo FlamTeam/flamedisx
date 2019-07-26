@@ -197,7 +197,7 @@ class Source:
 
         else:
             if bonus_arg is None:
-                n = self.batch_size if i_batch is None else self.n_events
+                n = len(self.data) if i_batch is None else self.batch_size
                 x = tf.ones(n, dtype=fd.float_type())
             else:
                 x = tf.ones_like(bonus_arg, dtype=fd.float_type())
