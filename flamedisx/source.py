@@ -102,10 +102,10 @@ class Source:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
         #Extend dataframe with nans to nearest batch_size multiple
-        n_padding = self.n_batches * batch_size - len(self.data)
-        if n_padding > 0:
+        self.n_padding = self.n_batches * batch_size - len(self.data)
+        if self.n_padding > 0:
             df_pad = pd.DataFrame(0.,
-                                  index=list(range(n_padding)),
+                                  index=list(range(self.n_padding)),
                                   columns=self.data.columns)
             self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
@@ -150,10 +150,12 @@ class Source:
 
     def n_events(self, i_batch=None):
         if i_batch is None:
-            return len(self.data)
+            return len(self.data) - self.n_padding
         if tf.equal(i_batch, tf.constant(self.n_batches - 1,
                                          dtype=fd.int_type())):
-            return tf.constant(len(self.data) - self.batch_size * (self.n_batches - 1),
+            #return tf.constant(len(self.data) - self.batch_size * (self.n_batches - 1),
+            #                   dtype=fd.int_type())
+            return tf.constant(self.batch_size - self.n_padding,
                                dtype=fd.int_type())
         return tf.constant(self.batch_size, dtype=fd.int_type())
 
@@ -357,9 +359,10 @@ class Source:
 
     def batched_differential_rate(self, progress=True, **params):
         progress = (lambda x: x) if not progress else tqdm
-        return np.concatenate([
+        y = np.concatenate([
             fd.tf_to_np(self.differential_rate(i_batch=i_batch, **params))
             for i_batch in progress(range(self.n_batches))])
+        return y[:self.n_events()]
 
     def differential_rate(self, i_batch=None, **params):
         self._params = params
