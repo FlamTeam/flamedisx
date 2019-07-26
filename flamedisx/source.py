@@ -363,8 +363,6 @@ class Source:
 
     @tf.function
     def _differential_rate(self, i_batch):
-        print('dif_rate_tracing')
-        tf.print('dif_rate_calling')
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel(i_batch)
 
