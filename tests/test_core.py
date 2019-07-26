@@ -32,9 +32,9 @@ def xes(request):
                          dict(s1=2.4, s2=400., drift_time=500.,
                               x=0., y=0., z=-50., r=0., theta=0.)])
     if request.param == 'ER':
-        x = fd.ERSource(data, n_batches=2, max_sigma=5)
+        x = fd.ERSource(data.copy(), n_batches=2, max_sigma=5)
     else:
-        x = fd.NRSource(data, n_batches=2, max_sigma=5)
+        x = fd.NRSource(data.copy(), n_batches=2, max_sigma=5)
     return x
 
 

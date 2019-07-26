@@ -97,7 +97,10 @@ class Source:
         self.n_events = len(self.data)
 
         if batch_size is None:
-            batch_size = len(self.data)
+            batch_size = self.n_events
+        if batch_size > self.n_events:
+            batch_size = self.n_events
+
         self.batch_size = batch_size
         self.n_batches = np.ceil(
             self.n_events / self.batch_size).astype(np.int)
