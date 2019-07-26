@@ -92,14 +92,15 @@ class Source:
                     self.defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
 
+        # Annotate requests n_events, currently no padding
+        self.n_padding = 0
+        self.n_events = len(self.data)
+
         if batch_size is None:
             batch_size = len(self.data)
         self.batch_size = batch_size
         self.n_batches = np.ceil(
-            self.n_events() / self.batch_size).astype(np.int)
-
-        # Annotate requests n_events, currently no padding
-        self.n_padding = 0
+            self.n_events / self.batch_size).astype(np.int)
 
         if not data_is_annotated:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
@@ -151,17 +152,6 @@ class Source:
             mi = self._fetch(var + '_min')
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
-    def n_events(self, i_batch=None):
-        if i_batch is None:
-            return len(self.data) - self.n_padding
-        if tf.equal(i_batch, tf.constant(self.n_batches - 1,
-                                         dtype=fd.int_type())):
-            #return tf.constant(len(self.data) - self.batch_size * (self.n_batches - 1),
-            #                   dtype=fd.int_type())
-            return tf.constant(self.batch_size - self.n_padding,
-                               dtype=fd.int_type())
-        return tf.constant(self.batch_size, dtype=fd.int_type())
-
     def _fetch(self, x, i_batch=None):
         """Return a tensor column from the original dataframe (self.data)
         :param x: column name
@@ -207,8 +197,8 @@ class Source:
 
         else:
             if bonus_arg is None:
-                x = tf.ones(self.n_events(i_batch),
-                            dtype=fd.float_type())
+                n = self.batch_size if i_batch is None else self.n_events
+                x = tf.ones(n, dtype=fd.float_type())
             else:
                 x = tf.ones_like(bonus_arg, dtype=fd.float_type())
             res = f * x
@@ -365,7 +355,7 @@ class Source:
         y = np.concatenate([
             fd.tf_to_np(self.differential_rate(i_batch=i_batch, **params))
             for i_batch in progress(range(self.n_batches))])
-        return y[:self.n_events()]
+        return y[:self.n_events]
 
     def differential_rate(self, i_batch=None, **params):
         self._params = params
