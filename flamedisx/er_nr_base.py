@@ -123,9 +123,9 @@ class ERSource(fd.Source):
     photon_gain_std = 0.5
     double_pe_fraction = 0.219
 
-    def _simulate_nq(self):
+    def _simulate_nq(self, energies):
         work = self.gimme('work', numpy_out=True)
-        self.data['nq'] = np.floor(self.data['energy'].values / work).astype(np.int)
+        return np.floor(energies / work).astype(np.int)
 
     @classmethod
     def simulate_aux(cls, n_events):
@@ -217,9 +217,8 @@ class NRSource(ERSource):
     def penning_quenching_eff(nph, eta=8.2e-5 * 3.3, labda=0.8 * 1.15):
         return 1. / (1. + eta * nph ** labda)
 
-    def _simulate_nq(self):
+    def _simulate_nq(self, energies):
         work = self.gimme('work', numpy_out=True)
-        lindhard_l = self.gimme('lindhard_l', self.data['energy'].values,
+        lindhard_l = self.gimme('lindhard_l', energies,
                                 numpy_out=True)
-        self.data['nq'] = stats.poisson.rvs(
-            self.data['energy'].values * lindhard_l / work)
+        return stats.poisson.rvs(energies * lindhard_l / work)
