@@ -96,9 +96,7 @@ class Source:
         self.n_padding = 0
         self.n_events = len(self.data)
 
-        if batch_size is None:
-            batch_size = self.n_events
-        if batch_size > self.n_events:
+        if batch_size is None or batch_size > self.n_events or _skip_tf_init:
             batch_size = self.n_events
 
         self.batch_size = batch_size
@@ -108,15 +106,15 @@ class Source:
         if not data_is_annotated:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
-        #Extend dataframe with nans to nearest batch_size multiple
-        self.n_padding = self.n_batches * batch_size - len(self.data)
-        if self.n_padding > 0:
-            df_pad = pd.DataFrame(0.,
-                                  index=list(range(self.n_padding)),
-                                  columns=self.data.columns)
-            self.data = pd.concat([self.data, df_pad], ignore_index=True)
-
         if not _skip_tf_init:
+            #Extend dataframe with nans to nearest batch_size multiple
+            self.n_padding = self.n_batches * batch_size - len(self.data)
+            if self.n_padding > 0:
+                df_pad = pd.DataFrame(0.,
+                                    index=list(range(self.n_padding)),
+                                    columns=self.data.columns)
+                self.data = pd.concat([self.data, df_pad], ignore_index=True)
+
             self._populate_tensor_cache()
 
     def _populate_tensor_cache(self):
@@ -592,12 +590,13 @@ class Source:
                 _skip_bounds_computation=True,
                 **params)
         assert 'e_vis' not in d.columns
+        assert len(s.data) == len(d)
 
         def gimme(*args):
             return s.gimme(*args, numpy_out=True)
 
         d['energy'] = energies
-        s._simulate_nq()
+        d['nq'] = s._simulate_nq(energies)
 
         d['p_el_mean'] = gimme('p_electron', d['nq'].values)
         d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
@@ -640,7 +639,7 @@ class Source:
         assert 'e_vis' in d.columns
         return d
 
-    def _simulate_nq(self):
+    def _simulate_nq(self, energies):
         raise NotImplementedError
 
     @classmethod
