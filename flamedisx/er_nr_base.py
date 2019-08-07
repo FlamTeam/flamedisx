@@ -178,13 +178,13 @@ class NRSource(ERSource):
     @staticmethod
     def lindhard_l(e, lindhard_k=tf.constant(0.138, dtype=fd.float_type())):
         """Return Lindhard quenching factor at energy e in keV"""
-        eps = e * tf.constant(11.5 * 54**(-7./3.), dtype=fd.float_type())  # Xenon: Z = 54
+        eps = e * 11.5 * 54.**(-7./3.)  # Xenon: Z = 54
 
-        n0 = tf.constant(3., dtype=fd.float_type())
-        n1 = tf.constant(0.7, dtype=fd.float_type())
-        n2 = tf.constant(1.0, dtype=fd.float_type())
-        p0 = tf.constant(0.15, dtype=fd.float_type())
-        p1 = tf.constant(0.6, dtype=fd.float_type())
+        n0 = 3.
+        n1 = 0.7
+        n2 = 1.0
+        p0 = 0.15
+        p1 = 0.6
 
         g = n0 * tf.pow(eps, p0) + n1 * tf.pow(eps, p1) + eps
         res = lindhard_k * g/(n2 + lindhard_k * g)

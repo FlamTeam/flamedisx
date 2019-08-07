@@ -136,7 +136,11 @@ class LogLikelihood:
 
         ll = tf.reduce_sum(tf.math.log(lls))
 
-        if i_batch == tf.constant(0, dtype=fd.int_type()):
+        #print("OUTSIDE", i_batch)
+        #tf.print("OUTSIDE (tfprint)", i_batch)
+        if i_batch == 0:
+            #print("BATCH zero, adding mu (regular print)", i_batch)
+            #tf.print("BATCH zero, adding mu (tf print)", i_batch)
             return -self._mu(ptensor) + ll
         return ll
 
