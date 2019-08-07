@@ -43,7 +43,8 @@ class LogLikelihood:
                           max_sigma=max_sigma,
                           batch_size=batch_size)
             for sname, sclass in sources.items()}
-        del sources    # so we don't use it by accident
+        del sources  # so we don't use it by accident
+        del data  # use data from sources (which is now annotated)
 
         for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
@@ -54,10 +55,13 @@ class LogLikelihood:
                     f"Inconsistent defaults {defs} for common parameters")
             param_defaults[pname] = defs[0]
 
-        first_source = self.sources[list(self.sources.keys())[0]]
+        # Set n_batches, batch_size and data from any source
+        for s in self.sources.values():
+            self.n_batches = s.n_batches
+            self.batch_size = s.batch_size
+            self.data = s.data
+            break
 
-        self.n_batches = first_source.n_batches
-        self.data = first_source.data
         self.param_defaults = param_defaults
         self.param_names = list(param_defaults.keys())
         self.mu_itps = {
@@ -68,10 +72,19 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
-    @tf.function
     def log_likelihood(self, ptensor):
-        return sum([self._log_likelihood(ptensor, i_batch=i_batch)
-                    for i_batch in range(self.n_batches)])
+            return sum([self._log_likelihood(ptensor, i_batch=i_batch)
+                        for i_batch in range(self.n_batches)])
+    # @tf.function
+    # def log_likelihood(self, ptensor):
+    #     def func(i_batch):
+    #         return self._log_likelihood(ptensor, i_batch=i_batch)
+
+    #     return tf.reduce_sum(tf.map_fn(func,
+    #                                    tf.range(self.n_batches,
+    #                                             dtype=fd.int_type()),
+    #                                    dtype=fd.float_type(),
+    #                                    parallel_iterations=1))
 
     def minus_ll(self, ptensor):
         return -2 * self.log_likelihood(ptensor)
@@ -111,25 +124,23 @@ class LogLikelihood:
                    * self.mu_itps[sname](**self._source_kwargs(ptensor)))
         return mu
 
-    def _log_likelihood(self, ptensor, i_batch=None):
+    def _log_likelihood(self, ptensor, i_batch):
         self._check_ptensor(ptensor)
 
-        first_source = self.sources[list(self.sources.keys())[0]]
-        lls = tf.zeros(first_source.n_events(i_batch=i_batch),
-                       dtype=fd.float_type())
-
+        # Set right length lls
+        lls = tf.zeros(self.batch_size, dtype=fd.float_type())
         for sname, s in self.sources.items():
             lls += (
                 self._get_rate_mult(sname, ptensor)
-                * s._differential_rate(i_batch, **self._source_kwargs(ptensor)))
+                * s.differential_rate(i_batch, **self._source_kwargs(ptensor)))
 
         ll = tf.reduce_sum(tf.math.log(lls))
 
-        if i_batch is None or i_batch == 0:
+        if i_batch == tf.constant(0, dtype=fd.int_type()):
             return -self._mu(ptensor) + ll
         return ll
 
-    def _minus_ll(self, ptensor, i_batch=None):
+    def _minus_ll(self, ptensor, i_batch):
         return -2 * self._log_likelihood(ptensor, i_batch)
 
     def guess(self):
@@ -177,15 +188,13 @@ class LogLikelihood:
         # vector reasonable.
         x_norm = tf.ones(len(_guess), dtype=fd.float_type())
 
-        @tf.function
+        @tf.function(input_signature=(tf.TensorSpec(shape=[len(_guess)],
+                                                    dtype=fd.float_type()),))
         def objective(x_norm):
-            y = tf.constant(0, dtype=fd.float_type())
-            grad = tf.constant(0, dtype=fd.float_type())
-            for i_batch in range(self.n_batches):
-                with tf.GradientTape() as t:
-                    t.watch(x_norm)
-                    y += self._minus_ll(x_norm * _guess, i_batch=i_batch)
-                    grad += t.gradient(y, x_norm)
+            with tf.GradientTape() as t:
+                t.watch(x_norm)
+                y = self.minus_ll(x_norm * _guess)
+                grad = t.gradient(y, x_norm)
             return y, grad
 
         res = optimizer(objective, x_norm, **kwargs)

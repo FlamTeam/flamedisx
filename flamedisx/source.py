@@ -107,7 +107,7 @@ class Source:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
         if not _skip_tf_init:
-            #Extend dataframe with nans to nearest batch_size multiple
+            #Extend dataframe with zeros to nearest batch_size multiple
             self.n_padding = self.n_batches * batch_size - len(self.data)
             if self.n_padding > 0:
                 df_pad = pd.DataFrame(0.,
@@ -358,11 +358,11 @@ class Source:
             for i_batch in progress(range(self.n_batches))])
         return y[:self.n_events]
 
-    def differential_rate(self, i_batch=None, **params):
+    def differential_rate(self, i_batch, **params):
         self._params = params
-        return self._differential_rate(i_batch=tf.constant(i_batch))
+        return self._differential_rate(i_batch=i_batch)
 
-    @tf.function
+    #  @tf.function(input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),))
     def _differential_rate(self, i_batch):
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel(i_batch)
