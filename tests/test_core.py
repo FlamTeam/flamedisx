@@ -176,7 +176,7 @@ def test_inference(xes: fd.ERSource):
         data=xes.data)
 
     # Test eager version
-    y1 = lf._log_likelihood(fd.np_to_tf(np.array([200e3,])))
+    y1 = lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
 
     # # Test graph version
     # print("GRAPH MODE TEST NOW")
