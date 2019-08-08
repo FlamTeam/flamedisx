@@ -107,12 +107,13 @@ class Source:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
         if not _skip_tf_init:
-            #Extend dataframe with zeros to nearest batch_size multiple
+            # Extend dataframe with events to nearest batch_size multiple
+            # We're using actual events for padding, since using zeros or
+            # nans caused problems with gradient calculation
+            # padded events are clipped when summing likelihood terms
             self.n_padding = self.n_batches * batch_size - len(self.data)
             if self.n_padding > 0:
-                df_pad = pd.DataFrame(0.,
-                                      index=list(range(self.n_padding)),
-                                      columns=self.data.columns)
+                df_pad = self.data.iloc[:self.n_padding,:]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
             self._populate_tensor_cache()
