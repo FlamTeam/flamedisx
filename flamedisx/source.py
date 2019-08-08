@@ -111,8 +111,8 @@ class Source:
             self.n_padding = self.n_batches * batch_size - len(self.data)
             if self.n_padding > 0:
                 df_pad = pd.DataFrame(0.,
-                                    index=list(range(self.n_padding)),
-                                    columns=self.data.columns)
+                                      index=list(range(self.n_padding)),
+                                      columns=self.data.columns)
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
             self._populate_tensor_cache()

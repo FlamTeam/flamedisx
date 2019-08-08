@@ -75,6 +75,7 @@ class LogLikelihood:
     def log_likelihood(self, ptensor):
             return sum([self._log_likelihood(ptensor, i_batch=i_batch)
                         for i_batch in range(self.n_batches)])
+
     # @tf.function
     # def log_likelihood(self, ptensor):
     #     def func(i_batch):
@@ -127,14 +128,20 @@ class LogLikelihood:
     def _log_likelihood(self, ptensor, i_batch):
         self._check_ptensor(ptensor)
 
-        # Set right length lls
         lls = tf.zeros(self.batch_size, dtype=fd.float_type())
         for sname, s in self.sources.items():
             lls += (
                 self._get_rate_mult(sname, ptensor)
                 * s.differential_rate(i_batch, **self._source_kwargs(ptensor)))
 
-        ll = tf.reduce_sum(tf.math.log(lls))
+        logs = tf.math.log(lls)
+        # Remove nans from padding or zero likelihood
+        ll = tf.reduce_sum(tf.where(tf.math.is_nan(logs),
+                                    tf.zeros_like(logs, dtype=fd.float_type()),
+                                    logs))
+        ll_min = tf.reduce_min(lls)
+        print("i_batch, ll, ll_min", i_batch, ll, ll_min)
+        tf.print("i_batch, ll, ll_min (tf print)", i_batch, ll, ll_min)
 
         #print("OUTSIDE", i_batch)
         #tf.print("OUTSIDE (tfprint)", i_batch)
@@ -192,16 +199,25 @@ class LogLikelihood:
         # vector reasonable.
         x_norm = tf.ones(len(_guess), dtype=fd.float_type())
 
-        @tf.function(input_signature=(tf.TensorSpec(shape=[len(_guess)],
-                                                    dtype=fd.float_type()),))
+        input_signature = (tf.TensorSpec(shape=[len(_guess)],
+                                         dtype=fd.float_type()),)
+
+        @tf.function(input_signature=input_signature)
         def objective(x_norm):
             with tf.GradientTape() as t:
                 t.watch(x_norm)
                 y = self.minus_ll(x_norm * _guess)
-                grad = t.gradient(y, x_norm)
+            grad = t.gradient(y, x_norm)
+            print("grad:", grad)
+            tf.print("grad (tf print):", grad)
             return y, grad
 
-        res = optimizer(objective, x_norm, **kwargs)
+        # Trace one iteration
+        _, _ = objective(x_norm)
+        # Replace function with traced one
+        objective_trace = objective.get_concrete_function(input_signature[0])
+
+        res = optimizer(objective_trace, x_norm, **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
