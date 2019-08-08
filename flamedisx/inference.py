@@ -59,6 +59,7 @@ class LogLikelihood:
         for s in self.sources.values():
             self.n_batches = s.n_batches
             self.batch_size = s.batch_size
+            self.n_padding = s.n_padding
             self.data = s.data
             break
 
@@ -75,17 +76,6 @@ class LogLikelihood:
     def log_likelihood(self, ptensor):
             return sum([self._log_likelihood(ptensor, i_batch=i_batch)
                         for i_batch in range(self.n_batches)])
-
-    # @tf.function
-    # def log_likelihood(self, ptensor):
-    #     def func(i_batch):
-    #         return self._log_likelihood(ptensor, i_batch=i_batch)
-
-    #     return tf.reduce_sum(tf.map_fn(func,
-    #                                    tf.range(self.n_batches,
-    #                                             dtype=fd.int_type()),
-    #                                    dtype=fd.float_type(),
-    #                                    parallel_iterations=1))
 
     def minus_ll(self, ptensor):
         return -2 * self.log_likelihood(ptensor)
@@ -134,20 +124,13 @@ class LogLikelihood:
                 self._get_rate_mult(sname, ptensor)
                 * s.differential_rate(i_batch, **self._source_kwargs(ptensor)))
 
-        logs = tf.math.log(lls)
-        # Remove nans from padding or zero likelihood
-        ll = tf.reduce_sum(tf.where(tf.math.is_nan(logs),
-                                    tf.zeros_like(logs, dtype=fd.float_type()),
-                                    logs))
-        ll_min = tf.reduce_min(lls)
-        print("i_batch, ll, ll_min", i_batch, ll, ll_min)
-        tf.print("i_batch, ll, ll_min (tf print)", i_batch, ll, ll_min)
+        n = self.batch_size
+        if i_batch == self.n_batches - 1:
+            n -= self.n_padding
 
-        #print("OUTSIDE", i_batch)
-        #tf.print("OUTSIDE (tfprint)", i_batch)
+        ll = tf.reduce_sum(tf.math.log(lls[:n]))
+
         if i_batch == 0:
-            #print("BATCH zero, adding mu (regular print)", i_batch)
-            #tf.print("BATCH zero, adding mu (tf print)", i_batch)
             return -self._mu(ptensor) + ll
         return ll
 
@@ -199,30 +182,24 @@ class LogLikelihood:
         # vector reasonable.
         x_norm = tf.ones(len(_guess), dtype=fd.float_type())
 
-        input_signature = (tf.TensorSpec(shape=[len(_guess)],
-                                         dtype=fd.float_type()),)
+        # Set guess for objective function
+        self._guess = _guess
 
-        @tf.function(input_signature=input_signature)
-        def objective(x_norm):
-            with tf.GradientTape() as t:
-                t.watch(x_norm)
-                y = self.minus_ll(x_norm * _guess)
-            grad = t.gradient(y, x_norm)
-            print("grad:", grad)
-            tf.print("grad (tf print):", grad)
-            return y, grad
-
-        # Trace one iteration
-        _, _ = objective(x_norm)
-        # Replace function with traced one
-        objective_trace = objective.get_concrete_function(input_signature[0])
-
-        res = optimizer(objective_trace, x_norm, **kwargs)
+        res = optimizer(self.objective, x_norm, **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
+
+    @tf.function
+    def objective(self, x_norm):
+        print("Tracing objective")
+        with tf.GradientTape() as t:
+            t.watch(x_norm)
+            y = self.minus_ll(x_norm * self._guess)
+        grad = t.gradient(y, x_norm)
+        return y, grad
 
     def inverse_hessian(self, params):
         """Return inverse hessian (square tensor)
