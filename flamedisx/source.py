@@ -359,11 +359,17 @@ class Source:
             for i_batch in progress(range(self.n_batches))])
         return y[:self.n_events]
 
-    def differential_rate(self, i_batch, **params):
+    def differential_rate(self, i_batch, autograph=True, **params):
         self._params = params
+        if autograph:
+            return self._differential_rate_tf(i_batch=i_batch)
         return self._differential_rate(i_batch=i_batch)
 
-    #  @tf.function(input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),))
+    @tf.function(input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),))
+    def _differential_rate_tf(self, i_batch):
+        print("Tracing _differential_rate")
+        return self._differential_rate(i_batch=i_batch)
+
     def _differential_rate(self, i_batch):
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel(i_batch)

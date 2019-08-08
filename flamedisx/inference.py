@@ -115,14 +115,16 @@ class LogLikelihood:
                    * self.mu_itps[sname](**self._source_kwargs(ptensor)))
         return mu
 
-    def _log_likelihood(self, ptensor, i_batch):
+    def _log_likelihood(self, ptensor, i_batch, autograph=True):
         self._check_ptensor(ptensor)
 
         lls = tf.zeros(self.batch_size, dtype=fd.float_type())
         for sname, s in self.sources.items():
             lls += (
                 self._get_rate_mult(sname, ptensor)
-                * s.differential_rate(i_batch, **self._source_kwargs(ptensor)))
+                * s.differential_rate(i_batch,
+                                      autograph=autograph,
+                                      **self._source_kwargs(ptensor)))
 
         n = self.batch_size
         if i_batch == self.n_batches - 1:
@@ -135,7 +137,7 @@ class LogLikelihood:
         return ll
 
     def _minus_ll(self, ptensor, i_batch):
-        return -2 * self._log_likelihood(ptensor, i_batch)
+        return -2 * self._log_likelihood(ptensor, i_batch, autograph=False)
 
     def guess(self):
         """Return array of parameter guesses"""
@@ -234,6 +236,7 @@ class LogLikelihood:
             hessian += tf.stack([t2.gradient(grad, s) for grad in grads])
             del t2
 
+        print("hessian:", hessian)
         return tf.linalg.inv(hessian)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
