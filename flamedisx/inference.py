@@ -73,12 +73,14 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
-    def log_likelihood(self, ptensor):
-            return sum([self._log_likelihood(ptensor, i_batch=i_batch)
+    def log_likelihood(self, ptensor, autograph=True):
+            return sum([self._log_likelihood(ptensor,
+                                             i_batch=i_batch,
+                                             autograph=autograph)
                         for i_batch in range(self.n_batches)])
 
-    def minus_ll(self, ptensor):
-        return -2 * self.log_likelihood(ptensor)
+    def minus_ll(self, ptensor, autograph=True):
+        return -2 * self.log_likelihood(ptensor, autograph=autograph)
 
     def mu(self, ptensor):
         return self._mu(ptensor)
@@ -135,9 +137,6 @@ class LogLikelihood:
         if i_batch == 0:
             return -self._mu(ptensor) + ll
         return ll
-
-    def _minus_ll(self, ptensor, i_batch):
-        return -2 * self._log_likelihood(ptensor, i_batch, autograph=False)
 
     def guess(self):
         """Return array of parameter guesses"""
@@ -217,27 +216,32 @@ class LogLikelihood:
         params = fd.np_to_tf(params)
 
         args = tf.unstack(params)  # list of tensors
-        n = len(args)
+        #n = len(args)
+        #n = len(params)
 
-        hessian = tf.zeros((n, n), dtype=fd.float_type())
-
-        for i_batch in range(self.n_batches):
-            with tf.GradientTape(persistent=True) as t2:
-                t2.watch(args)
-                with tf.GradientTape() as t:
-                    t.watch(args)
-
-                    s= tf.stack(args)
-                    z = self._minus_ll(s, i_batch=i_batch)
-                # compute first order derivatives
-                grads = t.gradient(z, args)
-            # compute all second order derivatives
-            # could be optimized to compute only i>=j matrix elements
-            hessian += tf.stack([t2.gradient(grad, s) for grad in grads])
-            del t2
-
+        #hessian = tf.zeros((n, n), dtype=fd.float_type())
+        hessian = self._hessian(args)
         print("hessian:", hessian)
         return tf.linalg.inv(hessian)
+
+    # @tf.function
+    def _hessian(self, args):
+        # print("Tracing _hessian")
+        with tf.GradientTape(persistent=True) as t2:
+            t2.watch(args)
+            with tf.GradientTape() as t:
+                t.watch(args)
+
+                s = tf.stack(args)
+                z = self.minus_ll(s, autograph=False)
+            # compute first order derivatives
+            grads = t.gradient(z, args)
+            print("hessian grads:", grads)
+        # compute all second order derivatives
+        # could be optimized to compute only i>=j matrix elements
+        hessian = tf.stack([t2.gradient(grad, s) for grad in grads])
+        del t2
+        return hessian
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""

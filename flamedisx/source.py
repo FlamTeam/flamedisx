@@ -363,7 +363,8 @@ class Source:
         self._params = params
         if autograph:
             return self._differential_rate_tf(i_batch=i_batch)
-        return self._differential_rate(i_batch=i_batch)
+        else:
+            return self._differential_rate(i_batch=i_batch)
 
     @tf.function(input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),))
     def _differential_rate_tf(self, i_batch):
