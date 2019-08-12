@@ -65,6 +65,10 @@ class LogLikelihood:
 
         self.param_defaults = param_defaults
         self.param_names = list(param_defaults.keys())
+
+        for s in self.sources.values():
+            s.param_names = self.param_names
+
         self.mu_itps = {
             sname: s.mu_interpolator(n_trials=n_trials,
                                      data=s.data,
@@ -125,6 +129,7 @@ class LogLikelihood:
             lls += (
                 self._get_rate_mult(sname, ptensor)
                 * s.differential_rate(i_batch,
+                                      ptensor,
                                       autograph=autograph,
                                       **self._source_kwargs(ptensor)))
 
@@ -224,9 +229,9 @@ class LogLikelihood:
         print("hessian:", hessian)
         return tf.linalg.inv(hessian)
 
-    # @tf.function
+    #@tf.function
     def _hessian(self, args):
-        # print("Tracing _hessian")
+        #print("Tracing _hessian")
         with tf.GradientTape(persistent=True) as t2:
             t2.watch(args)
             with tf.GradientTape() as t:
@@ -236,7 +241,6 @@ class LogLikelihood:
                 z = self.minus_ll(s, autograph=False)
             # compute first order derivatives
             grads = t.gradient(z, args)
-            print("hessian grads:", grads)
         # compute all second order derivatives
         # could be optimized to compute only i>=j matrix elements
         hessian = tf.stack([t2.gradient(grad, s) for grad in grads])

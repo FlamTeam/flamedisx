@@ -52,8 +52,6 @@ class Source:
     _params: dict = None
     data: pd.DataFrame
 
-    _tensor_cache: typing.Dict[str, tf.Tensor]
-
     def __init__(self,
                  data,
                  batch_size=10,
@@ -125,9 +123,6 @@ class Source:
                              or np.issubdtype(self.data[x].dtype, np.floating)
                              )]
 
-        self._tensor_cache = {x: fd.np_to_tf(self.data[x].values)
-                              for x in cols_to_cache}
-
         self.name_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(cols_to_cache),
                                                 tf.range(len(cols_to_cache),
@@ -137,7 +132,7 @@ class Source:
             lookup_key_dtype=tf.dtypes.string,
         )
 
-        # Create one big data tensor (n_events, n_cols)
+        # Create one big data tensor (n_batches, events_per_batch, n_cols)
         self.data_tensor = tf.constant(self.data[cols_to_cache].values,
                                        dtype=fd.float_type())
         self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
@@ -160,7 +155,7 @@ class Source:
         :param i_batch: Batch index. If None, return results for the entire
         dataset.
         """
-        if not hasattr(self, '_tensor_cache'):
+        if not hasattr(self, 'data_tensor'):
             # We're inside annotate, just return the column
             return fd.np_to_tf(self.data[x].values)
 
@@ -359,16 +354,22 @@ class Source:
             for i_batch in progress(range(self.n_batches))])
         return y[:self.n_events]
 
-    def differential_rate(self, i_batch, autograph=True, **params):
+    def differential_rate(self, i_batch, ptensor, autograph=True, **params):
         self._params = params
         if autograph:
-            return self._differential_rate_tf(i_batch=i_batch)
+            return self._differential_rate_tf(i_batch=i_batch, ptensor=ptensor)
         else:
             return self._differential_rate(i_batch=i_batch)
 
-    @tf.function(input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),))
-    def _differential_rate_tf(self, i_batch):
+    @tf.function(input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),
+                                  tf.TensorSpec(shape=[6], dtype=fd.float_type()),))
+    def _differential_rate_tf(self, i_batch, ptensor):
         print("Tracing _differential_rate")
+
+        # Update params values here using ptensor
+        for idx, name in enumerate(self.param_names):
+            self._params[name] = ptensor[idx]
+
         return self._differential_rate(i_batch=i_batch)
 
     def _differential_rate(self, i_batch):
