@@ -60,6 +60,7 @@ class Source:
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  **params):
+        self.traced_differential_rate = False
         self.max_sigma = max_sigma
         self._params = params
         self.data = data
@@ -115,6 +116,7 @@ class Source:
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
             self._populate_tensor_cache()
+            self._calculate_dimsizes()
 
     def _populate_tensor_cache(self):
         # Cache only float and int cols
@@ -139,6 +141,7 @@ class Source:
                                                          -1,
                                                          len(cols_to_cache)])
 
+    def _calculate_dimsizes(self):
         self.dimsizes = dict()
         for var in ['nq',
                   'photon_detected',
@@ -354,15 +357,22 @@ class Source:
             for i_batch in progress(range(self.n_batches))])
         return y[:self.n_events]
 
-    def differential_rate(self, i_batch, ptensor, autograph=True, **params):
+    def trace_differential_rate(self, n_params):
+        input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),
+                         tf.TensorSpec(shape=[n_params], dtype=fd.float_type()),)
+        self._differential_rate_tf = tf.function(self._differential_rate_tf,
+                                                 input_signature=input_signature)
+        self.traced_differential_rate = True
+
+    def differential_rate(self, i_batch, ptensor=None, autograph=True, **params):
         self._params = params
-        if autograph:
+        if autograph and ptensor is not None:
+            if not self.traced_differential_rate:
+                self.trace_differential_rate(len(ptensor))
             return self._differential_rate_tf(i_batch=i_batch, ptensor=ptensor)
         else:
             return self._differential_rate(i_batch=i_batch)
 
-    @tf.function(input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),
-                                  tf.TensorSpec(shape=[6], dtype=fd.float_type()),))
     def _differential_rate_tf(self, i_batch, ptensor):
         print("Tracing _differential_rate")
 
