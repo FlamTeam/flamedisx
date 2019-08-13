@@ -41,7 +41,8 @@ class ERSource(fd.Source):
 
     def energy_spectrum_hist(self):
         # TODO: fails if e is pos/time dependent
-        es, rs = self.gimme('energy_spectrum', numpy_out=True)
+        # TODO: BAD, see earlier
+        es, rs = self.gimme('energy_spectrum', data_tensor=None, ptensor=None, numpy_out=True)
         return Hist1d.from_histogram(rs[0, :-1], es[0, :])
 
     def simulate_es(self, n):
@@ -124,7 +125,8 @@ class ERSource(fd.Source):
     double_pe_fraction = 0.219
 
     def _simulate_nq(self, energies):
-        work = self.gimme('work', numpy_out=True)
+        # OK to use None, simulator has set defaults
+        work = self.gimme('work', numpy_out=True, data_tensor=None, ptensor=None)
         return np.floor(energies / work).astype(np.int)
 
     @classmethod
@@ -199,13 +201,15 @@ class NRSource(ERSource):
                       len(drift_time), axis=0)
         return e, tf.ones_like(e, dtype=fd.float_type())
 
-    def rate_nq(self, nq_1d, i_batch=None):
+    def rate_nq(self, nq_1d, data_tensor, ptensor):
         # (n_events, |ne|) tensors
-        es, rate_e = self.gimme('energy_spectrum', i_batch=i_batch)
+        es, rate_e = self.gimme('energy_spectrum', data_tensor=data_tensor, ptensor=ptensor)
         mean_q_produced = (
                 es
-                * self.gimme('lindhard_l', es, i_batch=i_batch)
-                / self.gimme('work', i_batch=i_batch)[:, o])
+                * self.gimme('lindhard_l', bonus_arg=es,
+                             data_tensor=data_tensor, ptensor=ptensor)
+                / self.gimme('work',
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
         p_nq_e = tfp.distributions.Poisson(
@@ -218,7 +222,10 @@ class NRSource(ERSource):
         return 1. / (1. + eta * nph ** labda)
 
     def _simulate_nq(self, energies):
-        work = self.gimme('work', numpy_out=True)
-        lindhard_l = self.gimme('lindhard_l', energies,
+        # OK to use None, simulator has set defaults
+        work = self.gimme('work', data_tensor=None, ptensor=None, numpy_out=True)
+        lindhard_l = self.gimme('lindhard_l',
+                                bonus_arg=energies,
+                                data_tensor=None, ptensor=None,
                                 numpy_out=True)
         return stats.poisson.rvs(energies * lindhard_l / work)

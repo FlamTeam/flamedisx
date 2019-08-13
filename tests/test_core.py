@@ -38,6 +38,39 @@ def xes(request):
     return x
 
 
+def test_fetch(xes):
+    data_tensor = xes.data_tensor    # ??
+    assert data_tensor is not None
+    print(data_tensor.shape)
+    np.testing.assert_almost_equal(
+        xes._fetch('s1', data_tensor),
+        xes.data['s1'].values)
+
+
+def test_gimme(xes: fd.ERSource):
+    x = xes.gimme('photon_gain_mean', data_tensor=None, ptensor=None)
+    assert isinstance(x, tf.Tensor)
+    assert x.dtype == tf.float32
+
+    y = xes.gimme('photon_gain_mean', data_tensor=None, ptensor=None, numpy_out=True)
+    assert isinstance(y, np.ndarray)
+    assert y.dtype == np.float32
+
+    np.testing.assert_array_equal(x.numpy(), y)
+
+    np.testing.assert_equal(
+        y,
+        xes.photon_gain_mean * np.ones(n_events))
+
+    data_tensor = xes.data_tensor
+    assert data_tensor is not None
+    print(data_tensor.shape)
+    z = xes.gimme('photon_gain_mean', data_tensor=data_tensor, ptensor=None)
+    assert isinstance(z, tf.Tensor)
+    assert z.dtype == tf.float32
+    assert tf.reduce_all(tf.equal(x, z))
+
+
 def test_simulate(xes: fd.ERSource):
     """Test the simulator doesn't crash"""
     xes.simulate(data=xes.data, energies=np.linspace(0., 100., int(1e3)))
@@ -59,32 +92,18 @@ def test_bounds(xes: fd.ERSource):
                 data['%s_%s_max' % (qn, p)].values + 1e-5)
 
 
-def test_gimme(xes: fd.ERSource):
-    x = xes.gimme('photon_gain_mean')
-    assert isinstance(x, tf.Tensor)
-    assert x.dtype == tf.float32
-
-    y = xes.gimme('photon_gain_mean', numpy_out=True)
-    assert isinstance(y, np.ndarray)
-    assert y.dtype == np.float32
-
-    np.testing.assert_array_equal(x.numpy(), y)
-
-    np.testing.assert_equal(
-        y,
-        xes.photon_gain_mean * np.ones(n_events))
-
-
 def test_nphnel(xes: fd.ERSource):
     """Test (nph, nel) rate matrix"""
-    r = xes.rate_nphnel().numpy()
+    r = xes.rate_nphnel(xes.data_tensor,
+                        xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events,
                        xes.dimsizes['photon_produced'],
                        xes.dimsizes['electron_produced'])
 
 
 def test_domains(xes: fd.ERSource):
-    n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced')
+    n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced',
+                                      xes.data_tensor)
     n_det = n_det.numpy()
     n_prod = n_prod.numpy()
 
@@ -110,7 +129,7 @@ def test_domain_detected(xes: fd.ERSource):
 
 
 def test_detector_response(xes: fd.ERSource):
-    r = xes.detector_response('photon').numpy()
+    r = xes.detector_response('photon', xes.data_tensor, xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events, xes.dimsizes['photon_detected'])
 
     # r is p(S1 | detected quanta) as a function of detected quanta
@@ -126,7 +145,7 @@ def test_detector_response(xes: fd.ERSource):
 
 
 def test_detection_prob(xes: fd.ERSource):
-    r = xes.detection_p('electron').numpy()
+    r = xes.detection_p('electron', xes.data_tensor, xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events,
                        xes.dimsizes['electron_detected'],
                        xes.dimsizes['electron_produced'])
@@ -156,31 +175,38 @@ def test_estimate_mu(xes: fd.ERSource):
     xes.estimate_mu(xes.data)
 
 
-def test_diff_rate(xes: fd.ERSource):
-    """Test differential_rate give the same answer
-    whether it is batched or not"""
+def test_underscore_diff_rate(xes: fd.ERSource):
+
+    x = xes._differential_rate(data_tensor=xes.data_tensor, ptensor=xes.ptensor_from_kwargs())
+    assert isinstance(x, tf.Tensor)
+    assert x.dtype == tf.float32
+
+    y = xes._differential_rate(data_tensor=xes.data_tensor, ptensor=xes.ptensor_from_kwargs(elife=100e3))
+    np.testing.assert_array_less(-fd.tf_to_np(tf.abs(x - y)), 0)
+
+    # """Test differential_rate give the same answer
+    # whether it is batched or not"""
 
     # Need very high sigma for this
     # so extending the bounds due to not-batching does not
     # matter anymore
-    y = xes.differential_rate(i_batch=None)
-    y2 = np.concatenate([
-        fd.tf_to_np(xes.differential_rate(i_batch=batch_i))
-        for batch_i in range(xes.n_batches)])
-    np.testing.assert_array_equal(y.numpy(), y2)
+    #y2 = np.concatenate([
+    #    fd.tf_to_np(xes.differential_rate(i_batch=batch_i))
+    #    for batch_i in range(xes.n_batches)])
+    #np.testing.assert_array_equal(y.numpy(), y2)
 
-def test_inference(xes: fd.ERSource):
-    lf = fd.LogLikelihood(
-        sources=dict(er=xes.__class__),
-        elife=(100e3, 500e3, 5),
-        data=xes.data)
-
-    # Test eager version
-    y1 = lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
-
-    # # Test graph version
-    # print("GRAPH MODE TEST NOW")
-    # y2 = lf.log_likelihood(fd.np_to_tf(np.array([200e3, ])))
-    # np.testing.assert_array_equal(y1, y1)
-    #
-    # # TODO: test fit and hessian
+# def test_inference(xes: fd.ERSource):
+#     lf = fd.LogLikelihood(
+#         sources=dict(er=xes.__class__),
+#         elife=(100e3, 500e3, 5),
+#         data=xes.data)
+#
+#     # Test eager version
+#     y1 = lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
+#
+#     # # Test graph version
+#     # print("GRAPH MODE TEST NOW")
+#     # y2 = lf.log_likelihood(fd.np_to_tf(np.array([200e3, ])))
+#     # np.testing.assert_array_equal(y1, y1)
+#     #
+#     # # TODO: test fit and hessian

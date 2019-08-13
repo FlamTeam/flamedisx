@@ -1,5 +1,4 @@
 import inspect
-import typing
 
 import numpy as np
 import pandas as pd
@@ -49,7 +48,6 @@ class Source:
     # we should keep them around regardless.
     extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta'])
 
-    _params: dict = None
     data: pd.DataFrame
 
     def __init__(self,
@@ -62,7 +60,6 @@ class Source:
                  **params):
         self.traced_differential_rate = False
         self.max_sigma = max_sigma
-        self._params = params
         self.data = data
         del data
 
@@ -90,6 +87,13 @@ class Source:
                         raise ValueError(f"Inconsistent defaults for {pname}")
                     self.defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
+
+        self.param_id = tf.lookup.StaticVocabularyTable(
+            tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
+                                                tf.range(len(self.defaults),
+                                                         dtype=tf.dtypes.int64)),
+            num_oov_buckets=1,
+            lookup_key_dtype=tf.dtypes.string)
 
         # Annotate requests n_events, currently no padding
         self.n_padding = 0
@@ -135,10 +139,10 @@ class Source:
         )
 
         # Create one big data tensor (n_batches, events_per_batch, n_cols)
+        # TODO: make a list
         self.data_tensor = tf.constant(self.data[cols_to_cache].values,
                                        dtype=fd.float_type())
-        self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
-                                                         -1,
+        self.data_tensor = tf.reshape(self.data_tensor, [-1,
                                                          len(cols_to_cache)])
 
     def _calculate_dimsizes(self):
@@ -152,32 +156,38 @@ class Source:
             mi = self._fetch(var + '_min')
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
-    def _fetch(self, x, i_batch=None):
+    def _fetch(self, x, data_tensor=None):
         """Return a tensor column from the original dataframe (self.data)
         :param x: column name
-        :param i_batch: Batch index. If None, return results for the entire
-        dataset.
+        :param data_tensor: Data tensor, columns as in self.name_id
         """
-        if not hasattr(self, 'data_tensor'):
+        if data_tensor is None:
             # We're inside annotate, just return the column
             return fd.np_to_tf(self.data[x].values)
 
         col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant(x)),
                                 fd.int_type())
-        if i_batch is None:
-            return tf.reshape(self.data_tensor[:,:,col_id], [-1])
-        else:
-            return self.data_tensor[i_batch,:,col_id]
+        # if i_batch is None:
+        #     return tf.reshape(self.data_tensor[:,:,col_id], [-1])
+        # else:
+        return data_tensor[:, col_id]
 
-    def gimme(self, fname, bonus_arg=None, i_batch=None, numpy_out=False):
+    def _fetch_param(self, param, ptensor):
+        if ptensor is None:
+            return self.defaults[param]
+        id = tf.dtypes.cast(self.param_id.lookup(tf.constant(param)),
+                            dtype=fd.int_type())
+        return ptensor[id]
+
+    def gimme(self, fname, *, data_tensor, ptensor, bonus_arg=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
         :param bonus_arg: If fname takes a bonus argument, the data for it
         :param numpy_out: If True, return (tuple of) numpy arrays,
         otherwise (tuple of) tensors.
-        :param i_batch: Batch index. If None, return results for the entire
-        dataset.
+        :param data_tensor: Data tensor, columns as self.name_id
+        :param ptensor: Parameter tensor, columns as self.param_id
 
         Before using gimme, you must use set_data to
         populate the internal caches.
@@ -188,16 +198,16 @@ class Source:
         f = getattr(self, fname)
 
         if callable(f):
-            args = [self._fetch(x, i_batch) for x in self.f_dims[fname]]
+            args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 args = [bonus_arg] + args
-            kwargs = {pname: self._params.get(pname, self.defaults[pname])
+            kwargs = {pname: self._fetch_param(pname, ptensor)
                       for pname in self.f_params[fname]}
             res = f(*args, **kwargs)
 
         else:
             if bonus_arg is None:
-                n = len(self.data) if i_batch is None else self.batch_size
+                n = len(self.data) if data_tensor is None else data_tensor.shape[0]
                 x = tf.ones(n, dtype=fd.float_type())
             else:
                 x = tf.ones_like(bonus_arg, dtype=fd.float_type())
@@ -229,11 +239,12 @@ class Source:
             for parname in hidden_vars_per_quanta:
                 fname = qn + '_' + parname
                 try:
-                    d[fname] = self.gimme(fname, numpy_out=True)
+                    d[fname] = self.gimme(fname, data_tensor=None, ptensor=None, numpy_out=True)
                 except Exception:
                     print(fname)
                     raise
         d['double_pe_fraction'] = self.gimme('double_pe_fraction',
+                                             data_tensor=None, ptensor=None,
                                              numpy_out=True)
 
         if _skip_bounds_computation:
@@ -257,7 +268,10 @@ class Source:
         # TODO: this will fail when someone gives penning quenching some
         # data-dependent args
         _nprod_temp = np.logspace(-1., 8., 1000)
-        peff = self.gimme('penning_quenching_eff', _nprod_temp, numpy_out=True)
+        peff = self.gimme('penning_quenching_eff',
+                          data_tensor=None, ptensor=None,
+                          bonus_arg=_nprod_temp,
+                          numpy_out=True)
         d['penning_quenching_eff_mle'] = np.interp(
             d['photon_detected_mle'] / d['photon_detection_eff'],
             _nprod_temp * peff,
@@ -265,7 +279,9 @@ class Source:
 
         # Approximate energy reconstruction (visible energy only)
         # TODO: how to do CES estimate if someone wants a variable W?
-        work = self.gimme('work', numpy_out=True)
+        work = self.gimme('work',
+                          data_tensor=None, ptensor=None,
+                          numpy_out=True)
         d['e_charge_vis'] = work * (
             d['electron_detected_mle'] / d['electron_detection_eff'])
         d['e_light_vis'] = work * (
@@ -273,7 +289,9 @@ class Source:
                 d['photon_detection_eff'] / d['penning_quenching_eff_mle']))
         d['e_vis'] = d['e_charge_vis'] + d['e_light_vis']
         d['nq_vis_mle'] = d['e_vis'] / work
-        d['fel_mle'] = self.gimme('p_electron', d['nq_vis_mle'].values,
+        d['fel_mle'] = self.gimme('p_electron',
+                                  data_tensor=None, ptensor=None,
+                                  bonus_arg=d['nq_vis_mle'].values,
                                   numpy_out=True)
 
         # .round().astype(np.int).clip(
@@ -364,32 +382,33 @@ class Source:
                                                  input_signature=input_signature)
         self.traced_differential_rate = True
 
-    def differential_rate(self, i_batch, ptensor=None, autograph=True, **params):
-        self._params = params
+    def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
+        ptensor = self.ptensor_from_kwargs(**kwargs)
+
         if autograph and ptensor is not None:
             if not self.traced_differential_rate:
                 self.trace_differential_rate(len(ptensor))
-            return self._differential_rate_tf(i_batch=i_batch, ptensor=ptensor)
+            return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
         else:
-            return self._differential_rate(i_batch=i_batch)
+            return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
 
-    def _differential_rate_tf(self, i_batch, ptensor):
+    def ptensor_from_kwargs(self, **kwargs):
+        return fd.np_to_tf([kwargs.get(k, self.defaults[k])
+                            for k in self.defaults])
+
+    def _differential_rate_tf(self, data_tensor, ptensor):
         print("Tracing _differential_rate")
+        # TODO DO THE TRACE!!
+        return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
 
-        # Update params values here using ptensor
-        for idx, name in enumerate(self.param_names):
-            self._params[name] = ptensor[idx]
-
-        return self._differential_rate(i_batch=i_batch)
-
-    def _differential_rate(self, i_batch):
+    def _differential_rate(self, data_tensor, ptensor):
         # (n_events, |photons_produced|, |electrons_produced|)
-        y = self.rate_nphnel(i_batch)
+        y = self.rate_nphnel(data_tensor, ptensor)
 
-        p_ph = self.detection_p('photon', i_batch)
-        p_el = self.detection_p('electron', i_batch)
-        d_ph = self.detector_response('photon', i_batch)
-        d_el = self.detector_response('electron', i_batch)
+        p_ph = self.detection_p('photon', data_tensor, ptensor)
+        p_el = self.detection_p('electron', data_tensor, ptensor)
+        d_ph = self.detector_response('photon', data_tensor, ptensor)
+        d_el = self.detector_response('electron', data_tensor, ptensor)
 
         # Rearrange dimensions so we can do a single matrix mult
         p_el = tf.transpose(p_el, (0, 2, 1))
@@ -398,16 +417,18 @@ class Source:
         y = d_ph @ p_ph @ y @ p_el @ d_el
         return tf.reshape(y, [-1])
 
-    def rate_nq(self, nq_1d, i_batch=None):
+    def rate_nq(self, nq_1d, data_tensor, ptensor):
         """Return differential rate at given number of produced quanta
         differs for ER and NR"""
         # TODO: this implementation echoes that for NR, but I feel there
         # must be a less clunky way...
 
         # (n_events, |ne|) tensors
-        es, rate_e = self.gimme('energy_spectrum', i_batch=i_batch)
+        es, rate_e = self.gimme('energy_spectrum',
+                                data_tensor=data_tensor, ptensor=ptensor)
         q_produced = tf.cast(
-            tf.floor(es / self.gimme('work', i_batch=i_batch)[:, o]),
+            tf.floor(es / self.gimme('work',
+                                     data_tensor=data_tensor, ptensor=ptensor)[:, o]),
             dtype=fd.float_type())
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
@@ -417,26 +438,29 @@ class Source:
         q = tf.reduce_sum(p_nq_e * rate_e[:, o, :], axis=2)
         return q
 
-    def rate_nphnel(self, i_batch=None):
+    def rate_nphnel(self, data_tensor, ptensor):
         """Return differential rate tensor
         (n_events, |photons_produced|, |electrons_produced|)
         """
         # Get differential rate and electron probability vs n_quanta
         # these four are (n_events, |nq|) tensors
-        _nq_1d = self.domain('nq', i_batch)
-        rate_nq = self.rate_nq(_nq_1d, i_batch=i_batch)
-        pel = self.gimme('p_electron', _nq_1d, i_batch=i_batch)
-        pel_fluct = self.gimme('p_electron_fluctuation', _nq_1d, i_batch=i_batch)
+        _nq_1d = self.domain('nq', data_tensor)
+        rate_nq = self.rate_nq(_nq_1d,
+                               data_tensor=data_tensor, ptensor=ptensor)
+        pel = self.gimme('p_electron', bonus_arg=_nq_1d,
+                         data_tensor=data_tensor, ptensor=ptensor)
+        pel_fluct = self.gimme('p_electron_fluctuation', bonus_arg=_nq_1d,
+                               data_tensor=data_tensor, ptensor=ptensor)
 
         # Create tensors with the dimensions of our fin al result
         # i.e. (n_events, |photons_produced|, |electrons_produced|),
         # containing:
         # ... numbers of photons and electrons produced:
-        nph, nel = self.cross_domains('photon_produced', 'electron_produced', i_batch)
+        nph, nel = self.cross_domains('photon_produced', 'electron_produced', data_tensor)
         # ... numbers of total quanta produced
         nq = nel + nph
         # ... indices in nq arrays
-        _nq_ind = nq - self._fetch('nq_min', i_batch=i_batch)[:, o, o]
+        _nq_ind = nq - self._fetch('nq_min', data_tensor=data_tensor)[:, o, o]
         # ... differential rate
         rate_nq = fd.lookup_axis1(rate_nq, _nq_ind)
         # ... probability of a quantum to become an electron
@@ -459,37 +483,37 @@ class Source:
             return rate_nq * tfp.distributions.Binomial(
                 total_count=nq, probs=pel_clip).prob(nel)
 
-    def detection_p(self, quanta_type, i_batch=None):
+    def detection_p(self, quanta_type, data_tensor, ptensor):
         """Return (n_events, |detected|, |produced|) te nsor
         encoding P(n_detected | n_produced)
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
                                            quanta_type + '_produced',
-                                           i_batch)
+                                           data_tensor)
 
         p = self.gimme(quanta_type + '_detection_eff',
-                        i_batch=i_batch)[:, o, o]
+                       data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
         if quanta_type == 'photon':
             # Note *= doesn't work, p will get reshaped
-            p = p * self.gimme('penning_quenching_eff', n_prod,
-                                i_batch=i_batch)
+            p = p * self.gimme('penning_quenching_eff', bonus_arg=n_prod,
+                               data_tensor=data_tensor, ptensor=ptensor)
 
         result = tfp.distributions.Binomial(
                 total_count=n_prod,
                 probs=tf.cast(p, dtype=fd.float_type())
             ).prob(n_det)
-        return result * self.gimme(quanta_type + '_acceptance', n_det,
-                                    i_batch = i_batch)
+        return result * self.gimme(quanta_type + '_acceptance', bonus_arg=n_det,
+                                   data_tensor=data_tensor, ptensor=ptensor)
 
-    def domain(self, x, i_batch=None):
+    def domain(self, x, data_tensor=None):
         """Return (n_events, |possible x values|) matrix containing all possible integer
         values of x for each event"""
         result1 = tf.cast(tf.range(self.dimsizes[x]),
                           dtype=fd.float_type())[o, :]
-        result2 = self._fetch(x + '_min', i_batch=i_batch)[:, o]
+        result2 = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
         return result1 + result2
 
-    def cross_domains(self, x, y, i_batch=None):
+    def cross_domains(self, x, y, data_tensor):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
         containing possible integer values of x and y, respectively.
         """
@@ -497,27 +521,30 @@ class Source:
         x_size = self.dimsizes[x]
         y_size = self.dimsizes[y]
         # Change to tf.repeat once it's in the api
-        result_x = fd.repeat(self.domain(x, i_batch)[:, :, o], y_size, axis=2)
-        result_y = fd.repeat(self.domain(y, i_batch)[:, o, :], x_size, axis=1)
+        result_x = fd.repeat(self.domain(x, data_tensor)[:, :, o], y_size, axis=2)
+        result_y = fd.repeat(self.domain(y, data_tensor)[:, o, :], x_size, axis=1)
         return result_x, result_y
 
-    def detector_response(self, quanta_type, i_batch=None):
+    def detector_response(self, quanta_type, data_tensor, ptensor):
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
         for different number of detected quanta.
         """
-        ndet = self.domain(quanta_type + '_detected', i_batch)
+        ndet = self.domain(quanta_type + '_detected', data_tensor)
 
         observed = self._fetch(
-            signal_name[quanta_type], i_batch=i_batch)[:, o]
+            signal_name[quanta_type], data_tensor=data_tensor)[:, o]
 
         # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme(quanta_type + '_gain_mean', i_batch=i_batch)[:, o]
-        std_per_q = self.gimme(quanta_type + '_gain_std',i_batch=i_batch)[:, o]
+        mean_per_q = self.gimme(quanta_type + '_gain_mean',
+                                data_tensor=data_tensor, ptensor=ptensor)[:, o]
+        std_per_q = self.gimme(quanta_type + '_gain_std',
+                               data_tensor=data_tensor, ptensor=ptensor)[:, o]
 
         if quanta_type == 'photon':
             mean, std = self.dpe_mean_std(
                 ndet=ndet,
-                p_dpe=self.gimme('double_pe_fraction',i_batch=i_batch)[:, o],
+                p_dpe=self.gimme('double_pe_fraction',
+                                 data_tensor=data_tensor, ptensor=ptensor)[:, o],
                 mean_per_q=mean_per_q,
                 std_per_q=std_per_q)
         else:
@@ -531,7 +558,8 @@ class Source:
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
-                             observed, i_batch=i_batch)
+                             bonus_arg=observed,
+                             data_tensor=data_tensor, ptensor=ptensor)
         return result
 
     @staticmethod
@@ -611,8 +639,8 @@ class Source:
         assert 'e_vis' not in d.columns
         assert len(s.data) == len(d)
 
-        def gimme(*args):
-            return s.gimme(*args, numpy_out=True)
+        def gimme(fname, bonus_arg=None):
+            return s.gimme(fname, bonus_arg=bonus_arg, data_tensor=None, ptensor=None, numpy_out=True)
 
         d['energy'] = energies
         d['nq'] = s._simulate_nq(energies)
@@ -708,8 +736,12 @@ class Source:
         :param n_trials: Number of events to simulate for efficiency estimate
         """
         # TODO what if e_spectrum is pos/time dependent?
+        # TODO: eh, not even looking at defaults now???
         _, spectra = cls(data, _skip_tf_init=True).gimme(
-            'energy_spectrum', numpy_out=True)
+            'energy_spectrum',
+            # TODO: BAD!
+            data_tensor=None, ptensor=None,
+            numpy_out=True)
         mean_rate = spectra.sum(axis=1).mean(axis=0)
 
         d_simulated = cls.simulate(n_trials, data=data, **params)
