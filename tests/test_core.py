@@ -32,9 +32,9 @@ def xes(request):
                          dict(s1=2.4, s2=400., drift_time=500.,
                               x=0., y=0., z=-50., r=0., theta=0.)])
     if request.param == 'ER':
-        x = fd.ERSource(data.copy(), n_batches=2, max_sigma=5)
+        x = fd.ERSource(data.copy(), batch_size=2, max_sigma=5)
     else:
-        x = fd.NRSource(data.copy(), n_batches=2, max_sigma=5)
+        x = fd.NRSource(data.copy(), batch_size=2, max_sigma=5)
     return x
 
 
@@ -194,6 +194,19 @@ def test_underscore_diff_rate(xes: fd.ERSource):
     #    fd.tf_to_np(xes.differential_rate(i_batch=batch_i))
     #    for batch_i in range(xes.n_batches)])
     #np.testing.assert_array_equal(y.numpy(), y2)
+
+def test_diff_rate_grad(xes):
+    ptensor = xes.ptensor_from_kwargs()
+    print(ptensor)
+    print(xes.data_tensor)
+    dr, grad = xes._diff_rate_grad(xes.data_tensor, ptensor)
+    print(dr, grad)
+    dr = dr.numpy()
+    grad = grad.numpy()
+    assert dr.shape == (xes.n_events,)
+    assert grad.shape == (xes.n_events, len(ptensor))
+
+
 
 # def test_inference(xes: fd.ERSource):
 #     lf = fd.LogLikelihood(

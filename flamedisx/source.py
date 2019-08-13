@@ -34,6 +34,7 @@ for _qn in quanta_types:
 
 o = tf.newaxis
 
+
 @export
 class Source:
     data_methods = tuple(data_methods)
@@ -87,6 +88,11 @@ class Source:
                         raise ValueError(f"Inconsistent defaults for {pname}")
                     self.defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
+        for k, v in params.items():
+            if k in self.defaults:
+                self.defaults[k] = v
+            else:
+                raise ValueError(f"Key {k} not in defaults")
 
         self.param_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
@@ -393,13 +399,21 @@ class Source:
             return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
 
     def ptensor_from_kwargs(self, **kwargs):
-        return fd.np_to_tf([kwargs.get(k, self.defaults[k])
-                            for k in self.defaults])
+        return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
+                                     for k in self.defaults])
 
     def _differential_rate_tf(self, data_tensor, ptensor):
         print("Tracing _differential_rate")
         # TODO DO THE TRACE!!
         return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
+
+    def _diff_rate_grad(self, data_tensor, ptensor):
+        with tf.GradientTape(persistent=True) as t:
+            t.watch(ptensor)
+            dr = self._differential_rate(data_tensor, ptensor)
+        grad = t.jacobian(dr, ptensor, experimental_use_pfor=False)
+        del t
+        return dr, grad
 
     def _differential_rate(self, data_tensor, ptensor):
         # (n_events, |photons_produced|, |electrons_produced|)
