@@ -52,9 +52,6 @@ class Source:
     _params: dict = None
     data: pd.DataFrame
 
-    _tensor_cache: typing.Dict[str, tf.Tensor]
-    _tensor_cache_list: typing.List[typing.Dict[str, tf.Tensor]]
-
     def __init__(self,
                  data,
                  batch_size=10,
@@ -63,9 +60,11 @@ class Source:
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  **params):
+        self.traced_differential_rate = False
         self.max_sigma = max_sigma
         self._params = params
         self.data = data
+        del data
 
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters
@@ -92,24 +91,57 @@ class Source:
                     self.defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
 
-        if batch_size is None:
-            batch_size = len(data)
+        # Annotate requests n_events, currently no padding
+        self.n_padding = 0
+        self.n_events = len(self.data)
+
+        if batch_size is None or batch_size > self.n_events or _skip_tf_init:
+            batch_size = self.n_events
+
         self.batch_size = batch_size
         self.n_batches = np.ceil(
-            self.n_events() / self.batch_size).astype(np.int)
+            self.n_events / self.batch_size).astype(np.int)
 
         if not data_is_annotated:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+
         if not _skip_tf_init:
+            # Extend dataframe with events to nearest batch_size multiple
+            # We're using actual events for padding, since using zeros or
+            # nans caused problems with gradient calculation
+            # padded events are clipped when summing likelihood terms
+            self.n_padding = self.n_batches * batch_size - len(self.data)
+            if self.n_padding > 0:
+                df_pad = self.data.iloc[:self.n_padding,:]
+                self.data = pd.concat([self.data, df_pad], ignore_index=True)
+
             self._populate_tensor_cache()
+            self._calculate_dimsizes()
 
     def _populate_tensor_cache(self):
-        self._tensor_cache = {
-            x: fd.np_to_tf(self.data[x].values)
-            for x in self.data.columns
-            if (np.issubdtype(self.data[x].dtype, np.integer)
-                or np.issubdtype(self.data[x].dtype, np.floating))}
+        # Cache only float and int cols
+        cols_to_cache = [x for x in self.data.columns
+                         if (np.issubdtype(self.data[x].dtype, np.integer)
+                             or np.issubdtype(self.data[x].dtype, np.floating)
+                             )]
 
+        self.name_id = tf.lookup.StaticVocabularyTable(
+            tf.lookup.KeyValueTensorInitializer(tf.constant(cols_to_cache),
+                                                tf.range(len(cols_to_cache),
+                                                         dtype=tf.dtypes.int64)
+                                                ),
+            num_oov_buckets=1,
+            lookup_key_dtype=tf.dtypes.string,
+        )
+
+        # Create one big data tensor (n_batches, events_per_batch, n_cols)
+        self.data_tensor = tf.constant(self.data[cols_to_cache].values,
+                                       dtype=fd.float_type())
+        self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
+                                                         -1,
+                                                         len(cols_to_cache)])
+
+    def _calculate_dimsizes(self):
         self.dimsizes = dict()
         for var in ['nq',
                   'photon_detected',
@@ -120,36 +152,22 @@ class Source:
             mi = self._fetch(var + '_min')
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
-        # Split up tensors for batched evaluation
-        start = np.arange(self.n_batches) * self.batch_size
-        stop = np.concatenate([start[1:], [self.n_events()]])
-        self.tensor_cache_list = [
-            {k: v[start[i]:stop[i]]
-             for k, v in self._tensor_cache.items()}
-            for i in range(self.n_batches)]
-
-    def n_events(self, i_batch=None):
-        if i_batch is None:
-            return len(self.data)
-        if i_batch in (self.n_batches - 1, -1):
-            return self.n_events() - self.batch_size * (self.n_batches - 1)
-        return self.batch_size
-
     def _fetch(self, x, i_batch=None):
         """Return a tensor column from the original dataframe (self.data)
         :param x: column name
         :param i_batch: Batch index. If None, return results for the entire
         dataset.
         """
-        if not hasattr(self, '_tensor_cache'):
+        if not hasattr(self, 'data_tensor'):
             # We're inside annotate, just return the column
             return fd.np_to_tf(self.data[x].values)
+
+        col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant(x)),
+                                fd.int_type())
         if i_batch is None:
-            return self._tensor_cache.get(
-                x,
-                fd.np_to_tf(self.data[x].values))
+            return tf.reshape(self.data_tensor[:,:,col_id], [-1])
         else:
-            return self.tensor_cache_list[i_batch][x]
+            return self.data_tensor[i_batch,:,col_id]
 
     def gimme(self, fname, bonus_arg=None, i_batch=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
@@ -179,8 +197,8 @@ class Source:
 
         else:
             if bonus_arg is None:
-                x = tf.ones(self.n_events(i_batch),
-                            dtype=fd.float_type())
+                n = len(self.data) if i_batch is None else self.batch_size
+                x = tf.ones(n, dtype=fd.float_type())
             else:
                 x = tf.ones_like(bonus_arg, dtype=fd.float_type())
             res = f * x
@@ -334,16 +352,37 @@ class Source:
 
     def batched_differential_rate(self, progress=True, **params):
         progress = (lambda x: x) if not progress else tqdm
-        return np.concatenate([
+        y = np.concatenate([
             fd.tf_to_np(self.differential_rate(i_batch=i_batch, **params))
             for i_batch in progress(range(self.n_batches))])
+        return y[:self.n_events]
 
-    @tf.function
-    def differential_rate(self, i_batch=None, **params):
-        return self._differential_rate(i_batch=i_batch, **params)
+    def trace_differential_rate(self, n_params):
+        input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),
+                         tf.TensorSpec(shape=[n_params], dtype=fd.float_type()),)
+        self._differential_rate_tf = tf.function(self._differential_rate_tf,
+                                                 input_signature=input_signature)
+        self.traced_differential_rate = True
 
-    def _differential_rate(self, i_batch=None, **params):
+    def differential_rate(self, i_batch, ptensor=None, autograph=True, **params):
         self._params = params
+        if autograph and ptensor is not None:
+            if not self.traced_differential_rate:
+                self.trace_differential_rate(len(ptensor))
+            return self._differential_rate_tf(i_batch=i_batch, ptensor=ptensor)
+        else:
+            return self._differential_rate(i_batch=i_batch)
+
+    def _differential_rate_tf(self, i_batch, ptensor):
+        print("Tracing _differential_rate")
+
+        # Update params values here using ptensor
+        for idx, name in enumerate(self.param_names):
+            self._params[name] = ptensor[idx]
+
+        return self._differential_rate(i_batch=i_batch)
+
+    def _differential_rate(self, i_batch):
         # (n_events, |photons_produced|, |electrons_produced|)
         y = self.rate_nphnel(i_batch)
 
@@ -570,12 +609,13 @@ class Source:
                 _skip_bounds_computation=True,
                 **params)
         assert 'e_vis' not in d.columns
+        assert len(s.data) == len(d)
 
         def gimme(*args):
             return s.gimme(*args, numpy_out=True)
 
         d['energy'] = energies
-        s._simulate_nq()
+        d['nq'] = s._simulate_nq(energies)
 
         d['p_el_mean'] = gimme('p_electron', d['nq'].values)
         d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
@@ -618,7 +658,7 @@ class Source:
         assert 'e_vis' in d.columns
         return d
 
-    def _simulate_nq(self):
+    def _simulate_nq(self, energies):
         raise NotImplementedError
 
     @classmethod

@@ -7,6 +7,7 @@ lgamma = tf.math.lgamma
 
 o = tf.newaxis
 FLOAT_TYPE = tf.float32
+INT_TYPE = tf.int32
 
 
 def exporter():
@@ -30,6 +31,11 @@ def float_type():
 
 
 @export
+def int_type():
+    return INT_TYPE
+
+
+@export
 def lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
        returning fill_value for out-of-range indices.
@@ -45,7 +51,7 @@ def lookup_axis1(x, indices, fill_value=0):
     indices = tf.clip_by_value(indices, 0., b - 1.)
     indices = indices + b * tf.range(a, dtype=float_type())[:, o, o]
     indices = tf.reshape(indices, shape=(-1,))
-    indices = tf.dtypes.cast(indices, dtype=tf.int32)
+    indices = tf.dtypes.cast(indices, dtype=int_type())
 
     # Do indexing
     result = tf.reshape(tf.gather(x,

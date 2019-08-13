@@ -32,9 +32,9 @@ def xes(request):
                          dict(s1=2.4, s2=400., drift_time=500.,
                               x=0., y=0., z=-50., r=0., theta=0.)])
     if request.param == 'ER':
-        x = fd.ERSource(data, n_batches=2, max_sigma=5)
+        x = fd.ERSource(data.copy(), n_batches=2, max_sigma=5)
     else:
-        x = fd.NRSource(data, n_batches=2, max_sigma=5)
+        x = fd.NRSource(data.copy(), n_batches=2, max_sigma=5)
     return x
 
 
@@ -176,7 +176,7 @@ def test_inference(xes: fd.ERSource):
         data=xes.data)
 
     # Test eager version
-    y1 = lf._log_likelihood(fd.np_to_tf(np.array([200e3,])))
+    y1 = lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
 
     # # Test graph version
     # print("GRAPH MODE TEST NOW")

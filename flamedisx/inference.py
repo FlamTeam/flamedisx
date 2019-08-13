@@ -43,7 +43,8 @@ class LogLikelihood:
                           max_sigma=max_sigma,
                           batch_size=batch_size)
             for sname, sclass in sources.items()}
-        del sources    # so we don't use it by accident
+        del sources  # so we don't use it by accident
+        del data  # use data from sources (which is now annotated)
 
         for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
@@ -54,12 +55,20 @@ class LogLikelihood:
                     f"Inconsistent defaults {defs} for common parameters")
             param_defaults[pname] = defs[0]
 
-        first_source = self.sources[list(self.sources.keys())[0]]
+        # Set n_batches, batch_size and data from any source
+        for s in self.sources.values():
+            self.n_batches = s.n_batches
+            self.batch_size = s.batch_size
+            self.n_padding = s.n_padding
+            self.data = s.data
+            break
 
-        self.n_batches = first_source.n_batches
-        self.data = first_source.data
         self.param_defaults = param_defaults
         self.param_names = list(param_defaults.keys())
+
+        for s in self.sources.values():
+            s.param_names = self.param_names
+
         self.mu_itps = {
             sname: s.mu_interpolator(n_trials=n_trials,
                                      data=s.data,
@@ -68,13 +77,14 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
-    @tf.function
-    def log_likelihood(self, ptensor):
-        return sum([self._log_likelihood(ptensor, i_batch=i_batch)
-                    for i_batch in range(self.n_batches)])
+    def log_likelihood(self, ptensor, autograph=True):
+            return sum([self._log_likelihood(ptensor,
+                                             i_batch=i_batch,
+                                             autograph=autograph)
+                        for i_batch in range(self.n_batches)])
 
-    def minus_ll(self, ptensor):
-        return -2 * self.log_likelihood(ptensor)
+    def minus_ll(self, ptensor, autograph=True):
+        return -2 * self.log_likelihood(ptensor, autograph=autograph)
 
     def mu(self, ptensor):
         return self._mu(ptensor)
@@ -111,26 +121,27 @@ class LogLikelihood:
                    * self.mu_itps[sname](**self._source_kwargs(ptensor)))
         return mu
 
-    def _log_likelihood(self, ptensor, i_batch=None):
+    def _log_likelihood(self, ptensor, i_batch, autograph=True):
         self._check_ptensor(ptensor)
 
-        first_source = self.sources[list(self.sources.keys())[0]]
-        lls = tf.zeros(first_source.n_events(i_batch=i_batch),
-                       dtype=fd.float_type())
-
+        lls = tf.zeros(self.batch_size, dtype=fd.float_type())
         for sname, s in self.sources.items():
             lls += (
                 self._get_rate_mult(sname, ptensor)
-                * s._differential_rate(i_batch, **self._source_kwargs(ptensor)))
+                * s.differential_rate(i_batch,
+                                      ptensor,
+                                      autograph=autograph,
+                                      **self._source_kwargs(ptensor)))
 
-        ll = tf.reduce_sum(tf.math.log(lls))
+        n = self.batch_size
+        if i_batch == self.n_batches - 1:
+            n -= self.n_padding
 
-        if i_batch is None or i_batch == 0:
+        ll = tf.reduce_sum(tf.math.log(lls[:n]))
+
+        if i_batch == 0:
             return -self._mu(ptensor) + ll
         return ll
-
-    def _minus_ll(self, ptensor, i_batch=None):
-        return -2 * self._log_likelihood(ptensor, i_batch)
 
     def guess(self):
         """Return array of parameter guesses"""
@@ -177,23 +188,24 @@ class LogLikelihood:
         # vector reasonable.
         x_norm = tf.ones(len(_guess), dtype=fd.float_type())
 
-        @tf.function
-        def objective(x_norm):
-            y = tf.constant(0, dtype=fd.float_type())
-            grad = tf.constant(0, dtype=fd.float_type())
-            for i_batch in range(self.n_batches):
-                with tf.GradientTape() as t:
-                    t.watch(x_norm)
-                    y += self._minus_ll(x_norm * _guess, i_batch=i_batch)
-                    grad += t.gradient(y, x_norm)
-            return y, grad
+        # Set guess for objective function
+        self._guess = _guess
 
-        res = optimizer(objective, x_norm, **kwargs)
+        res = optimizer(self.objective, x_norm, **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
+
+    @tf.function
+    def objective(self, x_norm):
+        print("Tracing objective")
+        with tf.GradientTape() as t:
+            t.watch(x_norm)
+            y = self.minus_ll(x_norm * self._guess)
+        grad = t.gradient(y, x_norm)
+        return y, grad
 
     def inverse_hessian(self, params):
         """Return inverse hessian (square tensor)
@@ -209,26 +221,31 @@ class LogLikelihood:
         params = fd.np_to_tf(params)
 
         args = tf.unstack(params)  # list of tensors
-        n = len(args)
+        #n = len(args)
+        #n = len(params)
 
-        hessian = tf.zeros((n, n), dtype=fd.float_type())
-
-        for i_batch in range(self.n_batches):
-            with tf.GradientTape(persistent=True) as t2:
-                t2.watch(args)
-                with tf.GradientTape() as t:
-                    t.watch(args)
-
-                    s= tf.stack(args)
-                    z = self._minus_ll(s, i_batch=i_batch)
-                # compute first order derivatives
-                grads = t.gradient(z, args)
-            # compute all second order derivatives
-            # could be optimized to compute only i>=j matrix elements
-            hessian += tf.stack([t2.gradient(grad, s) for grad in grads])
-            del t2
-
+        #hessian = tf.zeros((n, n), dtype=fd.float_type())
+        hessian = self._hessian(args)
+        print("hessian:", hessian)
         return tf.linalg.inv(hessian)
+
+    #@tf.function
+    def _hessian(self, args):
+        #print("Tracing _hessian")
+        with tf.GradientTape(persistent=True) as t2:
+            t2.watch(args)
+            with tf.GradientTape() as t:
+                t.watch(args)
+
+                s = tf.stack(args)
+                z = self.minus_ll(s, autograph=False)
+            # compute first order derivatives
+            grads = t.gradient(z, args)
+        # compute all second order derivatives
+        # could be optimized to compute only i>=j matrix elements
+        hessian = tf.stack([t2.gradient(grad, s) for grad in grads])
+        del t2
+        return hessian
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""

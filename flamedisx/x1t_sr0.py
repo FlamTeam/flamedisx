@@ -117,6 +117,10 @@ example_wimp_rs = wimprates.rate_wimp_std(
 example_sp = Hist1d.from_histogram(
     example_wimp_rs[:-1] * np.diff(example_wimp_es),
     example_wimp_es)
+example_sp_centers = tf.convert_to_tensor(example_sp.bin_centers[np.newaxis,:],
+                                          dtype=fd.float_type())
+example_sp_values = tf.convert_to_tensor(example_sp.histogram[np.newaxis,:],
+                                         dtype=fd.float_type())
 
 
 @export
@@ -124,6 +128,5 @@ class SR0WIMPSource(SR0Source, fd.NRSource):
 
     def energy_spectrum(self, drift_time):
         n_evts = len(drift_time)
-        return (
-            example_sp.bin_centers[np.newaxis,:].repeat(n_evts, axis=0),
-            example_sp.histogram[np.newaxis,:].repeat(n_evts, axis=0))
+        return (fd.repeat(example_sp_centers, repeats=n_evts, axis=0),
+                fd.repeat(example_sp_values, repeats=n_evts, axis=0))

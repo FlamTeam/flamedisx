@@ -123,9 +123,9 @@ class ERSource(fd.Source):
     photon_gain_std = 0.5
     double_pe_fraction = 0.219
 
-    def _simulate_nq(self):
+    def _simulate_nq(self, energies):
         work = self.gimme('work', numpy_out=True)
-        self.data['nq'] = np.floor(self.data['energy'].values / work).astype(np.int)
+        return np.floor(energies / work).astype(np.int)
 
     @classmethod
     def simulate_aux(cls, n_events):
@@ -176,11 +176,18 @@ class NRSource(ERSource):
         return fd.safe_p(n_el / nq)
 
     @staticmethod
-    def lindhard_l(e, lindhard_k=0.138):
+    def lindhard_l(e, lindhard_k=tf.constant(0.138, dtype=fd.float_type())):
         """Return Lindhard quenching factor at energy e in keV"""
-        eps = 11.5 * e * 54**(-7/3)             # Xenon: Z = 54
-        g = 3. * eps**0.15 + 0.7 * eps**0.6 + eps
-        res = lindhard_k * g/(1. + lindhard_k * g)
+        eps = e * tf.constant(11.5 * 54.**(-7./3.), dtype=fd.float_type())  # Xenon: Z = 54
+
+        n0 = tf.constant(3., dtype=fd.float_type())
+        n1 = tf.constant(0.7, dtype=fd.float_type())
+        n2 = tf.constant(1.0, dtype=fd.float_type())
+        p0 = tf.constant(0.15, dtype=fd.float_type())
+        p1 = tf.constant(0.6, dtype=fd.float_type())
+
+        g = n0 * tf.pow(eps, p0) + n1 * tf.pow(eps, p1) + eps
+        res = lindhard_k * g/(n2 + lindhard_k * g)
         return res
 
     def energy_spectrum(self, drift_time):
@@ -210,9 +217,8 @@ class NRSource(ERSource):
     def penning_quenching_eff(nph, eta=8.2e-5 * 3.3, labda=0.8 * 1.15):
         return 1. / (1. + eta * nph ** labda)
 
-    def _simulate_nq(self):
+    def _simulate_nq(self, energies):
         work = self.gimme('work', numpy_out=True)
-        lindhard_l = self.gimme('lindhard_l', self.data['energy'].values,
+        lindhard_l = self.gimme('lindhard_l', energies,
                                 numpy_out=True)
-        self.data['nq'] = stats.poisson.rvs(
-            self.data['energy'].values * lindhard_l / work)
+        return stats.poisson.rvs(energies * lindhard_l / work)
