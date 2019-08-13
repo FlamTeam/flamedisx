@@ -41,6 +41,7 @@ class LogLikelihood:
         self.sources = {
             sname: sclass(data.copy(),
                           max_sigma=max_sigma,
+                          fit_params=list(common_param_specs.keys()),   # TODO: WILL FAIL if multiple sources with different params
                           batch_size=batch_size)
             for sname, sclass in sources.items()}
         del sources  # so we don't use it by accident
@@ -66,9 +67,6 @@ class LogLikelihood:
         self.param_defaults = param_defaults
         self.param_names = list(param_defaults.keys())
 
-        for s in self.sources.values():
-            s.param_names = self.param_names
-
         self.mu_itps = {
             sname: s.mu_interpolator(n_trials=n_trials,
                                      data=s.data,
@@ -77,13 +75,13 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
-    def log_likelihood(self, ptensor, autograph=True):
-            return sum([self._log_likelihood(ptensor,
-                                             i_batch=i_batch,
-                                             autograph=autograph)
-                        for i_batch in range(self.n_batches)])
+    def log_likelihood(self, ptensor, autograph=False):     #TODO: MUST BE TRUE!!!
+        return sum([self._log_likelihood(i_batch,
+                                         ptensor,
+                                         autograph=autograph)
+                    for i_batch in range(self.n_batches)])
 
-    def minus_ll(self, ptensor, autograph=True):
+    def minus_ll(self, ptensor, autograph=False):           # TODO: MUST BE TRUE
         return -2 * self.log_likelihood(ptensor, autograph=autograph)
 
     def mu(self, ptensor):
@@ -121,27 +119,44 @@ class LogLikelihood:
                    * self.mu_itps[sname](**self._source_kwargs(ptensor)))
         return mu
 
-    def _log_likelihood(self, ptensor, i_batch, autograph=True):
+    def _log_likelihood(self, i_batch, ptensor, autograph=False):    # TOD: MAKE TRUE
+        # Does for loop over sources, not batches
+        # Sum over sources is first in likelihood
+
         self._check_ptensor(ptensor)
 
         lls = tf.zeros(self.batch_size, dtype=fd.float_type())
+        #grads = tf.zeros((self.batch_size, len(self.param_defaults)), dtype=fd.float_type())     # TODO: Fails if multiple sources with different params
+        #grads = tf.zeros(len(self.param_defaults), dtype=fd.float_type())
+        drs = []
+        grads = []
         for sname, s in self.sources.items():
-            lls += (
-                self._get_rate_mult(sname, ptensor)
-                * s.differential_rate(i_batch,
-                                      ptensor,
-                                      autograph=autograph,
-                                      **self._source_kwargs(ptensor)))
+            print(s.data_tensor[i_batch])
+            dr, g = s.diff_rate_grad(s.data_tensor[i_batch],
+                                     autograph=autograph,
+                                     **self._source_kwargs(ptensor))
+            rate_mult = self._get_rate_mult(sname, ptensor)
+            drs.append(dr * rate_mult)
+            grads.append(grads * rate_mult)
+
+        drs = tf.reduce_sum(tf.stack(drs), axis=0)
+        grads = tf.reduce_sum(tf.stack(grads), axis=0)
 
         n = self.batch_size
         if i_batch == self.n_batches - 1:
             n -= self.n_padding
 
         ll = tf.reduce_sum(tf.math.log(lls[:n]))
+        ll_grad = tf.reduce_sum((grads / drs)[:n], axis=0)
 
         if i_batch == 0:
-            return -self._mu(ptensor) + ll
-        return ll
+            with tf.GradientTape() as t:
+                t.watch(ptensor)
+                mu = -self._mu(ptensor)
+            ll_grad += t.gradient(mu, ptensor)
+            return mu + ll, ll_grad
+
+        return ll, ll_grad
 
     def guess(self):
         """Return array of parameter guesses"""
@@ -198,7 +213,7 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
 
-    @tf.function
+    #@tf.function
     def objective(self, x_norm):
         print("Tracing objective")
         with tf.GradientTape() as t:

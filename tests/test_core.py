@@ -39,7 +39,7 @@ def xes(request):
 
 
 def test_fetch(xes):
-    data_tensor = xes.data_tensor    # ??
+    data_tensor = xes.data_tensor[0]    # ??
     assert data_tensor is not None
     print(data_tensor.shape)
     np.testing.assert_almost_equal(
@@ -62,7 +62,7 @@ def test_gimme(xes: fd.ERSource):
         y,
         xes.photon_gain_mean * np.ones(n_events))
 
-    data_tensor = xes.data_tensor
+    data_tensor = xes.data_tensor[0]
     assert data_tensor is not None
     print(data_tensor.shape)
     z = xes.gimme('photon_gain_mean', data_tensor=data_tensor, ptensor=None)
@@ -94,7 +94,7 @@ def test_bounds(xes: fd.ERSource):
 
 def test_nphnel(xes: fd.ERSource):
     """Test (nph, nel) rate matrix"""
-    r = xes.rate_nphnel(xes.data_tensor,
+    r = xes.rate_nphnel(xes.data_tensor[0],
                         xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events,
                        xes.dimsizes['photon_produced'],
@@ -103,7 +103,7 @@ def test_nphnel(xes: fd.ERSource):
 
 def test_domains(xes: fd.ERSource):
     n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced',
-                                      xes.data_tensor)
+                                      xes.data_tensor[0])
     n_det = n_det.numpy()
     n_prod = n_prod.numpy()
 
@@ -129,7 +129,7 @@ def test_domain_detected(xes: fd.ERSource):
 
 
 def test_detector_response(xes: fd.ERSource):
-    r = xes.detector_response('photon', xes.data_tensor, xes.ptensor_from_kwargs()).numpy()
+    r = xes.detector_response('photon', xes.data_tensor[0], xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events, xes.dimsizes['photon_detected'])
 
     # r is p(S1 | detected quanta) as a function of detected quanta
@@ -145,7 +145,7 @@ def test_detector_response(xes: fd.ERSource):
 
 
 def test_detection_prob(xes: fd.ERSource):
-    r = xes.detection_p('electron', xes.data_tensor, xes.ptensor_from_kwargs()).numpy()
+    r = xes.detection_p('electron', xes.data_tensor[0], xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events,
                        xes.dimsizes['electron_detected'],
                        xes.dimsizes['electron_produced'])
@@ -177,11 +177,11 @@ def test_estimate_mu(xes: fd.ERSource):
 
 def test_underscore_diff_rate(xes: fd.ERSource):
 
-    x = xes._differential_rate(data_tensor=xes.data_tensor, ptensor=xes.ptensor_from_kwargs())
+    x = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs())
     assert isinstance(x, tf.Tensor)
     assert x.dtype == tf.float32
 
-    y = xes._differential_rate(data_tensor=xes.data_tensor, ptensor=xes.ptensor_from_kwargs(elife=100e3))
+    y = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs(elife=100e3))
     np.testing.assert_array_less(-fd.tf_to_np(tf.abs(x - y)), 0)
 
     # """Test differential_rate give the same answer
@@ -198,8 +198,8 @@ def test_underscore_diff_rate(xes: fd.ERSource):
 def test_diff_rate_grad(xes):
     ptensor = xes.ptensor_from_kwargs()
     print(ptensor)
-    print(xes.data_tensor)
-    dr, grad = xes._diff_rate_grad(xes.data_tensor, ptensor)
+    print(xes.data_tensor[0])
+    dr, grad = xes._diff_rate_grad(xes.data_tensor[0], ptensor)
     print(dr, grad)
     dr = dr.numpy()
     grad = grad.numpy()
@@ -207,19 +207,36 @@ def test_diff_rate_grad(xes):
     assert grad.shape == (xes.n_events, len(ptensor))
 
 
+def test_inference(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__),
+        elife=(100e3, 500e3, 5),
+        data=xes.data)
 
-# def test_inference(xes: fd.ERSource):
-#     lf = fd.LogLikelihood(
-#         sources=dict(er=xes.__class__),
-#         elife=(100e3, 500e3, 5),
-#         data=xes.data)
-#
-#     # Test eager version
-#     y1 = lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
-#
-#     # # Test graph version
-#     # print("GRAPH MODE TEST NOW")
-#     # y2 = lf.log_likelihood(fd.np_to_tf(np.array([200e3, ])))
-#     # np.testing.assert_array_equal(y1, y1)
-#     #
-#     # # TODO: test fit and hessian
+    print(lf.sources['er'].fit_params)
+
+    lptensor = fd.np_to_tf(np.array([200e3, ]))
+
+    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0), ptensor=lptensor, autograph=False)
+    assert isinstance(x, tf.Tensor)
+    assert x.dtype == tf.float32
+    assert isinstance(x.numpy(), np.float32)
+    assert x.numpy() < 0
+
+    assert isinstance(x_grad, tf.Tensor)
+    assert x_grad.dtype == tf.float32
+
+    lptensor = fd.np_to_tf(np.array([300e3, ]))
+    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0), ptensor=lptensor, autograph=False)
+    assert (x - x2).numpy() != 0
+    assert (x_grad - x2_grad).numpy() !=0
+
+    # bf = lf.bestfit()
+
+    # Test eager version
+    # # Test graph version
+    # print("GRAPH MODE TEST NOW")
+    # y2 = lf.log_likelihood(fd.np_to_tf(np.array([200e3, ])))
+    # np.testing.assert_array_equal(y1, y1)
+    #
+    # # TODO: test fit and hessian

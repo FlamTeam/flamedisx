@@ -58,6 +58,7 @@ class Source:
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
+                 fit_params=None,
                  **params):
         self.traced_differential_rate = False
         self.max_sigma = max_sigma
@@ -93,6 +94,10 @@ class Source:
                 self.defaults[k] = v
             else:
                 raise ValueError(f"Key {k} not in defaults")
+
+        if fit_params is None:
+            fit_params = list(self.defaults.keys())
+        self.fit_params = fit_params
 
         self.param_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
@@ -148,7 +153,8 @@ class Source:
         # TODO: make a list
         self.data_tensor = tf.constant(self.data[cols_to_cache].values,
                                        dtype=fd.float_type())
-        self.data_tensor = tf.reshape(self.data_tensor, [-1,
+        self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
+                                                         -1,
                                                          len(cols_to_cache)])
 
     def _calculate_dimsizes(self):
@@ -179,10 +185,14 @@ class Source:
         return data_tensor[:, col_id]
 
     def _fetch_param(self, param, ptensor):
+        print(param)
+
+        print(ptensor)
         if ptensor is None:
             return self.defaults[param]
         id = tf.dtypes.cast(self.param_id.lookup(tf.constant(param)),
                             dtype=fd.int_type())
+        print(id)
         return ptensor[id]
 
     def gimme(self, fname, *, data_tensor, ptensor, bonus_arg=None, numpy_out=False):
@@ -374,6 +384,7 @@ class Source:
         """
         pass
 
+    # TODO: remove duplication?
     def batched_differential_rate(self, progress=True, **params):
         progress = (lambda x: x) if not progress else tqdm
         y = np.concatenate([
@@ -388,13 +399,26 @@ class Source:
                                                  input_signature=input_signature)
         self.traced_differential_rate = True
 
+    def diff_rate_grad(self, data_tensor=None, autograph=True, **kwargs):
+        ptensor = self.ptensor_from_kwargs(**kwargs)
+
+        if autograph and ptensor is not None:
+            raise NotImplementedError
+            # if not self.traced_differential_rate:
+            #     self.trace_differential_rate(len(ptensor))
+            # return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
+        else:
+            return self._diff_rate_grad(data_tensor=data_tensor, ptensor=ptensor)
+
+    # TODO: remove duplication?
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
 
         if autograph and ptensor is not None:
-            if not self.traced_differential_rate:
-                self.trace_differential_rate(len(ptensor))
-            return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
+            raise NotImplementedError
+            # if not self.traced_differential_rate:
+            #     self.trace_differential_rate(len(ptensor))
+            # return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
         else:
             return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
 
