@@ -401,7 +401,6 @@ class Source:
     # TODO: remove duplication for batch loop? Also in inference
     def batched_differential_rate(self, progress=True, **params):
         progress = (lambda x: x) if not progress else tqdm
-        print(self.data_tensor.shape, "is data tensor shape")
         y = np.concatenate([
             fd.tf_to_np(self.differential_rate(data_tensor=self.data_tensor[i_batch],
                                                **params))

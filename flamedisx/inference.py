@@ -3,10 +3,10 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
-from tqdm import tqdm
 import typing as ty
 
 export, __all__ = fd.exporter()
+o = tf.newaxis
 
 
 @export
@@ -35,7 +35,7 @@ class LogLikelihood:
         for sn in free_rates:
             if sn not in sources:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
-            param_defaults[sn + '_rate_multiplier'] = 1
+            param_defaults[sn + '_rate_multiplier'] = 1.
 
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
@@ -75,85 +75,128 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
-    def log_likelihood(self, ptensor, autograph=False):     #TODO: MUST BE TRUE!!!
-        return sum([self._log_likelihood(i_batch,
-                                         ptensor,
-                                         autograph=autograph)
-                    for i_batch in range(self.n_batches)])
+    def log_likelihood(self,autograph=True, **kwargs):
+        lls = 0.
+        llgrads = tf.zeros(len(self.param_defaults))
+        for i_batch in range(self.n_batches):
+            a, b = self._log_likelihood(i_batch,
+                                        autograph=autograph,
+                                        **kwargs)
+            lls += a
+            llgrads += b
 
-    def minus_ll(self, ptensor, autograph=False):           # TODO: MUST BE TRUE
-        return -2 * self.log_likelihood(ptensor, autograph=autograph)
+        return lls, llgrads
 
-    def mu(self, ptensor):
-        return self._mu(ptensor)
+    def minus_ll(self, *, autograph=True, **kwargs):
+        if autograph not in [True, False]:
+            raise RuntimeError(f"Autograph is {autograph}, bekijk het maar!")
+        ll, grad = self.log_likelihood(autograph=autograph, **kwargs)
+        return -2 * ll, -2 * grad
 
-    def _check_ptensor(self, ptensor):
-        if not ptensor.shape[0] == len(self.param_names):
-            raise ValueError(
-                f"Likelihood takes {len(self.param_names)} params "
-                f"but you gave {len(ptensor)}")
+    def prepare_params(self, kwargs):
+        for k in kwargs:
+            if k not in self.param_defaults:
+                raise ValueError(f"Unknown parameter {k}")
+        return {k: tf.constant(kwargs.get(k, self.param_defaults[k]))
+                for k in self.param_defaults}
 
-    def _get_rate_mult(self, sname, ptensor):
+    def _get_rate_mult(self, sname, kwargs):
         rmname = sname + '_rate_multiplier'
         if rmname in self.param_names:
-            return ptensor[self._param_i(rmname)]
+            return kwargs[rmname]
         return 1.
 
-    def _source_kwargs(self, ptensor):
+    def _source_kwargnames(self, source_name=None):
+        """Return parameter names that apply to source"""
+        # TODO implement for multiple source
+        return [pname for pname in self.param_names
+                if not pname.endswith('_rate_multiplier')]
+
+    def _filter_source_kwargs(self, kwargs):
         """Return {param: value} dictionary with keyword arguments
-        for source, with values extracted from ptensor"""
-        return {pname: ptensor[self._param_i(pname)]
-                for pname in self.param_names
-                if not pname.endswith('_rate_multiplier')}
+        for source, with values extracted from kwargs"""
+        return {pname: kwargs[pname]
+                for pname in self._source_kwargnames()}
 
     def _param_i(self, pname):
         """Return index of parameter pname"""
         return self.param_names.index(pname)
 
-    def _mu(self, ptensor):
-        self._check_ptensor(ptensor)
+    def mu(self, **kwargs):
+        self.prepare_params(kwargs)
 
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
-            mu += (self._get_rate_mult(sname, ptensor)
-                   * self.mu_itps[sname](**self._source_kwargs(ptensor)))
+            mu += (self._get_rate_mult(sname, kwargs)
+                   * self.mu_itps[sname](**self._filter_source_kwargs(kwargs)))
         return mu
 
-    def _log_likelihood(self, i_batch, ptensor, autograph=False):    # TOD: MAKE TRUE
+    def _log_likelihood(self, i_batch, autograph=True, **kwargs):
         # Does for loop over sources, not batches
         # Sum over sources is first in likelihood
 
-        self._check_ptensor(ptensor)
+        params = self.prepare_params(kwargs)
 
-        lls = tf.zeros(self.batch_size, dtype=fd.float_type())
-        #grads = tf.zeros((self.batch_size, len(self.param_defaults)), dtype=fd.float_type())     # TODO: Fails if multiple sources with different params
-        #grads = tf.zeros(len(self.param_defaults), dtype=fd.float_type())
+        # Compute differential rates and their gradients from all sources
+        # drs = list[n_sources] of [n_events] tensors
+        # grads = list[n_sources] of [n_events, n_fitted_params] tensors
         drs = []
         grads = []
         for sname, s in self.sources.items():
+            rate_mult = self._get_rate_mult(sname, params)
             dr, g = s.diff_rate_grad(s.data_tensor[i_batch],
                                      autograph=autograph,
-                                     **self._source_kwargs(ptensor))
-            rate_mult = self._get_rate_mult(sname, ptensor)
-            drs.append(dr * rate_mult)
-            grads.append(g * rate_mult)
+                                     **self._filter_source_kwargs(params))
 
+            drs.append(dr * rate_mult)
+
+            # g has dimension [n_events, fitted params this source took]
+            # So we have to insert zeros for others, and the grads wrt the
+            # rate multiplier.
+            g2 = []
+            source_pars = self._source_kwargnames()
+            for par in params:
+                if par in source_pars:
+                    # Regular parameter, get from g
+                    g2.append(g[:, source_pars.index(par)] * rate_mult)
+                elif par == sname + '_rate_multiplier':
+                    # This is our rate multiplier, know grad analytically.
+                    # Multiply by rate_mult due to scaling
+                    # But divide due to derivative...
+                    g2.append(dr)
+                else:
+                    # Some other source's rate multiplier or parameter we don't take
+                    g2.append(tf.zeros(self.batch_size))
+            grads.append(tf.stack(g2, axis=1))
+
+        # Sum over sources
         drs = tf.reduce_sum(tf.stack(drs), axis=0)
         grads = tf.reduce_sum(tf.stack(grads), axis=0)
 
+        # Sum over events and remove padding
         n = self.batch_size
         if i_batch == self.n_batches - 1:
             n -= self.n_padding
-
-        ll = tf.reduce_sum(tf.math.log(lls[:n]))
-        ll_grad = tf.reduce_sum((grads / drs)[:n], axis=0)
+        ll = tf.reduce_sum(tf.math.log(drs[:n]))
+        ll_grad = tf.reduce_sum(grads[:n] / drs[:n, o], axis=0)
 
         if i_batch == 0:
-            with tf.GradientTape() as t:
-                t.watch(ptensor)
-                mu = -self._mu(ptensor)
-            ll_grad += t.gradient(mu, ptensor)
-            return mu + ll, ll_grad
+            with tf.GradientTape(persistent=True) as t:
+                for k in params:
+                    t.watch(params[k])
+                mu_term = -self.mu(**params)
+
+            mu_term_grads = []
+            for k in self.param_names:
+                if k.endswith('rate_multiplier'):
+                    source_name = k[:-16]
+                    mu_source_base = self.mu_itps[source_name](**self._filter_source_kwargs(params))
+                    mu_term_grads.append(-mu_source_base)
+                else:
+                    mu_term_grads.append(t.gradient(mu_term, params[k]))
+            del t
+            ll_grad += tf.convert_to_tensor(mu_term_grads, dtype=fd.float_type())
+            return mu_term + ll, ll_grad
 
         return ll, ll_grad
 
@@ -195,7 +238,7 @@ class LogLikelihood:
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
             kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self.minus_ll(_guess))
+                              llr_tolerance/self.minus_ll(**self.params_to_dict(_guess))[0])
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
@@ -212,14 +255,14 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
 
-    #@tf.function
     def objective(self, x_norm):
-        print("Tracing objective")
-        with tf.GradientTape() as t:
-            t.watch(x_norm)
-            y = self.minus_ll(x_norm * self._guess)
-        grad = t.gradient(y, x_norm)
-        return y, grad
+        x = x_norm * self._guess
+        ll, grad = self.minus_ll(**self.params_to_dict(x))
+        if tf.math.is_nan(ll) or np.isnan(ll) or ll != ll:
+            print(f"Objective at {x_norm} is Nan!")
+            return float('inf'), float('nan') * grad
+        print(f"Objective at {x_norm} is {ll}, grad is {grad}")
+        return ll, grad * self._guess
 
     def inverse_hessian(self, params):
         """Return inverse hessian (square tensor)

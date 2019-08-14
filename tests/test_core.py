@@ -228,24 +228,35 @@ def test_inference(xes: fd.ERSource):
         elife=(100e3, 500e3, 5),
         data=xes.data)
 
-    print(lf.sources['er'].fit_params)
-
-    lptensor = fd.np_to_tf(np.array([200e3, ]))
-
-    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0), ptensor=lptensor, autograph=False)
+    ##
+    # Test non-autograph version
+    ##
+    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=200e3, autograph=False)
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
     assert x.numpy() < 0
 
     assert isinstance(x_grad, tf.Tensor)
     assert x_grad.dtype == fd.float_type()
+    assert x_grad.numpy().shape == (1,)
 
-    lptensor = fd.np_to_tf(np.array([300e3, ]))
-    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0), ptensor=lptensor, autograph=False)
+    # Test a different parameter gives a different likelihood
+    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=300e3, autograph=False)
     assert (x - x2).numpy() != 0
     assert (x_grad - x2_grad).numpy().sum() !=0
 
-    assert x2_grad.numpy().shape == (2,)
+    ##
+    # Test batching
+    # ##
+    lf.log_likelihood(autograph=False)
+    lf.log_likelihood(elife=200e3, autograph=False)
+
+
+
+    # TODO: test with free_rate!
+
+    # Test
+
 
     # bf = lf.bestfit()
 
