@@ -80,7 +80,7 @@ class LogLikelihood:
         lls = 0.
         llgrads = tf.zeros(len(self.param_defaults))
         for i_batch in range(self.n_batches):
-            a, b = self._log_likelihood(i_batch, **params)
+            a, b = self._log_likelihood(tf.constant(i_batch), **params)
             lls += a
             llgrads += b
 
@@ -158,19 +158,14 @@ class LogLikelihood:
         drs = tf.reduce_sum(tf.stack(drs), axis=0)
 
         # Sum over events and remove padding
-        n = self.batch_size
-        if i_batch == self.n_batches - 1:
-            n -= self.n_padding
+        n = tf.where(tf.equal(i_batch, tf.constant(self.n_batches - 1, dtype=fd.int_type())),
+                     self.batch_size,
+                     self.batch_size - self.n_padding)
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
 
-        if i_batch == 0:
-            with tf.GradientTape(persistent=True) as t:
-                for k in params:
-                    t.watch(params[k])
-                mu_term = -self.mu(**params)
-
-            return mu_term + ll
-
+        ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
+                       -self.mu(**params),
+                       0.)
         return ll
 
     def guess(self):
