@@ -413,24 +413,6 @@ class Source:
                          tf.TensorSpec(shape=[len(self.defaults)], dtype=fd.float_type()),)
         self._differential_rate_tf = tf.function(self._differential_rate,
                                                  input_signature=input_signature)
-        self._diff_rate_grad_tf = tf.function(self._diff_rate_grad,
-                                           input_signature=input_signature)
-
-    def diff_rate_grad(self, data_tensor=None, autograph=True, **kwargs):
-        """Return (differential rate, gradient)
-
-        :param data_tensor:
-        :param autograph: If true, uses @tf.function'ed version
-        :param kwargs: parameters to likelihood
-        :return: ( (n_events) tensor,
-                   (n_events, n_total_params) tensor)
-        """
-        ptensor = self.ptensor_from_kwargs(**kwargs)
-
-        if autograph:
-            return self._diff_rate_grad_tf(data_tensor=data_tensor, ptensor=ptensor)
-        else:
-            return self._diff_rate_grad(data_tensor=data_tensor, ptensor=ptensor)
 
     # TODO: remove duplication?
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
@@ -444,27 +426,6 @@ class Source:
     def ptensor_from_kwargs(self, **kwargs):
         return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
                                      for k in self.defaults])
-
-    def _diff_rate_grad(self, data_tensor, ptensor):
-
-        # Unstack so we can watch specific components
-        params = tf.unstack(ptensor)
-
-        with tf.GradientTape(persistent=True) as t:
-            # Watch only params we need to differentiate
-            for i in self.fit_param_indices:
-                t.watch(params[i])
-            # Stack back
-            ptensor = tf.stack(params)
-            dr = self._differential_rate(data_tensor, ptensor)
-        grad = [
-            t.jacobian(dr, params[i], experimental_use_pfor=False)
-            for i in self.fit_param_indices]
-
-        grad = tf.stack(grad, axis=1)
-        # print(f"Grad is : {grad}")
-        del t
-        return dr, grad
 
     def _differential_rate(self, data_tensor, ptensor):
         # (n_events, |photons_produced|, |electrons_produced|)

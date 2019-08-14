@@ -75,13 +75,12 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
-    def log_likelihood(self,autograph=True, **kwargs):
+    def log_likelihood(self, autograph=True, **kwargs):
+        params = self.prepare_params(kwargs)
         lls = 0.
         llgrads = tf.zeros(len(self.param_defaults))
         for i_batch in range(self.n_batches):
-            a, b = self._log_likelihood(i_batch,
-                                        autograph=autograph,
-                                        **kwargs)
+            a, b = self._log_likelihood(i_batch, **params)
             lls += a
             llgrads += b
 
@@ -123,62 +122,46 @@ class LogLikelihood:
         return self.param_names.index(pname)
 
     def mu(self, **kwargs):
-        self.prepare_params(kwargs)
-
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
             mu += (self._get_rate_mult(sname, kwargs)
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs)))
         return mu
 
-    def _log_likelihood(self, i_batch, autograph=True, **kwargs):
+    @tf.function
+    def _log_likelihood(self, i_batch, **params):
+        if 'autograph' in params:
+            raise ValueError("YOU LOSE!!!")
+        print("Tracing log likelihood")
+        with tf.GradientTape() as t:
+            for p in params.values():
+                t.watch(p)
+            ll = self._log_likelihood_inner(i_batch, params)
+        grad = t.gradient(ll, list(params.values()))
+        return ll, tf.stack(grad)
+
+    def _log_likelihood_inner(self, i_batch, params):
         # Does for loop over sources, not batches
         # Sum over sources is first in likelihood
-
-        params = self.prepare_params(kwargs)
 
         # Compute differential rates and their gradients from all sources
         # drs = list[n_sources] of [n_events] tensors
         # grads = list[n_sources] of [n_events, n_fitted_params] tensors
         drs = []
-        grads = []
         for sname, s in self.sources.items():
             rate_mult = self._get_rate_mult(sname, params)
-            dr, g = s.diff_rate_grad(s.data_tensor[i_batch],
-                                     autograph=autograph,
+            dr = s.differential_rate(s.data_tensor[i_batch],
                                      **self._filter_source_kwargs(params))
-
             drs.append(dr * rate_mult)
-
-            # g has dimension [n_events, fitted params this source took]
-            # So we have to insert zeros for others, and the grads wrt the
-            # rate multiplier.
-            g2 = []
-            source_pars = self._source_kwargnames()
-            for par in params:
-                if par in source_pars:
-                    # Regular parameter, get from g
-                    g2.append(g[:, source_pars.index(par)] * rate_mult)
-                elif par == sname + '_rate_multiplier':
-                    # This is our rate multiplier, know grad analytically.
-                    # Multiply by rate_mult due to scaling
-                    # But divide due to derivative...
-                    g2.append(dr)
-                else:
-                    # Some other source's rate multiplier or parameter we don't take
-                    g2.append(tf.zeros(self.batch_size))
-            grads.append(tf.stack(g2, axis=1))
 
         # Sum over sources
         drs = tf.reduce_sum(tf.stack(drs), axis=0)
-        grads = tf.reduce_sum(tf.stack(grads), axis=0)
 
         # Sum over events and remove padding
         n = self.batch_size
         if i_batch == self.n_batches - 1:
             n -= self.n_padding
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
-        ll_grad = tf.reduce_sum(grads[:n] / drs[:n, o], axis=0)
 
         if i_batch == 0:
             with tf.GradientTape(persistent=True) as t:
@@ -186,19 +169,9 @@ class LogLikelihood:
                     t.watch(params[k])
                 mu_term = -self.mu(**params)
 
-            mu_term_grads = []
-            for k in self.param_names:
-                if k.endswith('rate_multiplier'):
-                    source_name = k[:-16]
-                    mu_source_base = self.mu_itps[source_name](**self._filter_source_kwargs(params))
-                    mu_term_grads.append(-mu_source_base)
-                else:
-                    mu_term_grads.append(t.gradient(mu_term, params[k]))
-            del t
-            ll_grad += tf.convert_to_tensor(mu_term_grads, dtype=fd.float_type())
-            return mu_term + ll, ll_grad
+            return mu_term + ll
 
-        return ll, ll_grad
+        return ll
 
     def guess(self):
         """Return array of parameter guesses"""

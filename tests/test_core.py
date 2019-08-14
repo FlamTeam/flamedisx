@@ -201,25 +201,22 @@ def test_underscore_diff_rate(xes: fd.ERSource):
 def test_diff_rate_grad(xes):
     # Test low-level version
     ptensor = xes.ptensor_from_kwargs()
-    dr, grad = xes._diff_rate_grad(xes.data_tensor[0], ptensor)
-    dr, grad = dr.numpy(), grad.numpy()
+    dr = xes._differential_rate(xes.data_tensor[0], ptensor)
+    dr = dr.numpy()
     assert dr.shape == (xes.n_events,)
-    assert grad.shape == (xes.n_events, len(ptensor))
 
     # Test eager/wrapped version
-    dr2, grad2 = xes.diff_rate_grad(xes.data_tensor[0], autograph=False)
-    dr2, grad2 = dr2.numpy(), grad2.numpy()
+    dr2 = xes.differential_rate(xes.data_tensor[0], autograph=False)
+    dr2 = dr2.numpy()
     np.testing.assert_almost_equal(dr, dr2)
-    np.testing.assert_almost_equal(grad, grad2)
 
     # Test traced version
     # TODO: currently small discrepancy due to float32/float64!
     # Maybe due to weird events / poor bounds est
     # Check with real data
-    dr3, grad3 = xes.diff_rate_grad(xes.data_tensor[0], autograph=True)
-    dr3, grad3 = dr3.numpy(), grad3.numpy()
+    dr3 = xes.differential_rate(xes.data_tensor[0], autograph=True)
+    dr3 = dr3.numpy()
     np.testing.assert_almost_equal(dr, dr3, decimal=4)
-    np.testing.assert_almost_equal(grad, grad3, decimal=4)
 
 
 def test_inference(xes: fd.ERSource):
@@ -231,7 +228,7 @@ def test_inference(xes: fd.ERSource):
     ##
     # Test non-autograph version
     ##
-    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=200e3, autograph=False)
+    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
     assert x.numpy() < 0
@@ -241,7 +238,7 @@ def test_inference(xes: fd.ERSource):
     assert x_grad.numpy().shape == (1,)
 
     # Test a different parameter gives a different likelihood
-    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=300e3, autograph=False)
+    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
     assert (x_grad - x2_grad).numpy().sum() !=0
 
@@ -250,20 +247,3 @@ def test_inference(xes: fd.ERSource):
     # ##
     lf.log_likelihood(autograph=False)
     lf.log_likelihood(elife=200e3, autograph=False)
-
-
-
-    # TODO: test with free_rate!
-
-    # Test
-
-
-    # bf = lf.bestfit()
-
-    # Test eager version
-    # # Test graph version
-    # print("GRAPH MODE TEST NOW")
-    # y2 = lf.log_likelihood(fd.np_to_tf(np.array([200e3, ])))
-    # np.testing.assert_array_equal(y1, y1)
-    #
-    # # TODO: test fit and hessian
