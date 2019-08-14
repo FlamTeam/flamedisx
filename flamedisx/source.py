@@ -60,7 +60,17 @@ class Source:
                  _skip_bounds_computation=False,
                  fit_params=None,
                  **params):
-        self.traced_differential_rate = False
+        """
+
+        :param data:
+        :param batch_size:
+        :param max_sigma:
+        :param data_is_annotated:
+        :param _skip_tf_init:
+        :param _skip_bounds_computation:
+        :param fit_params: List of parameters to fit
+        :param params: New defaults
+        """
         self.max_sigma = max_sigma
         self.data = data
         del data
@@ -97,7 +107,7 @@ class Source:
 
         if fit_params is None:
             fit_params = list(self.defaults.keys())
-        self.fit_params = fit_params
+        self.fit_params = [tf.constant(x) for x in fit_params]
 
         self.param_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
@@ -105,6 +115,10 @@ class Source:
                                                          dtype=tf.dtypes.int64)),
             num_oov_buckets=1,
             lookup_key_dtype=tf.dtypes.string)
+        # Indices of params we actually want to fit; we have to differentiate wrt these
+        self.fit_param_indices = tuple([
+            self.param_id.lookup(param_name)
+            for param_name in self.fit_params])
 
         # Annotate requests n_events, currently no padding
         self.n_padding = 0
@@ -132,6 +146,8 @@ class Source:
 
             self._populate_tensor_cache()
             self._calculate_dimsizes()
+
+            self.trace_differential_rate()
 
     def _populate_tensor_cache(self):
         # Cache only float and int cols
@@ -185,17 +201,15 @@ class Source:
         return data_tensor[:, col_id]
 
     def _fetch_param(self, param, ptensor):
-        print(param)
-
-        print(ptensor)
         if ptensor is None:
             return self.defaults[param]
         id = tf.dtypes.cast(self.param_id.lookup(tf.constant(param)),
                             dtype=fd.int_type())
-        print(id)
         return ptensor[id]
 
-    def gimme(self, fname, *, data_tensor, ptensor, bonus_arg=None, numpy_out=False):
+    # TODO: make data_tensor and ptensor keyword-only arguments
+    # after https://github.com/tensorflow/tensorflow/issues/28725
+    def gimme(self, fname, data_tensor, ptensor, bonus_arg=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
@@ -384,29 +398,38 @@ class Source:
         """
         pass
 
-    # TODO: remove duplication?
+    # TODO: remove duplication for batch loop? Also in inference
     def batched_differential_rate(self, progress=True, **params):
         progress = (lambda x: x) if not progress else tqdm
+        print(self.data_tensor.shape, "is data tensor shape")
         y = np.concatenate([
-            fd.tf_to_np(self.differential_rate(i_batch=i_batch, **params))
+            fd.tf_to_np(self.differential_rate(data_tensor=self.data_tensor[i_batch],
+                                               **params))
             for i_batch in progress(range(self.n_batches))])
         return y[:self.n_events]
 
-    def trace_differential_rate(self, n_params):
-        input_signature=(tf.TensorSpec(shape=[], dtype=fd.int_type()),
-                         tf.TensorSpec(shape=[n_params], dtype=fd.float_type()),)
-        self._differential_rate_tf = tf.function(self._differential_rate_tf,
+    def trace_differential_rate(self):
+
+        input_signature=(tf.TensorSpec(shape=self.data_tensor.shape[1:], dtype=fd.float_type()),
+                         tf.TensorSpec(shape=[len(self.defaults)], dtype=fd.float_type()),)
+        self._differential_rate_tf = tf.function(self._differential_rate,
                                                  input_signature=input_signature)
-        self.traced_differential_rate = True
+        self._diff_rate_grad_tf = tf.function(self._diff_rate_grad,
+                                           input_signature=input_signature)
 
     def diff_rate_grad(self, data_tensor=None, autograph=True, **kwargs):
+        """Return (differential rate, gradient)
+
+        :param data_tensor:
+        :param autograph: If true, uses @tf.function'ed version
+        :param kwargs: parameters to likelihood
+        :return: ( (n_events) tensor,
+                   (n_events, n_total_params) tensor)
+        """
         ptensor = self.ptensor_from_kwargs(**kwargs)
 
-        if autograph and ptensor is not None:
-            raise NotImplementedError
-            # if not self.traced_differential_rate:
-            #     self.trace_differential_rate(len(ptensor))
-            # return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
+        if autograph:
+            return self._diff_rate_grad_tf(data_tensor=data_tensor, ptensor=ptensor)
         else:
             return self._diff_rate_grad(data_tensor=data_tensor, ptensor=ptensor)
 
@@ -414,11 +437,8 @@ class Source:
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
 
-        if autograph and ptensor is not None:
-            raise NotImplementedError
-            # if not self.traced_differential_rate:
-            #     self.trace_differential_rate(len(ptensor))
-            # return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
+        if autograph:
+            return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
         else:
             return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
 
@@ -426,16 +446,24 @@ class Source:
         return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
                                      for k in self.defaults])
 
-    def _differential_rate_tf(self, data_tensor, ptensor):
-        print("Tracing _differential_rate")
-        # TODO DO THE TRACE!!
-        return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
-
     def _diff_rate_grad(self, data_tensor, ptensor):
+
+        # Unstack so we can watch specific components
+        params = tf.unstack(ptensor)
+
         with tf.GradientTape(persistent=True) as t:
-            t.watch(ptensor)
+            # Watch only params we need to differentiate
+            for i in self.fit_param_indices:
+                t.watch(params[i])
+            # Stack back
+            ptensor = tf.stack(params)
             dr = self._differential_rate(data_tensor, ptensor)
-        grad = t.jacobian(dr, ptensor, experimental_use_pfor=False)
+        grad = [
+            t.jacobian(dr, params[i], experimental_use_pfor=False)
+            for i in self.fit_param_indices]
+
+        grad = tf.stack(grad, axis=1)
+        # print(f"Grad is : {grad}")
         del t
         return dr, grad
 
@@ -644,7 +672,9 @@ class Source:
         else:
             n_to_sim = len(energies)
 
-        if data is None:
+        create_aux = data is None
+
+        if create_aux:
             data = cls.simulate_aux(n_to_sim)
             # Add fake s1, s2 necessary for set_data to succeed
             data['s1'] = 1
@@ -669,7 +699,12 @@ class Source:
         # Create and set new dataset, with just the dimensions we need
         # (note we should NOT include s1 and s2 here, we're going to simulate
         # them)
-        d = data.sample(n=len(energies), replace=True)
+        # Use replace if someone gave us data (e.g. a small Kr file to draw many
+        # ER Bg events from), otherwise we already simulated exactly enough aux
+        if not create_aux:
+            d = data.sample(n=len(energies), replace=True)
+        else:
+            d = data
         s = cls(data=d,
                 _skip_tf_init=True,
                 _skip_bounds_computation=True,

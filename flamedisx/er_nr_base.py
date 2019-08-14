@@ -32,7 +32,7 @@ class ERSource(fd.Source):
         both (n_events, n_energies) tensors.
         """
         # TODO: doesn't depend on drift_time...
-        n_evts = len(drift_time)
+        n_evts = drift_time.shape[0]
         return (fd.repeat(tf.cast(tf.linspace(0., 10., 1000)[o, :],
                                  dtype=fd.float_type()),
                          n_evts, axis=0),
@@ -132,7 +132,7 @@ class ERSource(fd.Source):
     @classmethod
     def simulate_aux(cls, n_events):
         data = dict()
-        data['r'] = (np.random.rand(n_events) * cls.tpc_radius)**0.5
+        data['r'] = (np.random.rand(n_events) * cls.tpc_radius**2)**0.5
         data['theta'] = np.random.rand(n_events)
         data['x'] = data['r'] * np.cos(data['theta'])
         data['y'] = data['r'] * np.sin(data['theta'])
@@ -198,7 +198,7 @@ class NRSource(ERSource):
         """
         e = fd.repeat(tf.cast(tf.linspace(0.7, 150., 100)[o, :],
                               fd.float_type()),
-                      len(drift_time), axis=0)
+                      drift_time.shape[0], axis=0)
         return e, tf.ones_like(e, dtype=fd.float_type())
 
     def rate_nq(self, nq_1d, data_tensor, ptensor):

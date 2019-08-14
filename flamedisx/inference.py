@@ -88,7 +88,7 @@ class LogLikelihood:
         return self._mu(ptensor)
 
     def _check_ptensor(self, ptensor):
-        if not len(ptensor) == len(self.param_names):
+        if not ptensor.shape[0] == len(self.param_names):
             raise ValueError(
                 f"Likelihood takes {len(self.param_names)} params "
                 f"but you gave {len(ptensor)}")
@@ -131,13 +131,12 @@ class LogLikelihood:
         drs = []
         grads = []
         for sname, s in self.sources.items():
-            print(s.data_tensor[i_batch])
             dr, g = s.diff_rate_grad(s.data_tensor[i_batch],
                                      autograph=autograph,
                                      **self._source_kwargs(ptensor))
             rate_mult = self._get_rate_mult(sname, ptensor)
             drs.append(dr * rate_mult)
-            grads.append(grads * rate_mult)
+            grads.append(g * rate_mult)
 
         drs = tf.reduce_sum(tf.stack(drs), axis=0)
         grads = tf.reduce_sum(tf.stack(grads), axis=0)

@@ -27,14 +27,14 @@ n_events = 2
 @pytest.fixture(params=["ER", "NR"])
 def xes(request):
     # warnings.filterwarnings("error")
-    data = pd.DataFrame([dict(s1=20., s2=3000., drift_time=20.,
-                              x=0., y=0, z=-5., r=0., theta=0),
-                         dict(s1=2.4, s2=400., drift_time=500.,
-                              x=0., y=0., z=-50., r=0., theta=0.)])
+    data = pd.DataFrame([dict(s1=56., s2=2905., drift_time=143465.,
+                              x=2., y=0.4, z=-20, r=2.1, theta=0.1),
+                         dict(s1=23, s2=1080., drift_time=445622.,
+                              x=1.12, y=0.35, z=-59., r=1., theta=0.3)])
     if request.param == 'ER':
-        x = fd.ERSource(data.copy(), batch_size=2, max_sigma=5)
+        x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
     else:
-        x = fd.NRSource(data.copy(), batch_size=2, max_sigma=5)
+        x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
     return x
 
 
@@ -50,11 +50,14 @@ def test_fetch(xes):
 def test_gimme(xes: fd.ERSource):
     x = xes.gimme('photon_gain_mean', data_tensor=None, ptensor=None)
     assert isinstance(x, tf.Tensor)
-    assert x.dtype == tf.float32
+    assert x.dtype == fd.float_type()
 
     y = xes.gimme('photon_gain_mean', data_tensor=None, ptensor=None, numpy_out=True)
     assert isinstance(y, np.ndarray)
-    assert y.dtype == np.float32
+    if fd.float_type() == tf.float32:
+        assert y.dtype == np.float32
+    else:
+        assert y.dtype == np.float64
 
     np.testing.assert_array_equal(x.numpy(), y)
 
@@ -67,7 +70,7 @@ def test_gimme(xes: fd.ERSource):
     print(data_tensor.shape)
     z = xes.gimme('photon_gain_mean', data_tensor=data_tensor, ptensor=None)
     assert isinstance(z, tf.Tensor)
-    assert z.dtype == tf.float32
+    assert z.dtype == fd.float_type()
     assert tf.reduce_all(tf.equal(x, z))
 
 
@@ -168,7 +171,7 @@ def test_detection_prob(xes: fd.ERSource):
     np.testing.assert_almost_equal(
         np_lookup_axis1(rs, mle_is),
         np.ones(n_events),
-        decimal=4)
+        decimal=2)
 
 
 def test_estimate_mu(xes: fd.ERSource):
@@ -179,7 +182,7 @@ def test_underscore_diff_rate(xes: fd.ERSource):
 
     x = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs())
     assert isinstance(x, tf.Tensor)
-    assert x.dtype == tf.float32
+    assert x.dtype == fd.float_type()
 
     y = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs(elife=100e3))
     np.testing.assert_array_less(-fd.tf_to_np(tf.abs(x - y)), 0)
@@ -196,15 +199,27 @@ def test_underscore_diff_rate(xes: fd.ERSource):
     #np.testing.assert_array_equal(y.numpy(), y2)
 
 def test_diff_rate_grad(xes):
+    # Test low-level version
     ptensor = xes.ptensor_from_kwargs()
-    print(ptensor)
-    print(xes.data_tensor[0])
     dr, grad = xes._diff_rate_grad(xes.data_tensor[0], ptensor)
-    print(dr, grad)
-    dr = dr.numpy()
-    grad = grad.numpy()
+    dr, grad = dr.numpy(), grad.numpy()
     assert dr.shape == (xes.n_events,)
     assert grad.shape == (xes.n_events, len(ptensor))
+
+    # Test eager/wrapped version
+    dr2, grad2 = xes.diff_rate_grad(xes.data_tensor[0], autograph=False)
+    dr2, grad2 = dr2.numpy(), grad2.numpy()
+    np.testing.assert_almost_equal(dr, dr2)
+    np.testing.assert_almost_equal(grad, grad2)
+
+    # Test traced version
+    # TODO: currently small discrepancy due to float32/float64!
+    # Maybe due to weird events / poor bounds est
+    # Check with real data
+    dr3, grad3 = xes.diff_rate_grad(xes.data_tensor[0], autograph=True)
+    dr3, grad3 = dr3.numpy(), grad3.numpy()
+    np.testing.assert_almost_equal(dr, dr3, decimal=4)
+    np.testing.assert_almost_equal(grad, grad3, decimal=4)
 
 
 def test_inference(xes: fd.ERSource):
@@ -219,17 +234,18 @@ def test_inference(xes: fd.ERSource):
 
     x, x_grad = lf._log_likelihood(i_batch=tf.constant(0), ptensor=lptensor, autograph=False)
     assert isinstance(x, tf.Tensor)
-    assert x.dtype == tf.float32
-    assert isinstance(x.numpy(), np.float32)
+    assert x.dtype == fd.float_type()
     assert x.numpy() < 0
 
     assert isinstance(x_grad, tf.Tensor)
-    assert x_grad.dtype == tf.float32
+    assert x_grad.dtype == fd.float_type()
 
     lptensor = fd.np_to_tf(np.array([300e3, ]))
     x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0), ptensor=lptensor, autograph=False)
     assert (x - x2).numpy() != 0
-    assert (x_grad - x2_grad).numpy() !=0
+    assert (x_grad - x2_grad).numpy().sum() !=0
+
+    assert x2_grad.numpy().shape == (2,)
 
     # bf = lf.bestfit()
 
