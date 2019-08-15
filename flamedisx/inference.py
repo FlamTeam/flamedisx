@@ -75,15 +75,27 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
-    def log_likelihood(self, autograph=True, **kwargs):
-        params = self.prepare_params(kwargs)
-        lls = 0.
-        llgrads = tf.zeros(len(self.param_defaults))
-        for i_batch in range(self.n_batches):
-            a, b = self._log_likelihood(tf.constant(i_batch), **params)
-            lls += a
-            llgrads += b
+    def log_likelihood(self, autograph=True, second_order=False, **kwargs):
+        if second_order:
+            f = self._log_likelihood_grad2
+        else:
+            f = self._log_likelihood_tf if autograph else self._log_likelihood
 
+        params = self.prepare_params(kwargs)
+        n_params = len(self.param_defaults)
+        lls = 0.
+        llgrads = tf.zeros(n_params, dtype=fd.float_type())
+        if second_order:
+            llgrads2 = tf.zeros((n_params, n_params), dtype=fd.float_type())
+        for i_batch in range(self.n_batches):
+            v = f(tf.constant(i_batch), autograph, **params)
+            lls += v[0]
+            llgrads += v[1]
+            if second_order:
+                llgrads2 += v[2]
+
+        if second_order:
+            return lls, llgrads, llgrads2
         return lls, llgrads
 
     def minus_ll(self, *, autograph=True, **kwargs):
@@ -128,19 +140,41 @@ class LogLikelihood:
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs)))
         return mu
 
-    @tf.function
-    def _log_likelihood(self, i_batch, **params):
+    def _log_likelihood(self, i_batch, autograph, **params):
         if 'autograph' in params:
             raise ValueError("YOU LOSE!!!")
-        print("Tracing log likelihood")
         with tf.GradientTape() as t:
             for p in params.values():
                 t.watch(p)
-            ll = self._log_likelihood_inner(i_batch, params)
+            ll = self._log_likelihood_inner(i_batch, params, autograph)
         grad = t.gradient(ll, list(params.values()))
         return ll, tf.stack(grad)
 
-    def _log_likelihood_inner(self, i_batch, params):
+    @tf.function
+    def _log_likelihood_tf(self, i_batch, autograph, **params):
+        print("Tracing _log_likelihood")
+        return self._log_likelihood(i_batch, autograph, **params)
+
+    def _log_likelihood_grad2(self, i_batch, autograph, **params):
+        if 'autograph' in params:
+            raise ValueError("YOU LOSE!!!")
+        with tf.GradientTape(persistent=True) as t2:
+            t2.watch(list(params.values()))
+            with tf.GradientTape() as t:
+                t.watch(list(params.values()))
+                ll = self._log_likelihood_inner(i_batch, params, autograph)
+            grads = t.gradient(ll, list(params.values()))
+        hessian = [t2.gradient(grad, list(params.values()))
+                   for grad in grads]
+        del t2
+        return ll, tf.stack(grads), tf.stack(hessian)
+
+    @tf.function
+    def _log_likelihood_grad2_tf(self, i_batch, autograph, **params):
+        print("Tracing _log_likelihood_grad2_tf")
+        return self._log_likelihood_grad2(i_batch, autograph, **params)
+
+    def _log_likelihood_inner(self, i_batch, params, autograph):
         # Does for loop over sources, not batches
         # Sum over sources is first in likelihood
 
@@ -151,6 +185,7 @@ class LogLikelihood:
         for sname, s in self.sources.items():
             rate_mult = self._get_rate_mult(sname, params)
             dr = s.differential_rate(s.data_tensor[i_batch],
+                                     autograph=autograph,
                                      **self._filter_source_kwargs(params))
             drs.append(dr * rate_mult)
 
@@ -180,7 +215,7 @@ class LogLikelihood:
 
     def bestfit(self, guess=None,
                 optimizer=tfp.optimizer.lbfgs_minimize,
-                llr_tolerance=0.01,
+                llr_tolerance=0.1,
                 get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
 
@@ -236,41 +271,17 @@ class LogLikelihood:
         """Return inverse hessian (square tensor)
         of -2 log_likelihood at params
         """
-        # Currently does not work with Autograph
-        #
         # Also Tensorflow has tf.hessians, but:
         # https://github.com/tensorflow/tensorflow/issues/29781
-
 
         # In case params is a numpy vector
         params = fd.np_to_tf(params)
 
-        args = tf.unstack(params)  # list of tensors
-        #n = len(args)
-        #n = len(params)
-
-        #hessian = tf.zeros((n, n), dtype=fd.float_type())
-        hessian = self._hessian(args)
-        print("hessian:", hessian)
-        return tf.linalg.inv(hessian)
-
-    #@tf.function
-    def _hessian(self, args):
-        #print("Tracing _hessian")
-        with tf.GradientTape(persistent=True) as t2:
-            t2.watch(args)
-            with tf.GradientTape() as t:
-                t.watch(args)
-
-                s = tf.stack(args)
-                z = self.minus_ll(s, autograph=False)
-            # compute first order derivatives
-            grads = t.gradient(z, args)
-        # compute all second order derivatives
-        # could be optimized to compute only i>=j matrix elements
-        hessian = tf.stack([t2.gradient(grad, s) for grad in grads])
-        del t2
-        return hessian
+        # Get second order derivatives of likelihood at params
+        _, _, grad2_ll = self.log_likelihood(**self.params_to_dict(params),
+                                             autograph=False,
+                                             second_order=True)
+        return tf.linalg.inv(-2 * grad2_ll)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
