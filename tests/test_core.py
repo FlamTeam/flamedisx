@@ -228,7 +228,9 @@ def test_inference(xes: fd.ERSource):
     ##
     # Test non-autograph version
     ##
-    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=tf.constant(200e3))
+    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
+                                   autograph=False,
+                                   elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
     assert x.numpy() < 0
@@ -238,7 +240,9 @@ def test_inference(xes: fd.ERSource):
     assert x_grad.numpy().shape == (1,)
 
     # Test a different parameter gives a different likelihood
-    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0), elife=tf.constant(300e3))
+    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
+                                     autograph=False,
+                                     elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
     assert (x_grad - x2_grad).numpy().sum() !=0
 
