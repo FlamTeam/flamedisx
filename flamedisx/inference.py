@@ -112,7 +112,11 @@ class LogLikelihood:
         for k in kwargs:
             if k not in self.param_defaults:
                 raise ValueError(f"Unknown parameter {k}")
-        return {**self.param_defaults, **kwargs}
+        # tf.function doesn't support {**x, **y} dict merging
+        # return {**self.param_defaults, **kwargs}
+        z = self.param_defaults.copy()
+        z.update(kwargs)
+        return z
 
     def _get_rate_mult(self, sname, kwargs):
         rmname = sname + '_rate_multiplier'
@@ -257,6 +261,10 @@ class LogLikelihood:
         print("Tracing objective")
         x = x_norm * self._guess
         ll, grad = self.minus_ll(**self.params_to_dict(x))
+        if tf.math.is_nan(ll):
+            tf.print(f"Objective at {x_norm} is Nan!")
+            ll *= float('inf')
+            grad *= float('nan')
         return ll, grad * self._guess
 
     def inverse_hessian(self, params):
