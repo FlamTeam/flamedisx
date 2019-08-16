@@ -64,7 +64,8 @@ class LogLikelihood:
             self.data = s.data
             break
 
-        self.param_defaults = param_defaults
+        self.param_defaults = {k: tf.constant(v, dtype=fd.float_type())
+                               for k, v in param_defaults.items()}
         self.param_names = list(param_defaults.keys())
 
         self.mu_itps = {
@@ -77,18 +78,23 @@ class LogLikelihood:
 
     def log_likelihood(self, autograph=True, second_order=False, **kwargs):
         if second_order:
+            # Compute the likelihood, jacobian and hessian
+            # Use only non-tf.function version, in principle works with
+            # but this leads to very long tracing times and we only need
+            # hessian once
             f = self._log_likelihood_grad2
         else:
+            # Computes the likelihood and jacobian
             f = self._log_likelihood_tf if autograph else self._log_likelihood
 
         params = self.prepare_params(kwargs)
         n_params = len(self.param_defaults)
-        lls = 0.
+        lls = tf.constant(0., dtype=fd.float_type())
         llgrads = tf.zeros(n_params, dtype=fd.float_type())
-        if second_order:
-            llgrads2 = tf.zeros((n_params, n_params), dtype=fd.float_type())
-        for i_batch in range(self.n_batches):
-            v = f(tf.constant(i_batch), autograph, **params)
+        llgrads2 = tf.zeros((n_params, n_params), dtype=fd.float_type())
+
+        for i_batch in tf.range(self.n_batches, dtype=fd.int_type()):
+            v = f(i_batch, autograph, **params)
             lls += v[0]
             llgrads += v[1]
             if second_order:
@@ -99,8 +105,6 @@ class LogLikelihood:
         return lls, llgrads
 
     def minus_ll(self, *, autograph=True, **kwargs):
-        if autograph not in [True, False]:
-            raise RuntimeError(f"Autograph is {autograph}, bekijk het maar!")
         ll, grad = self.log_likelihood(autograph=autograph, **kwargs)
         return -2 * ll, -2 * grad
 
@@ -108,14 +112,13 @@ class LogLikelihood:
         for k in kwargs:
             if k not in self.param_defaults:
                 raise ValueError(f"Unknown parameter {k}")
-        return {k: tf.constant(kwargs.get(k, self.param_defaults[k]))
-                for k in self.param_defaults}
+        return {**self.param_defaults, **kwargs}
 
     def _get_rate_mult(self, sname, kwargs):
         rmname = sname + '_rate_multiplier'
         if rmname in self.param_names:
             return kwargs[rmname]
-        return 1.
+        return tf.constant(1., dtype=fd.float_type())
 
     def _source_kwargnames(self, source_name=None):
         """Return parameter names that apply to source"""
@@ -141,13 +144,11 @@ class LogLikelihood:
         return mu
 
     def _log_likelihood(self, i_batch, autograph, **params):
-        if 'autograph' in params:
-            raise ValueError("YOU LOSE!!!")
+        par_list = list(params.values())
         with tf.GradientTape() as t:
-            for p in params.values():
-                t.watch(p)
+            t.watch(par_list)
             ll = self._log_likelihood_inner(i_batch, params, autograph)
-        grad = t.gradient(ll, list(params.values()))
+        grad = t.gradient(ll, par_list)
         return ll, tf.stack(grad)
 
     @tf.function
@@ -156,16 +157,14 @@ class LogLikelihood:
         return self._log_likelihood(i_batch, autograph, **params)
 
     def _log_likelihood_grad2(self, i_batch, autograph, **params):
-        if 'autograph' in params:
-            raise ValueError("YOU LOSE!!!")
+        par_list = list(params.values())
         with tf.GradientTape(persistent=True) as t2:
-            t2.watch(list(params.values()))
+            t2.watch(par_list)
             with tf.GradientTape() as t:
-                t.watch(list(params.values()))
+                t.watch(par_list)
                 ll = self._log_likelihood_inner(i_batch, params, autograph)
-            grads = t.gradient(ll, list(params.values()))
-        hessian = [t2.gradient(grad, list(params.values()))
-                   for grad in grads]
+            grads = t.gradient(ll, par_list)
+        hessian = [t2.gradient(grad, par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
 
@@ -180,17 +179,13 @@ class LogLikelihood:
 
         # Compute differential rates and their gradients from all sources
         # drs = list[n_sources] of [n_events] tensors
-        # grads = list[n_sources] of [n_events, n_fitted_params] tensors
-        drs = []
+        drs = tf.zeros((self.batch_size,), dtype=fd.float_type())
         for sname, s in self.sources.items():
             rate_mult = self._get_rate_mult(sname, params)
             dr = s.differential_rate(s.data_tensor[i_batch],
                                      autograph=autograph,
                                      **self._filter_source_kwargs(params))
-            drs.append(dr * rate_mult)
-
-        # Sum over sources
-        drs = tf.reduce_sum(tf.stack(drs), axis=0)
+            drs += dr * rate_mult
 
         # Sum over events and remove padding
         n = tf.where(tf.equal(i_batch, tf.constant(self.n_batches - 1, dtype=fd.int_type())),
@@ -198,6 +193,7 @@ class LogLikelihood:
                      self.batch_size - self.n_padding)
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
 
+        # Add mu once (to the first batch)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
                        -self.mu(**params),
                        0.)
@@ -209,9 +205,7 @@ class LogLikelihood:
 
     def params_to_dict(self, values):
         """Return parameter {name: value} dictionary"""
-        values = fd.tf_to_np(values)
-        return {k: v
-                for k, v in zip(self.param_names, values)}
+        return {k: v for k, v in zip(self.param_names, tf.unstack(values))}
 
     def bestfit(self, guess=None,
                 optimizer=tfp.optimizer.lbfgs_minimize,
@@ -258,13 +252,11 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
 
+    @tf.function
     def objective(self, x_norm):
+        print("Tracing objective")
         x = x_norm * self._guess
         ll, grad = self.minus_ll(**self.params_to_dict(x))
-        if tf.math.is_nan(ll) or np.isnan(ll) or ll != ll:
-            print(f"Objective at {x_norm} is Nan!")
-            return float('inf'), float('nan') * grad
-        print(f"Objective at {x_norm} is {ll}, grad is {grad}")
         return ll, grad * self._guess
 
     def inverse_hessian(self, params):
