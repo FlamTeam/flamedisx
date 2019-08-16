@@ -250,4 +250,4 @@ def test_inference(xes: fd.ERSource):
     # Test batching
     # ##
     lf.log_likelihood(autograph=False)
-    lf.log_likelihood(elife=200e3, autograph=False)
+    lf.log_likelihood(elife=tf.constant(200e3), autograph=False)
