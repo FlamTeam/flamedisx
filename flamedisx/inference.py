@@ -39,6 +39,7 @@ class LogLikelihood:
             batch_size=10,
             max_sigma=3,
             n_trials=int(1e5),
+            log_constraint=None,
             **common_param_specs):
         """
 
@@ -123,6 +124,11 @@ class LogLikelihood:
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
+
+        # Add the constraint
+        if log_constraint is None:
+            log_constraint = lambda **kwargs: 0.
+        self.log_constraint = log_constraint
 
     def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
@@ -263,8 +269,11 @@ class LogLikelihood:
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
 
         # Add mu once (to the first batch)
+        # and constraint really only once (to first batch of first dataset)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       -self.mu(dsetname, **params),
+                       -self.mu(dsetname, **params)
+                           + (self.log_constraint(**params)
+                              if dsetname == self.dsetnames[0] else 0.),
                        0.)
         return ll
 

@@ -307,3 +307,23 @@ def test_multi_dset(xes: fd.ERSource):
     ll2 = lf2()
 
     np.testing.assert_almost_equal(2 * ll1, ll2)
+
+
+def test_constraint(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=xes.data.copy())
+    ll1 = lf()
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        log_constraint=lambda **kwargs: 100.,
+        data=xes.data.copy())
+
+    # Fix interpolator nondeterminism
+    itp = lf.mu_itps['er']
+    lf2.mu_itps = dict(er=itp)
+
+    ll2 = lf2()
+
+    np.testing.assert_almost_equal(ll1 + 100., ll2)
