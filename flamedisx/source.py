@@ -152,9 +152,7 @@ class Source:
     def _populate_tensor_cache(self):
         # Cache only float and int cols
         cols_to_cache = [x for x in self.data.columns
-                         if (np.issubdtype(self.data[x].dtype, np.integer)
-                             or np.issubdtype(self.data[x].dtype, np.floating)
-                             )]
+                         if fd.is_numpy_number(self.data[x])]
 
         self.name_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(cols_to_cache),

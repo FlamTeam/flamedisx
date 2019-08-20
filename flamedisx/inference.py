@@ -76,6 +76,10 @@ class LogLikelihood:
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
+    def __call__(self, **kwargs):
+        assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
+        return self.log_likelihood(second_order=False, **kwargs)[0].numpy()
+
     def log_likelihood(self, autograph=True, second_order=False, **kwargs):
         if second_order:
             # Compute the likelihood, jacobian and hessian
@@ -115,6 +119,9 @@ class LogLikelihood:
         # tf.function doesn't support {**x, **y} dict merging
         # return {**self.param_defaults, **kwargs}
         z = self.param_defaults.copy()
+        for k, v in kwargs.items():
+            if isinstance(v, (float, int)) or fd.is_numpy_number(v):
+               kwargs[k] = tf.constant(v, dtype=fd.float_type())
         z.update(kwargs)
         return z
 

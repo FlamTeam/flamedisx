@@ -187,16 +187,6 @@ def test_underscore_diff_rate(xes: fd.ERSource):
     y = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs(elife=100e3))
     np.testing.assert_array_less(-fd.tf_to_np(tf.abs(x - y)), 0)
 
-    # """Test differential_rate give the same answer
-    # whether it is batched or not"""
-
-    # Need very high sigma for this
-    # so extending the bounds due to not-batching does not
-    # matter anymore
-    #y2 = np.concatenate([
-    #    fd.tf_to_np(xes.differential_rate(i_batch=batch_i))
-    #    for batch_i in range(xes.n_batches)])
-    #np.testing.assert_array_equal(y.numpy(), y2)
 
 def test_diff_rate_grad(xes):
     # Test low-level version
@@ -249,5 +239,25 @@ def test_inference(xes: fd.ERSource):
     ##
     # Test batching
     # ##
-    lf.log_likelihood(autograph=False)
+    l1 = lf.log_likelihood(autograph=False)
+    l2 = lf(autograph=False)
     lf.log_likelihood(elife=tf.constant(200e3), autograph=False)
+
+
+def test_multisource(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__),
+        elife=(100e3, 500e3, 5),
+        free_rates='er',
+        data=xes.data)
+    l1 = lf.log_likelihood(er_rate_multiplier=2.)
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(er=xes.__class__, er2=xes.__class__),
+        elife=(100e3, 500e3, 5),
+        data=xes.data)
+    # Prevent jitter from mu interpolator simulation to fail test
+    itp = lf.mu_itps['er']
+    lf2.mu_itps = dict(er=itp, er2=itp)
+    assert lf2.log_likelihood()[0].numpy() == l1[0].numpy()
+
