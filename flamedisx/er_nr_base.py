@@ -74,7 +74,7 @@ class ERSource(fd.Source):
 
     @staticmethod
     def penning_quenching_eff(nph):
-        return tf.ones_like(nph, dtype=fd.float_type())
+        return 1. + 0. * nph
 
     # Detection efficiencies
     @staticmethod
