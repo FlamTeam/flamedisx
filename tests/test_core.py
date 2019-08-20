@@ -269,3 +269,16 @@ def test_multisource_er_nr(xes: fd.ERSource):
         data=xes.data)
 
     lf()
+
+def test_columnsource(xes: fd.ERSource):
+    class myColumnSource(fd.ColumnSource):
+        column = "diffrate"
+        mu = 3.14
+
+    xes.data['diffrate'] = 5.
+
+    lf = fd.LogLikelihood(
+        sources=dict(muur=myColumnSource),
+        data=xes.data)
+
+    np.testing.assert_almost_equal(lf(), -3.14 + len(xes.data) * np.log(5.))

@@ -36,7 +36,81 @@ o = tf.newaxis
 
 
 @export
-class Source:
+class SourceBase:
+    """Base class of Source"""
+
+    def _init_padding(self, batch_size, _skip_tf_init):
+        # Annotate requests n_events, currently no padding
+        self.n_padding = 0
+        self.n_events = len(self.data)
+
+        if batch_size is None or batch_size > self.n_events or _skip_tf_init:
+            batch_size = self.n_events
+
+        self.batch_size = batch_size
+        self.n_batches = np.ceil(
+            self.n_events / self.batch_size).astype(np.int)
+
+        if not _skip_tf_init:
+            # Extend dataframe with events to nearest batch_size multiple
+            # We're using actual events for padding, since using zeros or
+            # nans caused problems with gradient calculation
+            # padded events are clipped when summing likelihood terms
+            self.n_padding = self.n_batches * batch_size - len(self.data)
+            if self.n_padding > 0:
+                df_pad = self.data.iloc[:self.n_padding, :]
+                self.data = pd.concat([self.data, df_pad], ignore_index=True)
+
+
+@export
+class ColumnSource(SourceBase):
+    column = "Rename_me!"
+    mu = 42.
+
+    def __init__(self,
+                 data,
+                 batch_size=10,
+                 max_sigma=3,
+                 data_is_annotated=False,
+                 _skip_tf_init=False,
+                 _skip_bounds_computation=False,
+                 fit_params=None,
+                 **params):
+        """
+
+        :param data:
+        :param batch_size: used
+        :param max_sigma:
+        :param data_is_annotated:
+        :param _skip_tf_init:
+        :param _skip_bounds_computation:
+        :param fit_params: List of parameters to fit
+        :param params: New defaults
+        """
+        self.data = data
+        self.batch_size = batch_size
+
+        self._init_padding(batch_size, _skip_tf_init)
+
+        self.data_tensor = fd.np_to_tf(self.data[self.column])
+        self.data_tensor = tf.reshape(self.data_tensor, (self.batch_size, -1, 1))
+
+    def differential_rate(self, data_tensor, **params):
+        return data_tensor[:,0]
+
+    @classmethod
+    def mu_interpolator(cls,
+                        data,
+                        interpolation_method='star',
+                        n_trials=int(1e5),
+                        **params):
+        """Return interpolator for number of expected events
+        Parameters must be specified as kwarg=(start, stop, n_anchors)
+        """
+        return lambda *args, **kwargs: cls.mu
+
+@export
+class Source(SourceBase):
     data_methods = tuple(data_methods)
     special_data_methods = tuple(special_data_methods)
 
@@ -121,30 +195,12 @@ class Source:
             self.param_id.lookup(param_name)
             for param_name in self.fit_params])
 
-        # Annotate requests n_events, currently no padding
-        self.n_padding = 0
-        self.n_events = len(self.data)
-
-        if batch_size is None or batch_size > self.n_events or _skip_tf_init:
-            batch_size = self.n_events
-
-        self.batch_size = batch_size
-        self.n_batches = np.ceil(
-            self.n_events / self.batch_size).astype(np.int)
+        self._init_padding(batch_size, _skip_tf_init)
 
         if not data_is_annotated:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
         if not _skip_tf_init:
-            # Extend dataframe with events to nearest batch_size multiple
-            # We're using actual events for padding, since using zeros or
-            # nans caused problems with gradient calculation
-            # padded events are clipped when summing likelihood terms
-            self.n_padding = self.n_batches * batch_size - len(self.data)
-            if self.n_padding > 0:
-                df_pad = self.data.iloc[:self.n_padding,:]
-                self.data = pd.concat([self.data, df_pad], ignore_index=True)
-
             self._populate_tensor_cache()
             self._calculate_dimsizes()
 
