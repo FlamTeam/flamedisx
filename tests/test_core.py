@@ -261,3 +261,11 @@ def test_multisource(xes: fd.ERSource):
     lf2.mu_itps = dict(er=itp, er2=itp)
     assert lf2.log_likelihood()[0].numpy() == l1[0].numpy()
 
+
+def test_multisource_er_nr(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__, nr=fd.NRSource),
+        elife=(100e3, 500e3, 5),
+        data=xes.data)
+
+    lf()

@@ -41,7 +41,7 @@ class LogLikelihood:
         self.sources = {
             sname: sclass(data.copy(),
                           max_sigma=max_sigma,
-                          fit_params=list(common_param_specs.keys()),   # TODO: WILL FAIL if multiple sources with different params
+                          fit_params=list(common_param_specs.keys()),
                           batch_size=batch_size)
             for sname, sclass in sources.items()}
         del sources  # so we don't use it by accident
@@ -131,17 +131,17 @@ class LogLikelihood:
             return kwargs[rmname]
         return tf.constant(1., dtype=fd.float_type())
 
-    def _source_kwargnames(self, source_name=None):
+    def _source_kwargnames(self, source_name):
         """Return parameter names that apply to source"""
-        # TODO implement for multiple source
         return [pname for pname in self.param_names
-                if not pname.endswith('_rate_multiplier')]
+                if not pname.endswith('_rate_multiplier')
+                and pname in self.sources[source_name].defaults]
 
-    def _filter_source_kwargs(self, kwargs):
+    def _filter_source_kwargs(self, kwargs, source_name):
         """Return {param: value} dictionary with keyword arguments
         for source, with values extracted from kwargs"""
         return {pname: kwargs[pname]
-                for pname in self._source_kwargnames()}
+                for pname in self._source_kwargnames(source_name)}
 
     def _param_i(self, pname):
         """Return index of parameter pname"""
@@ -151,7 +151,7 @@ class LogLikelihood:
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
             mu += (self._get_rate_mult(sname, kwargs)
-                   * self.mu_itps[sname](**self._filter_source_kwargs(kwargs)))
+                   * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
         return mu
 
     def _log_likelihood(self, i_batch, autograph, **params):
@@ -195,7 +195,7 @@ class LogLikelihood:
             rate_mult = self._get_rate_mult(sname, params)
             dr = s.differential_rate(s.data_tensor[i_batch],
                                      autograph=autograph,
-                                     **self._filter_source_kwargs(params))
+                                     **self._filter_source_kwargs(params, sname))
             drs += dr * rate_mult
 
         # Sum over events and remove padding

@@ -107,7 +107,8 @@ class Source:
 
         if fit_params is None:
             fit_params = list(self.defaults.keys())
-        self.fit_params = [tf.constant(x) for x in fit_params]
+        self.fit_params = [tf.constant(x) for x in fit_params
+                           if x in self.defaults]
 
         self.param_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
