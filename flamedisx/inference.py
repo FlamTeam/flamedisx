@@ -8,43 +8,90 @@ import typing as ty
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+DEFAULT_DSETNAME = 'the_dataset'
 
 @export
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
-    data: pd.DataFrame
-    sources: ty.Dict[str, fd.Source]
+
     mu_iterpolators: ty.Dict[str, ty.Callable]
+
+    # Source name -> Source instance
+    sources: ty.Dict[str, fd.Source]
+
+    # Source name -> dataset name
+    d_for_s = ty.Dict[str, str]
+
+    # Datasetname -> value
+    batch_size: ty.Dict[str, int]
+    n_batches: ty.Dict[str, int]
+    n_padding: ty.Dict[str, int]
+
+    dsetnames: ty.List
 
     def __init__(
             self,
-            sources: ty.Dict[str, fd.Source.__class__],
-            data: pd.DataFrame,
+            sources: ty.Union[
+                ty.Dict[str, fd.Source.__class__],
+                ty.Dict[str, ty.Dict[str, fd.Source.__class__]]],
+            data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]],
             free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
             batch_size=10,
             max_sigma=3,
             n_trials=int(1e5),
             **common_param_specs):
+        """
+
+        :param sources: Dictionary {datasetname : {sourcename: class,, ...}, ...}
+        or just {sourcename: class} in case you have one dataset
+        Every source name must be unique.
+        :param data: Dictionary {datasetname: pd.DataFrame}
+        or just pd.DataFrame if you have one dataset
+        :param free_rates: names of sources whose rates are floating
+        :param batch_size:
+        :param max_sigma:
+        :param n_trials:
+        :param **common_param_specs:  param_name = (min, max, anchors), ...
+        """
 
         param_defaults = dict()
+
+        if isinstance(data, pd.DataFrame):
+            # Only one dataset
+            data = {DEFAULT_DSETNAME: data}
+        if not isinstance(list(sources.values())[0], dict):
+            sources: ty.Dict[str, ty.Dict[str, fd.Source.__class__]] = \
+                {DEFAULT_DSETNAME: sources}
+        assert data.keys() == sources.keys(), "Inconsistent dataset names"
+        self.dsetnames = list(data.keys())
+
+        # Flatten sources and fill data for source
+        self.sources: ty.Dict[str, fd.Source.__class__] = dict()
+        self.d_for_s = dict()
+        for dsetname, ss in sources.items():
+            for sname, s in ss.items():
+                self.d_for_s[sname] = dsetname
+                if sname in self.sources:
+                    raise ValueError(f"Duplicate source name {sname}")
+                self.sources[sname] = s
+        del sources  # so we don't use it by accident
 
         if free_rates is None:
             free_rates = tuple()
         if isinstance(free_rates, str):
             free_rates = (free_rates,)
         for sn in free_rates:
-            if sn not in sources:
+            if sn not in self.sources:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
             param_defaults[sn + '_rate_multiplier'] = 1.
 
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
-            sname: sclass(data.copy(),
+            sname: sclass(data[self.d_for_s[sname]].copy(),
                           max_sigma=max_sigma,
                           fit_params=list(common_param_specs.keys()),
                           batch_size=batch_size)
-            for sname, sclass in sources.items()}
-        del sources  # so we don't use it by accident
+            for sname, sclass in self.sources.items()}
         del data  # use data from sources (which is now annotated)
 
         for pname in common_param_specs:
@@ -56,13 +103,14 @@ class LogLikelihood:
                     f"Inconsistent defaults {defs} for common parameters")
             param_defaults[pname] = defs[0]
 
-        # Set n_batches, batch_size and data from any source
-        for s in self.sources.values():
-            self.n_batches = s.n_batches
-            self.batch_size = s.batch_size
-            self.n_padding = s.n_padding
-            self.data = s.data
-            break
+        # Store n_batches, batch_size and n_padding for all datasets
+        self.n_batches = dict()
+        self.batch_size = dict()
+        self.n_padding = dict()
+        for sname, s in self.sources.items():
+            self.n_batches[self.d_for_s[sname]] = s.n_batches
+            self.batch_size[self.d_for_s[sname]] = s.batch_size
+            self.n_padding[self.d_for_s[sname]] = s.n_padding
 
         self.param_defaults = {k: tf.constant(v, dtype=fd.float_type())
                                for k, v in param_defaults.items()}
@@ -93,20 +141,22 @@ class LogLikelihood:
 
         params = self.prepare_params(kwargs)
         n_params = len(self.param_defaults)
-        lls = tf.constant(0., dtype=fd.float_type())
-        llgrads = tf.zeros(n_params, dtype=fd.float_type())
-        llgrads2 = tf.zeros((n_params, n_params), dtype=fd.float_type())
+        ll = tf.constant(0., dtype=fd.float_type())
+        llgrad = tf.zeros(n_params, dtype=fd.float_type())
+        llgrad2 = tf.zeros((n_params, n_params), dtype=fd.float_type())
 
-        for i_batch in tf.range(self.n_batches, dtype=fd.int_type()):
-            v = f(i_batch, autograph, **params)
-            lls += v[0]
-            llgrads += v[1]
-            if second_order:
-                llgrads2 += v[2]
+        for dsetname in self.dsetnames:
+            for i_batch in tf.range(self.n_batches[dsetname], dtype=fd.int_type()):
+                v = f(i_batch, dsetname, autograph, **params)
+                print(f"Adding {v[0]} to ll, which was {ll}")
+                ll += v[0]
+                llgrad += v[1]
+                if second_order:
+                    llgrad2 += v[2]
 
         if second_order:
-            return lls, llgrads, llgrads2
-        return lls, llgrads
+            return ll, llgrad, llgrad2
+        return ll, llgrad
 
     def minus_ll(self, *, autograph=True, **kwargs):
         ll, grad = self.log_likelihood(autograph=autograph, **kwargs)
@@ -147,51 +197,57 @@ class LogLikelihood:
         """Return index of parameter pname"""
         return self.param_names.index(pname)
 
-    def mu(self, **kwargs):
+    def mu(self, dsetname, **kwargs):
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
+            if self.d_for_s[sname] != dsetname:
+                continue
             mu += (self._get_rate_mult(sname, kwargs)
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
         return mu
 
-    def _log_likelihood(self, i_batch, autograph, **params):
+    def _log_likelihood(self, i_batch, dsetname, autograph, **params):
         par_list = list(params.values())
         with tf.GradientTape() as t:
             t.watch(par_list)
-            ll = self._log_likelihood_inner(i_batch, params, autograph)
+            ll = self._log_likelihood_inner(
+                i_batch, params, dsetname, autograph)
         grad = t.gradient(ll, par_list)
         return ll, tf.stack(grad)
 
     @tf.function
-    def _log_likelihood_tf(self, i_batch, autograph, **params):
+    def _log_likelihood_tf(self, i_batch, dsetname, autograph, **params):
         print("Tracing _log_likelihood")
-        return self._log_likelihood(i_batch, autograph, **params)
+        return self._log_likelihood(i_batch, dsetname, autograph, **params)
 
-    def _log_likelihood_grad2(self, i_batch, autograph, **params):
+    def _log_likelihood_grad2(self, i_batch, dsetname, autograph, **params):
         par_list = list(params.values())
         with tf.GradientTape(persistent=True) as t2:
             t2.watch(par_list)
             with tf.GradientTape() as t:
                 t.watch(par_list)
-                ll = self._log_likelihood_inner(i_batch, params, autograph)
+                ll = self._log_likelihood_inner(i_batch, params,
+                                                dsetname, autograph)
             grads = t.gradient(ll, par_list)
         hessian = [t2.gradient(grad, par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
 
     @tf.function
-    def _log_likelihood_grad2_tf(self, i_batch, autograph, **params):
+    def _log_likelihood_grad2_tf(self, i_batch, dsetname, autograph, **params):
         print("Tracing _log_likelihood_grad2_tf")
-        return self._log_likelihood_grad2(i_batch, autograph, **params)
+        return self._log_likelihood_grad2(i_batch, dsetname, autograph, **params)
 
-    def _log_likelihood_inner(self, i_batch, params, autograph):
-        # Does for loop over sources, not batches
+    def _log_likelihood_inner(self, i_batch, params, dsetname, autograph):
+        # Does for loop over datasets and sources, not batches
         # Sum over sources is first in likelihood
 
-        # Compute differential rates and their gradients from all sources
+        # Compute differential rates from all sources
         # drs = list[n_sources] of [n_events] tensors
-        drs = tf.zeros((self.batch_size,), dtype=fd.float_type())
+        drs = tf.zeros((self.batch_size[dsetname],), dtype=fd.float_type())
         for sname, s in self.sources.items():
+            if not self.d_for_s[sname] == dsetname:
+                continue
             rate_mult = self._get_rate_mult(sname, params)
             dr = s.differential_rate(s.data_tensor[i_batch],
                                      autograph=autograph,
@@ -199,14 +255,16 @@ class LogLikelihood:
             drs += dr * rate_mult
 
         # Sum over events and remove padding
-        n = tf.where(tf.equal(i_batch, tf.constant(self.n_batches - 1, dtype=fd.int_type())),
-                     self.batch_size,
-                     self.batch_size - self.n_padding)
+        n = tf.where(tf.equal(i_batch,
+                              tf.constant(self.n_batches[dsetname] - 1,
+                                          dtype=fd.int_type())),
+                     self.batch_size[dsetname],
+                     self.batch_size[dsetname] - self.n_padding[dsetname])
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
 
         # Add mu once (to the first batch)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       -self.mu(**params),
+                       -self.mu(dsetname, **params),
                        0.)
         return ll
 

@@ -5,6 +5,7 @@ import tensorflow as tf
 
 import flamedisx as fd
 from flamedisx.source import quanta_types
+from flamedisx.inference import DEFAULT_DSETNAME
 
 
 def np_lookup_axis1(x, indices, fill_value=0):
@@ -219,6 +220,7 @@ def test_inference(xes: fd.ERSource):
     # Test non-autograph version
     ##
     x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
+                                   dsetname=DEFAULT_DSETNAME,
                                    autograph=False,
                                    elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
@@ -231,6 +233,7 @@ def test_inference(xes: fd.ERSource):
 
     # Test a different parameter gives a different likelihood
     x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
+                                     dsetname=DEFAULT_DSETNAME,
                                      autograph=False,
                                      elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
@@ -270,6 +273,7 @@ def test_multisource_er_nr(xes: fd.ERSource):
 
     lf()
 
+
 def test_columnsource(xes: fd.ERSource):
     class myColumnSource(fd.ColumnSource):
         column = "diffrate"
@@ -282,3 +286,24 @@ def test_columnsource(xes: fd.ERSource):
         data=xes.data)
 
     np.testing.assert_almost_equal(lf(), -3.14 + len(xes.data) * np.log(5.))
+
+
+def test_multi_dset(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=xes.data.copy())
+    ll1 = lf()
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(data1=dict(er1=fd.ERSource),
+                     data2=dict(er2=fd.ERSource)),
+        data=dict(data1=xes.data.copy(),
+                  data2=xes.data.copy()))
+
+    # Fix interpolator nondeterminism
+    itp = lf.mu_itps['er']
+    lf2.mu_itps = dict(er1=itp, er2=itp)
+
+    ll2 = lf2()
+
+    np.testing.assert_almost_equal(2 * ll1, ll2)
