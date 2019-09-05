@@ -154,7 +154,6 @@ class LogLikelihood:
         for dsetname in self.dsetnames:
             for i_batch in tf.range(self.n_batches[dsetname], dtype=fd.int_type()):
                 v = f(i_batch, dsetname, autograph, **params)
-                print(f"Adding {v[0]} to ll, which was {ll}")
                 ll += v[0]
                 llgrad += v[1]
                 if second_order:
