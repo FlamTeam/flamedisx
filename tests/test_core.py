@@ -5,6 +5,7 @@ import tensorflow as tf
 
 import flamedisx as fd
 from flamedisx.source import quanta_types
+from flamedisx.inference import DEFAULT_DSETNAME
 
 
 def np_lookup_axis1(x, indices, fill_value=0):
@@ -27,15 +28,51 @@ n_events = 2
 @pytest.fixture(params=["ER", "NR"])
 def xes(request):
     # warnings.filterwarnings("error")
-    data = pd.DataFrame([dict(s1=20., s2=3000., drift_time=20.,
-                              x=0., y=0, z=-5., r=0., theta=0),
-                         dict(s1=2.4, s2=400., drift_time=500.,
-                              x=0., y=0., z=-50., r=0., theta=0.)])
+    data = pd.DataFrame([dict(s1=56., s2=2905., drift_time=143465.,
+                              x=2., y=0.4, z=-20, r=2.1, theta=0.1),
+                         dict(s1=23, s2=1080., drift_time=445622.,
+                              x=1.12, y=0.35, z=-59., r=1., theta=0.3)])
     if request.param == 'ER':
-        x = fd.ERSource(data.copy(), n_batches=2, max_sigma=5)
+        x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
     else:
-        x = fd.NRSource(data.copy(), n_batches=2, max_sigma=5)
+        x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
     return x
+
+
+def test_fetch(xes):
+    data_tensor = xes.data_tensor[0]    # ??
+    assert data_tensor is not None
+    print(data_tensor.shape)
+    np.testing.assert_almost_equal(
+        xes._fetch('s1', data_tensor),
+        xes.data['s1'].values)
+
+
+def test_gimme(xes: fd.ERSource):
+    x = xes.gimme('photon_gain_mean', data_tensor=None, ptensor=None)
+    assert isinstance(x, tf.Tensor)
+    assert x.dtype == fd.float_type()
+
+    y = xes.gimme('photon_gain_mean', data_tensor=None, ptensor=None, numpy_out=True)
+    assert isinstance(y, np.ndarray)
+    if fd.float_type() == tf.float32:
+        assert y.dtype == np.float32
+    else:
+        assert y.dtype == np.float64
+
+    np.testing.assert_array_equal(x.numpy(), y)
+
+    np.testing.assert_equal(
+        y,
+        xes.photon_gain_mean * np.ones(n_events))
+
+    data_tensor = xes.data_tensor[0]
+    assert data_tensor is not None
+    print(data_tensor.shape)
+    z = xes.gimme('photon_gain_mean', data_tensor=data_tensor, ptensor=None)
+    assert isinstance(z, tf.Tensor)
+    assert z.dtype == fd.float_type()
+    assert tf.reduce_all(tf.equal(x, z))
 
 
 def test_simulate(xes: fd.ERSource):
@@ -59,32 +96,18 @@ def test_bounds(xes: fd.ERSource):
                 data['%s_%s_max' % (qn, p)].values + 1e-5)
 
 
-def test_gimme(xes: fd.ERSource):
-    x = xes.gimme('photon_gain_mean')
-    assert isinstance(x, tf.Tensor)
-    assert x.dtype == tf.float32
-
-    y = xes.gimme('photon_gain_mean', numpy_out=True)
-    assert isinstance(y, np.ndarray)
-    assert y.dtype == np.float32
-
-    np.testing.assert_array_equal(x.numpy(), y)
-
-    np.testing.assert_equal(
-        y,
-        xes.photon_gain_mean * np.ones(n_events))
-
-
 def test_nphnel(xes: fd.ERSource):
     """Test (nph, nel) rate matrix"""
-    r = xes.rate_nphnel().numpy()
+    r = xes.rate_nphnel(xes.data_tensor[0],
+                        xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events,
                        xes.dimsizes['photon_produced'],
                        xes.dimsizes['electron_produced'])
 
 
 def test_domains(xes: fd.ERSource):
-    n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced')
+    n_det, n_prod = xes.cross_domains('electron_detected', 'electron_produced',
+                                      xes.data_tensor[0])
     n_det = n_det.numpy()
     n_prod = n_prod.numpy()
 
@@ -110,7 +133,7 @@ def test_domain_detected(xes: fd.ERSource):
 
 
 def test_detector_response(xes: fd.ERSource):
-    r = xes.detector_response('photon').numpy()
+    r = xes.detector_response('photon', xes.data_tensor[0], xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events, xes.dimsizes['photon_detected'])
 
     # r is p(S1 | detected quanta) as a function of detected quanta
@@ -126,7 +149,7 @@ def test_detector_response(xes: fd.ERSource):
 
 
 def test_detection_prob(xes: fd.ERSource):
-    r = xes.detection_p('electron').numpy()
+    r = xes.detection_p('electron', xes.data_tensor[0], xes.ptensor_from_kwargs()).numpy()
     assert r.shape == (n_events,
                        xes.dimsizes['electron_detected'],
                        xes.dimsizes['electron_produced'])
@@ -149,25 +172,43 @@ def test_detection_prob(xes: fd.ERSource):
     np.testing.assert_almost_equal(
         np_lookup_axis1(rs, mle_is),
         np.ones(n_events),
-        decimal=4)
+        decimal=2)
 
 
 def test_estimate_mu(xes: fd.ERSource):
     xes.estimate_mu(xes.data)
 
 
-def test_diff_rate(xes: fd.ERSource):
-    """Test differential_rate give the same answer
-    whether it is batched or not"""
+def test_underscore_diff_rate(xes: fd.ERSource):
 
-    # Need very high sigma for this
-    # so extending the bounds due to not-batching does not
-    # matter anymore
-    y = xes.differential_rate(i_batch=None)
-    y2 = np.concatenate([
-        fd.tf_to_np(xes.differential_rate(i_batch=batch_i))
-        for batch_i in range(xes.n_batches)])
-    np.testing.assert_array_equal(y.numpy(), y2)
+    x = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs())
+    assert isinstance(x, tf.Tensor)
+    assert x.dtype == fd.float_type()
+
+    y = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs(elife=100e3))
+    np.testing.assert_array_less(-fd.tf_to_np(tf.abs(x - y)), 0)
+
+
+def test_diff_rate_grad(xes):
+    # Test low-level version
+    ptensor = xes.ptensor_from_kwargs()
+    dr = xes._differential_rate(xes.data_tensor[0], ptensor)
+    dr = dr.numpy()
+    assert dr.shape == (xes.n_events,)
+
+    # Test eager/wrapped version
+    dr2 = xes.differential_rate(xes.data_tensor[0], autograph=False)
+    dr2 = dr2.numpy()
+    np.testing.assert_almost_equal(dr, dr2)
+
+    # Test traced version
+    # TODO: currently small discrepancy due to float32/float64!
+    # Maybe due to weird events / poor bounds est
+    # Check with real data
+    dr3 = xes.differential_rate(xes.data_tensor[0], autograph=True)
+    dr3 = dr3.numpy()
+    np.testing.assert_almost_equal(dr, dr3, decimal=4)
+
 
 def test_inference(xes: fd.ERSource):
     lf = fd.LogLikelihood(
@@ -175,12 +216,114 @@ def test_inference(xes: fd.ERSource):
         elife=(100e3, 500e3, 5),
         data=xes.data)
 
-    # Test eager version
-    y1 = lf.log_likelihood(fd.np_to_tf(np.array([200e3,])))
+    ##
+    # Test non-autograph version
+    ##
+    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
+                                   dsetname=DEFAULT_DSETNAME,
+                                   autograph=False,
+                                   elife=tf.constant(200e3))
+    assert isinstance(x, tf.Tensor)
+    assert x.dtype == fd.float_type()
+    assert x.numpy() < 0
 
-    # # Test graph version
-    # print("GRAPH MODE TEST NOW")
-    # y2 = lf.log_likelihood(fd.np_to_tf(np.array([200e3, ])))
-    # np.testing.assert_array_equal(y1, y1)
-    #
-    # # TODO: test fit and hessian
+    assert isinstance(x_grad, tf.Tensor)
+    assert x_grad.dtype == fd.float_type()
+    assert x_grad.numpy().shape == (1,)
+
+    # Test a different parameter gives a different likelihood
+    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
+                                     dsetname=DEFAULT_DSETNAME,
+                                     autograph=False,
+                                     elife=tf.constant(300e3))
+    assert (x - x2).numpy() != 0
+    assert (x_grad - x2_grad).numpy().sum() !=0
+
+    ##
+    # Test batching
+    # ##
+    l1 = lf.log_likelihood(autograph=False)
+    l2 = lf(autograph=False)
+    lf.log_likelihood(elife=tf.constant(200e3), autograph=False)
+
+
+def test_multisource(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__),
+        elife=(100e3, 500e3, 5),
+        free_rates='er',
+        data=xes.data)
+    l1 = lf.log_likelihood(er_rate_multiplier=2.)
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(er=xes.__class__, er2=xes.__class__),
+        elife=(100e3, 500e3, 5),
+        data=xes.data)
+    # Prevent jitter from mu interpolator simulation to fail test
+    itp = lf.mu_itps['er']
+    lf2.mu_itps = dict(er=itp, er2=itp)
+    assert lf2.log_likelihood()[0].numpy() == l1[0].numpy()
+
+
+def test_multisource_er_nr(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__, nr=fd.NRSource),
+        elife=(100e3, 500e3, 5),
+        data=xes.data)
+
+    lf()
+
+
+def test_columnsource(xes: fd.ERSource):
+    class myColumnSource(fd.ColumnSource):
+        column = "diffrate"
+        mu = 3.14
+
+    xes.data['diffrate'] = 5.
+
+    lf = fd.LogLikelihood(
+        sources=dict(muur=myColumnSource),
+        data=xes.data)
+
+    np.testing.assert_almost_equal(lf(), -3.14 + len(xes.data) * np.log(5.))
+
+
+def test_multi_dset(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=xes.data.copy())
+    ll1 = lf()
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(data1=dict(er1=fd.ERSource),
+                     data2=dict(er2=fd.ERSource)),
+        data=dict(data1=xes.data.copy(),
+                  data2=xes.data.copy()))
+
+    # Fix interpolator nondeterminism
+    itp = lf.mu_itps['er']
+    lf2.mu_itps = dict(er1=itp, er2=itp)
+
+    ll2 = lf2()
+
+    np.testing.assert_almost_equal(2 * ll1, ll2)
+
+
+def test_constraint(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=xes.data.copy())
+    ll1 = lf()
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        log_constraint=lambda **kwargs: 100.,
+        data=xes.data.copy())
+
+    # Fix interpolator nondeterminism
+    itp = lf.mu_itps['er']
+    lf2.mu_itps = dict(er=itp)
+
+    ll2 = lf2()
+
+    np.testing.assert_almost_equal(ll1 + 100., ll2)

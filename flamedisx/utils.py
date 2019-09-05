@@ -134,3 +134,11 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     return tf.where(tf.math.is_finite(res),
                     res,
                     tf.zeros_like(res, dtype=float_type()))
+
+@export
+def is_numpy_number(x):
+    try:
+        return (np.issubdtype(x.dtype, np.integer)
+                or np.issubdtype(x.dtype, np.floating))
+    except (AttributeError, TypeError):
+        return False
