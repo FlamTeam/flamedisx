@@ -161,7 +161,7 @@ class Source(SourceBase):
                 continue
             for i, (pname, p) in enumerate(
                     inspect.signature(f).parameters.items()):
-                if p.default == inspect.Parameter.empty:
+                if p.default is inspect.Parameter.empty:
                     if not (fname in self.special_data_methods and i == 0):
                         # It's an observable dimension
                         self.f_dims[fname].append(pname)
