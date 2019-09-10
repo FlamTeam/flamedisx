@@ -285,7 +285,7 @@ class LogLikelihood:
         return {k: v for k, v in zip(self.param_names, tf.unstack(values))}
 
     def bestfit(self, guess=None,
-                optimizer=tfp.optimizer.lbfgs_minimize,
+                optimizer=tfp.optimizer.bfgs_minimize,
                 llr_tolerance=0.1,
                 get_lowlevel_result=False, **kwargs):
         """Return best-fit parameter tensor
@@ -322,7 +322,17 @@ class LogLikelihood:
         # Set guess for objective function
         self._guess = _guess
 
-        res = optimizer(self.objective, x_norm, **kwargs)
+        if optimizer == tfp.optimizer.bfgs_minimize:
+            # This optimizer can use the hessian information
+            # Compute the inverse hessian at the guess
+            inv_hess = self.inverse_hessian(_guess)
+        else:
+            inv_hess = None
+
+        res = optimizer(self.objective,
+                        x_norm,
+                        initial_inverse_hessian_estimate=inv_hess,
+                        **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
@@ -354,6 +364,7 @@ class LogLikelihood:
         _, _, grad2_ll = self.log_likelihood(**self.params_to_dict(params),
                                              autograph=False,
                                              second_order=True)
+
         return tf.linalg.inv(-2 * grad2_ll)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
