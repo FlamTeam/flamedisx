@@ -162,7 +162,7 @@ def test_hessian(xes: fd.ERSource):
 
 
 def test_bestfit(xes):
-    # Test bestfit without hessian
+    # Test bestfit (including hessian)
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
         elife=(100e3, 500e3, 5),
@@ -179,7 +179,7 @@ def test_bestfit(xes):
     guess[0] = xs[np.argmin(ys)]
     assert guess.shape == (2,)
 
-    bestfit = lf.bestfit(guess, use_hessian=False)
+    bestfit = lf.bestfit(guess, use_hessian=True)
     bestfit_np = bestfit.numpy()
     assert bestfit_np.shape == (2,)
     assert bestfit.dtype == fd.float_type()
