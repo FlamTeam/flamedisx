@@ -175,7 +175,8 @@ class Source(SourceBase):
                         p.default, dtype=fd.float_type())
         for k, v in params.items():
             if k in self.defaults:
-                self.defaults[k] = v
+                self.defaults[k] = tf.convert_to_tensor(
+                    v, dtype=fd.float_type())
             else:
                 raise ValueError(f"Key {k} not in defaults")
 
