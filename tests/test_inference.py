@@ -173,8 +173,10 @@ def test_bestfit(xes: fd.ERSource):
     # Set reasonable rate
     if isinstance(xes, fd.ERSource):
         guess[0] = 0.002
-    else:
+    elif isinstance(xes, fd.NRSource):
         guess[0] = 0.07
+    else:
+        raise RuntimeError("Source needs to be either ER or NR source.")
     assert guess.shape == (2,)
 
     bestfit = lf.bestfit(guess)

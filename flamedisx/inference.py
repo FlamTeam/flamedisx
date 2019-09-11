@@ -339,9 +339,9 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
 
-    @tf.function
+    # @tf.function
     def objective(self, x_norm):
-        print("Tracing objective")
+        # print("Tracing objective")
         x = x_norm * self._guess
         ll, grad = self.minus_ll(**self.params_to_dict(x))
         if tf.math.is_nan(ll):
