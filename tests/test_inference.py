@@ -162,7 +162,7 @@ def test_hessian(xes: fd.ERSource):
 
 
 def test_bestfit(xes):
-    # Test bestfit (implicitly also tests hessian when bfgs optimizer used)
+    # Test bestfit without hessian
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
         elife=(100e3, 500e3, 5),
@@ -187,7 +187,7 @@ def test_bestfit(xes):
         raise RuntimeError("Source needs to be either ER or NR source.")
     assert guess.shape == (2,)
 
-    bestfit = lf.bestfit(guess)
+    bestfit = lf.bestfit(guess, use_hessian=False)
     bestfit_np = bestfit.numpy()
     assert bestfit_np.shape == (2,)
     assert bestfit.dtype == fd.float_type()

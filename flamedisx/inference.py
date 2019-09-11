@@ -287,7 +287,9 @@ class LogLikelihood:
     def bestfit(self, guess=None,
                 optimizer=tfp.optimizer.bfgs_minimize,
                 llr_tolerance=0.1,
-                get_lowlevel_result=False, **kwargs):
+                get_lowlevel_result=False,
+                use_hessian=True,
+                **kwargs):
         """Return best-fit parameter tensor
 
         :param guess: Guess parameters: array or tensor of same length
@@ -322,7 +324,7 @@ class LogLikelihood:
         # Set guess for objective function
         self._guess = _guess
 
-        if optimizer == tfp.optimizer.bfgs_minimize:
+        if optimizer == tfp.optimizer.bfgs_minimize and use_hessian:
             # This optimizer can use the hessian information
             # Compute the inverse hessian at the guess
             inv_hess = self.inverse_hessian(_guess)
