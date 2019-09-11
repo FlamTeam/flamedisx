@@ -361,17 +361,15 @@ class LogLikelihood:
         params = fd.np_to_tf(params)
 
         # Get second order derivatives of likelihood at params
-        # Assume only the upper triangular part is calculated for speed
         _, _, grad2_ll = self.log_likelihood(**self.params_to_dict(params),
                                              autograph=False,
                                              second_order=True)
-        # TODO
-        # Until log_likelihood actually returns the upper triangular matrix
-        # simulate it by taking the upper part of the full thing
-        upper = tf.linalg.band_part(-2 * grad2_ll, 0, -1)
-        diag = tf.linalg.band_part(-2 * grad2_ll, 0, 0)
+        inv_hess = tf.linalg.inv(-2 * grad2_ll)
+        # Explicitly symmetrize the matrix
+        upper = tf.linalg.band_part(inv_hess, 0, -1)
+        diag = tf.linalg.band_part(inv_hess, 0, 0)
 
-        return tf.linalg.inv(upper - diag + tf.transpose(upper))
+        return (upper - diag) + tf.transpose(upper)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
