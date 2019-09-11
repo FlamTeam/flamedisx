@@ -142,3 +142,9 @@ def is_numpy_number(x):
                 or np.issubdtype(x.dtype, np.floating))
     except (AttributeError, TypeError):
         return False
+
+@export
+def symmetrize_matrix(x):
+    upper = tf.linalg.band_part(x, 0, -1)
+    diag = tf.linalg.band_part(x, 0, 0)
+    return (upper - diag) + tf.transpose(upper)

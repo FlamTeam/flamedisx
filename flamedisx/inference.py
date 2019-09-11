@@ -298,6 +298,10 @@ class LogLikelihood:
         :param llr_tolerance: stop minimizer if change in -2 log likelihood
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
+        :param get_lowlevel_result: Returns the full optimizer result instead
+        of only the best fit parameters. Bool.
+        :param use_hessian: Passes the hessian estimated at the guess to the
+        optimizer. Bool.
         """
         _guess = self.guess()
         if isinstance(guess, dict):
@@ -329,8 +333,11 @@ class LogLikelihood:
             # Compute the inverse hessian at the guess
             inv_hess = self.inverse_hessian(_guess)
             # We use scaled values in the optiminzer so also scale the
-            # hessian
+            # hessian. We need to multiply the hessian with the parameter
+            # values. This is the inverse hessian so we divide.
             inv_hess /= tf.linalg.tensordot(_guess, _guess, axes=0)
+            # Explicitly symmetrize the matrix
+            inv_hess = fd.symmetrize_matrix(inv_hess)
         else:
             inv_hess = None
 
@@ -369,12 +376,8 @@ class LogLikelihood:
         _, _, grad2_ll = self.log_likelihood(**self.params_to_dict(params),
                                              autograph=False,
                                              second_order=True)
-        inv_hess = tf.linalg.inv(-2 * grad2_ll)
-        # Explicitly symmetrize the matrix
-        upper = tf.linalg.band_part(inv_hess, 0, -1)
-        diag = tf.linalg.band_part(inv_hess, 0, 0)
 
-        return (upper - diag) + tf.transpose(upper)
+        return tf.linalg.inv(-2 * grad2_ll)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
