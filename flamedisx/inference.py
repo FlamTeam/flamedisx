@@ -328,6 +328,9 @@ class LogLikelihood:
             # This optimizer can use the hessian information
             # Compute the inverse hessian at the guess
             inv_hess = self.inverse_hessian(_guess)
+            # We use scaled values in the optiminzer so also scale the
+            # hessian
+            inv_hess *= tf.linalg.tensordot(_guess, _guess, axes=0)
         else:
             inv_hess = None
 
