@@ -171,7 +171,10 @@ def test_bestfit(xes: fd.ERSource):
 
     guess = lf.guess()
     # Set reasonable rate
-    guess[0] = 0.002
+    if isinstance(xes, fd.ERSource):
+        guess[0] = 0.002
+    else:
+        guess[0] = 0.07
     assert guess.shape == (2,)
 
     bestfit = lf.bestfit(guess)
