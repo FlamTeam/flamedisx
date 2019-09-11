@@ -171,20 +171,12 @@ def test_bestfit(xes):
 
     guess = lf.guess()
     # Set reasonable rate
-    if isinstance(xes, fd.ERSource):
-        # Evaluate the likelihood curve around the minimum
-        xs = np.linspace(0.001, 0.004, 20)
-        ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
-        guess[0] = xs[np.argmin(ys)]
-        #guess[0] = 0.0025
-    elif isinstance(xes, fd.NRSource):
-        # Evaluate the likelihood curve around the minimum
-        xs = np.linspace(0.04, 0.1, 20)
-        ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
-        guess[0] = xs[np.argmin(ys)]
-        #guess[0] = 0.07
-    else:
-        raise RuntimeError("Source needs to be either ER or NR source.")
+    # Evaluate the likelihood curve around the minimum
+    xs_er = np.linspace(0.001, 0.004, 20)  # ER source range
+    xs_nr = np.linspace(0.04, 0.1, 20)  # NR source range
+    xs = list(xs_er) + list(xs_nr)
+    ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
+    guess[0] = xs[np.argmin(ys)]
     assert guess.shape == (2,)
 
     bestfit = lf.bestfit(guess, use_hessian=False)
