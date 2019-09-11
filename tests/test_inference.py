@@ -158,7 +158,12 @@ def test_hessian(xes: fd.ERSource):
     assert inv_hess_np.shape == (2, 2)
     assert inv_hess.dtype == fd.float_type()
     # Check symmetry of hessian
-    assert inv_hess_np[0, 1] == inv_hess_np[1, 0]
+    # Only detect large deviations here
+    # The hessian is explicitly symmetrized before being passed to
+    # the optimizer in bestfit
+    np.testing.assert_almost_equal(inv_hess_np[0, 1],
+                                   inv_hess_np[1, 0],
+                                   0)
 
 
 def test_bestfit(xes):
