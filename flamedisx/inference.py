@@ -369,8 +369,9 @@ class LogLikelihood:
         # Until log_likelihood actually returns the upper triangular matrix
         # simulate it by taking the upper part of the full thing
         upper = tf.linalg.band_part(-2 * grad2_ll, 0, -1)
+        diag = tf.linalg.band_part(-2 * grad2_ll, 0, 0)
 
-        return tf.linalg.inv(upper + tf.transpose(upper))
+        return tf.linalg.inv(upper + tf.transpose(upper) - diag)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
