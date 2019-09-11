@@ -352,7 +352,6 @@ class LogLikelihood:
         return res.position * _guess
 
     def objective(self, x_norm):
-        print("Tracing objective")
         x = x_norm * self._guess
         ll, grad = self.minus_ll(**self.params_to_dict(x))
         if tf.math.is_nan(ll):
