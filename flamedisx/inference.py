@@ -368,7 +368,7 @@ class LogLikelihood:
         # TODO
         # Until log_likelihood actually returns the upper triangular matrix
         # simulate it by taking the upper part of the full thing
-        upper = tf.linalg.band_part(-2 * grad_ll, 0, -1)
+        upper = tf.linalg.band_part(-2 * grad2_ll, 0, -1)
 
         return tf.linalg.inv(upper + tf.transpose(upper))
 
