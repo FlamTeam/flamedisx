@@ -351,7 +351,6 @@ class LogLikelihood:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
 
-    @tf.function
     def objective(self, x_norm):
         print("Tracing objective")
         x = x_norm * self._guess
