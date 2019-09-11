@@ -161,7 +161,7 @@ def test_hessian(xes: fd.ERSource):
     assert inv_hess_np[0, 1] == inv_hess_np[1, 0]
 
 
-def test_bestfit(xes: fd.ERSource):
+def test_bestfit(xes):
     # Test bestfit (implicitly also tests hessian when bfgs optimizer used)
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
@@ -172,7 +172,7 @@ def test_bestfit(xes: fd.ERSource):
     guess = lf.guess()
     # Set reasonable rate
     if isinstance(xes, fd.ERSource):
-        guess[0] = 0.002
+        guess[0] = 0.0025
     elif isinstance(xes, fd.NRSource):
         guess[0] = 0.07
     else:
