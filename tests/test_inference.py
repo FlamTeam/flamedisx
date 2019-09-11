@@ -179,7 +179,7 @@ def test_bestfit(xes):
         #guess[0] = 0.0025
     elif isinstance(xes, fd.NRSource):
         # Evaluate the likelihood curve around the minimum
-        xs = np.linspace(0.04, 0.01, 20)
+        xs = np.linspace(0.04, 0.1, 20)
         ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
         guess[0] = xs[np.argmin(ys)]
         #guess[0] = 0.07
