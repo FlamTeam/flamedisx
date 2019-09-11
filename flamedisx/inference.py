@@ -371,7 +371,7 @@ class LogLikelihood:
         upper = tf.linalg.band_part(-2 * grad2_ll, 0, -1)
         diag = tf.linalg.band_part(-2 * grad2_ll, 0, 0)
 
-        return tf.linalg.inv(upper + tf.transpose(upper) - diag)
+        return tf.linalg.inv(upper - diag + tf.transpose(upper))
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
