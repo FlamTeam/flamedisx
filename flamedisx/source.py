@@ -733,12 +733,15 @@ class Source(SourceBase):
 
         d['energy'] = energies
         d['nq'] = s._simulate_nq(energies)
-
         d['p_el_mean'] = gimme('p_electron', d['nq'].values)
-        d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
 
-        d['p_el_actual'] = stats.beta.rvs(
-            *fd.beta_params(d['p_el_mean'], d['p_el_fluct']))
+        if s.do_pel_fluct:
+            d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
+            d['p_el_actual'] = stats.beta.rvs(
+                *fd.beta_params(d['p_el_mean'], d['p_el_fluct']))
+        else:
+            d['p_el_fluct'] = 0.
+            d['p_el_actual'] = d['p_el_mean']
         d['p_el_actual'] = np.nan_to_num(d['p_el_actual']).clip(0, 1)
         d['electron_produced'] = stats.binom.rvs(
             n=d['nq'],
