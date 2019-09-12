@@ -2,6 +2,7 @@
 
 """
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 from multihist import Hist1d
@@ -125,8 +126,14 @@ example_sp_values = tf.convert_to_tensor(example_sp.histogram[np.newaxis,:],
 
 @export
 class SR0WIMPSource(SR0Source, fd.NRSource):
+    @staticmethod
+    def add_extra_columns(d):
+        super(SR0WIMPSource, SR0WIMPSource).add_extra_columns(d)
+        # Add J2000 timestamps to data for use with wimprates
+        d['t'] = [wimprates.j2000(date=t)
+                  for t in pd.to_datetime(d['event_time'])]
 
-    def energy_spectrum(self, drift_time):
-        n_evts = len(drift_time)
+    def energy_spectrum(self, t):
+        n_evts = len(t)
         return (fd.repeat(example_sp_centers, repeats=n_evts, axis=0),
                 fd.repeat(example_sp_values, repeats=n_evts, axis=0))
