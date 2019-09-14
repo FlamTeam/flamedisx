@@ -263,8 +263,8 @@ class LogLikelihood:
         n = tf.where(tf.equal(i_batch,
                               tf.constant(self.n_batches[dsetname] - 1,
                                           dtype=fd.int_type())),
-                     self.batch_size[dsetname],
-                     self.batch_size[dsetname] - self.n_padding[dsetname])
+                     self.batch_size[dsetname] - self.n_padding[dsetname],
+                     self.batch_size[dsetname])
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
 
         # Add mu once (to the first batch)
