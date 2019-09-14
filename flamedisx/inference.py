@@ -134,7 +134,8 @@ class LogLikelihood:
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
         return self.log_likelihood(second_order=False, **kwargs)[0].numpy()
 
-    def log_likelihood(self, autograph=True, second_order=False, **kwargs):
+    def log_likelihood(self, autograph=True, second_order=False,
+                       omit_grads=tuple(), **kwargs):
         if second_order:
             # Compute the likelihood, jacobian and hessian
             # Use only non-tf.function version, in principle works with
@@ -146,14 +147,14 @@ class LogLikelihood:
             f = self._log_likelihood_tf if autograph else self._log_likelihood
 
         params = self.prepare_params(kwargs)
-        n_params = len(self.param_defaults)
+        n_grads = len(self.param_defaults) - len(omit_grads)
         ll = tf.constant(0., dtype=fd.float_type())
-        llgrad = tf.zeros(n_params, dtype=fd.float_type())
-        llgrad2 = tf.zeros((n_params, n_params), dtype=fd.float_type())
+        llgrad = tf.zeros(n_grads, dtype=fd.float_type())
+        llgrad2 = tf.zeros((n_grads, n_grads), dtype=fd.float_type())
 
         for dsetname in self.dsetnames:
             for i_batch in tf.range(self.n_batches[dsetname], dtype=fd.int_type()):
-                v = f(i_batch, dsetname, autograph, **params)
+                v = f(i_batch, dsetname, autograph, omit_grads=omit_grads, **params)
                 ll += v[0]
                 llgrad += v[1]
                 if second_order:
@@ -163,8 +164,9 @@ class LogLikelihood:
             return ll, llgrad, llgrad2
         return ll, llgrad
 
-    def minus_ll(self, *, autograph=True, **kwargs):
-        ll, grad = self.log_likelihood(autograph=autograph, **kwargs)
+    def minus_ll(self, *, autograph=True, omit_grads=tuple(), **kwargs):
+        ll, grad = self.log_likelihood(
+            autograph=autograph, omit_grads=omit_grads, **kwargs)
         return -2 * ll, -2 * grad
 
     def prepare_params(self, kwargs):
@@ -211,37 +213,49 @@ class LogLikelihood:
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
         return mu
 
-    def _log_likelihood(self, i_batch, dsetname, autograph, **params):
-        par_list = list(params.values())
+    def _log_likelihood(self, i_batch, dsetname, autograph,
+                        omit_grads=tuple(), **params):
+        if omit_grads is None:
+            omit_grads = []
+        grad_par_list = [x for k, x in params.items()
+                         if k not in omit_grads]
         with tf.GradientTape() as t:
-            t.watch(par_list)
+            t.watch(grad_par_list)
             ll = self._log_likelihood_inner(
                 i_batch, params, dsetname, autograph)
-        grad = t.gradient(ll, par_list)
+        grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
     @tf.function
-    def _log_likelihood_tf(self, i_batch, dsetname, autograph, **params):
+    def _log_likelihood_tf(self, i_batch, dsetname, autograph,
+                           omit_grads=tuple(), **params):
         print("Tracing _log_likelihood")
-        return self._log_likelihood(i_batch, dsetname, autograph, **params)
+        return self._log_likelihood(i_batch, dsetname, autograph,
+                                    omit_grads=omit_grads, **params)
 
-    def _log_likelihood_grad2(self, i_batch, dsetname, autograph, **params):
-        par_list = list(params.values())
+    def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
+                              omit_grads=tuple(), **params):
+        if omit_grads is None:
+            omit_grads = []
+        grad_par_list = [x for k, x in params.items()
+                         if k not in omit_grads]
         with tf.GradientTape(persistent=True) as t2:
-            t2.watch(par_list)
+            t2.watch(grad_par_list)
             with tf.GradientTape() as t:
-                t.watch(par_list)
+                t.watch(grad_par_list)
                 ll = self._log_likelihood_inner(i_batch, params,
                                                 dsetname, autograph)
-            grads = t.gradient(ll, par_list)
-        hessian = [t2.gradient(grad, par_list) for grad in grads]
+            grads = t.gradient(ll, grad_par_list)
+        hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
 
     @tf.function
-    def _log_likelihood_grad2_tf(self, i_batch, dsetname, autograph, **params):
+    def _log_likelihood_grad2_tf(self, i_batch, dsetname, autograph,
+                                 omit_grads=tuple(), **params):
         print("Tracing _log_likelihood_grad2_tf")
-        return self._log_likelihood_grad2(i_batch, dsetname, autograph, **params)
+        return self._log_likelihood_grad2(i_batch, dsetname, autograph,
+                                          omit_grads=omit_grads, **params)
 
     def _log_likelihood_inner(self, i_batch, params, dsetname, autograph):
         # Does for loop over datasets and sources, not batches
@@ -277,14 +291,16 @@ class LogLikelihood:
         return ll
 
     def guess(self):
-        """Return array of parameter guesses"""
-        return np.array(list(self.param_defaults.values()))
+        """Return dictionary of parameter guesses"""
+        return self.param_defaults
 
     def params_to_dict(self, values):
         """Return parameter {name: value} dictionary"""
         return {k: v for k, v in zip(self.param_names, tf.unstack(values))}
 
-    def bestfit(self, guess=None,
+    def bestfit(self,
+                guess=None,
+                fix=None,
                 optimizer=tfp.optimizer.bfgs_minimize,
                 llr_tolerance=0.1,
                 get_lowlevel_result=False,
@@ -292,9 +308,9 @@ class LogLikelihood:
                 **kwargs):
         """Return best-fit parameter tensor
 
-        :param guess: Guess parameters: array or tensor of same length
-        as param_names.
-        If omitted, will use guess from source defaults.
+        :param guess: Guess parameters: dict {param: guess} of guesses to use.
+        :param fix: dict {param: value} of parameters to keep fixed
+        during the minimzation.
         :param llr_tolerance: stop minimizer if change in -2 log likelihood
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
@@ -303,39 +319,43 @@ class LogLikelihood:
         :param use_hessian: Passes the hessian estimated at the guess to the
         optimizer. Bool.
         """
-        _guess = self.guess()
-        if isinstance(guess, dict):
-            # Modify guess with user-specified vars
-            for k, v in guess.items():
-                _guess[self._param_i(k)] = v
-        elif isinstance(guess, (np.ndarray, tf.Tensor)):
-            _guess = fd.tf_to_np(guess)
-        _guess = fd.np_to_tf(_guess)
-        del guess
+        if fix is None:
+            fix = dict()
+        if guess is None:
+            guess = dict()
+
+        if not isinstance(guess, dict):
+            raise ValueError("Guess must be a dictionary")
+        guess = {**self.guess(), **guess, **fix}
 
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
             kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self.minus_ll(**self.params_to_dict(_guess))[0])
+                              llr_tolerance/self.minus_ll(**guess)[0])
+
+        # Create a vector of guesses for the optimizer
+        # Store as temp attributes so we can access them also in objective
+        self._varnames = [k for k in self.param_names if k not in fix]
+        self._guess_vect = fd.np_to_tf(np.array([
+            guess[k] for k in self._varnames]))
+        self._fix = fix
 
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
         # vector reasonable.
-        x_norm = tf.ones(len(_guess), dtype=fd.float_type())
-
-        # Set guess for objective function
-        self._guess = _guess
+        x_norm = tf.ones(len(self._varnames), dtype=fd.float_type())
 
         if optimizer == tfp.optimizer.bfgs_minimize and use_hessian:
             # This optimizer can use the hessian information
             # Compute the inverse hessian at the guess
-            inv_hess = self.inverse_hessian(_guess)
-            # We use scaled values in the optiminzer so also scale the
+            inv_hess = self.inverse_hessian(guess, omit_grads=tuple(fix.keys()))
+            # We use scaled values in the optimizer so also scale the
             # hessian. We need to multiply the hessian with the parameter
             # values. This is the inverse hessian so we divide.
-            inv_hess /= tf.linalg.tensordot(_guess, _guess, axes=0)
+            inv_hess /= tf.linalg.tensordot(
+                self._guess_vect, self._guess_vect, axes=0)
             # Explicitly symmetrize the matrix
             inv_hess = fd.symmetrize_matrix(inv_hess)
         else:
@@ -349,57 +369,80 @@ class LogLikelihood:
             return res
         if res.failed:
             raise ValueError(f"Optimizer failure! Result: {res}")
-        return res.position * _guess
+        res = res.position * self._guess_vect
+        res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
+        return {**res, **fix}
 
     def objective(self, x_norm):
-        x = x_norm * self._guess
-        ll, grad = self.minus_ll(**self.params_to_dict(x))
+        x = x_norm * self._guess_vect
+
+        # Fill in the fixed variables / convert to dict
+        params = dict(**self._fix)
+        for i, k in enumerate(self._varnames):
+            params[k] = x[i]
+
+        ll, grad = self.minus_ll(**params, omit_grads=tuple(self._fix.keys()))
         if tf.math.is_nan(ll):
             tf.print(f"Objective at {x_norm} is Nan!")
             ll *= float('inf')
             grad *= float('nan')
-        return ll, grad * self._guess
+        return ll, grad * self._guess_vect
 
-    def inverse_hessian(self, params):
+    def inverse_hessian(self, params, omit_grads=tuple()):
         """Return inverse hessian (square tensor)
         of -2 log_likelihood at params
         """
         # Also Tensorflow has tf.hessians, but:
         # https://github.com/tensorflow/tensorflow/issues/29781
 
-        # In case params is a numpy vector
-        params = fd.np_to_tf(params)
-
         # Get second order derivatives of likelihood at params
-        _, _, grad2_ll = self.log_likelihood(**self.params_to_dict(params),
+        _, _, grad2_ll = self.log_likelihood(**params,
                                              autograph=False,
+                                             omit_grads=omit_grads,
                                              second_order=True)
 
         return tf.linalg.inv(-2 * grad2_ll)
 
-    def summary(self, bestfit, inverse_hessian=None, precision=3):
+    def summary(self, bestfit=None, fix=None, guess=None,
+                inverse_hessian=None, precision=3):
         """Print summary information about best fit"""
+        if fix is None:
+            fix = dict()
+        if bestfit is None:
+            bestfit = self.bestfit(guess=guess, fix=fix)
+
+        params = {**bestfit, **fix}
         if inverse_hessian is None:
-            inverse_hessian = self.inverse_hessian(bestfit)
+            inverse_hessian = self.inverse_hessian(
+                params,
+                omit_grads=tuple(fix.keys()))
         inverse_hessian = fd.tf_to_np(inverse_hessian)
 
         stderr, cov = cov_to_std(inverse_hessian)
-        for i, pname in enumerate(self.param_names):
-            template = "{pname}: {x:.{precision}g} +- {xerr:.{precision}g}"
-            print(template.format(
-                pname=pname,
-                x=bestfit[i],
-                xerr=stderr[i],
-                precision=precision))
 
+        var_par_i = 0
+        for i, pname in enumerate(self.param_names):
+            if pname in fix:
+                print("{pname}: {x:.{precision}g} (fixed)".format(
+                    pname=pname, x=fix[pname], precision=precision))
+            else:
+                template = "{pname}: {x:.{precision}g} +- {xerr:.{precision}g}"
+                print(template.format(
+                    pname=pname,
+                    x=bestfit[pname],
+                    xerr=stderr[var_par_i],
+                    precision=precision))
+                var_par_i += 1
+
+        var_pars = [x for x in self.param_names if x not in fix]
         df = pd.DataFrame(
             {p1: {p2: cov[i1, i2]
-                  for i2, p2 in enumerate(self.param_names)}
-             for i1, p1 in enumerate(self.param_names)},
-            columns=self.param_names)
+                  for i2, p2 in enumerate(var_pars)}
+             for i1, p1 in enumerate(var_pars)},
+            columns=var_pars)
 
         # Get rows in the correct order
-        df['index'] = [self.param_names.index(x)
+        df['index'] = [var_pars.index(x)
                        for x in df.index.values]
         df = df.sort_values(by='index')
         del df['index']
