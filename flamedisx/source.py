@@ -842,11 +842,12 @@ class LXeSource(Source):
                 bonus_arg=bonus_arg, data_tensor=None,
                 ptensor=None, numpy_out=True)
 
-        d['nq'] = self._simulate_nq(d['energy'])
+        # If you forget the .values here, you may get a Python core dump...
+        d['nq'] = self._simulate_nq(d['energy'].values)
 
         d['p_el_mean'] = gimme('p_electron', d['nq'].values)
 
-        if s.do_pel_fluct:
+        if self.do_pel_fluct:
             d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
             d['p_el_actual'] = stats.beta.rvs(
                 *fd.beta_params(d['p_el_mean'], d['p_el_fluct']))

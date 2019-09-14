@@ -18,6 +18,9 @@ from .source import data_methods, special_data_methods
 o = tf.newaxis
 
 
+
+
+
 @export
 class ERSource(fd.LXeSource):
 
@@ -38,15 +41,6 @@ class ERSource(fd.LXeSource):
                          n_evts, axis=0),
                 fd.repeat(tf.ones(1000, dtype=fd.float_type())[o, :],
                          n_evts, axis=0))
-
-    def energy_spectrum_hist(self):
-        # TODO: fails if e is pos/time dependent
-        # TODO: BAD, see earlier
-        es, rs = self.gimme('energy_spectrum', data_tensor=None, ptensor=None, numpy_out=True)
-        return Hist1d.from_histogram(rs[0, :-1], es[0, :])
-
-    def simulate_es(self, n):
-        return self.energy_spectrum_hist().get_random(n)
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
