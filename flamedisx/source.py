@@ -5,7 +5,6 @@ import pandas as pd
 from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
-from multihist import Hist1d
 
 from tqdm import tqdm
 
@@ -28,7 +27,7 @@ class SourceBase:
         if batch_size is None or batch_size > self.n_events or _skip_tf_init:
             batch_size = self.n_events
 
-        self.batch_size = batch_size
+        self.batch_size = max(1, batch_size)
         self.n_batches = np.ceil(
             self.n_events / self.batch_size).astype(np.int)
 
