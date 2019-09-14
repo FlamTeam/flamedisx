@@ -19,7 +19,7 @@ o = tf.newaxis
 
 
 @export
-class ERSource(fd.Source):
+class ERSource(fd.LXeSource):
 
     tpc_radius = 47.9   # cm
     tpc_length = 97.6   # cm
@@ -132,6 +132,12 @@ class ERSource(fd.Source):
     @classmethod
     def simulate_aux(cls, n_events):
         data = dict()
+
+        # Add fake s1, s2 necessary for set_data to succeed
+        data['s1'] = 1
+        data['s2'] = 100
+
+        # Draw uniform positions
         data['r'] = (np.random.rand(n_events) * cls.tpc_radius**2)**0.5
         data['theta'] = np.random.rand(n_events)
         data['x'] = data['r'] * np.cos(data['theta'])

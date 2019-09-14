@@ -5,6 +5,7 @@ import pandas as pd
 from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
+from multihist import Hist1d
 
 from tqdm import tqdm
 
@@ -64,6 +65,9 @@ class SourceBase:
 
 @export
 class ColumnSource(SourceBase):
+    """Source with a fixed mu (specified as self.mu)
+     and differential rate specified by a column in the data (self.column)
+    """
     column = "Rename_me!"
     mu = 42.
 
@@ -96,7 +100,7 @@ class ColumnSource(SourceBase):
         self.data_tensor = tf.reshape(self.data_tensor, (self.batch_size, -1, 1))
 
     def differential_rate(self, data_tensor, **params):
-        return data_tensor[:,0]
+        return data_tensor[:, 0]
 
     @classmethod
     def mu_interpolator(cls,
@@ -109,19 +113,13 @@ class ColumnSource(SourceBase):
         """
         return lambda *args, **kwargs: cls.mu
 
+
 @export
 class Source(SourceBase):
-    data_methods = tuple(data_methods)
-    special_data_methods = tuple(special_data_methods)
-
-    # Whether or not to simulate overdispersion in electron/photon split
-    # (e.g. due to non-binomial recombination fluctuation)
-    do_pel_fluct = True
-
-    # tuple with columns needed from data to run add_extra_columns
-    # I guess we don't really need x y z by default, but they are just so nice
-    # we should keep them around regardless.
-    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta'])
+    data_methods = tuple()
+    special_data_methods = tuple()
+    inner_dimensions = tuple()
+    extra_needed_columns = tuple()
 
     data: pd.DataFrame
 
@@ -184,6 +182,8 @@ class Source(SourceBase):
         self.fit_params = [tf.constant(x) for x in fit_params
                            if x in self.defaults]
 
+        print(self.defaults.keys())
+
         self.param_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
                                                 tf.range(len(self.defaults),
@@ -198,6 +198,7 @@ class Source(SourceBase):
         self._init_padding(batch_size, _skip_tf_init)
 
         if not data_is_annotated:
+            self.add_extra_columns(self.data)
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
         if not _skip_tf_init:
@@ -214,11 +215,9 @@ class Source(SourceBase):
         self.name_id = tf.lookup.StaticVocabularyTable(
             tf.lookup.KeyValueTensorInitializer(tf.constant(cols_to_cache),
                                                 tf.range(len(cols_to_cache),
-                                                         dtype=tf.dtypes.int64)
-                                                ),
+                                                         dtype=tf.dtypes.int64)),
             num_oov_buckets=1,
-            lookup_key_dtype=tf.dtypes.string,
-        )
+            lookup_key_dtype=tf.dtypes.string)
 
         # Create one big data tensor (n_batches, events_per_batch, n_cols)
         # TODO: make a list
@@ -230,11 +229,7 @@ class Source(SourceBase):
 
     def _calculate_dimsizes(self):
         self.dimsizes = dict()
-        for var in ['nq',
-                  'photon_detected',
-                  'electron_detected',
-                  'photon_produced',
-                  'electron_produced']:
+        for var in self.inner_dimensions:
             ma = self._fetch(var + '_max')
             mi = self._fetch(var + '_min')
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
@@ -302,6 +297,247 @@ class Source(SourceBase):
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
 
+    # TODO: remove duplication for batch loop? Also in inference
+    def batched_differential_rate(self, progress=True, **params):
+        progress = (lambda x: x) if not progress else tqdm
+        y = np.concatenate([
+            fd.tf_to_np(self.differential_rate(
+                data_tensor=self.data_tensor[i_batch],
+                **params))
+            for i_batch in progress(range(self.n_batches))])
+        return y[:self.n_events]
+
+    def trace_differential_rate(self):
+        input_signature = (
+            tf.TensorSpec(shape=self.data_tensor.shape[1:],
+                          dtype=fd.float_type()),
+            tf.TensorSpec(shape=[len(self.defaults)],
+                          dtype=fd.float_type()))
+        self._differential_rate_tf = tf.function(
+            self._differential_rate,
+            input_signature=input_signature)
+
+    # TODO: remove duplication?
+    def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
+        ptensor = self.ptensor_from_kwargs(**kwargs)
+        if autograph:
+            return self._differential_rate_tf(
+                data_tensor=data_tensor, ptensor=ptensor)
+        else:
+            return self._differential_rate(
+                data_tensor=data_tensor, ptensor=ptensor)
+
+    def ptensor_from_kwargs(self, **kwargs):
+        return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
+                                     for k in self.defaults])
+
+    def domain(self, x, data_tensor=None):
+        """Return (n_events, |possible x values|) matrix containing all possible integer
+        values of x for each event"""
+        result1 = tf.cast(tf.range(self.dimsizes[x]),
+                          dtype=fd.float_type())[o, :]
+        result2 = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        return result1 + result2
+
+    def cross_domains(self, x, y, data_tensor):
+        """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
+        containing possible integer values of x and y, respectively.
+        """
+        # TODO: somehow mask unnecessary elements and save computation time
+        x_size = self.dimsizes[x]
+        y_size = self.dimsizes[y]
+        # Change to tf.repeat once it's in the api
+        result_x = fd.repeat(self.domain(x, data_tensor)[:, :, o], y_size, axis=2)
+        result_y = fd.repeat(self.domain(y, data_tensor)[:, o, :], x_size, axis=1)
+        return result_x, result_y
+
+    @classmethod
+    def simulate(cls, energies, data=None, **params):
+        """Simulate events at energies.
+
+        If data is given, we will draw auxiliary observables (e.g. positions)
+        from it. Otherwise we will call _simulate_aux to do this.
+
+        Will not return | energies | events lost due to
+        selection/detection efficiencies
+        """
+        if isinstance(energies, (float, int)):
+            n_to_sim = int(energies)
+        else:
+            n_to_sim = len(energies)
+
+        create_aux = data is None
+
+        if create_aux:
+            data = cls.simulate_aux(n_to_sim)
+        else:
+            data = data.copy()  # In case someone passes in a slice
+            # Annoying, f_dims isn't a class property...
+            s = cls(data=data, _skip_tf_init=True, **params)
+            # Drop dimensions we do not need / like
+            data = data[list(set(sum(
+                s.f_dims.values(),
+                list(s.extra_needed_columns))))].copy()
+
+        # simulate_es cannot be a class method; the energy-spectrum might
+        # be position/time/other dependent.
+        s = cls(data=data,
+                _skip_tf_init=True, _skip_bounds_computation=True,
+                **params)
+        if isinstance(energies, (float, int)):
+            energies = s.simulate_es(n_to_sim)
+
+        # Create and set new dataset, with just the dimensions we need
+        # (note we should NOT include s1 and s2 here, we're going to simulate
+        # them)
+        # Use replace if someone gave us data (e.g. a small Kr file to draw many
+        # ER Bg events from), otherwise we already simulated exactly enough aux
+        if not create_aux:
+            d = data.sample(n=len(energies), replace=True)
+        else:
+            d = data
+        s = cls(data=d,
+                _skip_tf_init=True,
+                _skip_bounds_computation=True,
+                **params)
+        assert len(s.data) == len(d)
+
+        def gimme(fname, bonus_arg=None):
+            return s.gimme(fname, bonus_arg=bonus_arg, data_tensor=None, ptensor=None, numpy_out=True)
+
+        d['energy'] = energies
+        d = s._simulate(d)
+
+        # Now that we have s1 and s2 values, we can do the full annotate,
+        # populating columns like e_vis, photon_produced_mle, etc.
+        cls.annotate_data(d, **params)
+        return d
+
+    @classmethod
+    def mu_interpolator(cls,
+                        data,
+                        interpolation_method='star',
+                        n_trials=int(1e5),
+                        **params):
+        """Return interpolator for number of expected events
+        Parameters must be specified as kwarg=(start, stop, n_anchors)
+        """
+        # TODO: is the mu also to be batched?
+        if interpolation_method != 'star':
+            raise NotImplementedError(
+                f"mu interpolation method {interpolation_method} "
+                f"not implemented")
+
+        base_mu = tf.constant(cls.estimate_mu(data, n_trials=n_trials),
+                              dtype=fd.float_type())
+        pspaces = dict()    # parameter -> tf.linspace of anchors
+        mus = dict()        # parameter -> tensor of mus
+        for pname, pspace_spec in tqdm(params.items(),
+                                       desc="Estimating mus"):
+            pspaces[pname] = tf.linspace(*pspace_spec)
+            mus[pname] = tf.convert_to_tensor(
+                 [cls.estimate_mu(data, **{pname: x}, n_trials=n_trials)
+                 for x in np.linspace(*pspace_spec)],
+                dtype=fd.float_type())
+
+        def mu_itp(**kwargs):
+            mu = base_mu
+            for pname, v in kwargs.items():
+                mu *= tfp.math.interp_regular_1d_grid(
+                    x=v,
+                    x_ref_min=params[pname][0],
+                    x_ref_max=params[pname][1],
+                    y_ref=mus[pname]) / base_mu
+            return mu
+
+        return mu_itp
+
+    @classmethod
+    def estimate_mu(cls, data=None, n_trials=int(1e5), **params):
+        """Return estimate of total expected number of events
+        :param data: Data used for drawing auxiliary observables
+        (e.g. position and time)
+        :param n_trials: Number of events to simulate for efficiency estimate
+        """
+        # TODO what if e_spectrum is pos/time dependent?
+        # TODO: eh, not even looking at defaults now???
+        _, spectra = cls(data, _skip_tf_init=True).gimme(
+            'energy_spectrum',
+            # TODO: BAD!
+            data_tensor=None, ptensor=None,
+            numpy_out=True)
+        mean_rate = spectra.sum(axis=1).mean(axis=0)
+
+        d_simulated = cls.simulate(n_trials, data=data, **params)
+        return mean_rate * len(d_simulated) / n_trials
+
+    def simulate_es(self, n):
+        return self.energy_spectrum_hist().get_random(n)
+
+    def energy_spectrum_hist(self):
+        # TODO: fails if e is pos/time dependent
+        # TODO: BAD, see earlier
+        es, rs = self.gimme('energy_spectrum', data_tensor=None, ptensor=None, numpy_out=True)
+        return Hist1d.from_histogram(rs[0, :-1], es[0, :])
+
+    ##
+    # Functions probably want to override
+    ##
+    def energy_spectrum(self, *args):
+        """Return (energies, rate at these energies),
+        both (n_events, n_energies) tensors.
+        """
+        raise NotImplementedError
+
+    def _annotate(self, _skip_bounds_computation=False):
+        """Add columns needed in inference to self.data
+        :param _skip_bounds_computation: Do not compute min/max bounds
+        TODO: explain why useful, see simulator
+        """
+        pass
+
+    @staticmethod
+    def add_extra_columns(data):
+        """Add additional columns to data
+
+        You must add any columns from data you use here to
+        extra_needed.columns.
+
+        :param data: pandas DataFrame
+        """
+        pass
+
+    def _differential_rate(self, data_tensor, ptensor):
+        raise NotImplementedError
+
+    @classmethod
+    def simulate_aux(cls, n_events):
+        raise NotImplementedError
+
+    def _simulate(self, d):
+        return d
+
+
+@export
+class LXeSource(Source):
+    data_methods = tuple(data_methods)
+    special_data_methods = tuple(special_data_methods)
+    inner_dimensions = (
+        'nq',
+        'photon_detected',
+        'electron_detected',
+        'photon_produced',
+        'electron_produced')
+
+    # Whether or not to simulate overdispersion in electron/photon split
+    # (e.g. due to non-binomial recombination fluctuation)
+    do_pel_fluct = True
+
+    # tuple with columns needed from data to run add_extra_columns
+    # I guess we don't really need x y z by default, but they are just so nice
+    # we should keep them around regardless.
+    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta'])
+
     def _q_det_clip_range(self, qn):
         return (self.min_s1_photons_detected if qn == 'photon'
                 else self.min_s2_electrons_detected,
@@ -313,10 +549,7 @@ class Source(SourceBase):
         return cls(data, _skip_tf_init=True, **params)
 
     def _annotate(self, _skip_bounds_computation=False):
-        """Annotate self.data with columns needed for inference.
-        """
         d = self.data
-        self.add_extra_columns(d)
 
         # Annotate data with eff, mean, sigma
         # according to the nominal model
@@ -379,13 +612,6 @@ class Source(SourceBase):
                                   bonus_arg=d['nq_vis_mle'].values,
                                   numpy_out=True)
 
-        # .round().astype(np.int).clip(
-        #     *self._q_det_clip_range(qn))
-
-        # .round().astype(np.int).clip(
-        #     *self._q_det_clip_range(qn))
-
-
         # Find plausble ranges for detected and observed quanta
         # based on the observed S1 and S2 sizes
         # (we could also derive ranges assuming the CES reconstruction,
@@ -441,46 +667,6 @@ class Source(SourceBase):
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
         d['nq_max'] = d['photon_produced_max'] + d['electron_produced_max']
-
-    @staticmethod
-    def add_extra_columns(data):
-        """Add additional columns to data
-
-        You must add any columns from data you use here to
-        extra_needed.columns.
-
-        :param data: pandas DataFrame
-        """
-        pass
-
-    # TODO: remove duplication for batch loop? Also in inference
-    def batched_differential_rate(self, progress=True, **params):
-        progress = (lambda x: x) if not progress else tqdm
-        y = np.concatenate([
-            fd.tf_to_np(self.differential_rate(data_tensor=self.data_tensor[i_batch],
-                                               **params))
-            for i_batch in progress(range(self.n_batches))])
-        return y[:self.n_events]
-
-    def trace_differential_rate(self):
-
-        input_signature=(tf.TensorSpec(shape=self.data_tensor.shape[1:], dtype=fd.float_type()),
-                         tf.TensorSpec(shape=[len(self.defaults)], dtype=fd.float_type()),)
-        self._differential_rate_tf = tf.function(self._differential_rate,
-                                                 input_signature=input_signature)
-
-    # TODO: remove duplication?
-    def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
-        ptensor = self.ptensor_from_kwargs(**kwargs)
-
-        if autograph:
-            return self._differential_rate_tf(data_tensor=data_tensor, ptensor=ptensor)
-        else:
-            return self._differential_rate(data_tensor=data_tensor, ptensor=ptensor)
-
-    def ptensor_from_kwargs(self, **kwargs):
-        return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
-                                     for k in self.defaults])
 
     def _differential_rate(self, data_tensor, ptensor):
         # (n_events, |photons_produced|, |electrons_produced|)
@@ -586,26 +772,6 @@ class Source(SourceBase):
         return result * self.gimme(quanta_type + '_acceptance', bonus_arg=n_det,
                                    data_tensor=data_tensor, ptensor=ptensor)
 
-    def domain(self, x, data_tensor=None):
-        """Return (n_events, |possible x values|) matrix containing all possible integer
-        values of x for each event"""
-        result1 = tf.cast(tf.range(self.dimsizes[x]),
-                          dtype=fd.float_type())[o, :]
-        result2 = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
-        return result1 + result2
-
-    def cross_domains(self, x, y, data_tensor):
-        """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
-        containing possible integer values of x and y, respectively.
-        """
-        # TODO: somehow mask unnecessary elements and save computation time
-        x_size = self.dimsizes[x]
-        y_size = self.dimsizes[y]
-        # Change to tf.repeat once it's in the api
-        result_x = fd.repeat(self.domain(x, data_tensor)[:, :, o], y_size, axis=2)
-        result_y = fd.repeat(self.domain(y, data_tensor)[:, o, :], x_size, axis=1)
-        return result_x, result_y
-
     def detector_response(self, quanta_type, data_tensor, ptensor):
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
         for different number of detected quanta.
@@ -668,70 +834,14 @@ class Source(SourceBase):
     # methods, but then we'd need a set_data, keep track of state, etc.
     ##
 
-    @classmethod
-    def simulate_aux(cls, n_events):
-        raise NotImplementedError
-
-    @classmethod
-    def simulate(cls, energies, data=None, **params):
-        """Simulate events at energies.
-
-        If data is given, we will draw auxiliary observables (e.g. positions)
-        from it. Otherwise we will call _simulate_aux to do this.
-
-        Will not return | energies | events lost due to
-        selection/detection efficiencies
-        """
-        if isinstance(energies, (float, int)):
-            n_to_sim = int(energies)
-        else:
-            n_to_sim = len(energies)
-
-        create_aux = data is None
-
-        if create_aux:
-            data = cls.simulate_aux(n_to_sim)
-            # Add fake s1, s2 necessary for set_data to succeed
-            data['s1'] = 1
-            data['s2'] = 100
-        else:
-            data = data.copy()  # In case someone passes in a slice
-            # Annoying, f_dims isn't a class property...
-            s = cls(data=data, _skip_tf_init=True, **params)
-            # Drop dimensions we do not need / like
-            data = data[list(set(sum(
-                s.f_dims.values(),
-                list(s.extra_needed_columns))))].copy()
-
-        # simulate_es cannot be a class method; the energy-spectrum might
-        # be position/time/other dependent.
-        s = cls(data=data,
-                _skip_tf_init=True, _skip_bounds_computation=True,
-                **params)
-        if isinstance(energies, (float, int)):
-            energies = s.simulate_es(n_to_sim)
-
-        # Create and set new dataset, with just the dimensions we need
-        # (note we should NOT include s1 and s2 here, we're going to simulate
-        # them)
-        # Use replace if someone gave us data (e.g. a small Kr file to draw many
-        # ER Bg events from), otherwise we already simulated exactly enough aux
-        if not create_aux:
-            d = data.sample(n=len(energies), replace=True)
-        else:
-            d = data
-        s = cls(data=d,
-                _skip_tf_init=True,
-                _skip_bounds_computation=True,
-                **params)
-        assert 'e_vis' not in d.columns
-        assert len(s.data) == len(d)
-
+    def _simulate(self, d):
         def gimme(fname, bonus_arg=None):
-            return s.gimme(fname, bonus_arg=bonus_arg, data_tensor=None, ptensor=None, numpy_out=True)
+            return self.gimme(
+                fname,
+                bonus_arg=bonus_arg, data_tensor=None,
+                ptensor=None, numpy_out=True)
 
-        d['energy'] = energies
-        d['nq'] = s._simulate_nq(energies)
+        d['nq'] = self._simulate_nq(d['energy'])
 
         d['p_el_mean'] = gimme('p_electron', d['nq'].values)
         d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
@@ -753,9 +863,9 @@ class Source(SourceBase):
 
         d['s2'] = stats.norm.rvs(
             loc=d['electron_detected'] * gimme('electron_gain_mean'),
-            scale=d['electron_detected']**0.5 * gimme('electron_gain_std'))
+            scale=d['electron_detected'] ** 0.5 * gimme('electron_gain_std'))
 
-        d['s1'] = stats.norm.rvs(*s.dpe_mean_std(
+        d['s1'] = stats.norm.rvs(*self.dpe_mean_std(
             ndet=d['photon_detected'],
             p_dpe=gimme('double_pe_fraction'),
             mean_per_q=gimme('photon_gain_mean'),
@@ -767,70 +877,8 @@ class Source(SourceBase):
             sn = signal_name[q]
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
         d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
-
-        # Now that we have s1 and s2 values, we can do the full annotate,
-        # populating columns like e_vis, photon_produced_mle, etc.
-        cls.annotate_data(d, **params)
-        assert 'e_vis' in d.columns
         return d
 
     def _simulate_nq(self, energies):
         raise NotImplementedError
 
-    @classmethod
-    def mu_interpolator(cls,
-                        data,
-                        interpolation_method='star',
-                        n_trials=int(1e5),
-                        **params):
-        """Return interpolator for number of expected events
-        Parameters must be specified as kwarg=(start, stop, n_anchors)
-        """
-        # TODO: is the mu also to be batched?
-        if interpolation_method != 'star':
-            raise NotImplementedError(
-                f"mu interpolation method {interpolation_method} "
-                f"not implemented")
-
-        base_mu = tf.constant(cls.estimate_mu(data, n_trials=n_trials),
-                              dtype=fd.float_type())
-        pspaces = dict()    # parameter -> tf.linspace of anchors
-        mus = dict()        # parameter -> tensor of mus
-        for pname, pspace_spec in tqdm(params.items(),
-                                       desc="Estimating mus"):
-            pspaces[pname] = tf.linspace(*pspace_spec)
-            mus[pname] = tf.convert_to_tensor(
-                 [cls.estimate_mu(data, **{pname: x}, n_trials=n_trials)
-                 for x in np.linspace(*pspace_spec)],
-                dtype=fd.float_type())
-
-        def mu_itp(**kwargs):
-            mu = base_mu
-            for pname, v in kwargs.items():
-                mu *= tfp.math.interp_regular_1d_grid(
-                    x=v,
-                    x_ref_min=params[pname][0],
-                    x_ref_max=params[pname][1],
-                    y_ref=mus[pname]) / base_mu
-            return mu
-
-        return mu_itp
-
-    @classmethod
-    def estimate_mu(cls, data=None, n_trials=int(1e5), **params):
-        """Return estimate of total expected number of events
-        :param data: Data used for drawing auxiliary observables
-        (e.g. position and time)
-        :param n_trials: Number of events to simulate for efficiency estimate
-        """
-        # TODO what if e_spectrum is pos/time dependent?
-        # TODO: eh, not even looking at defaults now???
-        _, spectra = cls(data, _skip_tf_init=True).gimme(
-            'energy_spectrum',
-            # TODO: BAD!
-            data_tensor=None, ptensor=None,
-            numpy_out=True)
-        mean_rate = spectra.sum(axis=1).mean(axis=0)
-
-        d_simulated = cls.simulate(n_trials, data=data, **params)
-        return mean_rate * len(d_simulated) / n_trials
