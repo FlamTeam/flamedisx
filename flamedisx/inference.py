@@ -305,6 +305,7 @@ class LogLikelihood:
                 llr_tolerance=0.1,
                 get_lowlevel_result=False,
                 use_hessian=True,
+                autograph=True,
                 **kwargs):
         """Return best-fit parameter tensor
 
@@ -361,6 +362,7 @@ class LogLikelihood:
         else:
             inv_hess = None
 
+        self._autograph_objective = autograph
         res = optimizer(self.objective,
                         x_norm,
                         initial_inverse_hessian_estimate=inv_hess,
@@ -381,7 +383,10 @@ class LogLikelihood:
         for i, k in enumerate(self._varnames):
             params[k] = x[i]
 
-        ll, grad = self.minus_ll(**params, omit_grads=tuple(self._fix.keys()))
+        ll, grad = self.minus_ll(
+            **params,
+            autograph=self._autograph_objective,
+            omit_grads=tuple(self._fix.keys()))
         if tf.math.is_nan(ll):
             tf.print(f"Objective at {x_norm} is Nan!")
             ll *= float('inf')
