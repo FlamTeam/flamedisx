@@ -159,7 +159,7 @@ class Source(SourceBase):
                 continue
             for i, (pname, p) in enumerate(
                     inspect.signature(f).parameters.items()):
-                if p.default == inspect.Parameter.empty:
+                if p.default is inspect.Parameter.empty:
                     if not (fname in self.special_data_methods and i == 0):
                         # It's an observable dimension
                         self.f_dims[fname].append(pname)
@@ -173,7 +173,8 @@ class Source(SourceBase):
                         p.default, dtype=fd.float_type())
         for k, v in params.items():
             if k in self.defaults:
-                self.defaults[k] = v
+                self.defaults[k] = tf.convert_to_tensor(
+                    v, dtype=fd.float_type())
             else:
                 raise ValueError(f"Key {k} not in defaults")
 
@@ -844,10 +845,14 @@ class LXeSource(Source):
         d['nq'] = self._simulate_nq(d['energy'])
 
         d['p_el_mean'] = gimme('p_electron', d['nq'].values)
-        d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
 
-        d['p_el_actual'] = stats.beta.rvs(
-            *fd.beta_params(d['p_el_mean'], d['p_el_fluct']))
+        if s.do_pel_fluct:
+            d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
+            d['p_el_actual'] = stats.beta.rvs(
+                *fd.beta_params(d['p_el_mean'], d['p_el_fluct']))
+        else:
+            d['p_el_fluct'] = 0.
+            d['p_el_actual'] = d['p_el_mean']
         d['p_el_actual'] = np.nan_to_num(d['p_el_actual']).clip(0, 1)
         d['electron_produced'] = stats.binom.rvs(
             n=d['nq'],

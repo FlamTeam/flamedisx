@@ -154,7 +154,6 @@ class LogLikelihood:
         for dsetname in self.dsetnames:
             for i_batch in tf.range(self.n_batches[dsetname], dtype=fd.int_type()):
                 v = f(i_batch, dsetname, autograph, **params)
-                print(f"Adding {v[0]} to ll, which was {ll}")
                 ll += v[0]
                 llgrad += v[1]
                 if second_order:
@@ -286,9 +285,11 @@ class LogLikelihood:
         return {k: v for k, v in zip(self.param_names, tf.unstack(values))}
 
     def bestfit(self, guess=None,
-                optimizer=tfp.optimizer.lbfgs_minimize,
+                optimizer=tfp.optimizer.bfgs_minimize,
                 llr_tolerance=0.1,
-                get_lowlevel_result=False, **kwargs):
+                get_lowlevel_result=False,
+                use_hessian=True,
+                **kwargs):
         """Return best-fit parameter tensor
 
         :param guess: Guess parameters: array or tensor of same length
@@ -297,6 +298,10 @@ class LogLikelihood:
         :param llr_tolerance: stop minimizer if change in -2 log likelihood
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
+        :param get_lowlevel_result: Returns the full optimizer result instead
+        of only the best fit parameters. Bool.
+        :param use_hessian: Passes the hessian estimated at the guess to the
+        optimizer. Bool.
         """
         _guess = self.guess()
         if isinstance(guess, dict):
@@ -323,16 +328,30 @@ class LogLikelihood:
         # Set guess for objective function
         self._guess = _guess
 
-        res = optimizer(self.objective, x_norm, **kwargs)
+        if optimizer == tfp.optimizer.bfgs_minimize and use_hessian:
+            # This optimizer can use the hessian information
+            # Compute the inverse hessian at the guess
+            inv_hess = self.inverse_hessian(_guess)
+            # We use scaled values in the optiminzer so also scale the
+            # hessian. We need to multiply the hessian with the parameter
+            # values. This is the inverse hessian so we divide.
+            inv_hess /= tf.linalg.tensordot(_guess, _guess, axes=0)
+            # Explicitly symmetrize the matrix
+            inv_hess = fd.symmetrize_matrix(inv_hess)
+        else:
+            inv_hess = None
+
+        res = optimizer(self.objective,
+                        x_norm,
+                        initial_inverse_hessian_estimate=inv_hess,
+                        **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
             raise ValueError(f"Optimizer failure! Result: {res}")
         return res.position * _guess
 
-    @tf.function
     def objective(self, x_norm):
-        print("Tracing objective")
         x = x_norm * self._guess
         ll, grad = self.minus_ll(**self.params_to_dict(x))
         if tf.math.is_nan(ll):
@@ -355,6 +374,7 @@ class LogLikelihood:
         _, _, grad2_ll = self.log_likelihood(**self.params_to_dict(params),
                                              autograph=False,
                                              second_order=True)
+
         return tf.linalg.inv(-2 * grad2_ll)
 
     def summary(self, bestfit, inverse_hessian=None, precision=3):
