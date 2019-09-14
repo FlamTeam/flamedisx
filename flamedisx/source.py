@@ -83,15 +83,15 @@ class ColumnSource(SourceBase):
         return data_tensor[:, 0]
 
     @classmethod
-    def mu_interpolator(cls,
-                        data,
-                        interpolation_method='star',
-                        n_trials=int(1e5),
-                        **params):
-        """Return interpolator for number of expected events
+    def mu_function(cls,
+                    data,
+                    interpolation_method='star',
+                    n_trials=int(1e5),
+                    **params):
+        """Return function that maps params -> expected number of events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
         """
-        return lambda *args, **kwargs: cls.mu
+        return lambda **kwargs: cls.mu
 
 
 @export
@@ -167,18 +167,17 @@ class Source(SourceBase):
         self.fit_params = [tf.constant(x) for x in fit_params
                            if x in self.defaults]
 
-        print(self.defaults.keys())
-
-        self.param_id = tf.lookup.StaticVocabularyTable(
-            tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
-                                                tf.range(len(self.defaults),
-                                                         dtype=tf.dtypes.int64)),
-            num_oov_buckets=1,
-            lookup_key_dtype=tf.dtypes.string)
-        # Indices of params we actually want to fit; we have to differentiate wrt these
-        self.fit_param_indices = tuple([
-            self.param_id.lookup(param_name)
-            for param_name in self.fit_params])
+        if len(self.defaults):
+            self.param_id = tf.lookup.StaticVocabularyTable(
+                tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
+                                                    tf.range(len(self.defaults),
+                                                             dtype=tf.dtypes.int64)),
+                num_oov_buckets=1,
+                lookup_key_dtype=tf.dtypes.string)
+            # Indices of params we actually want to fit; we have to differentiate wrt these
+            self.fit_param_indices = tuple([
+                self.param_id.lookup(param_name)
+                for param_name in self.fit_params])
 
         self._init_padding(batch_size, _skip_tf_init)
 
@@ -395,7 +394,7 @@ class Source(SourceBase):
                 _skip_tf_init=True, _skip_bounds_computation=True,
                 **params)
         if isinstance(energies, (float, int)):
-            energies = s.simulate_es(n_to_sim)
+            energies = s.simulate_es(n_to_sim, **params)
 
         # Create and set new dataset, with just the dimensions we need
         # (note we should NOT include s1 and s2 here, we're going to simulate
@@ -423,25 +422,16 @@ class Source(SourceBase):
         cls.annotate_data(d, **params)
         return d
 
-    def simulate_es(self, n):
-        return self.energy_spectrum_hist().get_random(n)
-
-    def energy_spectrum_hist(self):
-        # TODO: fails if e is pos/time dependent
-        # TODO: BAD, see earlier
-        es, rs = self.gimme('energy_spectrum', data_tensor=None, ptensor=None, numpy_out=True)
-        return Hist1d.from_histogram(rs[0, :-1], es[0, :])
-
     ##
     # Mu estimation
     ##
 
     @classmethod
-    def mu_interpolator(cls,
-                        data,
-                        interpolation_method='star',
-                        n_trials=int(1e5),
-                        **params):
+    def mu_function(cls,
+                    data,
+                    interpolation_method='star',
+                    n_trials=int(1e5),
+                    **params):
         """Return interpolator for number of expected events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
         """
@@ -460,7 +450,7 @@ class Source(SourceBase):
             pspaces[pname] = tf.linspace(*pspace_spec)
             mus[pname] = tf.convert_to_tensor(
                  [cls.estimate_mu(data, **{pname: x}, n_trials=n_trials)
-                 for x in np.linspace(*pspace_spec)],
+                  for x in np.linspace(*pspace_spec)],
                 dtype=fd.float_type())
 
         def mu_itp(**kwargs):
@@ -476,32 +466,33 @@ class Source(SourceBase):
         return mu_itp
 
     @classmethod
-    def estimate_mu(cls, data=None, n_trials=int(1e5), **params):
+    def mu_raw(cls, data, **params):
+        """Return mean expected number of events before efficiencies/response"""
+        _, spectra = cls(data, _skip_tf_init=True, **params).gimme(
+            'energy_spectrum',
+            # TODO: BAD!
+            data_tensor=None, ptensor=None,
+            numpy_out=True)
+        return spectra.sum(axis=1).mean(axis=0)
+
+    @classmethod
+    def estimate_mu(cls, data, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param data: Data used for drawing auxiliary observables
         (e.g. position and time)
         :param n_trials: Number of events to simulate for efficiency estimate
         """
-        # TODO what if e_spectrum is pos/time dependent?
-        # TODO: eh, not even looking at defaults now???
-        _, spectra = cls(data, _skip_tf_init=True).gimme(
-            'energy_spectrum',
-            # TODO: BAD!
-            data_tensor=None, ptensor=None,
-            numpy_out=True)
-        mean_rate = spectra.sum(axis=1).mean(axis=0)
-
         d_simulated = cls.simulate(n_trials, data=data, **params)
-        return mean_rate * len(d_simulated) / n_trials
+        return cls.mu_raw(data, **params) * len(d_simulated) / n_trials
 
     ##
     # Functions probably want to override
     ##
 
-    def energy_spectrum(self, *args):
-        """Return (energies, rate at these energies),
-        both (n_events, n_energies) tensors.
-        """
+    def _differential_rate(self, data_tensor, ptensor):
+        raise NotImplementedError
+
+    def _simulate_es(self, n_events):
         raise NotImplementedError
 
     def _annotate(self, _skip_bounds_computation=False):
@@ -522,12 +513,9 @@ class Source(SourceBase):
         """
         pass
 
-    def _differential_rate(self, data_tensor, ptensor):
-        raise NotImplementedError
-
     @classmethod
     def simulate_aux(cls, n_events):
-        raise NotImplementedError
+        return pd.DataFrame([dict()] * n_events)
 
     def _simulate(self, d):
         return d

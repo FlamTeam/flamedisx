@@ -4,6 +4,7 @@ LXeSource: common parts of ER and NR response
 ERSource: ER-specific model components and defaults
 NRSource: NR-specific model components and defaults
 """
+from multihist import Hist1d
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -464,6 +465,15 @@ class LXeSource(fd.Source):
 
     def _simulate_nq(self, energies):
         raise NotImplementedError
+
+    def simulate_es(self, n, **params):
+        return self.energy_spectrum_hist(**params).get_random(n)
+
+    def energy_spectrum_hist(self, **params):
+        # TODO: fails if e is pos/time dependent
+        # TODO: BAD, see earlier
+        es, rs = self.gimme('energy_spectrum', data_tensor=None, ptensor=None, numpy_out=True)
+        return Hist1d.from_histogram(rs[0, :-1], es[0, :])
 
 
 @export

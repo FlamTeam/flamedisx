@@ -118,9 +118,9 @@ class LogLikelihood:
         self.param_names = list(param_defaults.keys())
 
         self.mu_itps = {
-            sname: s.mu_interpolator(n_trials=n_trials,
-                                     data=s.data,
-                                     **common_param_specs)
+            sname: s.mu_function(n_trials=n_trials,
+                                 data=s.data,
+                                 **common_param_specs)
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
