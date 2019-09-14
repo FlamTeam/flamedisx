@@ -10,6 +10,8 @@ o = tf.newaxis
 
 DEFAULT_DSETNAME = 'the_dataset'
 
+print_trace = False
+
 @export
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
@@ -229,7 +231,8 @@ class LogLikelihood:
     @tf.function
     def _log_likelihood_tf(self, i_batch, dsetname, autograph,
                            omit_grads=tuple(), **params):
-        print("Tracing _log_likelihood")
+        if print_trace:
+            print("Tracing _log_likelihood")
         return self._log_likelihood(i_batch, dsetname, autograph,
                                     omit_grads=omit_grads, **params)
 
@@ -253,7 +256,8 @@ class LogLikelihood:
     @tf.function
     def _log_likelihood_grad2_tf(self, i_batch, dsetname, autograph,
                                  omit_grads=tuple(), **params):
-        print("Tracing _log_likelihood_grad2_tf")
+        if print_trace:
+            print("Tracing _log_likelihood_grad2_tf")
         return self._log_likelihood_grad2(i_batch, dsetname, autograph,
                                           omit_grads=omit_grads, **params)
 
