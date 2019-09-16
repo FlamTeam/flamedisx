@@ -148,3 +148,18 @@ def symmetrize_matrix(x):
     upper = tf.linalg.band_part(x, 0, -1)
     diag = tf.linalg.band_part(x, 0, 0)
     return (upper - diag) + tf.transpose(upper)
+
+@export
+def interpolated_function(func, start, stop, n_input, n_output, **kwargs):
+    # Interpolate numpy vector function func from
+    # start to stop at n_input points.
+    # Return tensor of interpolated function at n_output points
+    # Kwargs are passed to func
+    in_space = np.linspace(start, stop, n_input)
+    out_space = tf.linspace(start, stop, n_output)
+
+    y_ref = tf.convert_to_tensor([func(t, **kwargs) for t in in_space],
+                                  dtype=fd.float_type())
+    return tfp.math.interp_regular_1d_grid(out_space,
+                                           start, stop,
+                                           y_ref, axis=-2)
