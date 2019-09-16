@@ -165,7 +165,7 @@ def interpolator_function(func, start, stop, n_refs, f_kwargs):
     in_space = np.linspace(start, stop, n_refs)
 
     y_ref = tf.convert_to_tensor([func(t=t, **f_kwargs) for t in in_space],
-                                  dtype=fd.float_type())
+                                  dtype=float_type())
 
     def interpolator(x):
         return tfp.math.interp_regular_1d_grid(x,
