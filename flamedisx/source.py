@@ -2,7 +2,6 @@ import inspect
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
 
