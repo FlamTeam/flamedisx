@@ -150,16 +150,25 @@ def symmetrize_matrix(x):
     return (upper - diag) + tf.transpose(upper)
 
 @export
-def interpolated_function(func, start, stop, n_input, n_output, **kwargs):
-    # Interpolate numpy vector function func from
-    # start to stop at n_input points.
-    # Return tensor of interpolated function at n_output points
-    # Kwargs are passed to func
-    in_space = np.linspace(start, stop, n_input)
-    out_space = tf.linspace(start, stop, n_output)
+def interpolator_function(func, start, stop, n_refs, f_kwargs):
+    """Construct interpolator function to interpolate
+    numpy vector function of time in [start, stop] range.
+    Evaluate it at n_refs reference values, uniformly between
+    start and stop. Returns interpolator function.
 
-    y_ref = tf.convert_to_tensor([func(t, **kwargs) for t in in_space],
+    :param func: Vector function f(t, **kwargs)
+    :param start: Smallest value to be interpolated
+    :param stop: Largest value to be interpolated
+    :param n_refs: number of function evaluations
+    :param f_kwargs: dictionary passed to func as kwargs
+    """
+    in_space = np.linspace(start, stop, n_refs)
+
+    y_ref = tf.convert_to_tensor([func(t=t, **f_kwargs) for t in in_space],
                                   dtype=fd.float_type())
-    return tfp.math.interp_regular_1d_grid(out_space,
-                                           start, stop,
-                                           y_ref, axis=-2)
+
+    def interpolator(x):
+        return tfp.math.interp_regular_1d_grid(x,
+                                               start, stop,
+                                               y_ref, axis=-2)
+    return interpolator
