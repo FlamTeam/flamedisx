@@ -151,7 +151,7 @@ def test_hessian(xes: fd.ERSource):
         data=xes.data)
 
     guess = lf.guess()
-    assert guess.shape == (2,)
+    assert len(guess) == 2
 
     inv_hess = lf.inverse_hessian(guess)
     inv_hess_np = inv_hess.numpy()
@@ -180,10 +180,10 @@ def test_bestfit(xes):
     xs_nr = np.linspace(0.04, 0.1, 20)  # NR source range
     xs = list(xs_er) + list(xs_nr)
     ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
-    guess[0] = xs[np.argmin(ys)]
-    assert guess.shape == (2,)
+    guess['er_rate_multiplier'] = xs[np.argmin(ys)]
+    assert len(guess) == 2
 
     bestfit = lf.bestfit(guess, use_hessian=True)
-    bestfit_np = bestfit.numpy()
-    assert bestfit_np.shape == (2,)
-    assert bestfit.dtype == fd.float_type()
+    assert isinstance(bestfit, dict)
+    assert len(bestfit) == 2
+    assert bestfit['er_rate_multiplier'].dtype == np.float32
