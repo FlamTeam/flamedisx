@@ -152,7 +152,6 @@ def test_hessian(xes: fd.ERSource):
 
     guess = lf.guess()
     assert len(guess) == 2
-    assert len(guess) == 2
 
     inv_hess = lf.inverse_hessian(guess)
     inv_hess_np = inv_hess.numpy()
