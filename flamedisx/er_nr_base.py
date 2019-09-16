@@ -674,12 +674,14 @@ class WIMPSource(NRSource):
     t_stop = wr.j2000(date=pd.to_datetime('2017-09-13T12:00:00'))  # 6465.
     n_in = 50  # Number of reference values (wimprates function evaluations)
 
-    # Prepare the differential rate as function of time
-    self.f_rate = fd.interpolator_function(wr.rate_wimp_std,
-                                            start=self.t_start,
-                                            stop=self.t_stop,
-                                            n_refs=self.n_in,
-                                            **self.wimp_specs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Prepare the differential rate as function of time
+        self.f_rate = fd.interpolator_function(wr.rate_wimp_std,
+                                                start=self.t_start,
+                                                stop=self.t_stop,
+                                                n_refs=self.n_in,
+                                                self.wimp_specs)
 
     @staticmethod
     def add_extra_columns(d):
