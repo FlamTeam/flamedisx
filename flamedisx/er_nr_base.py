@@ -681,7 +681,7 @@ class WIMPSource(NRSource):
                                                 start=self.t_start,
                                                 stop=self.t_stop,
                                                 n_refs=self.n_in,
-                                                self.wimp_specs)
+                                                f_kwargs=self.wimp_specs)
 
     @staticmethod
     def add_extra_columns(d):
