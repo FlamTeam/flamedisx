@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+import wimprates as wr
 from scipy import stats
 
 import flamedisx as fd
@@ -135,6 +136,8 @@ class LXeSource(fd.Source):
         data['y'] = data['r'] * np.sin(data['theta'])
         data['z'] = - np.random.rand(n_events) * cls.tpc_length
         data['drift_time'] = - data['z']/ cls.drift_velocity
+        # Uniform J2000 timestamps between 2016-09 and 2017-09
+        data['t'] = np.random.uniform(6100., 6465., size=n_events)
         return pd.DataFrame(data)
 
     ##
@@ -653,3 +656,41 @@ class NRSource(LXeSource):
                                 data_tensor=None, ptensor=None,
                                 numpy_out=True)
         return stats.poisson.rvs(energies * lindhard_l / work)
+
+
+@export
+class WIMPSource(NRSource):
+    es = np.geomspace(0.7, 50, 100)  # Recoil energies [keV]
+    # Wimprates settings
+    wimp_specs = dict(mw = 1e3,  # GeV
+                      sigma_nucleon = 1e-45,  # cm^2
+                      es = es)
+
+    es_diff = tf.convert_to_tensor(np.diff(es), dtype=fd.float_type())
+    bin_centers = tf.convert_to_tensor((es[:-1] + es[1:])/2.,
+                                       dtype=fd.float_type())
+    # Interpolator settings
+    t_start = wr.j2000(date=pd.to_datetime('2016-09-13T12:00:00'))  # 6100.
+    t_stop = wr.j2000(date=pd.to_datetime('2017-09-13T12:00:00'))  # 6465.
+    n_in = 50  # Number of reference values (wimprates function evaluations)
+
+    # Prepare the differential rate as function of time
+    self.f_rate = fd.interpolator_function(wr.rate_wimp_std,
+                                            start=self.t_start,
+                                            stop=self.t_stop,
+                                            n_refs=self.n_in,
+                                            **self.wimp_specs)
+
+    @staticmethod
+    def add_extra_columns(d):
+        super().add_extra_columns(d)
+        # Add J2000 timestamps to data for use with wimprates
+        d['t'] = [wimprates.j2000(date=t)
+                  for t in pd.to_datetime(d['event_time'])]
+
+    def energy_spectrum(self, t):
+        """Return (energies in keV, events at these energies),
+        both (n_events, n_energies) tensors.
+        """
+        return (fd.repeat(self.bin_centers[o, :], repeats=len(t), axis=0),
+                self.f_rate(t)[:,:-1] * self.es_diff[o, :])
