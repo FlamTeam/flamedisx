@@ -102,6 +102,7 @@ class SR0Source:
                              mean_eff=0.142 / (1 + 0.219)):
         return mean_eff * s1_relative_ly
 
+    @classmethod
     def simulate_aux(cls):
         raise NotImplementedError
 
@@ -110,30 +111,18 @@ class SR0ERSource(SR0Source, fd.ERSource):
     pass
 
 
-# Compute events/bin spectrum for a WIMP
-example_wimp_es = np.geomspace(0.7, 50, 100)
-example_wimp_rs = wimprates.rate_wimp_std(
-    example_wimp_es,
-    mw=1e3, sigma_nucleon=1e-45)
-example_sp = Hist1d.from_histogram(
-    example_wimp_rs[:-1] * np.diff(example_wimp_es),
-    example_wimp_es)
-example_sp_centers = tf.convert_to_tensor(example_sp.bin_centers[np.newaxis,:],
-                                          dtype=fd.float_type())
-example_sp_values = tf.convert_to_tensor(example_sp.histogram[np.newaxis,:],
-                                         dtype=fd.float_type())
-
-
 @export
-class SR0WIMPSource(SR0Source, fd.NRSource):
-    @staticmethod
-    def add_extra_columns(d):
-        super(SR0WIMPSource, SR0WIMPSource).add_extra_columns(d)
-        # Add J2000 timestamps to data for use with wimprates
-        d['t'] = [wimprates.j2000(date=t)
-                  for t in pd.to_datetime(d['event_time'])]
+class SR0WIMPSource(SR0Source, fd.WIMPSource):
+    # SR0 start and end in J2000 format
+    t_start = 6137.
+    t_stop = 6160.
 
-    def energy_spectrum(self, t):
-        n_evts = len(t)
-        return (fd.repeat(example_sp_centers, repeats=n_evts, axis=0),
-                fd.repeat(example_sp_values, repeats=n_evts, axis=0))
+    @classmethod
+    def simulate_aux(cls, n_events):
+        # Simulate events in SR0 range
+        d = super().simulate_aux(n_events)
+
+        d['t'] = np.random.uniform(self.t_start,
+                                   self.t_stop,
+                                   size=n_events)
+        return pd.DataFrame(d)
