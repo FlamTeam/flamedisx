@@ -660,7 +660,11 @@ class NRSource(LXeSource):
 
 @export
 class WIMPSource(NRSource):
-    es = np.geomspace(0.7, 50, 100)  # Recoil energies [keV]
+    """NRSource with time dependent energy spectra from
+    wimprates.
+    """
+    # Recoil energies
+    es = np.geomspace(0.7, 50, 100)  # [keV]
     # Wimprates settings
     wimp_specs = dict(mw = 1e3,  # GeV
                       sigma_nucleon = 1e-45,  # cm^2
@@ -677,11 +681,19 @@ class WIMPSource(NRSource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Prepare the differential rate as function of time
-        self.f_rate = fd.interpolator_function(wr.rate_wimp_std,
-                                                start=self.t_start,
-                                                stop=self.t_stop,
-                                                n_refs=self.n_in,
-                                                f_kwargs=self.wimp_specs)
+        f_rate = fd.interpolator_function(wr.rate_wimp_std,
+                                          start=self.t_start,
+                                          stop=self.t_stop,
+                                          n_refs=self.n_in,
+                                          f_kwargs=self.wimp_specs)
+        # Find the column id of the timestamps in the data_tensor
+        col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant('t')),
+                                fd.int_type())
+        # Construct the energy spectra at event times
+        energy_tensor = f_rate(self.data_tensor[:, :, col_id])
+        self.energy_tensor = energy_tensor[:, :, :-1] * self.es_diff[o, o, :]
+        dts = self.data_tensor.shape
+        assert self.energy_tensor.shape == [dts[0], dts[1], len(self.es) - 1]
 
     @staticmethod
     def add_extra_columns(d):
@@ -690,9 +702,9 @@ class WIMPSource(NRSource):
         d['t'] = [wimprates.j2000(date=t)
                   for t in pd.to_datetime(d['event_time'])]
 
-    def energy_spectrum(self, t):
+    def energy_spectrum(self, i_batch):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        return (fd.repeat(self.bin_centers[o, :], repeats=len(t), axis=0),
-                self.f_rate(t)[:,:-1] * self.es_diff[o, :])
+        return (fd.repeat(self.bin_centers[o, :], repeats=len(i_batch), axis=0),
+                self.data_tensor[i_batch[0], :, :])

@@ -125,4 +125,4 @@ class SR0WIMPSource(SR0Source, fd.WIMPSource):
         d['t'] = np.random.uniform(self.t_start,
                                    self.t_stop,
                                    size=n_events)
-        return pd.DataFrame(d)
+        return d

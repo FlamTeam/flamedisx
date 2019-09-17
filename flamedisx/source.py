@@ -40,6 +40,10 @@ class SourceBase:
                 df_pad = self.data.iloc[:self.n_padding, :]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
+        # Add i_batch column to data for use with precomputed model functions
+        self.data['i_batch'] = np.repeat(np.arange(self.n_batches),
+                                         self.n_batches)
+
 
 @export
 class ColumnSource(SourceBase):
@@ -141,6 +145,10 @@ class Source(SourceBase):
                 continue
             for i, (pname, p) in enumerate(
                     inspect.signature(f).parameters.items()):
+                if pname == 'i_batch':
+                    # This function uses precomputed data
+                    self.f_dims[fname].append(pname)
+                    continue
                 if p.default is inspect.Parameter.empty:
                     if not (fname in self.special_data_methods and i == 0):
                         # It's an observable dimension
