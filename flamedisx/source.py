@@ -42,7 +42,7 @@ class SourceBase:
 
         # Add i_batch column to data for use with precomputed model functions
         self.data['i_batch'] = np.repeat(np.arange(self.n_batches),
-                                         self.n_batches)
+                                         self.batch_size)[:len(self.data)]
 
 
 @export
