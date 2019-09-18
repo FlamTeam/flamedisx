@@ -682,7 +682,7 @@ class WIMPSource(NRSource):
 
     def __init__(self, *args, **kwargs):
         # Compute the energy spectrum in a given time range
-        times = np.linspace(self.start, self.stop, self.n_in)
+        times = np.linspace(self.t_start, self.t_stop, self.n_in)
         time_centers = self.bin_centers(times)
         es_centers = self.bin_centers(self.es)
         es_diff = np.diff(self.es)
