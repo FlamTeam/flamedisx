@@ -80,8 +80,8 @@ class SR0Source:
         list(fd.ERSource.extra_needed_columns)
         + ['x_observed', 'y_observed'])
 
-    @staticmethod
-    def add_extra_columns(d):
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
         d['s2_relative_ly'] = s2_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
@@ -113,16 +113,21 @@ class SR0ERSource(SR0Source, fd.ERSource):
 
 @export
 class SR0WIMPSource(SR0Source, fd.WIMPSource):
-    # SR0 start and end in J2000 format
-    t_start = 6137.
-    t_stop = 6160.
+    extra_needed_columns = tuple(set(
+        list(SR0Source.extra_needed_columns) +
+        list(fd.WIMPSource.extra_needed_columns)))
+    # SR0 start and end
+    dt_start =  pd.to_datetime('2016-11-01')
+    dt_stop = pd.to_datetime('2017-01-01')
+    t_start = wimprates.j2000(date=dt_start)
+    t_stop = wimprates.j2000(date=dt_stop)
 
     @classmethod
     def simulate_aux(cls, n_events):
-        # Simulate events in SR0 range
         d = super().simulate_aux(n_events)
-
-        d['t'] = np.random.uniform(self.t_start,
-                                   self.t_stop,
-                                   size=n_events)
+        # Simulate events in SR0 range
+        # well, in a two-month range
+        d['event_time'] = np.random.uniform(pd.Timestamp(self.t_start).value,
+                                            pd.Timestamp(self.t_stop).value,
+                                            size=n_events)
         return d
