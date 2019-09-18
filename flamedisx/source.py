@@ -77,7 +77,6 @@ class ColumnSource(SourceBase):
         :param params: New defaults
         """
         self.data = data
-        self.batch_size = batch_size
 
         self._init_padding(batch_size, _skip_tf_init)
 
@@ -89,7 +88,6 @@ class ColumnSource(SourceBase):
 
     @classmethod
     def mu_function(cls,
-                    data,
                     interpolation_method='star',
                     n_trials=int(1e5),
                     **params):
@@ -251,13 +249,20 @@ class Source(SourceBase):
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
     @contextmanager
-    def _set_temporarily(self, data, **kwargs):
-        old_data, old_defaults = self.data, self.defaults
-        self.set_data(data, **kwargs, _skip_tf_init=True)
+    def _set_temporarily(self, data=None, **kwargs):
+        """Set data and/or defaults temporarily"""
+        old_defauls = self.defaults
+        if data is None:
+            self.set_defaults(**kwargs)
+        else:
+            old_data = self.data
+            self.set_data(data, **kwargs, _skip_tf_init=True)
         try:
             yield
         finally:
-            self.data, self.defaults = old_data, old_defaults
+            self.defaults = old_defauls
+            if data is not None:
+               self.data = old_data
 
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""
@@ -294,7 +299,7 @@ class Source(SourceBase):
 
     # TODO: make data_tensor and ptensor keyword-only arguments
     # after https://github.com/tensorflow/tensorflow/issues/28725
-    def gimme(self, fname, data_tensor, ptensor, bonus_arg=None, numpy_out=False):
+    def gimme(self, fname, data_tensor=None, ptensor=None, bonus_arg=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
@@ -302,8 +307,9 @@ class Source(SourceBase):
         :param numpy_out: If True, return (tuple of) numpy arrays,
         otherwise (tuple of) tensors.
         :param data_tensor: Data tensor, columns as self.name_id
+        If not given, use self.data (used in annotate)
         :param ptensor: Parameter tensor, columns as self.param_id
-
+        If not give, use defaults dictionary (used in annotate)
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
@@ -408,76 +414,59 @@ class Source(SourceBase):
     # Simulation methods and helpers
     ##
 
-    def simulate(self, energies, data=None, **params):
+    def simulate(self, energies, **params):
         """Simulate events at energies.
-
-        If data is given, we will draw auxiliary observables (e.g. positions)
-        from it. Otherwise we will call _simulate_aux to do this.
-        (so we will never use data that you set_data, don't worry)
 
         Will not return | energies | events lost due to
         selection/detection efficiencies
+
+        :param aux_data: Data used for drawing auxiliary observables
+        (e.g. position and time), can be None, then will use simulate_aux
         """
-        if isinstance(energies, (float, int)):
-            n_to_sim = int(energies)
-        else:
-            n_to_sim = len(energies)
+        # Draw random "deep truth" variables (energy, position)
+        sim_data = self.random_truth(energies, **params)
 
-        create_aux = data is None
+        with self._set_temporarily(sim_data, _skip_bounds_computation=True,
+                                   **params):
+            # Do the forward simulation of the detector response
+            self._simulate_response()
 
-        if create_aux:
-            # Create from scratch
-            d = self.simulate_aux(n_to_sim)
-        else:
-            # Sample new data from e.g. Kr data
-            data = data.copy()  # In case someone passes in a slice
-            # Drop dimensions we do not need / like
-            data = data[list(set(sum(
-                self.f_dims.values(),
-                list(self.extra_needed_columns))))].copy()
-            d = data.sample(n=n_to_sim, replace=True)
-            assert len(d) == n_to_sim
+            # Now that we have s1 and s2 values, we can do the full annotate,
+            # populating columns like e_vis, photon_produced_mle, etc.
+            self._annotate(_skip_bounds_computation=False)
+            return self.data
 
-        # Simulation needs data set for position/time/other dependencies
-        self.set_data(d, _skip_tf_init=True, _skip_bounds_computation=True, **params)
-
-        if isinstance(energies, (float, int)):
-            energies = self.simulate_es(n_to_sim, **params)
-        d['energy'] = energies
-        d = self._simulate(d)
-
-        # Now that we have s1 and s2 values, we can do the full annotate,
-        # populating columns like e_vis, photon_produced_mle, etc.
-        self.annotate_data(d, **params)
-        return d
 
     ##
     # Mu estimation
     ##
 
     def mu_function(self,
-                    data,
                     interpolation_method='star',
                     n_trials=int(1e5),
-                    **params):
+                    **param_specs):
         """Return interpolator for number of expected events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
+        :param aux_data: Data used for drawing auxiliary observables
+        (e.g. position and time), can be None, then will use simulate_aux
         """
-        # TODO: is the mu also to be batched?
         if interpolation_method != 'star':
             raise NotImplementedError(
                 f"mu interpolation method {interpolation_method} "
                 f"not implemented")
 
-        base_mu = tf.constant(self.estimate_mu(data, n_trials=n_trials),
+        # Estimate mu under the current defaults
+        base_mu = tf.constant(self.estimate_mu(n_trials=n_trials),
                               dtype=fd.float_type())
+
+        # Estimate mus under the specified variations
         pspaces = dict()    # parameter -> tf.linspace of anchors
         mus = dict()        # parameter -> tensor of mus
-        for pname, pspace_spec in tqdm(params.items(),
+        for pname, pspace_spec in tqdm(param_specs.items(),
                                        desc="Estimating mus"):
             pspaces[pname] = tf.linspace(*pspace_spec)
             mus[pname] = tf.convert_to_tensor(
-                 [self.estimate_mu(data, **{pname: x}, n_trials=n_trials)
+                 [self.estimate_mu(**{pname: x}, n_trials=n_trials)
                   for x in np.linspace(*pspace_spec)],
                 dtype=fd.float_type())
 
@@ -486,41 +475,37 @@ class Source(SourceBase):
             for pname, v in kwargs.items():
                 mu *= tfp.math.interp_regular_1d_grid(
                     x=v,
-                    x_ref_min=params[pname][0],
-                    x_ref_max=params[pname][1],
+                    x_ref_min=param_specs[pname][0],
+                    x_ref_max=param_specs[pname][1],
                     y_ref=mus[pname]) / base_mu
             return mu
 
         return mu_itp
 
-    def mu_raw(self, data, **params):
-        """Return mean expected number of events before efficiencies/response"""
-        with self._set_temporarily(data, **params):
-            _, spectra = self.gimme(
-                'energy_spectrum',
-                # TODO: BAD!  How to integrate over positions/times
-                #  that you dont' see?
-                data_tensor=None, ptensor=None,
-                numpy_out=True)
-            return spectra.sum(axis=1).mean(axis=0)
-
-    def estimate_mu(self, data=None, n_trials=int(1e5), **params):
-        """Return estimate of total expected number of events
-        :param data: Data used for drawing auxiliary observables
-        (e.g. position and time), can be None, then will use simulate_aux
-        :param n_trials: Number of events to simulate for efficiency estimate
+    def mu_before_efficiencies(self, data, **params):
+        """Return mean expected number of events BEFORE efficiencies/response
+        using data for the evaluation of the energy spectra
         """
-        d_simulated = self.simulate(n_trials, data=data, **params)
-        return self.mu_raw(d_simulated, **params) * len(d_simulated) / n_trials
+        with self._set_temporarily(data, **params):
+            _, spectra = self.gimme('energy_spectrum', numpy_out=True)
+        result = spectra.sum(axis=1).mean(axis=0)
+        return result
+
+    def estimate_mu(self, n_trials=int(1e5), **params):
+        """Return estimate of total expected number of events
+        :param n_trials: Number of events to simulate for estimate
+        """
+        d_simulated = self.simulate(n_trials, **params)
+        return (self.mu_before_efficiencies(d_simulated, **params)
+                * len(d_simulated) / n_trials)
 
     ##
     # Functions probably want to override
     ##
-
-    def _differential_rate(self, data_tensor, ptensor):
+    def energy_spectrum(self, **params):
         raise NotImplementedError
 
-    def simulate_es(self, n_events, **params):
+    def _differential_rate(self, data_tensor, ptensor):
         raise NotImplementedError
 
     def _annotate(self, _skip_bounds_computation=False):
@@ -540,9 +525,14 @@ class Source(SourceBase):
         """
         pass
 
-    @classmethod
-    def simulate_aux(cls, n_events):
-        return pd.DataFrame([dict()] * n_events)
+    def random_truth(self, energies, **params):
+        """Draw random "deep truth" variables (energy, position) """
+        if isinstance(energies, (int, float)):
+            q = [dict(energy=1)] * int(energies)
+        else:
+            q = [dict(energy=x) for x in energies]
+        return pd.DataFrame(q)
 
-    def _simulate(self, d):
-        return d
+    def _simulate_response(self):
+        """Do a forward simulation of the detector response, using self.data"""
+        raise NotImplementedError

@@ -76,7 +76,7 @@ def test_gimme(xes: fd.ERSource):
 
 def test_simulate(xes: fd.ERSource):
     """Test the simulator doesn't crash"""
-    xes.simulate(data=xes.data, energies=np.linspace(0., 100., int(1e3)))
+    xes.simulate(energies=np.linspace(0., 100., int(1e3)))
 
 
 def test_bounds(xes: fd.ERSource):
@@ -175,7 +175,7 @@ def test_detection_prob(xes: fd.ERSource):
 
 
 def test_estimate_mu(xes: fd.ERSource):
-    xes.estimate_mu(xes.data)
+    xes.estimate_mu()
 
 
 def test_underscore_diff_rate(xes: fd.ERSource):

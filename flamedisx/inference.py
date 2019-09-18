@@ -121,7 +121,6 @@ class LogLikelihood:
 
         self.mu_itps = {
             sname: s.mu_function(n_trials=n_trials,
-                                 data=s.data,
                                  **common_param_specs)
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
