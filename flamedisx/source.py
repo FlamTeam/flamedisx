@@ -498,7 +498,7 @@ class Source(SourceBase):
     def _differential_rate(self, data_tensor, ptensor):
         raise NotImplementedError
 
-    def _simulate_es(self, n_events):
+    def simulate_es(self, n_events):
         raise NotImplementedError
 
     def _annotate(self, _skip_bounds_computation=False):
