@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import inspect
 
 import numpy as np
@@ -9,7 +10,6 @@ from tqdm import tqdm
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
-
 
 o = tf.newaxis
 
@@ -250,14 +250,20 @@ class Source(SourceBase):
             mi = self._fetch(var + '_min')
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
+    @contextmanager
+    def _set_temporarily(self, data, **kwargs):
+        old_data, old_defaults = self.data, self.defaults
+        self.set_data(data, **kwargs, _skip_tf_init=True)
+        try:
+            yield
+        finally:
+            self.data, self.defaults = old_data, old_defaults
+
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""
-        old_data = self.data
-        old_defaults = self.defaults
-        self.set_data(data, **params, _skip_tf_init=True)
-        self.data = old_data
-        self.defaults = old_defaults
-        return self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+        with self._set_temporarily(data, **params):
+            return self._annotate(
+                _skip_bounds_computation=_skip_bounds_computation)
 
     ##
     # Data fetching / calculation
@@ -449,8 +455,7 @@ class Source(SourceBase):
     # Mu estimation
     ##
 
-    @classmethod
-    def mu_function(cls,
+    def mu_function(self,
                     data,
                     interpolation_method='star',
                     n_trials=int(1e5),
@@ -464,7 +469,7 @@ class Source(SourceBase):
                 f"mu interpolation method {interpolation_method} "
                 f"not implemented")
 
-        base_mu = tf.constant(cls.estimate_mu(data, n_trials=n_trials),
+        base_mu = tf.constant(self.estimate_mu(data, n_trials=n_trials),
                               dtype=fd.float_type())
         pspaces = dict()    # parameter -> tf.linspace of anchors
         mus = dict()        # parameter -> tensor of mus
@@ -472,7 +477,7 @@ class Source(SourceBase):
                                        desc="Estimating mus"):
             pspaces[pname] = tf.linspace(*pspace_spec)
             mus[pname] = tf.convert_to_tensor(
-                 [cls.estimate_mu(data, **{pname: x}, n_trials=n_trials)
+                 [self.estimate_mu(data, **{pname: x}, n_trials=n_trials)
                   for x in np.linspace(*pspace_spec)],
                 dtype=fd.float_type())
 
@@ -490,23 +495,23 @@ class Source(SourceBase):
 
     def mu_raw(self, data, **params):
         """Return mean expected number of events before efficiencies/response"""
-        self.set_data(data)
-        ptensor = self.ptensor_from_kwargs(**params)
-        _, spectra = self.gimme(
-            'energy_spectrum',
-            # TODO: BAD!
-            data_tensor=None, ptensor=ptensor,
-            numpy_out=True)
-        return spectra.sum(axis=1).mean(axis=0)
+        with self._set_temporarily(data, **params):
+            _, spectra = self.gimme(
+                'energy_spectrum',
+                # TODO: BAD!  How to integrate over positions/times
+                #  that you dont' see?
+                data_tensor=None, ptensor=None,
+                numpy_out=True)
+            return spectra.sum(axis=1).mean(axis=0)
 
-    def estimate_mu(self, data, n_trials=int(1e5), **params):
+    def estimate_mu(self, data=None, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param data: Data used for drawing auxiliary observables
-        (e.g. position and time)
+        (e.g. position and time), can be None, then will use simulate_aux
         :param n_trials: Number of events to simulate for efficiency estimate
         """
         d_simulated = self.simulate(n_trials, data=data, **params)
-        return self.mu_raw(data, **params) * len(d_simulated) / n_trials
+        return self.mu_raw(d_simulated, **params) * len(d_simulated) / n_trials
 
     ##
     # Functions probably want to override

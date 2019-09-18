@@ -217,12 +217,19 @@ def test_set_data(xes: fd.ERSource):
     x = xes.batched_differential_rate()
     assert x.shape == (2,)
 
+
     data1 = xes.data
     data2 = pd.concat([data1.copy(),
                        data1.iloc[:1].copy()])
     data2['s1'] *= 1.3
     data3 = pd.concat([data2, data2.iloc[:1]])
 
+    # Setting temporarily
+    with xes._set_temporarily(data2):
+        np.testing.assert_array_equal(xes.data['s1'], data2['s1'])
+    np.testing.assert_array_equal(xes.data['s1'], data1['s1'])
+
+    # Setting for real
     xes.set_data(data2)
     assert xes.data is not data1
     np.testing.assert_array_equal(
@@ -240,3 +247,4 @@ def test_set_data(xes: fd.ERSource):
 
     x = xes.batched_differential_rate()
     assert x.shape == (3,)
+
