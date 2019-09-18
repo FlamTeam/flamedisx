@@ -116,9 +116,9 @@ class SR0WIMPSource(SR0Source, fd.WIMPSource):
     extra_needed_columns = tuple(set(
         list(SR0Source.extra_needed_columns) +
         list(fd.WIMPSource.extra_needed_columns)))
-    # SR0 start and end
-    dt_start =  pd.to_datetime('2016-11-01')
-    dt_stop = pd.to_datetime('2017-01-01')
+    # SR0 start and end inc calib data
+    dt_start =  pd.to_datetime('2016-09-10')
+    dt_stop = pd.to_datetime('2017-01-10')
     t_start = wimprates.j2000(date=dt_start)
     t_stop = wimprates.j2000(date=dt_stop)
 
