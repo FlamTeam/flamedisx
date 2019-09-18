@@ -63,6 +63,10 @@ class LXeSource(fd.Source):
     tpc_length = 97.6   # cm
     drift_velocity = 1.335 * 1e-4   # cm/ns
 
+    # Uniform timestamps between 2016-09 and 2017-09
+    dt_start = pd.to_datetime('2016-09-13T12:00:00')
+    dt_stop = pd.to_datetime('2017-09-13T12:00:00')
+
     ##
     # Model functions (data_methods)
     ##
@@ -136,12 +140,10 @@ class LXeSource(fd.Source):
         data['y'] = data['r'] * np.sin(data['theta'])
         data['z'] = - np.random.rand(n_events) * cls.tpc_length
         data['drift_time'] = - data['z']/ cls.drift_velocity
-        # Uniform timestamps between 2016-09 and 2017-09
-        dt_start = pd.to_datetime('2016-09-13T12:00:00')
-        dt_stop = pd.to_datetime('2017-09-13T12:00:00')
-        data['event_time'] = np.random.uniform(pd.Timestamp(dt_start).value,
-                                               pd.Timestamp(dt_stop).value,
-                                               size=n_events).astype('float32')
+        data['event_time'] = np.random.uniform(
+            pd.Timestamp(self.dt_start).value,
+            pd.Timestamp(self.dt_stop).value,
+            size=n_events).astype('float32')
         return pd.DataFrame(data)
 
     ##

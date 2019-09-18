@@ -121,13 +121,3 @@ class SR0WIMPSource(SR0Source, fd.WIMPSource):
     dt_stop = pd.to_datetime('2017-01-10')
     t_start = wimprates.j2000(date=dt_start)
     t_stop = wimprates.j2000(date=dt_stop)
-
-    @classmethod
-    def simulate_aux(cls, n_events):
-        d = super().simulate_aux(n_events)
-        # Simulate events in SR0 range
-        # well, in a two-month range
-        d['event_time'] = np.random.uniform(pd.Timestamp(self.t_start).value,
-                                            pd.Timestamp(self.t_stop).value,
-                                            size=n_events)
-        return d
