@@ -186,11 +186,12 @@ class Source(SourceBase):
                 self.param_id.lookup(param_name)
                 for param_name in self.fit_params])
 
-        self.set_data(data,
-                      batch_size=batch_size,
-                      data_is_annotated=data_is_annotated,
-                      _skip_tf_init=_skip_tf_init,
-                      _skip_bounds_computation=_skip_bounds_computation)
+        if data is not None:
+            self.set_data(data,
+                          batch_size=batch_size,
+                          data_is_annotated=data_is_annotated,
+                          _skip_tf_init=_skip_tf_init,
+                          _skip_bounds_computation=_skip_bounds_computation)
 
     def set_data(self,
                  data,
@@ -290,6 +291,15 @@ class Source(SourceBase):
         # TODO: make a clean way to keep track of i_batch or have it as input
         assert (bonus_arg is not None) == (fname in self.special_data_methods)
 
+        if data_tensor is None:
+            # We're in an annotate
+            assert hasattr(self, 'data'), "You must set data first"
+        else:
+            # We're computing
+            if not hasattr(self, 'name_id'):
+                raise ValueError(
+                    "You must set_data first (and populate the tensor cache)")
+
         f = getattr(self, fname)
 
         if callable(f):
@@ -379,15 +389,12 @@ class Source(SourceBase):
     # Simulation methods and helpers
     ##
 
-    # These are class methods: we could have implemented them as instance
-    # methods,but then we'd need a set_data, keep track of state, etc.
-
-    @classmethod
-    def simulate(cls, energies, data=None, **params):
+    def simulate(self, energies, data=None, **params):
         """Simulate events at energies.
 
         If data is given, we will draw auxiliary observables (e.g. positions)
         from it. Otherwise we will call _simulate_aux to do this.
+        (so we will never use data that you set_data, don't worry)
 
         Will not return | energies | events lost due to
         selection/detection efficiencies
@@ -400,48 +407,29 @@ class Source(SourceBase):
         create_aux = data is None
 
         if create_aux:
-            data = cls.simulate_aux(n_to_sim)
+            # Create from scratch
+            d = self.simulate_aux(n_to_sim)
         else:
+            # Sample new data from e.g. Kr data
             data = data.copy()  # In case someone passes in a slice
-            # Annoying, f_dims isn't a class property...
-            s = cls(data=data, _skip_tf_init=True, **params)
             # Drop dimensions we do not need / like
             data = data[list(set(sum(
-                s.f_dims.values(),
-                list(s.extra_needed_columns))))].copy()
+                self.f_dims.values(),
+                list(self.extra_needed_columns))))].copy()
+            d = data.sample(n=n_to_sim, replace=True)
+            assert len(d) == n_to_sim
 
-        # simulate_es cannot be a class method; the energy-spectrum might
-        # be position/time/other dependent.
-        s = cls(data=data,
-                _skip_tf_init=True, _skip_bounds_computation=True,
-                **params)
+        # Simulation needs data set for position/time/other dependencies
+        self.set_data(d, _skip_tf_init=True, _skip_bounds_computation=True, **params)
+
         if isinstance(energies, (float, int)):
-            energies = s.simulate_es(n_to_sim, **params)
-
-        # Create and set new dataset, with just the dimensions we need
-        # (note we should NOT include s1 and s2 here, we're going to simulate
-        # them)
-        # Use replace if someone gave us data (e.g. a small Kr file to draw many
-        # ER Bg events from), otherwise we already simulated exactly enough aux
-        if not create_aux:
-            d = data.sample(n=len(energies), replace=True)
-        else:
-            d = data
-        s = cls(data=d,
-                _skip_tf_init=True,
-                _skip_bounds_computation=True,
-                **params)
-        assert len(s.data) == len(d)
-
-        def gimme(fname, bonus_arg=None):
-            return s.gimme(fname, bonus_arg=bonus_arg, data_tensor=None, ptensor=None, numpy_out=True)
-
+            energies = self.simulate_es(n_to_sim, **params)
         d['energy'] = energies
-        d = s._simulate(d)
+        d = self._simulate(d)
 
         # Now that we have s1 and s2 values, we can do the full annotate,
         # populating columns like e_vis, photon_produced_mle, etc.
-        cls.annotate_data(d, **params)
+        self.annotate_data(d, **params)
         return d
 
     ##
@@ -487,25 +475,25 @@ class Source(SourceBase):
 
         return mu_itp
 
-    @classmethod
-    def mu_raw(cls, data, **params):
+    def mu_raw(self, data, **params):
         """Return mean expected number of events before efficiencies/response"""
-        _, spectra = cls(data, _skip_tf_init=True, **params).gimme(
+        self.set_data(data)
+        ptensor = self.ptensor_from_kwargs(**params)
+        _, spectra = self.gimme(
             'energy_spectrum',
             # TODO: BAD!
-            data_tensor=None, ptensor=None,
+            data_tensor=None, ptensor=ptensor,
             numpy_out=True)
         return spectra.sum(axis=1).mean(axis=0)
 
-    @classmethod
-    def estimate_mu(cls, data, n_trials=int(1e5), **params):
+    def estimate_mu(self, data, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param data: Data used for drawing auxiliary observables
         (e.g. position and time)
         :param n_trials: Number of events to simulate for efficiency estimate
         """
-        d_simulated = cls.simulate(n_trials, data=data, **params)
-        return cls.mu_raw(data, **params) * len(d_simulated) / n_trials
+        d_simulated = self.simulate(n_trials, data=data, **params)
+        return self.mu_raw(data, **params) * len(d_simulated) / n_trials
 
     ##
     # Functions probably want to override
@@ -514,7 +502,7 @@ class Source(SourceBase):
     def _differential_rate(self, data_tensor, ptensor):
         raise NotImplementedError
 
-    def simulate_es(self, n_events):
+    def simulate_es(self, n_events, **params):
         raise NotImplementedError
 
     def _annotate(self, _skip_bounds_computation=False):
