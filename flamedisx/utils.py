@@ -163,6 +163,8 @@ def interpolator_function(func, start, stop, n_refs, f_kwargs):
     :param f_kwargs: dictionary passed to func as kwargs
     """
     in_space = np.linspace(start, stop, n_refs)
+    start = tf.dtypes.cast(start, dtype=float_type())
+    stop = tf.dtypes.cast(stop, dtype=float_type())
 
     y_ref = tf.convert_to_tensor([func(t=t, **f_kwargs) for t in in_space],
                                   dtype=float_type())
