@@ -691,10 +691,10 @@ class WIMPSource(NRSource):
                            sigma_nucleon=self.sigma_nucleon,
                            es=es_centers)
 
-        assert len(es_diff) == len(es.centers)
+        assert len(es_diff) == len(es_centers)
         spectra = np.array([wr.rate_wimp_std(t=t, **wimp_kwargs) * es_diff
                             for t in time_centers])
-        assert spectra.shape == (len(self.es_centers), len(time_centers))
+        assert spectra.shape == (len(time_centers), len(es_centers))
 
         self.energy_hist = Histdd.from_histogram(spectra,
                                                  bin_edges=(time_centers,
