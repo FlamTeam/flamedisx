@@ -508,8 +508,7 @@ class Source(SourceBase):
         """
         pass
 
-    @staticmethod
-    def add_extra_columns(data):
+    def add_extra_columns(self, data):
         """Add additional columns to data
 
         You must add any columns from data you use here to
