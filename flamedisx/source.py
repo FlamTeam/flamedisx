@@ -162,12 +162,8 @@ class Source(SourceBase):
                         raise ValueError(f"Inconsistent defaults for {pname}")
                     self.defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
-        for k, v in params.items():
-            if k in self.defaults:
-                self.defaults[k] = tf.convert_to_tensor(
-                    v, dtype=fd.float_type())
-            else:
-                raise ValueError(f"Key {k} not in defaults")
+
+        self.set_defaults(**params)
 
         if fit_params is None:
             fit_params = list(self.defaults.keys())
@@ -193,14 +189,27 @@ class Source(SourceBase):
                           _skip_tf_init=_skip_tf_init,
                           _skip_bounds_computation=_skip_bounds_computation)
 
+
+    def set_defaults(self, **params):
+        for k, v in params.items():
+            if k in self.defaults:
+                self.defaults[k] = tf.convert_to_tensor(
+                    v, dtype=fd.float_type())
+            else:
+                raise ValueError(f"Key {k} not in defaults")
+
+
     def set_data(self,
                  data,
                  batch_size=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
-                 _skip_bounds_computation=False):
+                 _skip_bounds_computation=False,
+                 **params):
         self.data = data
         del data
+
+        self.set_defaults(**params)
 
         self._init_padding(batch_size, _skip_tf_init)
 
@@ -241,10 +250,14 @@ class Source(SourceBase):
             mi = self._fetch(var + '_min')
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
-    @classmethod
-    def annotate_data(cls, data, **params):
+    def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""
-        return cls(data, _skip_tf_init=True, **params)
+        old_data = self.data
+        old_defaults = self.defaults
+        self.set_data(data, **params, _skip_tf_init=True)
+        self.data = old_data
+        self.defaults = old_defaults
+        return self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
     ##
     # Data fetching / calculation
