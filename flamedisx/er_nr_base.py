@@ -697,8 +697,7 @@ class WIMPSource(NRSource):
         assert spectra.shape == (len(time_centers), len(es_centers))
 
         self.energy_hist = Histdd.from_histogram(spectra,
-                                                 bin_edges=(time_centers,
-                                                            es_centers))
+                                                 bin_edges=(times, self.es))
         # Initialize the rest of the source
         super().__init__(*args, **kwargs)
 
