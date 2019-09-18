@@ -136,8 +136,12 @@ class LXeSource(fd.Source):
         data['y'] = data['r'] * np.sin(data['theta'])
         data['z'] = - np.random.rand(n_events) * cls.tpc_length
         data['drift_time'] = - data['z']/ cls.drift_velocity
-        # Uniform J2000 timestamps between 2016-09 and 2017-09
-        data['t'] = np.random.uniform(6100., 6465., size=n_events)
+        # Uniform timestamps between 2016-09 and 2017-09
+        dt_start = pd.to_datetime('2016-09-13T12:00:00')
+        dt_stop = pd.to_datetime('2017-09-13T12:00:00')
+        data['event_time'] = np.random.uniform(pd.Timestamp(dt_start).value,
+                                               pd.Timestamp(dt_stop).value,
+                                               size=n_events).astype('float32')
         return pd.DataFrame(data)
 
     ##
@@ -663,6 +667,9 @@ class WIMPSource(NRSource):
     """NRSource with time dependent energy spectra from
     wimprates.
     """
+    extra_needed_columns = tuple(
+        list(NRSource.extra_needed_columns)
+        + ['t', 'event_time'])
     # Recoil energies
     es = np.geomspace(0.7, 50, 100)  # [keV]
     # Wimprates settings
@@ -676,10 +683,10 @@ class WIMPSource(NRSource):
     # Interpolator settings
     t_start = wr.j2000(date=pd.to_datetime('2016-09-13T12:00:00'))  # 6100.
     t_stop = wr.j2000(date=pd.to_datetime('2017-09-13T12:00:00'))  # 6465.
-    n_in = 50  # Number of reference values (wimprates function evaluations)
+    n_in = 10  # Number of reference values (wimprates function evaluations)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def _populate_tensor_cache(self):
+        super()._populate_tensor_cache()
         # Prepare the differential rate as function of time
         f_rate = fd.interpolator_function(wr.rate_wimp_std,
                                           start=self.t_start,
@@ -695,16 +702,16 @@ class WIMPSource(NRSource):
         dts = self.data_tensor.shape
         assert self.energy_tensor.shape == [dts[0], dts[1], len(self.es) - 1]
 
-    @staticmethod
-    def add_extra_columns(d):
+    def add_extra_columns(self, d):
         super().add_extra_columns(d)
         # Add J2000 timestamps to data for use with wimprates
-        d['t'] = [wimprates.j2000(date=t)
+        d['t'] = [wr.j2000(date=t)
                   for t in pd.to_datetime(d['event_time'])]
 
     def energy_spectrum(self, i_batch):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
+        batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
         return (fd.repeat(self.bin_centers[o, :], repeats=len(i_batch), axis=0),
-                self.data_tensor[i_batch[0], :, :])
+                self.energy_tensor[batch, :, :])
