@@ -23,10 +23,13 @@ class SourceBase:
         self.n_padding = 0
         self.n_events = len(self.data)
 
-        if batch_size is None or batch_size > self.n_events or _skip_tf_init:
-            batch_size = self.n_events
+        if hasattr(self, 'batch_size'):
+            assert batch_size is None
+        else:
+            if batch_size is None or batch_size > self.n_events or _skip_tf_init:
+                batch_size = self.n_events
+            self.batch_size = max(1, batch_size)
 
-        self.batch_size = max(1, batch_size)
         self.n_batches = np.ceil(
             self.n_events / self.batch_size).astype(np.int)
 
@@ -35,7 +38,7 @@ class SourceBase:
             # We're using actual events for padding, since using zeros or
             # nans caused problems with gradient calculation
             # padded events are clipped when summing likelihood terms
-            self.n_padding = self.n_batches * batch_size - len(self.data)
+            self.n_padding = self.n_batches * self.batch_size - len(self.data)
             if self.n_padding > 0:
                 df_pad = self.data.iloc[:self.n_padding, :]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
@@ -130,8 +133,6 @@ class Source(SourceBase):
         :param params: New defaults to use
         """
         self.max_sigma = max_sigma
-        self.data = data
-        del data
 
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters
@@ -184,6 +185,21 @@ class Source(SourceBase):
             self.fit_param_indices = tuple([
                 self.param_id.lookup(param_name)
                 for param_name in self.fit_params])
+
+        self.set_data(data,
+                      batch_size=batch_size,
+                      data_is_annotated=data_is_annotated,
+                      _skip_tf_init=_skip_tf_init,
+                      _skip_bounds_computation=_skip_bounds_computation)
+
+    def set_data(self,
+                 data,
+                 batch_size=None,
+                 data_is_annotated=False,
+                 _skip_tf_init=False,
+                 _skip_bounds_computation=False):
+        self.data = data
+        del data
 
         self._init_padding(batch_size, _skip_tf_init)
 
