@@ -4,7 +4,7 @@ LXeSource: common parts of ER and NR response
 ERSource: ER-specific model components and defaults
 NRSource: NR-specific model components and defaults
 """
-from multihist import Hist1d
+from multihist import Hist1d, Histdd
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -670,37 +670,56 @@ class WIMPSource(NRSource):
     extra_needed_columns = tuple(
         list(NRSource.extra_needed_columns)
         + ['t', 'event_time'])
-    # Recoil energies
+    # Recoil energies and Wimprates settings
     es = np.geomspace(0.7, 50, 100)  # [keV]
-    # Wimprates settings
-    wimp_specs = dict(mw = 1e3,  # GeV
-                      sigma_nucleon = 1e-45,  # cm^2
-                      es = es)
+    mw = 1e3  # GeV
+    sigma_nucleon = 1e-45  # cm^2
 
-    es_diff = tf.convert_to_tensor(np.diff(es), dtype=fd.float_type())
-    bin_centers = tf.convert_to_tensor((es[:-1] + es[1:])/2.,
-                                       dtype=fd.float_type())
     # Interpolator settings
     t_start = wr.j2000(date=pd.to_datetime('2016-09-13T12:00:00'))  # 6100.
     t_stop = wr.j2000(date=pd.to_datetime('2017-09-13T12:00:00'))  # 6465.
     n_in = 10  # Number of reference values (wimprates function evaluations)
 
+    def __init__(self, *args, **kwargs):
+        # Compute the energy spectrum in a given time range
+        times = np.linspace(self.start, self.stop, self.n_in)
+        time_centers = self.bin_centers(times)
+        es_centers = self.bin_centers(self.es)
+        es_diff = np.diff(self.es)
+
+        wimp_kwargs = dict(mw=self.mw,
+                           sigma_nucleon=self.sigma_nucleon,
+                           es=es_centers)
+
+        assert len(es_diff) == len(es.centers)
+        spectra = np.array([wr.rate_wimp_std(t=t, **wimp_kwargs) * es_diff
+                            for t in time_centers])
+        assert spectra.shape == (len(self.es_centers), len(time_centers))
+
+        self.energy_hist = Histdd.from_histogram(spectra,
+                                                 bin_edges=(time_centers,
+                                                            es_centers))
+        # Initialize the rest of the source
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def bin_centers(x):
+        return 0.5 * (x[1:] + x[:-1])
+
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
-        # Prepare the differential rate as function of time
-        f_rate = fd.interpolator_function(wr.rate_wimp_std,
-                                          start=self.t_start,
-                                          stop=self.t_stop,
-                                          n_refs=self.n_in,
-                                          f_kwargs=self.wimp_specs)
-        # Find the column id of the timestamps in the data_tensor
-        col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant('t')),
-                                fd.int_type())
         # Construct the energy spectra at event times
-        energy_tensor = f_rate(self.data_tensor[:, :, col_id])
-        self.energy_tensor = energy_tensor[:, :, :-1] * self.es_diff[o, o, :]
-        dts = self.data_tensor.shape
-        assert self.energy_tensor.shape == [dts[0], dts[1], len(self.es) - 1]
+        e = np.array([self.energy_hist.slice(t) for t in self.data['t']])
+        energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
+        assert energy_tensor.shape == [len(self.data), len(self.es) - 1]
+        self.energy_tensor = tf.reshape(energy_tensor, self.data_tensor.shape)
+
+        #self.energy_tensor = energy_tensor[:, :, :-1] * self.es_diff[o, o, :]
+        es_centers = tf.convert_to_tensor(self.bin_centers(self.es),
+                                          dtype=fd.float_type())
+        self.all_es_centers = fd.repeat(es_centers[o, :],
+                                        repeats=self.batch_size,
+                                        axis=0)
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
@@ -713,5 +732,7 @@ class WIMPSource(NRSource):
         both (n_events, n_energies) tensors.
         """
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return (fd.repeat(self.bin_centers[o, :], repeats=len(i_batch), axis=0),
-                self.energy_tensor[batch, :, :])
+        return (self.all_es_centers, self.energy_tensor[batch, :, :])
+
+    def simulate_es(self, n_events):
+        return self.energy_hist.get_random(n_events)[:, 1]
