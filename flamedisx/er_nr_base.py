@@ -710,7 +710,7 @@ class WIMPSource(NRSource):
         # Construct the energy spectra at event times
         e = np.array([self.energy_hist.slice(t) for t in self.data['t']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
-        assert energy_tensor.shape == [len(self.data), len(self.es) - 1]
+        assert energy_tensor.shape == [len(self.data), len(self.es)]
         self.energy_tensor = tf.reshape(energy_tensor, self.data_tensor.shape)
 
         #self.energy_tensor = energy_tensor[:, :, :-1] * self.es_diff[o, o, :]
