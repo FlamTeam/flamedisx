@@ -207,3 +207,35 @@ def test_diff_rate_grad(xes):
     dr3 = xes.differential_rate(xes.data_tensor[0], autograph=True)
     dr3 = dr3.numpy()
     np.testing.assert_almost_equal(dr, dr3, decimal=4)
+
+
+def test_set_data(xes: fd.ERSource):
+    assert xes.n_batches == 1
+    assert xes.n_padding == 0
+    assert xes.batch_size == 2
+
+    x = xes.batched_differential_rate()
+    assert x.shape == (2,)
+
+    data1 = xes.data
+    data2 = pd.concat([data1.copy(),
+                       data1.iloc[:1].copy()])
+    data2['s1'] *= 1.3
+
+    xes.set_data(data2)
+    assert xes.data is not data1
+    np.testing.assert_array_equal(
+        xes.data['s1'].values,
+        data2['s1'].values)
+
+    np.testing.assert_almost_equal(
+        xes._fetch('s1', data_tensor=xes.data_tensor),
+        data2['s1'].values)
+
+    # Test batching stuff has been updated
+    assert xes.n_batches == 2
+    assert xes.n_padding == 0
+    assert xes.batch_size == 2
+
+    xes.batched_differential_rate()
+    assert x.shape == (3,)
