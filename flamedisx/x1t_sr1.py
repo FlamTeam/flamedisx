@@ -56,10 +56,11 @@ class SR1Source(fd.ERSource):
     @staticmethod
     def electron_gain_std_dev(g2=11.4/(1.-0.63)/0.96):
         return g2*0.96*0.24    
+
     electron_gain_std = electron_gain_std_dev(g2)
 
     @staticmethod
-    def photon_detection_eff(s1_relative_ly, g1 =0.123, ndet, p_dpe, mean_per_q, std_per_q): 
+    def photon_detection_eff(ndet, p_dpe, mean_per_q, std_per_q,s1_relative_ly, g1 =0.123): 
         #g1 = 0.142 from paper
         mean_dpe, _ = dpe_mean_std(ndet, p_dpe, mean_per_q, std_per_q)
         mean_eff= g1 / (1. + mean_dpe)
