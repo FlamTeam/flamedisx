@@ -708,12 +708,13 @@ class WIMPSource(NRSource):
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
         # Construct the energy spectra at event times
-        e = np.array([self.energy_hist.slice(t) for t in self.data['t']])
+        e = np.array([self.energy_hist.slice(t).histogram[0]
+                      for t in self.data['t']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
-        assert energy_tensor.shape == [len(self.data), len(self.es)]
-        self.energy_tensor = tf.reshape(energy_tensor, self.data_tensor.shape)
+        assert energy_tensor.shape == [len(self.data), len(self.es) - 1]
+        self.energy_tensor = tf.reshape(energy_tensor,
+                                        [self.n_batches, self.batch_size, -1])
 
-        #self.energy_tensor = energy_tensor[:, :, :-1] * self.es_diff[o, o, :]
         es_centers = tf.convert_to_tensor(self.bin_centers(self.es),
                                           dtype=fd.float_type())
         self.all_es_centers = fd.repeat(es_centers[o, :],
