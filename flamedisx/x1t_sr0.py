@@ -117,7 +117,9 @@ class SR0WIMPSource(SR0Source, fd.WIMPSource):
         list(SR0Source.extra_needed_columns) +
         list(fd.WIMPSource.extra_needed_columns)))
     # SR0 start and end inc calib data
-    dt_start =  pd.to_datetime('2016-09-10')
-    dt_stop = pd.to_datetime('2017-01-10')
-    t_start = wimprates.j2000(date=dt_start)
-    t_stop = wimprates.j2000(date=dt_stop)
+    t_start =  pd.to_datetime('2016-09-10')
+    t_stop = pd.to_datetime('2017-01-10')
+    # WIMP settings
+    es = np.geomspace(0.7, 50, 100)  # [keV]
+    mw = 1e3  # GeV
+    sigma_nucleon = 1e-45  # cm^2

@@ -77,7 +77,6 @@ class LXeSource(fd.Source):
     def energy_spectrum(self, drift_time):
         es, rs = self._single_spectrum()
         n = drift_time.shape[0]
-        print()
         return (fd.repeat(es[o, :], n, axis=0),
                 fd.repeat(rs[o, :], n, axis=0))
 
@@ -691,13 +690,15 @@ class WIMPSource(NRSource):
     sigma_nucleon = 1e-45  # cm^2
 
     # Interpolator settings
-    t_start = wr.j2000(date=pd.to_datetime('2016-09-13T12:00:00'))  # 6100.
-    t_stop = wr.j2000(date=pd.to_datetime('2017-09-13T12:00:00'))  # 6465.
+    t_start = pd.to_datetime('2016-09-13T12:00:00')
+    t_stop = pd.to_datetime('2017-09-13T12:00:00')
     n_in = 10  # Number of reference values (wimprates function evaluations)
 
     def __init__(self, *args, **kwargs):
         # Compute the energy spectrum in a given time range
-        times = np.linspace(self.t_start, self.t_stop, self.n_in)
+        # Times used by wimprates are J2000 timestamps
+        times = np.linspace(wr.j2000(date=self.t_start),
+                            wr.j2000(date=self.t_stop), self.n_in)
         time_centers = self.bin_centers(times)
         es_centers = self.bin_centers(self.es)
         es_diff = np.diff(self.es)
@@ -719,6 +720,18 @@ class WIMPSource(NRSource):
     @staticmethod
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
+
+    def to_event_time(self, jtimes):
+        j_start = wr.j2000(date=self.t_start)
+        j_stop = wr.j2000(date=self.t_stop)
+        assert j_start < j_stop
+
+        ev_time_start = pd.Timestamp(self.t_start).value.astype('float32')
+        ev_time_stop = pd.Timestamp(self.t_stop).value.astype('float32')
+        assert ev_time_start < ev_time_stop
+
+        jfrac = (times - j_start)/(j_stop - j_start)
+        return jfrac * (ev_time_stop - ev_time_start) + ev_time_start
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
@@ -748,5 +761,34 @@ class WIMPSource(NRSource):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
         return (self.all_es_centers, self.energy_tensor[batch, :, :])
 
-    def simulate_es(self, n_events):
-        return self.energy_hist.get_random(n_events)[:, 1]
+    def random_truth(self, energies, **params):
+        if isinstance(energies, (int, float)):
+            n_events = energies
+        elif isinstance(energies, (np.ndarray, pd.Series)):
+            # We can't use the energies given since they are correlated
+            # with time. Simulate n_events new ones.
+            n_events = len(energies)
+        else:
+            raise ValueError(
+                f"Energies must be int or array, not {type(energies)}")
+        data = dict()
+
+        # Add fake s1, s2 necessary for set_data to succeed
+        # TODO: check if we still need this...
+        data['s1'] = 1
+        data['s2'] = 100
+
+        # Draw uniform position
+        data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+        data['theta'] = np.random.rand(n_events)
+        data['x'] = data['r'] * np.cos(data['theta'])
+        data['y'] = data['r'] * np.sin(data['theta'])
+        data['z'] = - np.random.rand(n_events) * self.tpc_length
+        data['drift_time'] = - data['z']/ self.drift_velocity
+
+        events = self.energy_hist.get_random(n_events)
+
+        data['event_time'] = to_event_times(events[:0])  # Convert J2000 times
+        data['energy'] = events[:,1]
+
+        return pd.DataFrame(data)
