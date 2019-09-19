@@ -156,7 +156,7 @@ class LXeSource(fd.Source):
 
             # Draw uniform position
             data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
-            data['theta'] = np.random.rand(n_events)
+            data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
             data['x'] = data['r'] * np.cos(data['theta'])
             data['y'] = data['r'] * np.sin(data['theta'])
             data['z'] = - np.random.rand(n_events) * self.tpc_length
@@ -172,9 +172,9 @@ class LXeSource(fd.Source):
                 # Assume fix_truth is a one-line dataframe
                 fix_truth = fix_truth.iloc[0]
 
-            for c in ['x', 'y', 'z', 'r',
-                      'theta', 'event_time', 'drift_time']:
+            for c in ['x', 'y', 'z', 'r', 'event_time', 'drift_time']:
                 data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
+                data['theta'] = np.arctan2(data['y'], data['x'])
 
         data['energy'] = energies
         return pd.DataFrame(data)
@@ -799,7 +799,7 @@ class WIMPSource(NRSource):
 
             # Draw uniform position
             data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
-            data['theta'] = np.random.rand(n_events)
+            data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
             data['x'] = data['r'] * np.cos(data['theta'])
             data['y'] = data['r'] * np.sin(data['theta'])
             data['z'] = - np.random.rand(n_events) * self.tpc_length
@@ -809,9 +809,9 @@ class WIMPSource(NRSource):
                 # Assume fix_truth is a one-line dataframe
                 fix_truth = fix_truth.iloc[0]
 
-            for col in ['x', 'y', 'z', 'r',
-                        'theta', 'drift_time']:
+            for col in ['x', 'y', 'z', 'r', 'drift_time']:
                 data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
+                data['theta'] = np.arctan2(data['y'], data['x'])
 
         data['energy'] = energies
         data['event_time'] = event_times
