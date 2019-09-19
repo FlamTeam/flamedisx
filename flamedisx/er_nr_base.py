@@ -134,44 +134,49 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
-    def random_truth(self, energies, **params):
+    def random_truth(self, energies, fix_truth=None, **params):
         if isinstance(energies, (int, float)):
             n_events = energies
+            # Draw energies from the spectrum
+            es, rs = self._single_spectrum()
+            energies = Hist1d.from_histogram(
+                rs[:-1], es).get_random(n_events)
         elif isinstance(energies, (np.ndarray, pd.Series)):
             n_events = len(energies)
         else:
             raise ValueError(
                 f"Energies must be int or array, not {type(energies)}")
-        data = dict()
 
-        # Add fake s1, s2 necessary for set_data to succeed
-        # TODO: check if we still need this...
-        data['s1'] = 1
-        data['s2'] = 100
 
-        # Draw uniform position
-        data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
-        data['theta'] = np.random.rand(n_events)
-        data['x'] = data['r'] * np.cos(data['theta'])
-        data['y'] = data['r'] * np.sin(data['theta'])
-        data['z'] = - np.random.rand(n_events) * self.tpc_length
-        data['drift_time'] = - data['z']/ self.drift_velocity
+        if fix_truth is None:
+            data = dict()
 
-        # Draw uniform time
-        data['event_time'] = np.random.uniform(
-            pd.Timestamp(self.t_start).value,
-            pd.Timestamp(self.t_stop).value,
-            size=n_events).astype('float32')
+            # Add fake s1, s2 necessary for set_data to succeed
+            # TODO: check if we still need this...
+            data['s1'] = 1
+            data['s2'] = 100
 
-        if isinstance(energies, (int, float)):
-            # Draw energies from the spectrum
-            es, rs = self._single_spectrum()
-            data['energy'] = Hist1d.from_histogram(
-                rs[:-1], es).get_random(n_events)
-        else:
+            # Draw uniform position
+            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+            data['theta'] = np.random.rand(n_events)
+            data['x'] = data['r'] * np.cos(data['theta'])
+            data['y'] = data['r'] * np.sin(data['theta'])
+            data['z'] = - np.random.rand(n_events) * self.tpc_length
+            data['drift_time'] = - data['z']/ self.drift_velocity
+
+            # Draw uniform time
+            data['event_time'] = np.random.uniform(
+                pd.Timestamp(self.t_start).value,
+                pd.Timestamp(self.t_stop).value,
+                size=n_events).astype('float32')
+
             data['energy'] = energies
 
-        return pd.DataFrame(data)
+            return pd.DataFrame(data)
+
+        data = pd.concat([fix_truth]*n_events, ignore_index=True)
+        data['energy'] = energies
+        return data
 
     ##
     # Emission model implementation
