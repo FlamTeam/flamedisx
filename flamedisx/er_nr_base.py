@@ -766,35 +766,45 @@ class WIMPSource(NRSource):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
         return (self.all_es_centers, self.energy_tensor[batch, :, :])
 
-    def random_truth(self, energies, **params):
+    def random_truth(self, energies, fix_truth=None, **params):
         if isinstance(energies, (int, float)):
             n_events = energies
+            # Draw energies from the spectrum
+            events = self.energy_hist.get_random(n_events)
+            energies = events[:, 1]
+            event_times = self.to_event_time(events[:, 0])
         elif isinstance(energies, (np.ndarray, pd.Series)):
-            # We can't use the energies given since they are correlated
-            # with time. Simulate n_events new ones.
             n_events = len(energies)
+
+            # When given energies, we still need event_times
+            events = self.energy_hist.get_random(n_events)
+            event_times = self.to_event_time(events[:, 0])
         else:
             raise ValueError(
                 f"Energies must be int or array, not {type(energies)}")
-        data = dict()
 
-        # Add fake s1, s2 necessary for set_data to succeed
-        # TODO: check if we still need this...
-        data['s1'] = 1
-        data['s2'] = 100
+        if fix_truth is None:
+            data = dict()
 
-        # Draw uniform position
-        data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
-        data['theta'] = np.random.rand(n_events)
-        data['x'] = data['r'] * np.cos(data['theta'])
-        data['y'] = data['r'] * np.sin(data['theta'])
-        data['z'] = - np.random.rand(n_events) * self.tpc_length
-        data['drift_time'] = - data['z']/ self.drift_velocity
+            # Add fake s1, s2 necessary for set_data to succeed
+            # TODO: check if we still need this...
+            data['s1'] = 1
+            data['s2'] = 100
 
-        events = self.energy_hist.get_random(n_events)
+            # Draw uniform position
+            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+            data['theta'] = np.random.rand(n_events)
+            data['x'] = data['r'] * np.cos(data['theta'])
+            data['y'] = data['r'] * np.sin(data['theta'])
+            data['z'] = - np.random.rand(n_events) * self.tpc_length
+            data['drift_time'] = - data['z']/ self.drift_velocity
 
-        # Convert J2000 times
-        data['event_time'] = self.to_event_time(events[:, 0])
-        data['energy'] = events[:, 1]
+            data['energy'] = energies
+            data['event_time'] = event_times
 
-        return pd.DataFrame(data)
+            return pd.DataFrame(data)
+
+        data = pd.concat([fix_truth]*n_events, ignore_index=True)
+        data['energy'] = energies
+        data['event_time'] = event_times
+        return data
