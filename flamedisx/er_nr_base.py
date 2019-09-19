@@ -504,7 +504,7 @@ class LXeSource(fd.Source):
 
     def mu_before_efficiencies(self, **params):
         er, rs = self._single_spectrum()
-        return (rs[:-1] * np.diff(er)).sum()
+        return np.sum(rs[:-1] * np.diff(er))
 
     def _simulate_nq(self, energies):
         raise NotImplementedError
