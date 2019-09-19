@@ -177,6 +177,7 @@ class LXeSource(fd.Source):
         # Constructing the DataFrame like this is very inefficient
         data = pd.DataFrame(np.repeat(fix_truth.values, n_events, axis=0),
                             columns=fix_truth.columns)
+        data = data.astype(dtype=fix_truth.dtypes)
         data['energy'] = energies
         return data
 
@@ -809,6 +810,7 @@ class WIMPSource(NRSource):
         # Constructing the DataFrame like this is very inefficient
         data = pd.DataFrame(np.repeat(fix_truth.values, n_events, axis=0),
                             columns=fix_truth.columns)
+        data = data.astype(dtype=fix_truth.dtypes)
         data['energy'] = energies
         data['event_time'] = event_times
         return data
