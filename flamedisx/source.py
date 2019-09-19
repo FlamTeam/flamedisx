@@ -420,6 +420,11 @@ class Source(SourceBase):
         Will not return | energies | events lost due to
         selection/detection efficiencies
         """
+        if fix_truth is not None:
+            cols_to_cache = [x for x in fix_truth.columns
+                            if fd.is_numpy_number(fix_truth[x])]
+            fix_truth = fix_truth[cols_to_cache]
+
         # Draw random "deep truth" variables (energy, position)
         sim_data = self.random_truth(energies, fix_truth=fix_truth, **params)
 
@@ -479,21 +484,22 @@ class Source(SourceBase):
 
         return mu_itp
 
-    def mu_before_efficiencies(self, data, **params):
+    def mu_before_efficiencies(self, **params):
         """Return mean expected number of events BEFORE efficiencies/response
         using data for the evaluation of the energy spectra
         """
-        with self._set_temporarily(data, **params):
-            _, spectra = self.gimme('energy_spectrum', numpy_out=True)
-        result = spectra.sum(axis=1).mean(axis=0)
-        return result
+        raise NotImplementedError
+        #with self._set_temporarily(data, **params):
+        #    _, spectra = self.gimme('energy_spectrum', numpy_out=True)
+        #result = spectra.sum(axis=1).mean(axis=0)
+        #return result
 
     def estimate_mu(self, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param n_trials: Number of events to simulate for estimate
         """
         d_simulated = self.simulate(n_trials, **params)
-        return (self.mu_before_efficiencies(d_simulated, **params)
+        return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
 
     ##

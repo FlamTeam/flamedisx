@@ -504,12 +504,15 @@ class LXeSource(fd.Source):
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
         return d.iloc[np.random.rand(len(d)) < acceptance].copy()
 
+    def mu_before_efficiencies(self, **params):
+        er, rs = self._single_spectrum()
+        return (rs[:-1] * np.diff(er)).sum()
+
     def _simulate_nq(self, energies):
         raise NotImplementedError
 
     def _single_spectrum(self):
         raise NotImplementedError
-
 
 @export
 class ERSource(LXeSource):
@@ -720,10 +723,13 @@ class WIMPSource(NRSource):
                             for t in time_centers])
         assert spectra.shape == (len(time_centers), len(es_centers))
 
-        self.energy_hist = Histdd.from_histogram(spectra,
+        self.energy_hist = Histdd.from_histogram(spectra/self.n_in,
                                                  bin_edges=(times, self.es))
         # Initialize the rest of the source
         super().__init__(*args, **kwargs)
+
+    def mu_before_efficiencies(self, **params):
+        return self.energy_hist.n
 
     @staticmethod
     def bin_centers(x):
