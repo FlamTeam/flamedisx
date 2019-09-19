@@ -172,8 +172,8 @@ class LXeSource(fd.Source):
                 # Assume fix_truth is a one-line dataframe
                 fix_truth = fix_truth.iloc[0]
 
-            for col in ['x', 'y', 'z', 'r',
-                        'theta', 'event_time', 'drift_time']:
+            for c in ['x', 'y', 'z', 'r',
+                      'theta', 'event_time', 'drift_time']:
                 data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
 
         data['energy'] = energies
