@@ -66,8 +66,8 @@ class LXeSource(fd.Source):
     drift_velocity = 1.335 * 1e-4   # cm/ns
 
     # Uniform timestamps between 2016-09 and 2017-09
-    dt_start = pd.to_datetime('2016-09-13T12:00:00')
-    dt_stop = pd.to_datetime('2017-09-13T12:00:00')
+    t_start = pd.to_datetime('2016-09-13T12:00:00')
+    t_stop = pd.to_datetime('2017-09-13T12:00:00')
 
     ##
     # Model functions (data_methods)
@@ -159,8 +159,8 @@ class LXeSource(fd.Source):
 
         # Draw uniform time
         data['event_time'] = np.random.uniform(
-            pd.Timestamp(self.dt_start).value,
-            pd.Timestamp(self.dt_stop).value,
+            pd.Timestamp(self.t_start).value,
+            pd.Timestamp(self.t_stop).value,
             size=n_events).astype('float32')
 
         if isinstance(energies, (int, float)):
@@ -494,7 +494,7 @@ class LXeSource(fd.Source):
             acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
             sn = signal_name[q]
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
-        d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
+        return d.iloc[np.random.rand(len(d)) < acceptance].copy()
 
     def _simulate_nq(self, energies):
         raise NotImplementedError
@@ -726,11 +726,11 @@ class WIMPSource(NRSource):
         j_stop = wr.j2000(date=self.t_stop)
         assert j_start < j_stop
 
-        ev_time_start = pd.Timestamp(self.t_start).value.astype('float32')
-        ev_time_stop = pd.Timestamp(self.t_stop).value.astype('float32')
+        ev_time_start = pd.Timestamp(self.t_start).value
+        ev_time_stop = pd.Timestamp(self.t_stop).value
         assert ev_time_start < ev_time_stop
 
-        jfrac = (times - j_start)/(j_stop - j_start)
+        jfrac = (jtimes - j_start)/(j_stop - j_start)
         return jfrac * (ev_time_stop - ev_time_start) + ev_time_start
 
     def _populate_tensor_cache(self):
@@ -788,7 +788,8 @@ class WIMPSource(NRSource):
 
         events = self.energy_hist.get_random(n_events)
 
-        data['event_time'] = to_event_times(events[:0])  # Convert J2000 times
-        data['energy'] = events[:,1]
+        # Convert J2000 times
+        data['event_time'] = self.to_event_time(events[:, 0])
+        data['energy'] = events[:, 1]
 
         return pd.DataFrame(data)
