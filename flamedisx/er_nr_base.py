@@ -174,7 +174,7 @@ class LXeSource(fd.Source):
 
             for c in ['x', 'y', 'z', 'r', 'event_time', 'drift_time']:
                 data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
-                data['theta'] = np.arctan2(data['y'], data['x'])
+            data['theta'] = np.arctan2(data['y'], data['x'])
 
         data['energy'] = energies
         return pd.DataFrame(data)
@@ -811,7 +811,7 @@ class WIMPSource(NRSource):
 
             for col in ['x', 'y', 'z', 'r', 'drift_time']:
                 data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
-                data['theta'] = np.arctan2(data['y'], data['x'])
+            data['theta'] = np.arctan2(data['y'], data['x'])
 
         data['energy'] = energies
         data['event_time'] = event_times
