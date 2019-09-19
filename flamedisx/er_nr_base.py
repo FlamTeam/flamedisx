@@ -764,8 +764,9 @@ class WIMPSource(NRSource):
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
         # Add J2000 timestamps to data for use with wimprates
-        d['t'] = [wr.j2000(date=t)
-                  for t in pd.to_datetime(d['event_time'])]
+        if 't' not in d:
+            d['t'] = [wr.j2000(date=t)
+                      for t in pd.to_datetime(d['event_time'])]
 
     def energy_spectrum(self, i_batch):
         """Return (energies in keV, events at these energies)
@@ -779,16 +780,17 @@ class WIMPSource(NRSource):
             # Draw energies from the spectrum
             events = self.energy_hist.get_random(n_events)
             energies = events[:, 1]
-            event_times = self.to_event_time(events[:, 0])
         elif isinstance(energies, (np.ndarray, pd.Series)):
             n_events = len(energies)
 
             # When given energies, we still need event_times
             events = self.energy_hist.get_random(n_events)
-            event_times = self.to_event_time(events[:, 0])
         else:
             raise ValueError(
                 f"Energies must be int or array, not {type(energies)}")
+
+        j2000_times = events[:, 0]
+        event_times = self.to_event_time(events[:, 0])
 
         data = dict()
         if fix_truth is None:
@@ -815,4 +817,5 @@ class WIMPSource(NRSource):
 
         data['energy'] = energies
         data['event_time'] = event_times
+        data['t'] = j2000_times
         return pd.DataFrame(data)
