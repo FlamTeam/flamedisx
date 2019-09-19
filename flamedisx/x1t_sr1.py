@@ -58,6 +58,7 @@ class SR1Source(fd.ERSource):
     def electron_gain_std(g2=11.4/(1.-0.63)/0.96):
         return g2*0.96*0.25    
 
+    double_pe_fraction = 0.219
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameters
     @staticmethod
     def photon_detection_eff(s1_relative_ly, g1 =0.123): 
