@@ -79,8 +79,8 @@ class SR0Source:
         list(fd.ERSource.extra_needed_columns)
         + ['x_observed', 'y_observed'])
 
-    def random_truth(self, energies, **params):
-        d = super().random_truth(energies, **params)
+    def random_truth(self, energies, fix_truth=None, **params):
+        d = super().random_truth(energies, fix_truth=fix_truth, **params)
 
         # Add extra needed columns
         # TODO: Add FDC maps instead of posrec resolution
