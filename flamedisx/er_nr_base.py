@@ -147,10 +147,8 @@ class LXeSource(fd.Source):
             raise ValueError(
                 f"Energies must be int or array, not {type(energies)}")
 
-
+        data = dict()
         if fix_truth is None:
-            data = dict()
-
             # Add fake s1, s2 necessary for set_data to succeed
             # TODO: check if we still need this...
             data['s1'] = 1
@@ -169,17 +167,17 @@ class LXeSource(fd.Source):
                 pd.Timestamp(self.t_start).value,
                 pd.Timestamp(self.t_stop).value,
                 size=n_events).astype('float32')
+        else:
+            if isinstance(fix_truth, pd.DataFrame):
+                # Assume fix_truth is a one-line dataframe
+                fix_truth = fix_truth.iloc[0]
 
-            data['energy'] = energies
+            for col in ['x', 'y', 'z', 'r',
+                        'theta', 'event_time', 'drift_time']:
+                data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
 
-            return pd.DataFrame(data)
-
-        # Constructing the DataFrame like this is very inefficient
-        data = pd.DataFrame(np.repeat(fix_truth.values, n_events, axis=0),
-                            columns=fix_truth.columns)
-        data = data.astype(dtype=fix_truth.dtypes)
         data['energy'] = energies
-        return data
+        return pd.DataFrame(data)
 
     ##
     # Emission model implementation
@@ -792,9 +790,8 @@ class WIMPSource(NRSource):
             raise ValueError(
                 f"Energies must be int or array, not {type(energies)}")
 
+        data = dict()
         if fix_truth is None:
-            data = dict()
-
             # Add fake s1, s2 necessary for set_data to succeed
             # TODO: check if we still need this...
             data['s1'] = 1
@@ -807,16 +804,15 @@ class WIMPSource(NRSource):
             data['y'] = data['r'] * np.sin(data['theta'])
             data['z'] = - np.random.rand(n_events) * self.tpc_length
             data['drift_time'] = - data['z']/ self.drift_velocity
+        else:
+            if isinstance(fix_truth, pd.DataFrame):
+                # Assume fix_truth is a one-line dataframe
+                fix_truth = fix_truth.iloc[0]
 
-            data['energy'] = energies
-            data['event_time'] = event_times
+            for col in ['x', 'y', 'z', 'r',
+                        'theta', 'drift_time']:
+                data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
 
-            return pd.DataFrame(data)
-
-        # Constructing the DataFrame like this is very inefficient
-        data = pd.DataFrame(np.repeat(fix_truth.values, n_events, axis=0),
-                            columns=fix_truth.columns)
-        data = data.astype(dtype=fix_truth.dtypes)
         data['energy'] = energies
         data['event_time'] = event_times
-        return data
+        return pd.DataFrame(data)

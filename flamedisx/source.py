@@ -420,11 +420,6 @@ class Source(SourceBase):
         Will not return | energies | events lost due to
         selection/detection efficiencies
         """
-        if fix_truth is not None:
-            cols_to_cache = [x for x in fix_truth.columns
-                            if fd.is_numpy_number(fix_truth[x])]
-            fix_truth = fix_truth[cols_to_cache]
-
         # Draw random "deep truth" variables (energy, position)
         sim_data = self.random_truth(energies, fix_truth=fix_truth, **params)
 
