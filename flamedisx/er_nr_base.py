@@ -174,7 +174,9 @@ class LXeSource(fd.Source):
 
             return pd.DataFrame(data)
 
-        data = pd.concat([fix_truth]*n_events, ignore_index=True)
+        # Constructing the DataFrame like this is very inefficient
+        data = pd.DataFrame(np.repeat(fix_truth.values, n_events, axis=0),
+                            columns=fix_truth.columns)
         data['energy'] = energies
         return data
 
@@ -804,7 +806,9 @@ class WIMPSource(NRSource):
 
             return pd.DataFrame(data)
 
-        data = pd.concat([fix_truth]*n_events, ignore_index=True)
+        # Constructing the DataFrame like this is very inefficient
+        data = pd.DataFrame(np.repeat(fix_truth.values, n_events, axis=0),
+                            columns=fix_truth.columns)
         data['energy'] = energies
         data['event_time'] = event_times
         return data
