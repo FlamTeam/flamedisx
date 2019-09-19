@@ -72,13 +72,23 @@ s1_map, s2_map = [
 ##
 
 
-@export
 class SR0Source:
     # TODO: add p_el_sr0
 
     extra_needed_columns = tuple(
         list(fd.ERSource.extra_needed_columns)
         + ['x_observed', 'y_observed'])
+
+    def random_truth(self, energies, **params):
+        d = super().random_truth(energies, **params)
+
+        # Add extra needed columns
+        # TODO: Add FDC maps instead of posrec resolution
+        d['x_observed'] = np.random.normal(d['x'].values,
+                                           scale=2)  # 2cm resolution)
+        d['y_observed'] = np.random.normal(d['y'].values,
+                                           scale=2)  # 2cm resolution)
+        return d
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
@@ -107,8 +117,11 @@ class SR0Source:
         raise NotImplementedError
 
 
+@export
 class SR0ERSource(SR0Source, fd.ERSource):
-    pass
+    extra_needed_columns = tuple(set(
+        list(SR0Source.extra_needed_columns) +
+        list(fd.ERSource.extra_needed_columns)))
 
 
 @export
