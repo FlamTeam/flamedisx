@@ -55,8 +55,8 @@ class SR1Source(fd.ERSource):
         return g2 * s2_relative_ly
 
     @staticmethod
-    def electron_gain_std(g2=11.4/(1.-0.63)/0.96):
-        return g2*0.96*0.25    
+    def electron_gain_std(s2_relative_ly, *, g2=11.4/(1.-0.63)/0.96):
+        return g2*0.96*0.25+0.*s2_relative_ly    
 
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
@@ -81,9 +81,9 @@ class SR1ERSource(SR1Source,fd.ERSource):
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-7.704*gamma_er) 
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24) 
         # delta_er and gamma_er are highly correlated
-        # 7.704 = delta_er/gamma_er at fixed value
+        # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1. - r_er) / nq
