@@ -251,7 +251,7 @@ class Source(SourceBase):
     @contextmanager
     def _set_temporarily(self, data=None, **kwargs):
         """Set data and/or defaults temporarily"""
-        old_defauls = self.defaults
+        old_defaults = self.defaults
         if data is None:
             self.set_defaults(**kwargs)
         else:
@@ -260,15 +260,15 @@ class Source(SourceBase):
         try:
             yield
         finally:
-            self.defaults = old_defauls
+            self.defaults = old_defaults
             if data is not None:
                self.data = old_data
 
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""
         with self._set_temporarily(data, **params):
-            return self._annotate(
-                _skip_bounds_computation=_skip_bounds_computation)
+            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+            return self.data
 
     ##
     # Data fetching / calculation
@@ -414,26 +414,23 @@ class Source(SourceBase):
     # Simulation methods and helpers
     ##
 
-    def simulate(self, energies, **params):
+    def simulate(self, energies, fix_truth=None, **params):
         """Simulate events at energies.
 
         Will not return | energies | events lost due to
         selection/detection efficiencies
-
-        :param aux_data: Data used for drawing auxiliary observables
-        (e.g. position and time), can be None, then will use simulate_aux
         """
         # Draw random "deep truth" variables (energy, position)
-        sim_data = self.random_truth(energies, **params)
+        sim_data = self.random_truth(energies, fix_truth=fix_truth, **params)
 
         with self._set_temporarily(sim_data, _skip_bounds_computation=True,
                                    **params):
             # Do the forward simulation of the detector response
-            self._simulate_response()
-
+            d = self._simulate_response()
             # Now that we have s1 and s2 values, we can do the full annotate,
             # populating columns like e_vis, photon_produced_mle, etc.
-            self._annotate(_skip_bounds_computation=False)
+            # Set the data, annotate, compute bounds, skip TF
+            self.set_data(d, _skip_tf_init=True)
             return self.data
 
 
@@ -525,7 +522,7 @@ class Source(SourceBase):
         """
         pass
 
-    def random_truth(self, energies, **params):
+    def random_truth(self, energies, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """
         if isinstance(energies, (int, float)):
             q = [dict(energy=1)] * int(energies)
