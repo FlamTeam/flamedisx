@@ -125,6 +125,13 @@ class SR0ERSource(SR0Source, fd.ERSource):
 
 
 @export
+class SR0NRSource(SR0Source, fd.NRSource):
+    extra_needed_columns = tuple(set(
+        list(SR0Source.extra_needed_columns) +
+        list(fd.NRSource.extra_needed_columns)))
+
+
+@export
 class SR0WIMPSource(SR0Source, fd.WIMPSource):
     extra_needed_columns = tuple(set(
         list(SR0Source.extra_needed_columns) +
