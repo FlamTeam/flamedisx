@@ -104,14 +104,14 @@ class Source(SourceBase):
     inner_dimensions = tuple()
     extra_needed_columns = tuple()
 
-    data: pd.DataFrame
+    data = None
 
     ##
     # Initialization and helpers
     ##
 
     def __init__(self,
-                 data: pd.DataFrame,
+                 data=None,
                  batch_size=10,
                  max_sigma=3,
                  data_is_annotated=False,
@@ -180,7 +180,11 @@ class Source(SourceBase):
                 self.param_id.lookup(param_name)
                 for param_name in self.fit_params])
 
-        if data is not None:
+        if data is None:
+            # We're calling the source without data. Set the batch_size here
+            # since we can't pass it to set_data later
+            self.batch_size = batch_size
+        else:
             self.set_data(data,
                           batch_size=batch_size,
                           data_is_annotated=data_is_annotated,
