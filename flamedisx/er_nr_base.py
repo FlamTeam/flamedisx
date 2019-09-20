@@ -811,9 +811,10 @@ class WIMPSource(NRSource):
                 # Assume fix_truth is a one-line dataframe
                 fix_truth = fix_truth.iloc[0]
 
-            for c in ['x', 'y', 'z', 'r', 'drift_time']:
+            for c in ['x', 'y', 'z', 'drift_time']:
                 data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
             data['theta'] = np.arctan2(data['y'], data['x'])
+            data['r'] = (data['x']**2 + data['y']**2)**0.5
 
         data['energy'] = energies
         data['event_time'] = event_times
