@@ -148,29 +148,3 @@ def symmetrize_matrix(x):
     upper = tf.linalg.band_part(x, 0, -1)
     diag = tf.linalg.band_part(x, 0, 0)
     return (upper - diag) + tf.transpose(upper)
-
-@export
-def interpolator_function(func, start, stop, n_refs, f_kwargs):
-    """Construct interpolator function to interpolate
-    numpy vector function of time in [start, stop] range.
-    Evaluate it at n_refs reference values, uniformly between
-    start and stop. Returns interpolator function.
-
-    :param func: Vector function f(t, **kwargs)
-    :param start: Smallest value to be interpolated
-    :param stop: Largest value to be interpolated
-    :param n_refs: number of function evaluations
-    :param f_kwargs: dictionary passed to func as kwargs
-    """
-    in_space = np.linspace(start, stop, n_refs)
-    start = tf.dtypes.cast(start, dtype=float_type())
-    stop = tf.dtypes.cast(stop, dtype=float_type())
-
-    y_ref = tf.convert_to_tensor([func(t=t, **f_kwargs) for t in in_space],
-                                  dtype=float_type())
-
-    def interpolator(x):
-        return tfp.math.interp_regular_1d_grid(x,
-                                               start, stop,
-                                               y_ref, axis=-2)
-    return interpolator
