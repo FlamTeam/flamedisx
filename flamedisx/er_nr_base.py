@@ -710,11 +710,30 @@ class WIMPSource(NRSource):
                             wr.j2000(date=self.t_stop), self.n_in)
         time_centers = self.bin_centers(times)
         es_centers = self.bin_centers(self.es)
-        es_diff = np.diff(self.es)
 
-        wimp_kwargs = dict(mw=self.mw,
-                           sigma_nucleon=self.sigma_nucleon,
-                           es=es_centers)
+        if 'wimp_kwargs' not in kwargs:
+            # Use default mass, xsec and energy range instead
+            wimp_kwargs = dict(mw=self.mw,
+                               sigma_nucleon=self.sigma_nucleon,
+                               es=es_centers)
+        else:
+            # Pass dict with settings for wimprates
+            wimp_kwargs = kwargs['wimp_kwargs']
+            assert 'mw' in wimp_kwargs and 'sigma_nucleon' in wimp_kwargs, \
+                "Pass at least 'mw' and 'sigma_nucleon' in wimp_kwargs"
+            if 'es' in wimp_kwargs:
+                # Optionally also pass a new energy range
+                # This should be the np.geomspace, not the bin centers
+                # which we compute here.
+                # How to assert this?
+                self.es = wimp_kwargs['es']
+                es_centers = self.bin_centers(self.es)
+                wimp_kwargs['es'] = es_centers
+            else:
+                # Otherwise use the default
+                wimp_kwargs['es'] = es_centers
+
+        es_diff = np.diff(self.es)
 
         assert len(es_diff) == len(es_centers)
         spectra = np.array([wr.rate_wimp_std(t=t, **wimp_kwargs) * es_diff
