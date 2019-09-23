@@ -703,7 +703,7 @@ class WIMPSource(NRSource):
     t_stop = pd.to_datetime('2017-09-13T12:00:00')
     n_in = 10  # Number of reference values (wimprates function evaluations)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, wimp_kwargs=None, **kwargs):
         # Compute the energy spectrum in a given time range
         # Times used by wimprates are J2000 timestamps
         times = np.linspace(wr.j2000(date=self.t_start),
@@ -711,14 +711,13 @@ class WIMPSource(NRSource):
         time_centers = self.bin_centers(times)
         es_centers = self.bin_centers(self.es)
 
-        if 'wimp_kwargs' not in kwargs:
+        if 'wimp_kwargs' is None:
             # Use default mass, xsec and energy range instead
             wimp_kwargs = dict(mw=self.mw,
                                sigma_nucleon=self.sigma_nucleon,
                                es=es_centers)
         else:
             # Pass dict with settings for wimprates
-            wimp_kwargs = kwargs['wimp_kwargs']
             assert 'mw' in wimp_kwargs and 'sigma_nucleon' in wimp_kwargs, \
                 "Pass at least 'mw' and 'sigma_nucleon' in wimp_kwargs"
             if 'es' in wimp_kwargs:
