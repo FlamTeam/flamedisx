@@ -129,6 +129,10 @@ def test_set_data(xes: fd.ERSource):
 
     data3 = pd.concat([data2, data2.iloc[:1]])
 
+    data1.reset_index(drop=True, inplace=True)
+    data2.reset_index(drop=True, inplace=True)
+    data3.reset_index(drop=True, inplace=True)
+
     lf = fd.LogLikelihood(
         sources=dict(data1=dict(er1=fd.ERSource),
                      data2=dict(er2=fd.ERSource)),
