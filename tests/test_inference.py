@@ -135,14 +135,14 @@ def test_set_data(xes: fd.ERSource):
         data=dict(data1=data1,
                   data2=data2))
 
-    assert lf.sources['er1'].data == data1
-    assert lf.sources['er2'].data == data2
+    pd.testing.assert_frame_equal(lf.sources['er1'].data, data1)
+    pd.testing.assert_frame_equal(lf.sources['er2'].data, data2)
 
     lf.set_data(dict(data1=data2,
                      data2=data3))
 
-    assert lf.sources['er1'].data == data2
-    assert lf.sources['er2'].data == data3
+    pd.testing.assert_frame_equal(lf.sources['er1'].data, data2)
+    pd.testing.assert_frame_equal(lf.sources['er2'].data, data3)
 
 
 def test_constraint(xes: fd.ERSource):
