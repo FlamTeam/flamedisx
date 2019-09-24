@@ -122,6 +122,29 @@ def test_multi_dset(xes: fd.ERSource):
     np.testing.assert_almost_equal(2 * ll1, ll2)
 
 
+def test_set_data(xes: fd.ERSource):
+    data1 = xes.data
+    data2 = pd.concat([data1.copy(), data1.iloc[:1].copy()])
+    data2['s1'] *= 1.3
+
+    data3 = pd.concat([data2, data2.iloc[:1]])
+
+    lf = fd.LogLikelihood(
+        sources=dict(data1=dict(er1=fd.ERSource),
+                     data2=dict(er2=fd.ERSource)),
+        data=dict(data1=data1,
+                  data2=data2))
+
+    assert lf.sources['er1'].data == data1
+    assert lf.sources['er2'].data == data2
+
+    lf.set_data(dict(data1=data2,
+                     data2=data3))
+
+    assert lf.sources['er1'].data == data2
+    assert lf.sources['er2'].data == data3
+
+
 def test_constraint(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
