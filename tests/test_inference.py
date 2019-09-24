@@ -137,7 +137,8 @@ def test_set_data(xes: fd.ERSource):
 
     def internal_data(sname, col):
         series = lf.sources[sname].data[col]
-        return series.iloc[:-lf.sources[sname].n_padding]
+        n_padding = lf.sources[sname].n_padding
+        return series.iloc[:len(series)-n_padding]
 
     # Test S1 columns are the same (DFs are annotated)
     # Here we don't have any padding since batch_size is n_events
