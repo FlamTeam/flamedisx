@@ -135,14 +135,24 @@ def test_set_data(xes: fd.ERSource):
         data=dict(data1=data1,
                   data2=data2))
 
-    pd.testing.assert_frame_equal(lf.sources['er1'].data, data1)
-    pd.testing.assert_frame_equal(lf.sources['er2'].data, data2)
+    # Test S1 columns are the same (DFs are annotated)
+    pd.testing.assert_series_equal(lf.sources['er1'].data['s1'], data1['s1'])
+    pd.testing.assert_series_equal(lf.sources['er2'].data['s1'], data2['s1'])
 
-    lf.set_data(dict(data1=data2,
+    # Set new data for only one dataset
+    lf.set_data(dict(data1=data2))
+
+    # Test S1 columns are the same (DFs are annotated)
+    pd.testing.assert_series_equal(lf.sources['er1'].data['s1'], data2['s1'])
+    pd.testing.assert_series_equal(lf.sources['er2'].data['s1'], data2['s1'])
+
+    # Set new data for both datasets
+    lf.set_data(dict(data1=data1,
                      data2=data3))
 
-    pd.testing.assert_frame_equal(lf.sources['er1'].data, data2)
-    pd.testing.assert_frame_equal(lf.sources['er2'].data, data3)
+    # Test S1 columns are the same (DFs are annotated)
+    pd.testing.assert_series_equal(lf.sources['er1'].data['s1'], data1['s1'])
+    pd.testing.assert_series_equal(lf.sources['er2'].data['s1'], data3['s1'])
 
 
 def test_constraint(xes: fd.ERSource):
