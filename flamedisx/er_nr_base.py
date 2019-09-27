@@ -711,7 +711,7 @@ class WIMPSource(NRSource):
         time_centers = self.bin_centers(times)
         es_centers = self.bin_centers(self.es)
 
-        if 'wimp_kwargs' is None:
+        if wimp_kwargs is None:
             # Use default mass, xsec and energy range instead
             wimp_kwargs = dict(mw=self.mw,
                                sigma_nucleon=self.sigma_nucleon,
