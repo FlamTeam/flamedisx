@@ -69,16 +69,41 @@ class LXeSource(fd.Source):
     t_start = pd.to_datetime('2016-09-13T12:00:00')
     t_stop = pd.to_datetime('2017-09-13T12:00:00')
 
+    # spatial response histogram
+    # Multihist object used to lookup multipliers for the spatial response
+    spatial_hist = None
+    # The dimensions of the histogram, chaning this requires chaninging
+    # the implementation in random_truth as well!
+    spatial_hist_dims = tuple(['r', 'theta', 'z'])
+
+
+    def _populate_tensor_cache(self):
+        super()._populate_tensor_cache()
+        if self.spatial_hist is not None:
+            # Setup tensor of histogram for lookup
+            positions = self.data[list(self.spatial_hist_dims)].values.T
+            v = self.spatial_hist.lookup(*positions)
+
+            spatial_tensor = tf.convert_to_tensor(v, dtype=fd.float_type())
+            self.spatial_tensor = tf.reshape(spatial_tensor,
+                                             [self.n_batches, -1])
+        else:
+            # If no hist defined, set uniform response
+            # What normalization to use, get_random wants events_per_bin hist
+            self.spatial_tensor = tf.ones([self.n_batches, self.batch_size],
+                                          dtype=fd.float_type())
+
     ##
     # Model functions (data_methods)
     ##
 
     # Single constant energy spectrum
-    def energy_spectrum(self, drift_time):
+    def energy_spectrum(self, i_batch):
         es, rs = self._single_spectrum()
-        n = drift_time.shape[0]
+        sr = self.spatial_response(i_batch)
+        n = i_batch.shape[0]
         return (fd.repeat(es[o, :], n, axis=0),
-                fd.repeat(rs[o, :], n, axis=0))
+                fd.repeat(rs[o, :], n, axis=0) * sr[:, o])
 
     work = 13.7e-3
 
@@ -154,12 +179,24 @@ class LXeSource(fd.Source):
             data['s1'] = 1
             data['s2'] = 100
 
-            # Draw uniform position
-            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
-            data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
+            if self.spatial_hist is None:
+                # Draw uniform position
+                data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+                data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
+                data['z'] = - np.random.rand(n_events) * self.tpc_length
+            else:
+                assert self.spatial_hist_dims == tuple(['r', 'theta', 'z'])
+                # TODO: support other spatial hist coordinate systems
+                # like (x, y, z). Maybe in combination with more general
+                # fix_truth as in issue #23
+                # Note that random_truth is redefined in WIMPSource where
+                # spatial response will always be uniform (which is ok)
+                positions = self.spatial_hist.get_random(size=n_events)
+                for idx, col in enumerate(self.spatial_hist_dims):
+                    data[col] = positions[:, idx]
+
             data['x'] = data['r'] * np.cos(data['theta'])
             data['y'] = data['r'] * np.sin(data['theta'])
-            data['z'] = - np.random.rand(n_events) * self.tpc_length
             data['drift_time'] = - data['z']/ self.drift_velocity
 
             # Draw uniform time
@@ -511,6 +548,10 @@ class LXeSource(fd.Source):
 
     def _single_spectrum(self):
         raise NotImplementedError
+
+    def spatial_response(self, i_batch):
+        batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
+        return self.spatial_tensor[batch]
 
 @export
 class ERSource(LXeSource):
