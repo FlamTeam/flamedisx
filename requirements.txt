@@ -5,5 +5,5 @@ multihist
 wimprates
 tqdm
 gast==0.2.2
-tensorflow==2.0.0-rc0
+tensorflow==2.0.0
 tensorflow_probability==0.8.0-rc0
