@@ -69,8 +69,8 @@ class LXeSource(fd.Source):
     t_start = pd.to_datetime('2016-09-13T12:00:00')
     t_stop = pd.to_datetime('2017-09-13T12:00:00')
 
-    # spatial response histogram
-    # Multihist object used to lookup multipliers for the spatial response
+    # Spatial response histogram
+    # Multihist Histdd object to lookup multipliers for the spatial response
     # The histogram must have 'axis_names' set to either
     # ['r', 'theta', 'z'] or ['x', 'y', 'z']
     # The histogram must be normalized to the histogram mean
@@ -90,7 +90,8 @@ class LXeSource(fd.Source):
             # Check histogram dimensions
             axes = self.spatial_hist.axis_names
             assert axes == ['r', 'theta', 'z'] or axes == ['x', 'y', 'z'], \
-                "axis_names of spatial_hist must be either ['r', 'theta', 'z'] or ['x', 'y', 'z']"
+                ("axis_names of spatial_hist must be either "
+                 "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
             self.spatial_hist_dims = axes
         # Init rest of Source
         super().__init__(*args, **kwargs)
@@ -99,7 +100,7 @@ class LXeSource(fd.Source):
         super()._populate_tensor_cache()
         if self.spatial_hist is not None:
             # Setup tensor of histogram for lookup
-            positions = self.data[list(self.spatial_hist_dims)].values.T
+            positions = self.data[self.spatial_hist_dims].values.T
             v = self.spatial_hist.lookup(*positions)
 
             spatial_tensor = tf.convert_to_tensor(v, dtype=fd.float_type())
