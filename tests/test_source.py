@@ -3,6 +3,8 @@ import pandas as pd
 import pytest
 import tensorflow as tf
 
+from multihist import Histdd
+
 import flamedisx as fd
 from flamedisx.er_nr_base import quanta_types
 
@@ -24,7 +26,7 @@ def np_lookup_axis1(x, indices, fill_value=0):
 
 n_events = 2
 
-@pytest.fixture(params=["ER", "NR"])
+@pytest.fixture(params=["ER", "NR", "ER_spatial"])
 def xes(request):
     # warnings.filterwarnings("error")
     data = pd.DataFrame([dict(s1=56., s2=2905., drift_time=143465.,
@@ -33,8 +35,21 @@ def xes(request):
                               x=1.12, y=0.35, z=-59., r=1., theta=0.3)])
     if request.param == 'ER':
         x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
-    else:
+    elif request.param == 'NR':
         x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
+    elif request.param == 'ER_spatial':
+        nbins = 100
+        r = np.linspace(0, 47.9, nbins + 1)
+        z = np.linspace(-97.6, 0, nbins + 1)
+        theta = np.linspace(0, 2 * np.pi, nbins + 1)
+
+        h = Histdd(bins=[r, theta, z], axis_names=['r', 'theta', 'z'])
+        h.histogram = np.ones((nbins, nbins, nbins))
+
+        class ERSpatial(fd.ERSource):
+            spatial_hist = h
+
+        x = ERSpatial(data.copy(), batch_size=2, max_sigma=8)
     return x
 
 
