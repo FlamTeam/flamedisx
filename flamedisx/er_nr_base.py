@@ -71,11 +71,29 @@ class LXeSource(fd.Source):
 
     # spatial response histogram
     # Multihist object used to lookup multipliers for the spatial response
+    # The histogram must have 'axis_names' set to either
+    # ['r', 'theta', 'z'] or ['x', 'y', 'z']
+    # The histogram must be normalized to the histogram mean
     spatial_hist = None
-    # The dimensions of the histogram, chaning this requires chaninging
-    # the implementation in random_truth as well!
-    spatial_hist_dims = tuple(['r', 'theta', 'z'])
 
+    def __init__(self, *args, **kwargs):
+        # Check validity of spatial hist
+        if self.spatial_hist is not None:
+            assert isinstance(self.spatial_hist, Histdd), \
+                "spatial_hist needs to be a multihist Histdd object"
+            # The histogram mean needs to be normalized to one, meaning the
+            # histogram contains nbins/dim**ndims counts. This ensures we can
+            # use tf.ones is no hist is defined.
+            h = self.spatial_hist.histogram
+            assert np.allclose(h.mean() * h.size, self.spatial_hist.n), \
+                "spatial_hist needs to be normalized to histogram mean"
+            # Check histogram dimensions
+            axes = self.spatial_h.axis_names
+            assert axes == ['r', 'theta', 'z'] or axes == ['x', 'y', 'z'], \
+                "axis_names of spatial_hist must be either ['r', 'theta', 'z'] or ['x', 'y', 'z']"
+            self.spatial_hist_dims = axes
+        # Init rest of Source
+        super().__init__(*args, **kwargs)
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
@@ -89,7 +107,6 @@ class LXeSource(fd.Source):
                                              [self.n_batches, -1])
         else:
             # If no hist defined, set uniform response
-            # What normalization to use, get_random wants events_per_bin hist
             self.spatial_tensor = tf.ones([self.n_batches, self.batch_size],
                                           dtype=fd.float_type())
 
@@ -99,7 +116,9 @@ class LXeSource(fd.Source):
 
     # Single constant energy spectrum
     def energy_spectrum(self, i_batch):
+        # Lookup the energy spectrum
         es, rs = self._single_spectrum()
+        # Lookup the spatial response and scale the spectrum with it
         sr = self.spatial_response(i_batch)
         n = i_batch.shape[0]
         return (fd.repeat(es[o, :], n, axis=0),
@@ -159,7 +178,19 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
+    @staticmethod
+    def cart_to_pol(x, y):
+        return (x**2 + y**2)**0.5, np.arctan2(y, x)
+
+    @staticmethod
+    def pol_to_cart(r, theta):
+        return r * np.cos(theta), r * np.sin(theta)
+
     def random_truth(self, energies, fix_truth=None, **params):
+        # Note that random_truth is redefined in WIMPSource where
+        # spatial response will always be uniform (which is ok)
+        # TODO: make this more explicit to users?
+
         if isinstance(energies, (int, float)):
             n_events = energies
             # Draw energies from the spectrum
@@ -184,19 +215,20 @@ class LXeSource(fd.Source):
                 data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
                 data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
                 data['z'] = - np.random.rand(n_events) * self.tpc_length
-            else:
-                assert self.spatial_hist_dims == tuple(['r', 'theta', 'z'])
-                # TODO: support other spatial hist coordinate systems
-                # like (x, y, z). Maybe in combination with more general
-                # fix_truth as in issue #23
-                # Note that random_truth is redefined in WIMPSource where
-                # spatial response will always be uniform (which is ok)
+                data['x'], data['y'] = self.pol_to_cart(data['r'], data['theta'])
+            elif self.spatial_hist_dims == ['r', 'theta', 'z']:
+                # Spatial response in cylindrical coords
                 positions = self.spatial_hist.get_random(size=n_events)
                 for idx, col in enumerate(self.spatial_hist_dims):
                     data[col] = positions[:, idx]
+                data['x'], data['y'] = self.pol_to_cart(data['r'], data['theta'])
+            else:
+                # Spatial response in cartesian coords
+                positions = self.spatial_hist.get_random(size=n_events)
+                for idx, col in enumerate(self.spatial_hist_dims):
+                    data[col] = positions[:, idx]
+                data['r'], data['theta'] = self.cart_to_pol(data['x'], data['y'])
 
-            data['x'] = data['r'] * np.cos(data['theta'])
-            data['y'] = data['r'] * np.sin(data['theta'])
             data['drift_time'] = - data['z']/ self.drift_velocity
 
             # Draw uniform time
