@@ -88,7 +88,7 @@ class LXeSource(fd.Source):
             assert np.allclose(h.mean() * h.size, self.spatial_hist.n), \
                 "spatial_hist needs to be normalized to histogram mean"
             # Check histogram dimensions
-            axes = self.spatial_h.axis_names
+            axes = self.spatial_hist.axis_names
             assert axes == ['r', 'theta', 'z'] or axes == ['x', 'y', 'z'], \
                 "axis_names of spatial_hist must be either ['r', 'theta', 'z'] or ['x', 'y', 'z']"
             self.spatial_hist_dims = axes
