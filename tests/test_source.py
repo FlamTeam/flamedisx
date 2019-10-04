@@ -117,6 +117,7 @@ def test_simulate(xes: fd.ERSource):
     simd = xes.simulate(n_ev, fix_truth=fix_truth)
 
     # Check if all energies are the same fixed value
+    assert 'energy' in simd
     assert len(set(simd['energy'].values)) == 1
     assert simd['energy'].values[0] == e_test
 
