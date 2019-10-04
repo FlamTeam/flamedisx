@@ -112,7 +112,7 @@ def test_simulate(xes: fd.ERSource):
     assert simd['x'].values[0] == fix_truth_df['x'].values[0]
 
     # Test simulate with fix_truth dict
-    e_test = 50.
+    e_test = 5.
     fix_truth = dict(energy=e_test)
     simd = xes.simulate(n_ev, fix_truth=fix_truth)
 
