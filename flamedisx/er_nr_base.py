@@ -231,11 +231,11 @@ class LXeSource(fd.Source):
             # Add cartesian and drift_time
             d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
             d['drift_time'] = - d['z']/ self.drift_velocity
-        elif 'event_time' not in d:
-            # Neither cartesian nor polar coords given and no time
+        elif not any(v in d for v in ['event_time', 'energy']):
+            # Neither cartesian nor polar coords given and no time or energy
             raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
-                             "and/or ['r', 'theta', 'z'] and/or 'event_time', "
-                             "instead it contains: {d.keys()}")
+                             "and/or ['r', 'theta', 'z'] and/or 'event_time' "
+                             "and/or 'energy', but it contains: {d.keys()}")
         return d
 
     def random_truth_observables(self, n_events):
