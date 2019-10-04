@@ -76,7 +76,7 @@ def test_gimme(xes: fd.ERSource):
 
 def test_simulate(xes: fd.ERSource):
     """Test the simulator doesn't crash"""
-    xes.simulate(data=xes.data, energies=np.linspace(0., 100., int(1e3)))
+    xes.simulate(energies=np.linspace(0., 100., int(1e3)))
 
 
 def test_bounds(xes: fd.ERSource):
@@ -175,7 +175,7 @@ def test_detection_prob(xes: fd.ERSource):
 
 
 def test_estimate_mu(xes: fd.ERSource):
-    xes.estimate_mu(xes.data)
+    xes.estimate_mu()
 
 
 def test_underscore_diff_rate(xes: fd.ERSource):
@@ -207,3 +207,44 @@ def test_diff_rate_grad(xes):
     dr3 = xes.differential_rate(xes.data_tensor[0], autograph=True)
     dr3 = dr3.numpy()
     np.testing.assert_almost_equal(dr, dr3, decimal=4)
+
+
+def test_set_data(xes: fd.ERSource):
+    assert xes.n_batches == 1
+    assert xes.n_padding == 0
+    assert xes.batch_size == 2
+
+    x = xes.batched_differential_rate()
+    assert x.shape == (2,)
+
+
+    data1 = xes.data
+    data2 = pd.concat([data1.copy(),
+                       data1.iloc[:1].copy()])
+    data2['s1'] *= 1.3
+    data3 = pd.concat([data2, data2.iloc[:1]])
+
+    # Setting temporarily
+    with xes._set_temporarily(data2):
+        np.testing.assert_array_equal(xes.data['s1'], data2['s1'])
+    np.testing.assert_array_equal(xes.data['s1'], data1['s1'])
+
+    # Setting for real
+    xes.set_data(data2)
+    assert xes.data is not data1
+    np.testing.assert_array_equal(
+        xes.data['s1'].values,
+        data3['s1'].values)
+
+    np.testing.assert_almost_equal(
+        xes._fetch('s1', data_tensor=xes.data_tensor[0]).numpy(),
+        data2['s1'].values[:2].astype('float32'))
+
+    # Test batching stuff has been updated
+    assert xes.n_batches == 2
+    assert xes.n_padding == 1
+    assert xes.batch_size == 2
+
+    x = xes.batched_differential_rate()
+    assert x.shape == (3,)
+

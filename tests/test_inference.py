@@ -122,6 +122,54 @@ def test_multi_dset(xes: fd.ERSource):
     np.testing.assert_almost_equal(2 * ll1, ll2)
 
 
+def test_set_data(xes: fd.ERSource):
+    data1 = xes.data
+    data2 = pd.concat([data1.copy(), data1.iloc[:1].copy()])
+    data2['s1'] *= 1.3
+
+    data3 = pd.concat([data2, data2.iloc[:1]])
+
+    data1.reset_index(drop=True, inplace=True)
+    data2.reset_index(drop=True, inplace=True)
+    data3.reset_index(drop=True, inplace=True)
+
+    lf = fd.LogLikelihood(
+        sources=dict(data1=dict(er1=fd.ERSource),
+                     data2=dict(er2=fd.ERSource)),
+        data=dict(data1=data1,
+                  data2=data2))
+
+    def internal_data(sname, col):
+        series = lf.sources[sname].data[col]
+        n_padding = lf.sources[sname].n_padding
+        return series.iloc[:len(series)-n_padding]
+
+    # Test S1 columns are the same (DFs are annotated)
+    # Here we don't have any padding since batch_size is n_events
+    pd.testing.assert_series_equal(internal_data('er1', 's1'), data1['s1'])
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data2['s1'])
+
+    # Set new data for only one dataset
+    lf.set_data(dict(data1=data2))
+
+    # Test S1 columns are the same (DFs are annotated)
+    # Here we might have padding
+    pd.testing.assert_series_equal(internal_data('er1', 's1'), data2['s1'])
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data2['s1'])
+
+    # Set new data for both datasets
+    lf.set_data(dict(data1=data1,
+                     data2=data3))
+
+    # Test S1 columns are the same (DFs are annotated)
+    pd.testing.assert_series_equal(internal_data('er1', 's1'), data1['s1'])
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data3['s1'])
+
+    # Test padding for smaller dsets
+    lf.set_data(dict(data2=data1))
+
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data1['s1'])
+
 def test_constraint(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),

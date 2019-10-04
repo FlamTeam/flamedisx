@@ -4,11 +4,14 @@ LXeSource: common parts of ER and NR response
 ERSource: ER-specific model components and defaults
 NRSource: NR-specific model components and defaults
 """
-from multihist import Hist1d
+from functools import partial
+
+from multihist import Hist1d, Histdd
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+import wimprates as wr
 from scipy import stats
 
 import flamedisx as fd
@@ -62,9 +65,20 @@ class LXeSource(fd.Source):
     tpc_length = 97.6   # cm
     drift_velocity = 1.335 * 1e-4   # cm/ns
 
+    # Uniform timestamps between 2016-09 and 2017-09
+    t_start = pd.to_datetime('2016-09-13T12:00:00')
+    t_stop = pd.to_datetime('2017-09-13T12:00:00')
+
     ##
     # Model functions (data_methods)
     ##
+
+    # Single constant energy spectrum
+    def energy_spectrum(self, drift_time):
+        es, rs = self._single_spectrum()
+        n = drift_time.shape[0]
+        return (fd.repeat(es[o, :], n, axis=0),
+                fd.repeat(rs[o, :], n, axis=0))
 
     work = 13.7e-3
 
@@ -120,21 +134,49 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
-    @classmethod
-    def simulate_aux(cls, n_events):
+    def random_truth(self, energies, fix_truth=None, **params):
+        if isinstance(energies, (int, float)):
+            n_events = energies
+            # Draw energies from the spectrum
+            es, rs = self._single_spectrum()
+            energies = Hist1d.from_histogram(
+                rs[:-1], es).get_random(n_events)
+        elif isinstance(energies, (np.ndarray, pd.Series)):
+            n_events = len(energies)
+        else:
+            raise ValueError(
+                f"Energies must be int or array, not {type(energies)}")
+
         data = dict()
+        if fix_truth is None:
+            # Add fake s1, s2 necessary for set_data to succeed
+            # TODO: check if we still need this...
+            data['s1'] = 1
+            data['s2'] = 100
 
-        # Add fake s1, s2 necessary for set_data to succeed
-        data['s1'] = 1
-        data['s2'] = 100
+            # Draw uniform position
+            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+            data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
+            data['x'] = data['r'] * np.cos(data['theta'])
+            data['y'] = data['r'] * np.sin(data['theta'])
+            data['z'] = - np.random.rand(n_events) * self.tpc_length
+            data['drift_time'] = - data['z']/ self.drift_velocity
 
-        # Draw uniform positions
-        data['r'] = (np.random.rand(n_events) * cls.tpc_radius**2)**0.5
-        data['theta'] = np.random.rand(n_events)
-        data['x'] = data['r'] * np.cos(data['theta'])
-        data['y'] = data['r'] * np.sin(data['theta'])
-        data['z'] = - np.random.rand(n_events) * cls.tpc_length
-        data['drift_time'] = - data['z']/ cls.drift_velocity
+            # Draw uniform time
+            data['event_time'] = np.random.uniform(
+                pd.Timestamp(self.t_start).value,
+                pd.Timestamp(self.t_stop).value,
+                size=n_events).astype('float32')
+        else:
+            if isinstance(fix_truth, pd.DataFrame):
+                # Assume fix_truth is a one-line dataframe
+                fix_truth = fix_truth.iloc[0]
+
+            for c in ['x', 'y', 'z', 'r', 'event_time', 'drift_time']:
+                data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
+            data['theta'] = np.arctan2(data['y'], data['x'])
+
+        data['energy'] = energies
         return pd.DataFrame(data)
 
     ##
@@ -413,12 +455,10 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
-    def _simulate(self, d):
-        def gimme(fname, bonus_arg=None):
-            return self.gimme(
-                fname,
-                bonus_arg=bonus_arg, data_tensor=None,
-                ptensor=None, numpy_out=True)
+    def _simulate_response(self):
+        def gimme(f, bonus_arg=None):
+            return self.gimme(f, bonus_arg=bonus_arg, numpy_out=True)
+        d = self.data
 
         # If you forget the .values here, you may get a Python core dump...
         d['nq'] = self._simulate_nq(d['energy'].values)
@@ -460,21 +500,17 @@ class LXeSource(fd.Source):
             acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
             sn = signal_name[q]
             acceptance *= gimme(sn + '_acceptance', d[sn].values)
-        d = d.iloc[np.random.rand(len(d)) < acceptance].copy()
-        return d
+        return d.iloc[np.random.rand(len(d)) < acceptance].copy()
+
+    def mu_before_efficiencies(self, **params):
+        _, rs = self._single_spectrum()
+        return np.sum(rs)
 
     def _simulate_nq(self, energies):
         raise NotImplementedError
 
-    def simulate_es(self, n, **params):
-        return self.energy_spectrum_hist(**params).get_random(n)
-
-    def energy_spectrum_hist(self, **params):
-        # TODO: fails if e is pos/time dependent
-        # TODO: BAD, see earlier
-        es, rs = self.gimme('energy_spectrum', data_tensor=None, ptensor=None, numpy_out=True)
-        return Hist1d.from_histogram(rs[0, :-1], es[0, :])
-
+    def _single_spectrum(self):
+        raise NotImplementedError
 
 @export
 class ERSource(LXeSource):
@@ -484,17 +520,12 @@ class ERSource(LXeSource):
     # ER-specific model defaults
     ##
 
-    def energy_spectrum(self, drift_time):
+    def _single_spectrum(self):
         """Return (energies in keV, rate at these energies),
-        both (n_events, n_energies) tensors.
         """
-        # TODO: doesn't depend on drift_time...
-        n_evts = drift_time.shape[0]
-        return (fd.repeat(tf.cast(tf.linspace(0., 10., 1000)[o, :],
-                                 dtype=fd.float_type()),
-                          n_evts, axis=0),
-                fd.repeat(tf.ones(1000, dtype=fd.float_type())[o, :],
-                          n_evts, axis=0))
+        return (tf.cast(tf.linspace(0., 10., 1000),
+                             dtype=fd.float_type()),
+                tf.ones(1000, dtype=fd.float_type()))
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -567,13 +598,12 @@ class NRSource(LXeSource):
     # NR-specific model defaults
     ##
 
-    def energy_spectrum(self, drift_time):
+    def _single_spectrum(self):
         """Return (energies in keV, events at these energies),
         both (n_events, n_energies) tensors.
         """
-        e = fd.repeat(tf.cast(tf.linspace(0.7, 150., 100)[o, :],
-                              fd.float_type()),
-                      drift_time.shape[0], axis=0)
+        e = tf.cast(tf.linspace(0.7, 150., 100),
+                    fd.float_type())
         return e, tf.ones_like(e, dtype=fd.float_type())
 
     @staticmethod
@@ -653,3 +683,158 @@ class NRSource(LXeSource):
                                 data_tensor=None, ptensor=None,
                                 numpy_out=True)
         return stats.poisson.rvs(energies * lindhard_l / work)
+
+
+@export
+class WIMPSource(NRSource):
+    """NRSource with time dependent energy spectra from
+    wimprates.
+    """
+    extra_needed_columns = tuple(
+        list(NRSource.extra_needed_columns)
+        + ['t', 'event_time'])
+    # Recoil energies and Wimprates settings
+    es = np.geomspace(0.7, 50, 100)  # [keV]
+    mw = 1e3  # GeV
+    sigma_nucleon = 1e-45  # cm^2
+
+    # Interpolator settings
+    t_start = pd.to_datetime('2016-09-13T12:00:00')
+    t_stop = pd.to_datetime('2017-09-13T12:00:00')
+    n_in = 10  # Number of reference values (wimprates function evaluations)
+
+    def __init__(self, *args, wimp_kwargs=None, **kwargs):
+        # Compute the energy spectrum in a given time range
+        # Times used by wimprates are J2000 timestamps
+        times = np.linspace(wr.j2000(date=self.t_start),
+                            wr.j2000(date=self.t_stop), self.n_in)
+        time_centers = self.bin_centers(times)
+        es_centers = self.bin_centers(self.es)
+
+        if wimp_kwargs is None:
+            # Use default mass, xsec and energy range instead
+            wimp_kwargs = dict(mw=self.mw,
+                               sigma_nucleon=self.sigma_nucleon,
+                               es=es_centers)
+        else:
+            # Pass dict with settings for wimprates
+            assert 'mw' in wimp_kwargs and 'sigma_nucleon' in wimp_kwargs, \
+                "Pass at least 'mw' and 'sigma_nucleon' in wimp_kwargs"
+            if 'es' in wimp_kwargs:
+                # Optionally also pass a new energy range
+                # This should be the np.geomspace, not the bin centers
+                # which we compute here.
+                # How to assert this?
+                self.es = wimp_kwargs['es']
+                es_centers = self.bin_centers(self.es)
+                wimp_kwargs['es'] = es_centers
+            else:
+                # Otherwise use the default
+                wimp_kwargs['es'] = es_centers
+
+        es_diff = np.diff(self.es)
+
+        assert len(es_diff) == len(es_centers)
+        spectra = np.array([wr.rate_wimp_std(t=t, **wimp_kwargs) * es_diff
+                            for t in time_centers])
+        assert spectra.shape == (len(time_centers), len(es_centers))
+
+        self.energy_hist = Histdd.from_histogram(spectra,
+                                                 bin_edges=(times, self.es))
+        # Initialize the rest of the source
+        super().__init__(*args, **kwargs)
+
+    def mu_before_efficiencies(self, **params):
+        return self.energy_hist.n / self.n_in
+
+    @staticmethod
+    def bin_centers(x):
+        return 0.5 * (x[1:] + x[:-1])
+
+    def to_event_time(self, jtimes):
+        j_start = wr.j2000(date=self.t_start)
+        j_stop = wr.j2000(date=self.t_stop)
+        assert j_start < j_stop
+
+        ev_time_start = pd.Timestamp(self.t_start).value
+        ev_time_stop = pd.Timestamp(self.t_stop).value
+        assert ev_time_start < ev_time_stop
+
+        jfrac = (jtimes - j_start)/(j_stop - j_start)
+        return jfrac * (ev_time_stop - ev_time_start) + ev_time_start
+
+    def _populate_tensor_cache(self):
+        super()._populate_tensor_cache()
+        # Construct the energy spectra at event times
+        e = np.array([self.energy_hist.slice(t).histogram[0]
+                      for t in self.data['t']])
+        energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
+        assert energy_tensor.shape == [len(self.data), len(self.es) - 1]
+        self.energy_tensor = tf.reshape(energy_tensor,
+                                        [self.n_batches, self.batch_size, -1])
+
+        es_centers = tf.convert_to_tensor(self.bin_centers(self.es),
+                                          dtype=fd.float_type())
+        self.all_es_centers = fd.repeat(es_centers[o, :],
+                                        repeats=self.batch_size,
+                                        axis=0)
+
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+        # Add J2000 timestamps to data for use with wimprates
+        if 't' not in d:
+            d['t'] = [wr.j2000(date=t)
+                      for t in pd.to_datetime(d['event_time'])]
+
+    def energy_spectrum(self, i_batch):
+        """Return (energies in keV, events at these energies)
+        """
+        batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
+        return (self.all_es_centers, self.energy_tensor[batch, :, :])
+
+    def random_truth(self, energies, fix_truth=None, **params):
+        if isinstance(energies, (int, float)):
+            n_events = energies
+            # Draw energies from the spectrum
+            events = self.energy_hist.get_random(n_events)
+            energies = events[:, 1]
+        elif isinstance(energies, (np.ndarray, pd.Series)):
+            n_events = len(energies)
+
+            # When given energies, we still need event_times
+            events = self.energy_hist.get_random(n_events)
+        else:
+            raise ValueError(
+                f"Energies must be int or array, not {type(energies)}")
+
+        j2000_times = events[:, 0]
+        event_times = self.to_event_time(events[:, 0])
+
+        data = dict()
+        if fix_truth is None:
+            # Add fake s1, s2 necessary for set_data to succeed
+            # TODO: check if we still need this...
+            data['s1'] = 1
+            data['s2'] = 100
+
+            # Draw uniform position
+            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+            data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
+            data['x'] = data['r'] * np.cos(data['theta'])
+            data['y'] = data['r'] * np.sin(data['theta'])
+            data['z'] = - np.random.rand(n_events) * self.tpc_length
+            data['drift_time'] = - data['z']/ self.drift_velocity
+        else:
+            if isinstance(fix_truth, pd.DataFrame):
+                # Assume fix_truth is a one-line dataframe
+                fix_truth = fix_truth.iloc[0]
+
+            for c in ['x', 'y', 'z', 'drift_time']:
+                data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
+            data['theta'] = np.arctan2(data['y'], data['x'])
+            data['r'] = (data['x']**2 + data['y']**2)**0.5
+
+        data['energy'] = energies
+        data['event_time'] = event_times
+        data['t'] = j2000_times
+        return pd.DataFrame(data)

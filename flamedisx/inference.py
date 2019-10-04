@@ -121,7 +121,6 @@ class LogLikelihood:
 
         self.mu_itps = {
             sname: s.mu_function(n_trials=n_trials,
-                                 data=s.data,
                                  **common_param_specs)
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
@@ -131,6 +130,32 @@ class LogLikelihood:
         if log_constraint is None:
             log_constraint = lambda **kwargs: 0.
         self.log_constraint = log_constraint
+
+    def set_data(self,
+                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]]):
+        """set new data for sources in the likelihood.
+        Data is passed in the same format as for __init__
+        Data can contain any subset of the original data keys to only
+        update specific datasets.
+        """
+        if isinstance(data, pd.DataFrame):
+            # Only one dataset
+            assert len(self.dsetnames) == 1, \
+                "You passed a DataFrame but there are multiple datasets"
+            data = {DEFAULT_DSETNAME: data}
+
+        for sname, source in self.sources.items():
+            dname = self.d_for_s[sname]
+            if dname in data:
+                source.set_data(data[dname])
+                # Update batches and padding
+                # TODO changes here should trigger a retrace of ll
+                # how to test this
+                self.n_batches[dname] = source.n_batches
+                self.batch_size[dname] = source.batch_size
+                self.n_padding[dname] = source.n_padding
+            elif dname not in self.dsetnames:
+                raise ValueError(f"Dataset name {dname} not known")
 
     def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'

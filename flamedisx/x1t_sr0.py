@@ -2,6 +2,7 @@
 
 """
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 from multihist import Hist1d
@@ -71,7 +72,6 @@ s1_map, s2_map = [
 ##
 
 
-@export
 class SR0Source:
     # TODO: add p_el_sr0
 
@@ -79,8 +79,19 @@ class SR0Source:
         list(fd.ERSource.extra_needed_columns)
         + ['x_observed', 'y_observed'])
 
-    @staticmethod
-    def add_extra_columns(d):
+    def random_truth(self, energies, fix_truth=None, **params):
+        d = super().random_truth(energies, fix_truth=fix_truth, **params)
+
+        # Add extra needed columns
+        # TODO: Add FDC maps instead of posrec resolution
+        d['x_observed'] = np.random.normal(d['x'].values,
+                                           scale=2)  # 2cm resolution)
+        d['y_observed'] = np.random.normal(d['y'].values,
+                                           scale=2)  # 2cm resolution)
+        return d
+
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
         d['s2_relative_ly'] = s2_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
@@ -101,32 +112,34 @@ class SR0Source:
                              mean_eff=0.142 / (1 + 0.219)):
         return mean_eff * s1_relative_ly
 
+    @classmethod
     def simulate_aux(cls):
         raise NotImplementedError
 
 
+@export
 class SR0ERSource(SR0Source, fd.ERSource):
-    pass
-
-
-# Compute events/bin spectrum for a WIMP
-example_wimp_es = np.geomspace(0.7, 50, 100)
-example_wimp_rs = wimprates.rate_wimp_std(
-    example_wimp_es,
-    mw=1e3, sigma_nucleon=1e-45)
-example_sp = Hist1d.from_histogram(
-    example_wimp_rs[:-1] * np.diff(example_wimp_es),
-    example_wimp_es)
-example_sp_centers = tf.convert_to_tensor(example_sp.bin_centers[np.newaxis,:],
-                                          dtype=fd.float_type())
-example_sp_values = tf.convert_to_tensor(example_sp.histogram[np.newaxis,:],
-                                         dtype=fd.float_type())
+    extra_needed_columns = tuple(set(
+        list(SR0Source.extra_needed_columns) +
+        list(fd.ERSource.extra_needed_columns)))
 
 
 @export
-class SR0WIMPSource(SR0Source, fd.NRSource):
+class SR0NRSource(SR0Source, fd.NRSource):
+    extra_needed_columns = tuple(set(
+        list(SR0Source.extra_needed_columns) +
+        list(fd.NRSource.extra_needed_columns)))
 
-    def energy_spectrum(self, drift_time):
-        n_evts = len(drift_time)
-        return (fd.repeat(example_sp_centers, repeats=n_evts, axis=0),
-                fd.repeat(example_sp_values, repeats=n_evts, axis=0))
+
+@export
+class SR0WIMPSource(SR0Source, fd.WIMPSource):
+    extra_needed_columns = tuple(set(
+        list(SR0Source.extra_needed_columns) +
+        list(fd.WIMPSource.extra_needed_columns)))
+    # SR0 start and end inc calib data
+    t_start =  pd.to_datetime('2016-09-10')
+    t_stop = pd.to_datetime('2017-01-10')
+    # WIMP settings
+    es = np.geomspace(0.7, 50, 100)  # [keV]
+    mw = 1e3  # GeV
+    sigma_nucleon = 1e-45  # cm^2
