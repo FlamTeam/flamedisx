@@ -90,8 +90,33 @@ def test_gimme(xes: fd.ERSource):
 
 
 def test_simulate(xes: fd.ERSource):
-    """Test the simulator doesn't crash"""
-    xes.simulate(energies=np.linspace(0., 100., int(1e3)))
+    """Test the simulator with and without fix_truth"""
+    n_ev = int(1e3)
+    es = np.linspace(0., 100., n_ev)
+
+    # Test simulate with number of events
+    simd = xes.simulate(n_ev)
+    assert len(simd) == n_ev
+
+    # Test simulate with list of energies
+    simd = xes.simulate(energies=es)
+
+    np.testing.array_equal(simd['energy'].values, es)
+
+    # Test simulate with fix_truth DataFrame
+    fix_truth_df = simd.iloc[:1].copy()
+    simd = xes.simulate(energies=es, fix_truth=fix_truth_df)
+
+    np.testing.array_equal(simd['x'].values,
+                           fix_truth_df['x'].values[0])
+
+    # Test simulate with fix_truth dict
+    e_test = 50.
+    fix_truth = dict(energy=e_test)
+    simd = xes.simulate(energies=es, fix_truth=fix_truth)
+
+    np.testing.array_equal(simd['energy'].values,
+                           e_test + np.zeros(n_ev))
 
 
 def test_bounds(xes: fd.ERSource):
