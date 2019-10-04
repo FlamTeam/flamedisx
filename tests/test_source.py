@@ -100,23 +100,25 @@ def test_simulate(xes: fd.ERSource):
 
     # Test simulate with list of energies
     simd = xes.simulate(energies=es)
-
-    np.testing.assert_array_equal(simd['energy'].values, es)
+    # We can't test if simd['energy'] is equal to input
+    # since events are lost due selection/detection efficiencies
 
     # Test simulate with fix_truth DataFrame
     fix_truth_df = simd.iloc[:1].copy()
-    simd = xes.simulate(energies=es, fix_truth=fix_truth_df)
+    simd = xes.simulate(n_ev, fix_truth=fix_truth_df)
 
-    np.testing.assert_array_equal(simd['x'].values,
-                                  fix_truth_df['x'].values[0])
+    # Check if all 'x' values are the same
+    assert len(set(simd['x'].values)) == 1
+    assert simd['x'].values[0] == fix_truth_df['x'].values[0]
 
     # Test simulate with fix_truth dict
     e_test = 50.
     fix_truth = dict(energy=e_test)
-    simd = xes.simulate(energies=es, fix_truth=fix_truth)
+    simd = xes.simulate(n_ev, fix_truth=fix_truth)
 
-    np.testing.assert_array_equal(simd['energy'].values,
-                                  e_test + np.zeros(n_ev))
+    # Check if all energies are the same fixed value
+    assert len(set(simd['energy'].values)) == 1
+    assert simd['energy'].values[0] == e_test
 
 
 def test_bounds(xes: fd.ERSource):
