@@ -96,7 +96,7 @@ def test_simulate(xes: fd.ERSource):
 
     # Test simulate with number of events
     simd = xes.simulate(n_ev)
-    assert len(simd) == n_ev
+    assert len(simd) <= n_ev
 
     # Test simulate with list of energies
     simd = xes.simulate(energies=es)
