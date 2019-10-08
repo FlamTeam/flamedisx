@@ -527,13 +527,11 @@ class Source(SourceBase):
         """
         pass
 
-    def random_truth(self, energies, fix_truth=None, **params):
+    def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """
-        if isinstance(energies, (int, float)):
-            q = [dict(energy=1)] * int(energies)
-        else:
-            q = [dict(energy=x) for x in energies]
-        return pd.DataFrame(q)
+        assert isinstance(n_events, int), \
+            f"n_events must be an int, not {type(n_events)}"
+        return pd.DataFrame({'energy': np.ones(n_events)})
 
     def _simulate_response(self):
         """Do a forward simulation of the detector response, using self.data"""

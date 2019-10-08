@@ -93,7 +93,8 @@ class LXeSource(fd.Source):
                 ("axis_names of spatial_hist must be either "
                  "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
             self.spatial_hist_dims = axes
-        # Init rest of Source
+        # Init rest of Source, this must be done after any checks on
+        # spatial_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
 
     def _populate_tensor_cache(self):
@@ -200,7 +201,7 @@ class LXeSource(fd.Source):
         """
         es, rs = self._single_spectrum()
         energies = Hist1d.from_histogram(rs[:-1], es).get_random(n_events)
-        data['energies'] = energies
+        data['energy'] = energies
         return data
 
     def validate_fix_truth(self, d):
