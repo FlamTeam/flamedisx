@@ -92,16 +92,10 @@ def test_gimme(xes: fd.ERSource):
 def test_simulate(xes: fd.ERSource):
     """Test the simulator with and without fix_truth"""
     n_ev = int(1e3)
-    es = np.linspace(0., 100., n_ev)
 
     # Test simulate with number of events
     simd = xes.simulate(n_ev)
     assert len(simd) <= n_ev
-
-    # Test simulate with list of energies
-    simd = xes.simulate(energies=es)
-    # We can't test if simd['energy'] is equal to input
-    # since events are lost due selection/detection efficiencies
 
     # Test simulate with fix_truth DataFrame
     fix_truth_df = simd.iloc[:1].copy()
