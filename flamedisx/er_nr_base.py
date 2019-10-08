@@ -179,21 +179,12 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
-    def random_truth(self, energies, fix_truth=None, **params):
-        if isinstance(energies, (int, float)):
-            n_events = energies
-            # Draw energies from the spectrum
-            es, rs = self._single_spectrum()
-            energies = Hist1d.from_histogram(
-                rs[:-1], es).get_random(n_events)
-        elif isinstance(energies, (np.ndarray, pd.Series)):
-            n_events = len(energies)
-        else:
-            raise ValueError(
-                f"Energies must be int or array, not {type(energies)}")
+    def random_truth(self, n_events, fix_truth=None):
+        assert isinstance(n_events, (int, float)), \
+            f"n_events must be an int or float, not {type(n_events)}"
 
         data = self.random_truth_observables(n_events)
-        data['energy'] = energies
+        data = self._add_random_energies(data, n_events)
 
         if fix_truth is not None:
             # Override any keys with fixed values defined in fix_truth
@@ -202,6 +193,15 @@ class LXeSource(fd.Source):
                 data[k] = v
 
         return pd.DataFrame(data)
+
+    def _add_random_energies(self, data, n_events):
+        """Draw n_events random energies from the energy spectrum
+        and add them to the data dict.
+        """
+        es, rs = self._single_spectrum()
+        energies = Hist1d.from_histogram(rs[:-1], es).get_random(n_events)
+        data['energies'] = energies
+        return data
 
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
@@ -895,41 +895,12 @@ class WIMPSource(NRSource):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
         return (self.all_es_centers, self.energy_tensor[batch, :, :])
 
-    def random_truth(self, energies, fix_truth=None, **params):
-        if isinstance(energies, (int, float)):
-            n_events = energies
-            # Draw energies from the spectrum
-            events = self.energy_hist.get_random(n_events)
-            j2000_times = events[:, 0]
-            energies = events[:, 1]
-        elif isinstance(energies, (np.ndarray, pd.Series)):
-            n_events = len(energies)
-            # For each energy, draw a random time
-            # this does take into account the energy/time correlation
-            # but might be very slow
-            eh = self.energy_hist
-            j2000_times = np.array([eh.slicesum(e, axis=1).get_random(size=1)
-                                    for e in energies])
-
-            # When given energies, we still need event_times
-            # But doing it like this does not include the correlation
-            #events = self.energy_hist.get_random(n_events)
-            #j2000_times = events[:, 0]
-        else:
-            raise ValueError(
-                f"Energies must be int or array, not {type(energies)}")
-
-        event_times = self.to_event_time(j2000_times)
-
-        data = self.random_truth_observables(n_events)
-        data['energy'] = energies
-        data['event_time'] = event_times
-        data['t'] = j2000_times
-
-        if fix_truth is not None:
-            # Override any keys with fixed values defined in fix_truth
-            fix_truth = self.validate_fix_truth(fix_truth)
-            for k, v in fix_truth.items():
-                data[k] = v
-
-        return pd.DataFrame(data)
+    def _add_random_energies(self, data, n_events):
+        """Draw n_events random energies and times from the energy/
+        time spectrum and add them to the data dict.
+        """
+        events = self.energy_hist.get_random(n_events)
+        data['t'] = j2000_times = events[:, 0]
+        data['energy'] = events[:, 1]
+        data['event_time'] = self.to_event_time(j2000_times)
+        return data
