@@ -815,7 +815,7 @@ class WIMPSource(NRSource):
         times = np.linspace(wr.j2000(date=self.t_start),
                             wr.j2000(date=self.t_stop), self.n_in)
         time_centers = self.bin_centers(times)
-        es_centers = self.bin_centers(self.es)
+        es_centers = self.bin_centers(es)
 
         if wimp_kwargs is None:
             # Use default mass, xsec and energy range instead
@@ -831,14 +831,14 @@ class WIMPSource(NRSource):
                 # This should be the np.geomspace, not the bin centers
                 # which we compute here.
                 # How to assert this?
-                self.es = wimp_kwargs['es']
-                es_centers = self.bin_centers(self.es)
+                es = wimp_kwargs['es']
+                es_centers = self.bin_centers(es)
                 wimp_kwargs['es'] = es_centers
             else:
                 # Otherwise use the default
                 wimp_kwargs['es'] = es_centers
 
-        es_diff = np.diff(self.es)
+        es_diff = np.diff(es)
 
         assert len(es_diff) == len(es_centers)
         spectra = np.array([wr.rate_wimp_std(t=t, **wimp_kwargs) * es_diff
@@ -846,8 +846,9 @@ class WIMPSource(NRSource):
         assert spectra.shape == (len(time_centers), len(es_centers))
 
         self.energy_hist = Histdd.from_histogram(spectra,
-                                                 bin_edges=(times, self.es))
-        # Initialize the rest of the source
+                                                 bin_edges=(times, es))
+        # Initialize the rest of the source, needs to be after energy_hist is
+        # computed because of _populate_tensor_cache
         super().__init__(*args, **kwargs)
 
     def mu_before_efficiencies(self, **params):
@@ -871,15 +872,17 @@ class WIMPSource(NRSource):
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
+        # Get energy bin centers
+        e_bin_centers = self.energy_hist.bin_centers(axis=1)
         # Construct the energy spectra at event times
-        e = np.array([self.energy_hist.slice(t).histogram[0]
+        e = np.array([self.energy_hist.slicesum(t).histogram
                       for t in self.data['t']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
-        assert energy_tensor.shape == [len(self.data), len(self.es) - 1]
+        assert energy_tensor.shape == [len(self.data), e_bin_centers]
         self.energy_tensor = tf.reshape(energy_tensor,
                                         [self.n_batches, self.batch_size, -1])
 
-        es_centers = tf.convert_to_tensor(self.bin_centers(self.es),
+        es_centers = tf.convert_to_tensor(e_bin_centers,
                                           dtype=fd.float_type())
         self.all_es_centers = fd.repeat(es_centers[o, :],
                                         repeats=self.batch_size,
