@@ -76,7 +76,7 @@ class ColumnSource(SourceBase):
         :param fit_params: List of parameters to fit
         :param params: New defaults
         """
-        self.params = dict()
+        self.defaults = dict()
         self.data = data
 
         self._init_padding(batch_size, _skip_tf_init)
