@@ -112,10 +112,6 @@ class SR0Source:
                              mean_eff=0.142 / (1 + 0.219)):
         return mean_eff * s1_relative_ly
 
-    @classmethod
-    def simulate_aux(cls):
-        raise NotImplementedError
-
 
 @export
 class SR0ERSource(SR0Source, fd.ERSource):

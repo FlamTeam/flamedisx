@@ -448,8 +448,6 @@ class Source(SourceBase):
                     **param_specs):
         """Return interpolator for number of expected events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
-        :param aux_data: Data used for drawing auxiliary observables
-        (e.g. position and time), can be None, then will use simulate_aux
         """
         if interpolation_method != 'star':
             raise NotImplementedError(
@@ -488,10 +486,6 @@ class Source(SourceBase):
         using data for the evaluation of the energy spectra
         """
         raise NotImplementedError
-        #with self._set_temporarily(data, **params):
-        #    _, spectra = self.gimme('energy_spectrum', numpy_out=True)
-        #result = spectra.sum(axis=1).mean(axis=0)
-        #return result
 
     def estimate_mu(self, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
@@ -527,13 +521,11 @@ class Source(SourceBase):
         """
         pass
 
-    def random_truth(self, energies, fix_truth=None, **params):
+    def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """
-        if isinstance(energies, (int, float)):
-            q = [dict(energy=1)] * int(energies)
-        else:
-            q = [dict(energy=x) for x in energies]
-        return pd.DataFrame(q)
+        assert isinstance(n_events, int), \
+            f"n_events must be an int, not {type(n_events)}"
+        return pd.DataFrame({'energy': np.ones(n_events)})
 
     def _simulate_response(self):
         """Do a forward simulation of the detector response, using self.data"""

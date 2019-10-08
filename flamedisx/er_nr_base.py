@@ -69,47 +69,50 @@ class LXeSource(fd.Source):
     t_start = pd.to_datetime('2016-09-13T12:00:00')
     t_stop = pd.to_datetime('2017-09-13T12:00:00')
 
-    # Spatial response histogram
-    # Multihist Histdd object to lookup multipliers for the spatial response
+    # Spatial rate multiplier histogram
+    # Multihist Histdd object to lookup space dependent rate multipliers
     # The histogram must have 'axis_names' set to either
     # ['r', 'theta', 'z'] or ['x', 'y', 'z']
     # The histogram must be normalized to the histogram mean
-    spatial_hist = None
+    spatial_rate_hist = None
 
     def __init__(self, *args, **kwargs):
-        # Check validity of spatial hist
-        if self.spatial_hist is not None:
-            assert isinstance(self.spatial_hist, Histdd), \
-                "spatial_hist needs to be a multihist Histdd object"
+        # Check validity of spatial rate hist
+        if self.spatial_rate_hist is not None:
+            assert isinstance(self.spatial_rate_hist, Histdd), \
+                "spatial_rate_hist needs to be a multihist Histdd object"
             # The histogram mean needs to be normalized to one, meaning the
             # histogram contains nbins/dim**ndims counts. This ensures we can
             # use tf.ones is no hist is defined.
-            h = self.spatial_hist.histogram
-            assert np.allclose(h.mean() * h.size, self.spatial_hist.n), \
-                "spatial_hist needs to be normalized to histogram mean"
+            h = self.spatial_rate_hist.histogram
+            assert np.allclose(h.mean() * h.size, self.spatial_rate_hist.n), \
+                "spatial_rate_hist needs to be normalized to histogram mean"
             # Check histogram dimensions
-            axes = self.spatial_hist.axis_names
+            axes = self.spatial_rate_hist.axis_names
             assert axes == ['r', 'theta', 'z'] or axes == ['x', 'y', 'z'], \
-                ("axis_names of spatial_hist must be either "
+                ("axis_names of spatial_rate_hist must be either "
                  "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
-            self.spatial_hist_dims = axes
-        # Init rest of Source
+            self.spatial_rate_hist_dims = axes
+        # Init rest of Source, this must be done after any checks on
+        # spatial_rate_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
-        if self.spatial_hist is not None:
+        if self.spatial_rate_hist is not None:
             # Setup tensor of histogram for lookup
-            positions = self.data[self.spatial_hist_dims].values.T
-            v = self.spatial_hist.lookup(*positions)
+            positions = self.data[self.spatial_rate_hist_dims].values.T
+            v = self.spatial_rate_hist.lookup(*positions)
 
-            spatial_tensor = tf.convert_to_tensor(v, dtype=fd.float_type())
-            self.spatial_tensor = tf.reshape(spatial_tensor,
-                                             [self.n_batches, -1])
+            spatial_rate_tensor = tf.convert_to_tensor(v,
+                                                       dtype=fd.float_type())
+            self.spatial_rate_tensor = tf.reshape(spatial_rate_tensor,
+                                                  [self.n_batches, -1])
         else:
             # If no hist defined, set uniform response
-            self.spatial_tensor = tf.ones([self.n_batches, self.batch_size],
-                                          dtype=fd.float_type())
+            self.spatial_rate_tensor = tf.ones([self.n_batches,
+                                                self.batch_size],
+                                               dtype=fd.float_type())
 
     ##
     # Model functions (data_methods)
@@ -119,8 +122,8 @@ class LXeSource(fd.Source):
     def energy_spectrum(self, i_batch):
         # Lookup the energy spectrum
         es, rs = self._single_spectrum()
-        # Lookup the spatial response and scale the spectrum with it
-        sr = self.spatial_response(i_batch)
+        # Lookup the spatial rate multiplier and scale the spectrum with it
+        sr = self.spatial_rate_mult(i_batch)
         n = i_batch.shape[0]
         return (fd.repeat(es[o, :], n, axis=0),
                 fd.repeat(rs[o, :], n, axis=0) * sr[:, o])
@@ -179,21 +182,12 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
-    def random_truth(self, energies, fix_truth=None, **params):
-        if isinstance(energies, (int, float)):
-            n_events = energies
-            # Draw energies from the spectrum
-            es, rs = self._single_spectrum()
-            energies = Hist1d.from_histogram(
-                rs[:-1], es).get_random(n_events)
-        elif isinstance(energies, (np.ndarray, pd.Series)):
-            n_events = len(energies)
-        else:
-            raise ValueError(
-                f"Energies must be int or array, not {type(energies)}")
+    def random_truth(self, n_events, fix_truth=None, **params):
+        assert isinstance(n_events, (int, float)), \
+            f"n_events must be an int or float, not {type(n_events)}"
 
         data = self.random_truth_observables(n_events)
-        data['energy'] = energies
+        data = self._add_random_energies(data, n_events)
 
         if fix_truth is not None:
             # Override any keys with fixed values defined in fix_truth
@@ -202,6 +196,15 @@ class LXeSource(fd.Source):
                 data[k] = v
 
         return pd.DataFrame(data)
+
+    def _add_random_energies(self, data, n_events):
+        """Draw n_events random energies from the energy spectrum
+        and add them to the data dict.
+        """
+        es, rs = self._single_spectrum()
+        energies = Hist1d.from_histogram(rs[:-1], es).get_random(n_events)
+        data['energy'] = energies
+        return data
 
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
@@ -242,7 +245,7 @@ class LXeSource(fd.Source):
         """Return dictionary with x, y, z, r, theta, drift_time
         and event_time randomly drawn.
         S1 and S2 placeholder values are added for set_data.
-        Takes into account spatial response of source.
+        Takes into account spatial rate multiplier of the source.
         """
         data = dict()
         # Add fake s1, s2 necessary for set_data to succeed
@@ -250,22 +253,22 @@ class LXeSource(fd.Source):
         data['s1'] = 1
         data['s2'] = 100
 
-        if self.spatial_hist is None:
+        if self.spatial_rate_hist is None:
             # Draw uniform position
             data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
             data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
             data['z'] = - np.random.rand(n_events) * self.tpc_length
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
-        elif self.spatial_hist_dims == ['r', 'theta', 'z']:
+        elif self.spatial_rate_hist_dims == ['r', 'theta', 'z']:
             # Spatial response in cylindrical coords
-            positions = self.spatial_hist.get_random(size=n_events)
-            for idx, col in enumerate(self.spatial_hist_dims):
+            positions = self.spatial_rate_hist.get_random(size=n_events)
+            for idx, col in enumerate(self.spatial_rate_hist_dims):
                 data[col] = positions[:, idx]
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         else:
             # Spatial response in cartesian coords
-            positions = self.spatial_hist.get_random(size=n_events)
-            for idx, col in enumerate(self.spatial_hist_dims):
+            positions = self.spatial_rate_hist.get_random(size=n_events)
+            for idx, col in enumerate(self.spatial_rate_hist_dims):
                 data[col] = positions[:, idx]
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
@@ -611,9 +614,9 @@ class LXeSource(fd.Source):
     def _single_spectrum(self):
         raise NotImplementedError
 
-    def spatial_response(self, i_batch):
+    def spatial_rate_mult(self, i_batch):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return self.spatial_tensor[batch]
+        return self.spatial_rate_tensor[batch]
 
 @export
 class ERSource(LXeSource):
@@ -812,7 +815,7 @@ class WIMPSource(NRSource):
         times = np.linspace(wr.j2000(date=self.t_start),
                             wr.j2000(date=self.t_stop), self.n_in)
         time_centers = self.bin_centers(times)
-        es_centers = self.bin_centers(self.es)
+        es_centers = self.bin_centers(es)
 
         if wimp_kwargs is None:
             # Use default mass, xsec and energy range instead
@@ -828,14 +831,14 @@ class WIMPSource(NRSource):
                 # This should be the np.geomspace, not the bin centers
                 # which we compute here.
                 # How to assert this?
-                self.es = wimp_kwargs['es']
-                es_centers = self.bin_centers(self.es)
+                es = wimp_kwargs['es']
+                es_centers = self.bin_centers(es)
                 wimp_kwargs['es'] = es_centers
             else:
                 # Otherwise use the default
                 wimp_kwargs['es'] = es_centers
 
-        es_diff = np.diff(self.es)
+        es_diff = np.diff(es)
 
         assert len(es_diff) == len(es_centers)
         spectra = np.array([wr.rate_wimp_std(t=t, **wimp_kwargs) * es_diff
@@ -843,8 +846,9 @@ class WIMPSource(NRSource):
         assert spectra.shape == (len(time_centers), len(es_centers))
 
         self.energy_hist = Histdd.from_histogram(spectra,
-                                                 bin_edges=(times, self.es))
-        # Initialize the rest of the source
+                                                 bin_edges=(times, es))
+        # Initialize the rest of the source, needs to be after energy_hist is
+        # computed because of _populate_tensor_cache
         super().__init__(*args, **kwargs)
 
     def mu_before_efficiencies(self, **params):
@@ -868,15 +872,17 @@ class WIMPSource(NRSource):
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
+        # Get energy bin centers
+        e_bin_centers = self.energy_hist.bin_centers(axis=1)
         # Construct the energy spectra at event times
-        e = np.array([self.energy_hist.slice(t).histogram[0]
+        e = np.array([self.energy_hist.slicesum(t).histogram
                       for t in self.data['t']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
-        assert energy_tensor.shape == [len(self.data), len(self.es) - 1]
+        assert energy_tensor.shape == [len(self.data), e_bin_centers]
         self.energy_tensor = tf.reshape(energy_tensor,
                                         [self.n_batches, self.batch_size, -1])
 
-        es_centers = tf.convert_to_tensor(self.bin_centers(self.es),
+        es_centers = tf.convert_to_tensor(e_bin_centers,
                                           dtype=fd.float_type())
         self.all_es_centers = fd.repeat(es_centers[o, :],
                                         repeats=self.batch_size,
@@ -895,41 +901,12 @@ class WIMPSource(NRSource):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
         return (self.all_es_centers, self.energy_tensor[batch, :, :])
 
-    def random_truth(self, energies, fix_truth=None, **params):
-        if isinstance(energies, (int, float)):
-            n_events = energies
-            # Draw energies from the spectrum
-            events = self.energy_hist.get_random(n_events)
-            j2000_times = events[:, 0]
-            energies = events[:, 1]
-        elif isinstance(energies, (np.ndarray, pd.Series)):
-            n_events = len(energies)
-            # For each energy, draw a random time
-            # this does take into account the energy/time correlation
-            # but might be very slow
-            eh = self.energy_hist
-            j2000_times = np.array([eh.slicesum(e, axis=1).get_random(size=1)
-                                    for e in energies])
-
-            # When given energies, we still need event_times
-            # But doing it like this does not include the correlation
-            #events = self.energy_hist.get_random(n_events)
-            #j2000_times = events[:, 0]
-        else:
-            raise ValueError(
-                f"Energies must be int or array, not {type(energies)}")
-
-        event_times = self.to_event_time(j2000_times)
-
-        data = self.random_truth_observables(n_events)
-        data['energy'] = energies
-        data['event_time'] = event_times
-        data['t'] = j2000_times
-
-        if fix_truth is not None:
-            # Override any keys with fixed values defined in fix_truth
-            fix_truth = self.validate_fix_truth(fix_truth)
-            for k, v in fix_truth.items():
-                data[k] = v
-
-        return pd.DataFrame(data)
+    def _add_random_energies(self, data, n_events):
+        """Draw n_events random energies and times from the energy/
+        time spectrum and add them to the data dict.
+        """
+        events = self.energy_hist.get_random(n_events)
+        data['t'] = j2000_times = events[:, 0]
+        data['energy'] = events[:, 1]
+        data['event_time'] = self.to_event_time(j2000_times)
+        return data
