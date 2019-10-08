@@ -29,11 +29,22 @@ s1_map, s2_map = [
 
 
 @export
-class SR1Source(fd.ERSource):
+class SR1Source:
     drift_velocity = 1.335 * 1e-4   # cm/ns
     extra_needed_columns = tuple(
         list(fd.ERSource.extra_needed_columns)
         + ['x_observed', 'y_observed'])
+
+    def random_truth(self, energies, fix_truth=None, **params):
+        d = super().random_truth(energies, fix_truth=fix_truth, **params)
+
+        # Add extra needed columns
+        # TODO: Add FDC maps instead of posrec resolution
+        d['x_observed'] = np.random.normal(d['x'].values,
+                                           scale=2)  # 2cm resolution)
+        d['y_observed'] = np.random.normal(d['y'].values,
+                                           scale=2)  # 2cm resolution)
+        return d
 
     @staticmethod
     def add_extra_columns(d):
@@ -104,4 +115,10 @@ class SR1ERSource(SR1Source,fd.ERSource):
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
-#TODO: add NRsource
+class SR1NRSource(SR1Source, fd.NRSource):
+    extra_needed_columns = tuple(set(
+        list(SR1Source.extra_needed_columns) + 
+        list(fd.NRSource.extra_needed_columns)+
+        ['x_observed', 'y_observed']))
+
+# TODO: Modify the SR1NRSource to fit AmBe data better and add WIMPSource
