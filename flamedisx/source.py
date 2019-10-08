@@ -448,8 +448,6 @@ class Source(SourceBase):
                     **param_specs):
         """Return interpolator for number of expected events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
-        :param aux_data: Data used for drawing auxiliary observables
-        (e.g. position and time), can be None, then will use simulate_aux
         """
         if interpolation_method != 'star':
             raise NotImplementedError(
@@ -488,10 +486,6 @@ class Source(SourceBase):
         using data for the evaluation of the energy spectra
         """
         raise NotImplementedError
-        #with self._set_temporarily(data, **params):
-        #    _, spectra = self.gimme('energy_spectrum', numpy_out=True)
-        #result = spectra.sum(axis=1).mean(axis=0)
-        #return result
 
     def estimate_mu(self, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
