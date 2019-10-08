@@ -84,6 +84,13 @@ def np_to_tf(x):
         return x
     return tf.convert_to_tensor(x, dtype=float_type())
 
+@export
+def cart_to_pol(x, y):
+    return (x**2 + y**2)**0.5, np.arctan2(y, x)
+
+@export
+def pol_to_cart(r, theta):
+    return r * np.cos(theta), r * np.sin(theta)
 
 @export
 def tf_log10(x):

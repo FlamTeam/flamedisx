@@ -179,19 +179,7 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
-    @staticmethod
-    def cart_to_pol(x, y):
-        return (x**2 + y**2)**0.5, np.arctan2(y, x)
-
-    @staticmethod
-    def pol_to_cart(r, theta):
-        return r * np.cos(theta), r * np.sin(theta)
-
     def random_truth(self, energies, fix_truth=None, **params):
-        # Note that random_truth is redefined in WIMPSource where
-        # spatial response will always be uniform (which is ok)
-        # TODO: make this more explicit to users?
-
         if isinstance(energies, (int, float)):
             n_events = energies
             # Draw energies from the spectrum
@@ -204,50 +192,91 @@ class LXeSource(fd.Source):
             raise ValueError(
                 f"Energies must be int or array, not {type(energies)}")
 
-        data = dict()
-        if fix_truth is None:
-            # Add fake s1, s2 necessary for set_data to succeed
-            # TODO: check if we still need this...
-            data['s1'] = 1
-            data['s2'] = 100
-
-            if self.spatial_hist is None:
-                # Draw uniform position
-                data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
-                data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
-                data['z'] = - np.random.rand(n_events) * self.tpc_length
-                data['x'], data['y'] = self.pol_to_cart(data['r'], data['theta'])
-            elif self.spatial_hist_dims == ['r', 'theta', 'z']:
-                # Spatial response in cylindrical coords
-                positions = self.spatial_hist.get_random(size=n_events)
-                for idx, col in enumerate(self.spatial_hist_dims):
-                    data[col] = positions[:, idx]
-                data['x'], data['y'] = self.pol_to_cart(data['r'], data['theta'])
-            else:
-                # Spatial response in cartesian coords
-                positions = self.spatial_hist.get_random(size=n_events)
-                for idx, col in enumerate(self.spatial_hist_dims):
-                    data[col] = positions[:, idx]
-                data['r'], data['theta'] = self.cart_to_pol(data['x'], data['y'])
-
-            data['drift_time'] = - data['z']/ self.drift_velocity
-
-            # Draw uniform time
-            data['event_time'] = np.random.uniform(
-                pd.Timestamp(self.t_start).value,
-                pd.Timestamp(self.t_stop).value,
-                size=n_events).astype('float32')
-        else:
-            if isinstance(fix_truth, pd.DataFrame):
-                # Assume fix_truth is a one-line dataframe
-                fix_truth = fix_truth.iloc[0]
-
-            for c in ['x', 'y', 'z', 'r', 'event_time', 'drift_time']:
-                data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
-            data['theta'] = np.arctan2(data['y'], data['x'])
-
+        data = self.random_truth_observables(n_events)
         data['energy'] = energies
+
+        if fix_truth is not None:
+            # Override any keys with fixed values defined in fix_truth
+            fix_truth = self.validate_fix_truth(fix_truth)
+            for k, v in fix_truth.items():
+                data[k] = v
+
         return pd.DataFrame(data)
+
+    def validate_fix_truth(self, d):
+        """Clean fix_truth, ensure all needed variables are present
+           Compute derived variables.
+        """
+        if isinstance(d, pd.DataFrame):
+            # TODO: Should we still support this case? User has no control
+            # over which cols to set, why not only use dicts here?
+
+            # When passing in an event as DataFrame we select and set
+            # only these columns:
+            cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']
+            # Assume fix_truth is a one-line dataframe with at least
+            # cols columns
+            return d[cols].iloc[0].to_dict()
+        else:
+            assert isinstance(d, dict), \
+                "fix_truth needs to be a DataFrame or dict"
+
+        if all(v in d for v in ['x', 'y', 'z']):
+            # fixed position specified in cartesian coords
+            # Add cylindrical and drift_time
+            d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
+            d['drift_time'] = - d['z']/ self.drift_velocity
+        elif all(v in d for v in ['r', 'theta', 'z']):
+            # fixed position specified in cylindrical coords
+            # Add cartesian and drift_time
+            d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
+            d['drift_time'] = - d['z']/ self.drift_velocity
+        elif not any(v in d for v in ['event_time', 'energy']):
+            # Neither cartesian nor polar coords given and no time or energy
+            raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
+                             "and/or ['r', 'theta', 'z'] and/or 'event_time' "
+                             "and/or 'energy', but it contains: {d.keys()}")
+        return d
+
+    def random_truth_observables(self, n_events):
+        """Return dictionary with x, y, z, r, theta, drift_time
+        and event_time randomly drawn.
+        S1 and S2 placeholder values are added for set_data.
+        Takes into account spatial response of source.
+        """
+        data = dict()
+        # Add fake s1, s2 necessary for set_data to succeed
+        # TODO: check if we still need this...
+        data['s1'] = 1
+        data['s2'] = 100
+
+        if self.spatial_hist is None:
+            # Draw uniform position
+            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+            data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
+            data['z'] = - np.random.rand(n_events) * self.tpc_length
+            data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
+        elif self.spatial_hist_dims == ['r', 'theta', 'z']:
+            # Spatial response in cylindrical coords
+            positions = self.spatial_hist.get_random(size=n_events)
+            for idx, col in enumerate(self.spatial_hist_dims):
+                data[col] = positions[:, idx]
+            data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
+        else:
+            # Spatial response in cartesian coords
+            positions = self.spatial_hist.get_random(size=n_events)
+            for idx, col in enumerate(self.spatial_hist_dims):
+                data[col] = positions[:, idx]
+            data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
+
+        data['drift_time'] = - data['z']/ self.drift_velocity
+
+        # Draw uniform time
+        data['event_time'] = np.random.uniform(
+            pd.Timestamp(self.t_start).value,
+            pd.Timestamp(self.t_stop).value,
+            size=n_events).astype('float32')
+        return data
 
     ##
     # Emission model implementation
@@ -871,44 +900,36 @@ class WIMPSource(NRSource):
             n_events = energies
             # Draw energies from the spectrum
             events = self.energy_hist.get_random(n_events)
+            j2000_times = events[:, 0]
             energies = events[:, 1]
         elif isinstance(energies, (np.ndarray, pd.Series)):
             n_events = len(energies)
+            # For each energy, draw a random time
+            # this does take into account the energy/time correlation
+            # but might be very slow
+            eh = self.energy_hist
+            j2000_times = np.array([eh.slicesum(e, axis=1).get_random(size=1)
+                                    for e in energies])
 
             # When given energies, we still need event_times
-            events = self.energy_hist.get_random(n_events)
+            # But doing it like this does not include the correlation
+            #events = self.energy_hist.get_random(n_events)
+            #j2000_times = events[:, 0]
         else:
             raise ValueError(
                 f"Energies must be int or array, not {type(energies)}")
 
-        j2000_times = events[:, 0]
-        event_times = self.to_event_time(events[:, 0])
+        event_times = self.to_event_time(j2000_times)
 
-        data = dict()
-        if fix_truth is None:
-            # Add fake s1, s2 necessary for set_data to succeed
-            # TODO: check if we still need this...
-            data['s1'] = 1
-            data['s2'] = 100
-
-            # Draw uniform position
-            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
-            data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
-            data['x'] = data['r'] * np.cos(data['theta'])
-            data['y'] = data['r'] * np.sin(data['theta'])
-            data['z'] = - np.random.rand(n_events) * self.tpc_length
-            data['drift_time'] = - data['z']/ self.drift_velocity
-        else:
-            if isinstance(fix_truth, pd.DataFrame):
-                # Assume fix_truth is a one-line dataframe
-                fix_truth = fix_truth.iloc[0]
-
-            for c in ['x', 'y', 'z', 'drift_time']:
-                data[c] = np.ones(n_events, dtype=np.float32) * fix_truth[c]
-            data['theta'] = np.arctan2(data['y'], data['x'])
-            data['r'] = (data['x']**2 + data['y']**2)**0.5
-
+        data = self.random_truth_observables(n_events)
         data['energy'] = energies
         data['event_time'] = event_times
         data['t'] = j2000_times
+
+        if fix_truth is not None:
+            # Override any keys with fixed values defined in fix_truth
+            fix_truth = self.validate_fix_truth(fix_truth)
+            for k, v in fix_truth.items():
+                data[k] = v
+
         return pd.DataFrame(data)
