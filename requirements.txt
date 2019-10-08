@@ -5,4 +5,4 @@ multihist
 wimprates
 tqdm
 tensorflow==2.0.0
-tensorflow_probability==0.8.0-rc0
+tensorflow_probability==0.8.0
