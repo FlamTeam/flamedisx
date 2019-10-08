@@ -69,48 +69,50 @@ class LXeSource(fd.Source):
     t_start = pd.to_datetime('2016-09-13T12:00:00')
     t_stop = pd.to_datetime('2017-09-13T12:00:00')
 
-    # Spatial response histogram
-    # Multihist Histdd object to lookup multipliers for the spatial response
+    # Spatial rate multiplier histogram
+    # Multihist Histdd object to lookup space dependent rate multipliers
     # The histogram must have 'axis_names' set to either
     # ['r', 'theta', 'z'] or ['x', 'y', 'z']
     # The histogram must be normalized to the histogram mean
-    spatial_hist = None
+    spatial_rate_hist = None
 
     def __init__(self, *args, **kwargs):
-        # Check validity of spatial hist
-        if self.spatial_hist is not None:
-            assert isinstance(self.spatial_hist, Histdd), \
-                "spatial_hist needs to be a multihist Histdd object"
+        # Check validity of spatial rate hist
+        if self.spatial_rate_hist is not None:
+            assert isinstance(self.spatial_rate_hist, Histdd), \
+                "spatial_rate_hist needs to be a multihist Histdd object"
             # The histogram mean needs to be normalized to one, meaning the
             # histogram contains nbins/dim**ndims counts. This ensures we can
             # use tf.ones is no hist is defined.
-            h = self.spatial_hist.histogram
-            assert np.allclose(h.mean() * h.size, self.spatial_hist.n), \
-                "spatial_hist needs to be normalized to histogram mean"
+            h = self.spatial_rate_hist.histogram
+            assert np.allclose(h.mean() * h.size, self.spatial_rate_hist.n), \
+                "spatial_rate_hist needs to be normalized to histogram mean"
             # Check histogram dimensions
-            axes = self.spatial_hist.axis_names
+            axes = self.spatial_rate_hist.axis_names
             assert axes == ['r', 'theta', 'z'] or axes == ['x', 'y', 'z'], \
-                ("axis_names of spatial_hist must be either "
+                ("axis_names of spatial_rate_hist must be either "
                  "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
-            self.spatial_hist_dims = axes
+            self.spatial_rate_hist_dims = axes
         # Init rest of Source, this must be done after any checks on
-        # spatial_hist since it calls _populate_tensor_cache as well
+        # spatial_rate_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
-        if self.spatial_hist is not None:
+        if self.spatial_rate_hist is not None:
             # Setup tensor of histogram for lookup
-            positions = self.data[self.spatial_hist_dims].values.T
-            v = self.spatial_hist.lookup(*positions)
+            positions = self.data[self.spatial_rate_hist_dims].values.T
+            v = self.spatial_rate_hist.lookup(*positions)
 
-            spatial_tensor = tf.convert_to_tensor(v, dtype=fd.float_type())
-            self.spatial_tensor = tf.reshape(spatial_tensor,
-                                             [self.n_batches, -1])
+            spatial_rate_tensor = tf.convert_to_tensor(v,
+                                                       dtype=fd.float_type())
+            self.spatial_rate_tensor = tf.reshape(spatial_rate_tensor,
+                                                  [self.n_batches, -1])
         else:
             # If no hist defined, set uniform response
-            self.spatial_tensor = tf.ones([self.n_batches, self.batch_size],
-                                          dtype=fd.float_type())
+            self.spatial_rate_tensor = tf.ones([self.n_batches,
+                                                self.batch_size],
+                                               dtype=fd.float_type())
 
     ##
     # Model functions (data_methods)
@@ -120,8 +122,8 @@ class LXeSource(fd.Source):
     def energy_spectrum(self, i_batch):
         # Lookup the energy spectrum
         es, rs = self._single_spectrum()
-        # Lookup the spatial response and scale the spectrum with it
-        sr = self.spatial_response(i_batch)
+        # Lookup the spatial rate multiplier and scale the spectrum with it
+        sr = self.spatial_rate_mult(i_batch)
         n = i_batch.shape[0]
         return (fd.repeat(es[o, :], n, axis=0),
                 fd.repeat(rs[o, :], n, axis=0) * sr[:, o])
@@ -180,7 +182,7 @@ class LXeSource(fd.Source):
     # Simulation
     ##
 
-    def random_truth(self, n_events, fix_truth=None):
+    def random_truth(self, n_events, fix_truth=None, **params):
         assert isinstance(n_events, (int, float)), \
             f"n_events must be an int or float, not {type(n_events)}"
 
@@ -243,7 +245,7 @@ class LXeSource(fd.Source):
         """Return dictionary with x, y, z, r, theta, drift_time
         and event_time randomly drawn.
         S1 and S2 placeholder values are added for set_data.
-        Takes into account spatial response of source.
+        Takes into account spatial rate multiplier of the source.
         """
         data = dict()
         # Add fake s1, s2 necessary for set_data to succeed
@@ -251,22 +253,22 @@ class LXeSource(fd.Source):
         data['s1'] = 1
         data['s2'] = 100
 
-        if self.spatial_hist is None:
+        if self.spatial_rate_hist is None:
             # Draw uniform position
             data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
             data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
             data['z'] = - np.random.rand(n_events) * self.tpc_length
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
-        elif self.spatial_hist_dims == ['r', 'theta', 'z']:
+        elif self.spatial_rate_hist_dims == ['r', 'theta', 'z']:
             # Spatial response in cylindrical coords
-            positions = self.spatial_hist.get_random(size=n_events)
-            for idx, col in enumerate(self.spatial_hist_dims):
+            positions = self.spatial_rate_hist.get_random(size=n_events)
+            for idx, col in enumerate(self.spatial_rate_hist_dims):
                 data[col] = positions[:, idx]
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         else:
             # Spatial response in cartesian coords
-            positions = self.spatial_hist.get_random(size=n_events)
-            for idx, col in enumerate(self.spatial_hist_dims):
+            positions = self.spatial_rate_hist.get_random(size=n_events)
+            for idx, col in enumerate(self.spatial_rate_hist_dims):
                 data[col] = positions[:, idx]
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
@@ -612,9 +614,9 @@ class LXeSource(fd.Source):
     def _single_spectrum(self):
         raise NotImplementedError
 
-    def spatial_response(self, i_batch):
+    def spatial_rate_mult(self, i_batch):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return self.spatial_tensor[batch]
+        return self.spatial_rate_tensor[batch]
 
 @export
 class ERSource(LXeSource):
