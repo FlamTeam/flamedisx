@@ -100,6 +100,8 @@ class LogLikelihood:
         for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
             # sources
+            if pname not in s.defaults:
+                continue
             defs = [s.defaults[pname] for s in self.sources.values()]
             if len(set([x.numpy() for x in defs])) > 1:
                 raise ValueError(
