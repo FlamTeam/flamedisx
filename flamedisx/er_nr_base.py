@@ -807,11 +807,13 @@ class WIMPSource(NRSource):
     # Interpolator settings
     t_start = pd.to_datetime('2016-09-13T12:00:00')
     t_stop = pd.to_datetime('2017-09-13T12:00:00')
-    n_in = 10  # Number of reference values (wimprates function evaluations)
+    n_in = 10  # Number of time bin edges (wimprates function evaluations + 1)
 
     def __init__(self, *args, wimp_kwargs=None, **kwargs):
         # Compute the energy spectrum in a given time range
         # Times used by wimprates are J2000 timestamps
+        assert self.n_in > 1, \
+            f"Number of time bin edges needs to be at least 2"
         times = np.linspace(wr.j2000(date=self.t_start),
                             wr.j2000(date=self.t_stop), self.n_in)
         time_centers = self.bin_centers(times)
@@ -847,7 +849,7 @@ class WIMPSource(NRSource):
         super().__init__(*args, **kwargs)
 
     def mu_before_efficiencies(self, **params):
-        return self.energy_hist.n / self.n_in
+        return self.energy_hist.n / (self.n_in - 1)
 
     @staticmethod
     def bin_centers(x):
