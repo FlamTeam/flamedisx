@@ -815,33 +815,28 @@ class WIMPSource(NRSource):
         times = np.linspace(wr.j2000(date=self.t_start),
                             wr.j2000(date=self.t_stop), self.n_in)
         time_centers = self.bin_centers(times)
-        es_centers = self.bin_centers(es)
 
         if wimp_kwargs is None:
-            # Use default mass, xsec and energy range instead
+            # No arguments given at all;
+            # use default mass, xsec and energy range
             wimp_kwargs = dict(mw=self.mw,
                                sigma_nucleon=self.sigma_nucleon,
-                               es=es_centers)
+                               es=self.es)
         else:
-            # Pass dict with settings for wimprates
             assert 'mw' in wimp_kwargs and 'sigma_nucleon' in wimp_kwargs, \
                 "Pass at least 'mw' and 'sigma_nucleon' in wimp_kwargs"
-            if 'es' in wimp_kwargs:
-                # Optionally also pass a new energy range
-                # This should be the np.geomspace, not the bin centers
-                # which we compute here.
-                # How to assert this?
-                es = wimp_kwargs['es']
-                es_centers = self.bin_centers(es)
-                wimp_kwargs['es'] = es_centers
-            else:
-                # Otherwise use the default
-                wimp_kwargs['es'] = es_centers
+            if 'es' not in wimp_kwargs:
+                # Energies not given, use default energy bin edges
+                wimp_kwargs['es'] = self.es
 
-        es_diff = np.diff(es)
+        es = wimp_kwargs['es']
+        es_centers = self.bin_centers(es)
+        del wimp_kwargs['es']  # To avoid confusion centers / edges
 
-        assert len(es_diff) == len(es_centers)
-        spectra = np.array([wr.rate_wimp_std(t=t, **wimp_kwargs) * es_diff
+        # Transform wimp_kwargs to arguments that can be passed to wimprates
+        # which means transforming es from edges to centers
+        spectra = np.array([wr.rate_wimp_std(t=t, es=es_centers, **wimp_kwargs)
+                            * np.diff(es)
                             for t in time_centers])
         assert spectra.shape == (len(time_centers), len(es_centers))
 
@@ -878,7 +873,8 @@ class WIMPSource(NRSource):
         e = np.array([self.energy_hist.slicesum(t).histogram
                       for t in self.data['t']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
-        assert energy_tensor.shape == [len(self.data), e_bin_centers]
+        assert energy_tensor.shape == [len(self.data), len(e_bin_centers)], \
+            f"{energy_tensor.shape} != {len(self.data)}, {len(e_bin_centers)}"
         self.energy_tensor = tf.reshape(energy_tensor,
                                         [self.n_batches, self.batch_size, -1])
 
