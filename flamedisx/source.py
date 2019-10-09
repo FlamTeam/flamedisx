@@ -57,7 +57,7 @@ class ColumnSource(SourceBase):
     mu = 42.
 
     def __init__(self,
-                 data,
+                 data=None,
                  batch_size=10,
                  max_sigma=3,
                  data_is_annotated=False,
