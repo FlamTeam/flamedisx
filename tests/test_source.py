@@ -26,7 +26,7 @@ def np_lookup_axis1(x, indices, fill_value=0):
 
 n_events = 2
 
-@pytest.fixture(params=["ER", "NR", "ER_spatial"])
+@pytest.fixture(params=["ER", "NR", "ER_spatial", "WIMP"])
 def xes(request):
     # warnings.filterwarnings("error")
     data = pd.DataFrame([dict(s1=56., s2=2905., drift_time=143465.,
@@ -37,6 +37,8 @@ def xes(request):
         x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'NR':
         x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
+    elif request.param == 'WIMP':
+        x = fd.WIMPSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'ER_spatial':
         nbins = 100
         r = np.linspace(0, 47.9, nbins + 1)

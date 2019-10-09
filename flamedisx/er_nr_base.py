@@ -815,7 +815,7 @@ class WIMPSource(NRSource):
         times = np.linspace(wr.j2000(date=self.t_start),
                             wr.j2000(date=self.t_stop), self.n_in)
         time_centers = self.bin_centers(times)
-        es_centers = self.bin_centers(es)
+        es_centers = self.bin_centers(self.es)
 
         if wimp_kwargs is None:
             # Use default mass, xsec and energy range instead
