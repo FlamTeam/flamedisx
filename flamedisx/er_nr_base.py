@@ -879,7 +879,8 @@ class WIMPSource(NRSource):
         e = np.array([self.energy_hist.slicesum(t).histogram
                       for t in self.data['t']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
-        assert energy_tensor.shape == [len(self.data), e_bin_centers]
+        assert energy_tensor.shape == [len(self.data), len(e_bin_centers)], \
+            f"{energy_tensor.shape} != {len(self.data)}, {len(e_bin_centers)}"
         self.energy_tensor = tf.reshape(energy_tensor,
                                         [self.n_batches, self.batch_size, -1])
 
