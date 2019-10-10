@@ -57,7 +57,7 @@ class ColumnSource(SourceBase):
     mu = 42.
 
     def __init__(self,
-                 data,
+                 data=None,
                  batch_size=10,
                  max_sigma=3,
                  data_is_annotated=False,
@@ -76,12 +76,16 @@ class ColumnSource(SourceBase):
         :param fit_params: List of parameters to fit
         :param params: New defaults
         """
+        self.defaults = dict()
         self.data = data
-
-        self._init_padding(batch_size, _skip_tf_init)
-
-        self.data_tensor = fd.np_to_tf(self.data[self.column])
-        self.data_tensor = tf.reshape(self.data_tensor, (self.batch_size, -1, 1))
+        if data is None:
+            # We're calling the source without data. Set the batch_size here
+            # since we can't pass it to set_data later
+            self.batch_size = batch_size
+        else:
+            self._init_padding(batch_size, _skip_tf_init)
+            self.data_tensor = fd.np_to_tf(self.data[self.column])
+            self.data_tensor = tf.reshape(self.data_tensor, ( -1,self.batch_size, 1))
 
     def differential_rate(self, data_tensor, **params):
         return data_tensor[:, 0]
