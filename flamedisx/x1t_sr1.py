@@ -35,8 +35,8 @@ class SR1Source:
         list(fd.ERSource.extra_needed_columns)
         + ['x_observed', 'y_observed'])
 
-    def random_truth(self, energies, fix_truth=None, **params):
-        d = super().random_truth(energies, fix_truth=fix_truth, **params)
+    def random_truth(self, n_events, fix_truth=None, **params):
+        d = super().random_truth(n_events, fix_truth=fix_truth, **params)
 
         # Add extra needed columns
         # TODO: Add FDC maps instead of posrec resolution
@@ -118,7 +118,6 @@ class SR1ERSource(SR1Source,fd.ERSource):
 class SR1NRSource(SR1Source, fd.NRSource):
     extra_needed_columns = tuple(set(
         list(SR1Source.extra_needed_columns) + 
-        list(fd.NRSource.extra_needed_columns)+
-        ['x_observed', 'y_observed']))
+        list(fd.NRSource.extra_needed_columns)))
 
 # TODO: Modify the SR1NRSource to fit AmBe data better and add WIMPSource
