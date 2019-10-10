@@ -85,7 +85,7 @@ class ColumnSource(SourceBase):
         else:
             self._init_padding(batch_size, _skip_tf_init)
             self.data_tensor = fd.np_to_tf(self.data[self.column])
-            self.data_tensor = tf.reshape(self.data_tensor, (self.batch_size, -1, 1))
+            self.data_tensor = tf.reshape(self.data_tensor, ( -1,self.batch_size, 1))
 
     def differential_rate(self, data_tensor, **params):
         return data_tensor[:, 0]
