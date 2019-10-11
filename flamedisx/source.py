@@ -18,6 +18,8 @@ o = tf.newaxis
 class SourceBase:
     """Base class of Source"""
 
+    trace_difrate = True
+
     def _init_padding(self, batch_size, _skip_tf_init):
         # Annotate requests n_events, currently no padding
         self.n_padding = 0
@@ -55,6 +57,8 @@ class ColumnSource(SourceBase):
     """
     column = "Rename_me!"
     mu = 42.
+
+    trace_difrate = False
 
     def __init__(self,
                  data=None,
@@ -382,7 +386,7 @@ class Source(SourceBase):
     # TODO: remove duplication?
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
-        if autograph:
+        if autograph and self.trace_difrate:
             return self._differential_rate_tf(
                 data_tensor=data_tensor, ptensor=ptensor)
         else:
