@@ -5,9 +5,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from multihist import Hist1d
-import wimprates
-
 import flamedisx as fd
 
 export, __all__ = fd.exporter()
@@ -34,7 +31,7 @@ def p_el_sr0(e_kev):
     q1 = 0.47
     gamma_er = 0.124 / 4
     omega_er = 31
-    F = 120
+    f_dr = 120
     delta_er = 0.24
 
     with np.warnings.catch_warnings():
@@ -43,7 +40,7 @@ def p_el_sr0(e_kev):
         fi = 1 / (1 + mean_nexni)
         nq = e_kev / w_bbf
         ni, nex = nq * fi, nq * (1 - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-delta_er)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * f_dr ** (-delta_er)
         r_er = 1 - tf.math.log(1 + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1 + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1 - r_er) / nq
@@ -52,8 +49,6 @@ def p_el_sr0(e_kev):
     p_el = tf.where(e_kev == 0, tf.ones_like(p_el), p_el)
 
     return p_el
-
-
 
 
 ##
@@ -81,13 +76,9 @@ class SR0Source:
 
     def random_truth(self, energies, fix_truth=None, **params):
         d = super().random_truth(energies, fix_truth=fix_truth, **params)
-
-        # Add extra needed columns
-        # TODO: Add FDC maps instead of posrec resolution
-        d['x_observed'] = np.random.normal(d['x'].values,
-                                           scale=2)  # 2cm resolution)
-        d['y_observed'] = np.random.normal(d['y'].values,
-                                           scale=2)  # 2cm resolution)
+        # TODO: Add field distortion maps
+        d['x_observed'] = d['x']
+        d['y_observed'] = d['y']
         return d
 
     def add_extra_columns(self, d):
@@ -129,12 +120,13 @@ class SR0NRSource(SR0Source, fd.NRSource):
 
 @export
 class SR0WIMPSource(SR0Source, fd.WIMPSource):
+    """
+    This describes an SR0-like WIMP source, not THE
+    SR0 source. The time range is not changed from the default.
+    """
     extra_needed_columns = tuple(set(
         list(SR0Source.extra_needed_columns) +
         list(fd.WIMPSource.extra_needed_columns)))
-    # SR0 start and end inc calib data
-    t_start =  pd.to_datetime('2016-09-10')
-    t_stop = pd.to_datetime('2017-01-10')
     # WIMP settings
     es = np.geomspace(0.7, 50, 100)  # [keV]
     mw = 1e3  # GeV
