@@ -228,6 +228,9 @@ class LXeSource(fd.Source):
                 d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
             elif 'r' in d and 'theta' in d:
                 d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
+            else:
+                raise ValueError("When fixing position, give (x, y, z), "
+                                 "or (r, theta, z).")
             d['drift_time'] = - d['z'] / self.drift_velocity
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
