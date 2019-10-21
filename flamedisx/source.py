@@ -89,7 +89,8 @@ class ColumnSource(SourceBase):
         else:
             self._init_padding(batch_size, _skip_tf_init)
             self.data_tensor = fd.np_to_tf(self.data[self.column])
-            self.data_tensor = tf.reshape(self.data_tensor, ( -1,self.batch_size, 1))
+            self.data_tensor = tf.reshape(self.data_tensor,
+                                          (-1,self.batch_size, 1))
 
     def differential_rate(self, data_tensor, **params):
         return data_tensor[:, 0]
@@ -199,7 +200,6 @@ class Source(SourceBase):
                           _skip_tf_init=_skip_tf_init,
                           _skip_bounds_computation=_skip_bounds_computation)
 
-
     def set_defaults(self, **params):
         for k, v in params.items():
             if k in self.defaults:
@@ -207,7 +207,6 @@ class Source(SourceBase):
                     v, dtype=fd.float_type())
             else:
                 raise ValueError(f"Key {k} not in defaults")
-
 
     def set_data(self,
                  data,
@@ -274,7 +273,7 @@ class Source(SourceBase):
         finally:
             self.defaults = old_defaults
             if data is not None:
-               self.data = old_data
+                self.data = old_data
 
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""
@@ -444,7 +443,6 @@ class Source(SourceBase):
             # Set the data, annotate, compute bounds, skip TF
             self.set_data(d, _skip_tf_init=True)
             return self.data
-
 
     ##
     # Mu estimation

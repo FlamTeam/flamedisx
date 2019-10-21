@@ -9,6 +9,13 @@ o = tf.newaxis
 FLOAT_TYPE = tf.float32
 INT_TYPE = tf.int32
 
+# Maximum p_electron and
+# Minimum p_electron probability fluctuation
+# Lower than this, numerical instabilities will occur in the
+# beta-binom pmf.
+MAX_MEAN_P = 0.95
+MIN_FLUCTUATION_P = 0.005
+
 
 def exporter():
     """Export utility modified from https://stackoverflow.com/a/41895194
@@ -22,7 +29,8 @@ def exporter():
 
 
 export, __all__ = exporter()
-__all__ += ['float_type', 'exporter', 'repeat']
+__all__ += ['float_type', 'exporter', 'repeat',
+            'MIN_FLUCTUATION_P', 'MAX_MEAN_P']
 
 
 @export
@@ -99,13 +107,13 @@ def tf_log10(x):
 
 @export
 def safe_p(ps):
-    """Clip probabilities to be in [1e-5, 1 - 1e-5]
+    """Clip probabilities to be in [1e-5, MAX_MEAN_P]
     NaNs are replaced by 1e-5.
     """
     ps = tf.where(tf.math.is_nan(ps),
                   tf.zeros_like(ps, dtype=float_type()),
                   tf.cast(ps, dtype=float_type()))
-    ps = tf.clip_by_value(ps, 1e-5, 1 - 1e-5)
+    ps = tf.clip_by_value(ps, 1e-5, MAX_MEAN_P)
     return ps
 
 
@@ -132,6 +140,11 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     if the success probability p is drawn from a beta distribution
     with mean p_mean and standard deviation p_sigma.
     """
+    # Avoid numerical instabilities
+    # TODO: is there a better way?
+    p_mean = tf.clip_by_value(p_mean, 0., MAX_MEAN_P)
+    p_sigma = tf.clip_by_value(p_sigma, MIN_FLUCTUATION_P, 1.)
+
     a, b = beta_params(p_mean, p_sigma)
     res = tf.exp(
         lgamma(n + 1.) + lgamma(x + a) + lgamma(n - x + b)

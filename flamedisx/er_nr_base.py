@@ -4,8 +4,6 @@ LXeSource: common parts of ER and NR response
 ERSource: ER-specific model components and defaults
 NRSource: NR-specific model components and defaults
 """
-from functools import partial
-
 from multihist import Hist1d, Histdd
 import numpy as np
 import pandas as pd
@@ -103,7 +101,6 @@ class LXeSource(fd.Source):
             # Setup tensor of histogram for lookup
             positions = self.data[self.spatial_rate_hist_dims].values.T
             v = self.spatial_rate_hist.lookup(*positions)
-
             spatial_rate_tensor = tf.convert_to_tensor(v,
                                                        dtype=fd.float_type())
             self.spatial_rate_tensor = tf.reshape(spatial_rate_tensor,
@@ -224,18 +221,19 @@ class LXeSource(fd.Source):
             assert isinstance(d, dict), \
                 "fix_truth needs to be a DataFrame or dict"
 
-        if all(v in d for v in ['x', 'y', 'z']):
-            # fixed position specified in cartesian coords
-            # Add cylindrical and drift_time
-            d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
-            d['drift_time'] = - d['z']/ self.drift_velocity
-        elif all(v in d for v in ['r', 'theta', 'z']):
-            # fixed position specified in cylindrical coords
-            # Add cartesian and drift_time
-            d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
-            d['drift_time'] = - d['z']/ self.drift_velocity
-        elif not any(v in d for v in ['event_time', 'energy']):
-            # Neither cartesian nor polar coords given and no time or energy
+        if 'z' in d:
+            # Position is fixed. Ensure both Cartesian and polar coordinates
+            # are available, and compute drift_time from z.
+            if 'x' in d and 'y' in d:
+                d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
+            elif 'r' in d and 'theta' in d:
+                d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
+            else:
+                raise ValueError("When fixing position, give (x, y, z), "
+                                 "or (r, theta, z).")
+            d['drift_time'] = - d['z'] / self.drift_velocity
+        elif 'event_time' not in d and 'energy' not in d:
+            # Neither position, time, nor energy given
             raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
                              "and/or ['r', 'theta', 'z'] and/or 'event_time' "
                              "and/or 'energy', but it contains: {d.keys()}")
@@ -272,7 +270,7 @@ class LXeSource(fd.Source):
                 data[col] = positions[:, idx]
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
-        data['drift_time'] = - data['z']/ self.drift_velocity
+        data['drift_time'] = - data['z'] / self.drift_velocity
 
         # Draw uniform time
         data['event_time'] = np.random.uniform(
@@ -336,7 +334,7 @@ class LXeSource(fd.Source):
             pel_fluct = self.gimme('p_electron_fluctuation', bonus_arg=_nq_1d,
                                    data_tensor=data_tensor, ptensor=ptensor)
             pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
-            pel_fluct = tf.clip_by_value(pel_fluct, 1e-6, 1.)
+            pel_fluct = tf.clip_by_value(pel_fluct, fd.MIN_FLUCTUATION_P, 1.)
             return rate_nq * fd.beta_binom_pmf(
                 nel,
                 n=nq,
@@ -618,6 +616,7 @@ class LXeSource(fd.Source):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
         return self.spatial_rate_tensor[batch]
 
+
 @export
 class ERSource(LXeSource):
     do_pel_fluct = True
@@ -629,8 +628,9 @@ class ERSource(LXeSource):
     def _single_spectrum(self):
         """Return (energies in keV, rate at these energies),
         """
-        return (tf.cast(tf.linspace(0., 10., 1000),
-                             dtype=fd.float_type()),
+        return (tf.dtypes.cast(
+                    tf.linspace(0., 10., 1000),
+                    dtype=fd.float_type()),
                 tf.ones(1000, dtype=fd.float_type()))
 
     @staticmethod
@@ -654,8 +654,8 @@ class ERSource(LXeSource):
         # From SR0, BBF model, right?
         # q3 = 1.7 keV ~= 123 quanta
         return tf.clip_by_value(0.041 * (1. - tf.exp(-nq / 123.)),
-                                1e-4,
-                                float('inf'))
+                                fd.MIN_FLUCTUATION_P,
+                                1.)
 
     @staticmethod
     def penning_quenching_eff(nph):
@@ -727,10 +727,11 @@ class NRSource(LXeSource):
         res = lindhard_k * g/(n2 + lindhard_k * g)
         return res
 
-    def p_electron(self, nq, *,
-            alpha=1.280, zeta=0.045, beta=273 * .9e-4,
-            gamma=0.0141, delta=0.062,
-            drift_field=120):
+    @staticmethod
+    def p_electron(nq, *,
+                   alpha=1.280, zeta=0.045, beta=273 * .9e-4,
+                   gamma=0.0141, delta=0.062,
+                   drift_field=120):
         """Fraction of detectable NR quanta that become electrons,
         slightly adjusted from Lenardo et al.'s global fit
         (https://arxiv.org/abs/1412.4417).
@@ -805,8 +806,6 @@ class WIMPSource(NRSource):
     sigma_nucleon = 1e-45  # cm^2
 
     # Interpolator settings
-    t_start = pd.to_datetime('2016-09-13T12:00:00')
-    t_stop = pd.to_datetime('2017-09-13T12:00:00')
     n_in = 10  # Number of time bin edges (wimprates function evaluations + 1)
 
     def __init__(self, *args, wimp_kwargs=None, **kwargs):
@@ -897,7 +896,7 @@ class WIMPSource(NRSource):
         """Return (energies in keV, events at these energies)
         """
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return (self.all_es_centers, self.energy_tensor[batch, :, :])
+        return self.all_es_centers, self.energy_tensor[batch, :, :]
 
     def _add_random_energies(self, data, n_events):
         """Draw n_events random energies and times from the energy/
