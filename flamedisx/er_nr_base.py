@@ -336,9 +336,9 @@ class LXeSource(fd.Source):
             pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
             pel_fluct = tf.clip_by_value(pel_fluct, fd.MIN_FLUCTUATION_P, 1.)
             return rate_nq * fd.beta_binom_pmf(
-                nel,
+                nph,
                 n=nq,
-                p_mean=pel,
+                p_mean=1. - pel,
                 p_sigma=pel_fluct)
 
         else:
@@ -346,7 +346,7 @@ class LXeSource(fd.Source):
                 total_count=nq, probs=pel).prob(nel)
 
     def detection_p(self, quanta_type, data_tensor, ptensor):
-        """Return (n_events, |detected|, |produced|) te nsor
+        """Return (n_events, |detected|, |produced|) tensor
         encoding P(n_detected | n_produced)
         """
         n_det, n_prod = self.cross_domains(quanta_type + '_detected',
