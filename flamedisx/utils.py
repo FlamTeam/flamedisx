@@ -107,13 +107,13 @@ def tf_log10(x):
 
 @export
 def safe_p(ps):
-    """Clip probabilities to be in [1e-5, MAX_MEAN_P]
+    """Clip probabilities to be in [1e-5, 1 - 1e-5]
     NaNs are replaced by 1e-5.
     """
     ps = tf.where(tf.math.is_nan(ps),
                   tf.zeros_like(ps, dtype=float_type()),
                   tf.cast(ps, dtype=float_type()))
-    ps = tf.clip_by_value(ps, 1e-5, MAX_MEAN_P)
+    ps = tf.clip_by_value(ps, 1e-5, 1 - 1e-5)
     return ps
 
 
