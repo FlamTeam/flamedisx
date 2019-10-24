@@ -18,6 +18,9 @@ o = tf.newaxis
 class SourceBase:
     """Base class of Source"""
 
+    n_batches = None
+    batch_size = None
+    n_padding = None
     trace_difrate = True
 
     def _init_padding(self, batch_size, _skip_tf_init):
