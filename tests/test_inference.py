@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import tensorflow as tf
+import tensorflow_probability as tfp
+from iminuit import Minuit
 
 import flamedisx as fd
 from flamedisx.inference import DEFAULT_DSETNAME
