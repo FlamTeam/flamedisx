@@ -36,7 +36,10 @@ class LogLikelihood:
             sources: ty.Union[
                 ty.Dict[str, fd.Source.__class__],
                 ty.Dict[str, ty.Dict[str, fd.Source.__class__]]],
-            data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]],
+            data: ty.Union[
+                None,
+                pd.DataFrame,
+                ty.Dict[str, pd.DataFrame]] = None,
             free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
             batch_size=10,
             max_sigma=3,
@@ -49,7 +52,8 @@ class LogLikelihood:
         or just {sourcename: class} in case you have one dataset
         Every source name must be unique.
         :param data: Dictionary {datasetname: pd.DataFrame}
-        or just pd.DataFrame if you have one dataset
+        or just pd.DataFrame if you have one dataset or None if you
+        set data later.
         :param free_rates: names of sources whose rates are floating
         :param batch_size:
         :param max_sigma:
@@ -59,7 +63,7 @@ class LogLikelihood:
 
         param_defaults = dict()
 
-        if isinstance(data, pd.DataFrame):
+        if isinstance(data, pd.DataFrame) or data is None:
             # Only one dataset
             data = {DEFAULT_DSETNAME: data}
         if not isinstance(list(sources.values())[0], dict):
@@ -90,7 +94,8 @@ class LogLikelihood:
 
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
-            sname: sclass(data[self.d_for_s[sname]].copy(),
+            d = data[self.d_for_s[sname]]
+            sname: sclass(data=None if d is None else d.copy(),
                           max_sigma=max_sigma,
                           fit_params=list(common_param_specs.keys()),
                           batch_size=batch_size)
