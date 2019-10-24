@@ -258,6 +258,6 @@ def test_bestfit_minuit(xes):
     assert len(guess) == 2
 
     bestfit = lf.bestfit(guess, optimizer=Minuit.from_array_func, limit = ((0,1),(100e3, 500e3)))
-    assert isinstance(bestfit, dict)
+    assert isinstance(bestfit[0], dict)
     assert len(bestfit) == 2
     assert bestfit['er_rate_multiplier'].dtype == np.float32
