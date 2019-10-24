@@ -119,6 +119,10 @@ def test_set_data_on_no_dset(xes: fd.ERSource):
         data=None)
 
     lf.set_data(xes.data.copy())
+
+    assert lf.sources['er'].batch_size == 10
+    assert lf.sources['er'].n_batches == 1
+    assert lf.sources['er'].n_padding == 8
     ll1 = lf()
 
     lf2 = fd.LogLikelihood(
