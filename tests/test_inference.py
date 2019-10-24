@@ -105,21 +105,18 @@ def test_no_dset(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
         data=None)
-    ll1 = lf()
 
     lf2 = fd.LogLikelihood(
         sources=dict(data1=dict(er1=fd.ERSource),
                      data2=dict(er2=fd.ERSource)),
         data=dict(data1=None,
                   data2=None))
-    ll2 = lf2()
 
 
 def test_set_data_on_no_dset(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
         data=None)
-    ll1 = lf()
 
     lf.set_data(xes.data.copy())
     ll1 = lf()
@@ -129,7 +126,6 @@ def test_set_data_on_no_dset(xes: fd.ERSource):
                      data2=dict(er2=fd.ERSource)),
         data=dict(data1=None,
                   data2=None))
-    ll2 = lf2()
 
     lf2.set_data(dict(data1=xes.data.copy(),
                       data2=xes.data.copy()))
