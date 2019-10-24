@@ -19,7 +19,6 @@ class SourceBase:
     """Base class of Source"""
 
     n_batches = None
-    batch_size = None
     n_padding = None
     trace_difrate = True
 
