@@ -4,6 +4,8 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 import typing as ty
+from iminuit import Minuit
+from iminuit.util import make_func_code
 
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -332,17 +334,19 @@ class LogLikelihood:
     def bestfit(self,
                 guess=None,
                 fix=None,
-                optimizer=tfp.optimizer.bfgs_minimize,
+                optimizer= Minuit.from_array_func,
                 llr_tolerance=0.1,
                 get_lowlevel_result=False,
-                use_hessian=True,
+                use_hessian=False,
                 autograph=True,
+                precision=None,
                 **kwargs):
         """Return best-fit parameter tensor
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
         :param fix: dict {param: value} of parameters to keep fixed
         during the minimzation.
+        :param optimizer: Minuit.from_array_func or tfp.optimizer.bfgs_minimize
         :param llr_tolerance: stop minimizer if change in -2 log likelihood
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
@@ -360,13 +364,6 @@ class LogLikelihood:
             raise ValueError("Guess must be a dictionary")
         guess = {**self.guess(), **guess, **fix}
 
-        # Unfortunately we can only set the relative tolerance for the
-        # objective; we'd like to set the absolute one.
-        # Use the guess log likelihood to normalize;
-        if llr_tolerance is not None:
-            kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self.minus_ll(**guess)[0])
-
         # Create a vector of guesses for the optimizer
         # Store as temp attributes so we can access them also in objective
         self._varnames = [k for k in self.param_names if k not in fix]
@@ -377,37 +374,58 @@ class LogLikelihood:
         # Minimize multipliers to the guess, rather than the guess itself
         # This is a basic kind of standardization that helps make the gradient
         # vector reasonable.
-        x_norm = tf.ones(len(self._varnames), dtype=fd.float_type())
+        x_guess =  np.array([
+            guess[k] for k in self._varnames])
 
         if optimizer == tfp.optimizer.bfgs_minimize and use_hessian:
             # This optimizer can use the hessian information
             # Compute the inverse hessian at the guess
             inv_hess = self.inverse_hessian(guess, omit_grads=tuple(fix.keys()))
-            # We use scaled values in the optimizer so also scale the
-            # hessian. We need to multiply the hessian with the parameter
-            # values. This is the inverse hessian so we divide.
-            inv_hess /= tf.linalg.tensordot(
-                self._guess_vect, self._guess_vect, axes=0)
             # Explicitly symmetrize the matrix
             inv_hess = fd.symmetrize_matrix(inv_hess)
         else:
             inv_hess = None
 
         self._autograph_objective = autograph
-        res = optimizer(self.objective,
-                        x_norm,
-                        initial_inverse_hessian_estimate=inv_hess,
-                        **kwargs)
-        if get_lowlevel_result:
-            return res
-        if res.failed:
-            raise ValueError(f"Optimizer failure! Result: {res}")
-        res = res.position * self._guess_vect
-        res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
-        return {**res, **fix}
+        if optimizer == Minuit.from_array_func:
 
-    def objective(self, x_norm):
-        x = x_norm * self._guess_vect
+            fit = optimizer(self.objective_minuit,
+                           x_guess,
+                           grad=self.grad_minuit,
+                           errordef=0.5,
+                           name = self._varnames,
+                           **kwargs)
+            
+            fit.migrad(precision=precision)
+            fit_result = dict(fit.values)
+            fit_errors = dict()
+            for (k, v) in fit.errors.items():
+                fit_errors[k + '_error'] = v
+
+            return fit_result, fit_errors
+        else:
+            # Unfortunately we can only set the relative tolerance for the
+            # objective; we'd like to set the absolute one.
+            # Use the guess log likelihood to normalize;
+            if llr_tolerance is not None:
+                kwargs.setdefault('f_relative_tolerance',
+                                 llr_tolerance/self.minus_ll(**guess)[0])
+
+            res = optimizer(self.objective,
+                            x_norm,
+                            initial_inverse_hessian_estimate=inv_hess,
+                            **kwargs)
+            if get_lowlevel_result:
+                return res
+            if res.failed:
+                raise ValueError(f"Optimizer failure! Result: {res}")
+            res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
+            return {**res, **fix}
+        
+
+
+    def objective(self, x_guess):
+        x = fd.np_to_tf(x_guess) 
 
         # Fill in the fixed variables / convert to dict
         params = dict(**self._fix)
@@ -419,10 +437,17 @@ class LogLikelihood:
             autograph=self._autograph_objective,
             omit_grads=tuple(self._fix.keys()))
         if tf.math.is_nan(ll):
-            tf.print(f"Objective at {x_norm} is Nan!")
+            tf.print(f"Objective at {tf.math.abs(x_norm)} is Nan!")
             ll *= float('inf')
             grad *= float('nan')
-        return ll, grad * self._guess_vect
+        return ll, grad 
+
+    #TODO: make a nice wrapper for objective and gradient
+    def objective_minuit(self, x_guess):
+        return self.objective(x_guess)[0].numpy()
+
+    def grad_minuit(self, x_guess):
+        return self.objective(x_guess)[1].numpy()
 
     def inverse_hessian(self, params, omit_grads=tuple()):
         """Return inverse hessian (square tensor)
