@@ -1,3 +1,7 @@
+0.2.1 / 2019-10-24
+------------------
+- Workaround for numerical errors (#38, #39)
+
 0.2.0 / 2019-10-11
 ------------------
 - Spatially dependent rates (#27)
