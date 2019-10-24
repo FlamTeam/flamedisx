@@ -412,7 +412,7 @@ class LogLikelihood:
                                  llr_tolerance/self.minus_ll(**guess)[0])
 
             res = optimizer(self.objective,
-                            x_norm,
+                            x_guess,
                             initial_inverse_hessian_estimate=inv_hess,
                             **kwargs)
             if get_lowlevel_result:
@@ -437,7 +437,7 @@ class LogLikelihood:
             autograph=self._autograph_objective,
             omit_grads=tuple(self._fix.keys()))
         if tf.math.is_nan(ll):
-            tf.print(f"Objective at {tf.math.abs(x_norm)} is Nan!")
+            tf.print(f"Objective at {x_guess} is Nan!")
             ll *= float('inf')
             grad *= float('nan')
         return ll, grad 
