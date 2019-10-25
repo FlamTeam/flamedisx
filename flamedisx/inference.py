@@ -419,6 +419,7 @@ class LogLikelihood:
                 return res
             if res.failed:
                 raise ValueError(f"Optimizer failure! Result: {res}")
+            res = res.position
             res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
             return {**res, **fix}
         
