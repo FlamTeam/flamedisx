@@ -411,7 +411,7 @@ class LogLikelihood:
                 kwargs.setdefault('f_relative_tolerance',
                                  llr_tolerance/self.minus_ll(**guess)[0])
 
-            res = optimizer(self.objective,
+            res = optimizer(self.objective_tf,
                             x_guess,
                             initial_inverse_hessian_estimate=inv_hess,
                             **kwargs)
