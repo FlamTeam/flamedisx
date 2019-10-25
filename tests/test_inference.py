@@ -257,7 +257,7 @@ def test_bestfit_minuit(xes):
     guess['er_rate_multiplier'] = xs[np.argmin(ys)]
     assert len(guess) == 2
 
-    bestfit = lf.bestfit(guess, optimizer=Minuit.from_array_func, limit = ((0,1),(100e3, 500e3)))
+    bestfit = lf.bestfit(guess, optimizer=Minuit.from_array_func, error = (0.0001,1000))
     assert isinstance(bestfit[0], dict)
     assert len(bestfit[0]) == 2
-    assert bestfit[0]['er_rate_multiplier'].dtype == np.float32
+    

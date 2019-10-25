@@ -370,13 +370,7 @@ class LogLikelihood:
         self._guess_vect = fd.np_to_tf(np.array([
             guess[k] for k in self._varnames]))
         self._fix = fix
-
-        # Minimize multipliers to the guess, rather than the guess itself
-        # This is a basic kind of standardization that helps make the gradient
-        # vector reasonable.
-        x_guess =  np.array([
-            guess[k] for k in self._varnames])
-
+        
         if optimizer == tfp.optimizer.bfgs_minimize and use_hessian:
             # This optimizer can use the hessian information
             # Compute the inverse hessian at the guess
@@ -387,7 +381,10 @@ class LogLikelihood:
             inv_hess = None
 
         self._autograph_objective = autograph
+
         if optimizer == Minuit.from_array_func:
+            x_guess =  np.array([
+            guess[k] for k in self._varnames])
 
             fit = optimizer(self.objective_minuit,
                            x_guess,
@@ -403,7 +400,10 @@ class LogLikelihood:
                 fit_errors[k + '_error'] = v
 
             return fit_result, fit_errors
+
         else:
+            x_guess = tf.ones(len(self._varnames), dtype=fd.float_type()) \
+                * self._guess_vect
             # Unfortunately we can only set the relative tolerance for the
             # objective; we'd like to set the absolute one.
             # Use the guess log likelihood to normalize;
@@ -422,9 +422,25 @@ class LogLikelihood:
             res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
             return {**res, **fix}
         
+    def objective_tf(self, x_guess):
+        x = x_guess #tensor
 
+        # Fill in the fixed variables / convert to dict
+        params = dict(**self._fix)
+        for i, k in enumerate(self._varnames):
+            params[k] = x[i]
 
-    def objective(self, x_guess):
+        ll, grad = self.minus_ll(
+            **params,
+            autograph=self._autograph_objective,
+            omit_grads=tuple(self._fix.keys()))
+        if tf.math.is_nan(ll):
+            tf.print(f"Objective at {x_norm} is Nan!")
+            ll *= float('inf')
+            grad *= float('nan')
+        return ll, grad 
+
+    def objective_numpy(self, x_guess):
         x = fd.np_to_tf(x_guess) 
 
         # Fill in the fixed variables / convert to dict
@@ -440,14 +456,14 @@ class LogLikelihood:
             tf.print(f"Objective at {x_guess} is Nan!")
             ll *= float('inf')
             grad *= float('nan')
-        return ll, grad 
+        return ll.numpy(), grad.numpy()
 
     #TODO: make a nice wrapper for objective and gradient
     def objective_minuit(self, x_guess):
-        return self.objective(x_guess)[0].numpy()
+        return self.objective_numpy(x_guess)[0]
 
     def grad_minuit(self, x_guess):
-        return self.objective(x_guess)[1].numpy()
+        return self.objective_numpy(x_guess)[1]
 
     def inverse_hessian(self, params, omit_grads=tuple()):
         """Return inverse hessian (square tensor)
