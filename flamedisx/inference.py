@@ -182,7 +182,7 @@ class LogLikelihood:
                                  fix_truth=fix_truth,
                                  **params))
         # Concatenate results and shuffle them
-        return pd.concat(ds).sample(frac=1).reset_index(drop=True)
+        return pd.concat(ds, sort=False).sample(frac=1).reset_index(drop=True)
 
     def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
