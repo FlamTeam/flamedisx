@@ -337,9 +337,8 @@ class LogLikelihood:
                 optimizer= Minuit.from_array_func,
                 llr_tolerance=0.1,
                 get_lowlevel_result=False,
-                use_hessian=False,
+                use_hessian=True,
                 autograph=True,
-                precision=None,
                 **kwargs):
         """Return best-fit parameter tensor
 
@@ -393,8 +392,10 @@ class LogLikelihood:
                            name = self._varnames,
                            **kwargs)
             
-            fit.migrad(precision=precision)
+            fit.migrad()
             fit_result = dict(fit.values)
+            if use_hessian:
+                fit.hesse()
             fit_errors = dict()
             for (k, v) in fit.errors.items():
                 fit_errors[k + '_error'] = v
@@ -441,7 +442,7 @@ class LogLikelihood:
 
     def objective_numpy(self, x_guess):
         ll, grad = self.objective_tf(fd.np_to_tf(x_guess))
-    return ll.numpy(), grad.numpy()
+        return ll.numpy(), grad.numpy()
 
     #TODO: make a nice wrapper for objective and gradient
     def objective_minuit(self, x_guess):
