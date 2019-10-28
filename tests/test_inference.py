@@ -122,6 +122,17 @@ def test_multi_dset(xes: fd.ERSource):
     np.testing.assert_almost_equal(2 * ll1, ll2)
 
 
+def test_simulate(xes):
+    # Once PR #43 merged we can set data=None here
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=xes.data.copy())
+
+    events = lf.simulate()
+    events = lf.simulate(rate_multipliers=dict('er_rate_multiplier'=2.)
+    events = lf.simulate(fix_truth=dict(x=0., y=0., z=-50.))
+
+
 def test_set_data(xes: fd.ERSource):
     data1 = xes.data
     data2 = pd.concat([data1.copy(), data1.iloc[:1].copy()])
