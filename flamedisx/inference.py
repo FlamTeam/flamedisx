@@ -172,7 +172,7 @@ class LogLikelihood:
             if rmname in rate_multipliers:
                 rm = rate_multipliers[rmname]
             else:
-                rm = self._get_rate_mult(sname, **params)
+                rm = self._get_rate_mult(sname, params)
 
             # mean number of events to simulate, rate mult times mu source
             mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
