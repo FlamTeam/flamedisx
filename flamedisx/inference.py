@@ -159,6 +159,31 @@ class LogLikelihood:
             elif dname not in self.dsetnames:
                 raise ValueError(f"Dataset name {dname} not known")
 
+    def simulate(self, rate_multipliers=None, fix_truth=None, **params):
+        """Simulate events from sources, optionally pass custom
+        rate_multipliers and fix_truth.
+        """
+        if rate_multipliers is None:
+            rate_multipliers = dict()
+
+        ds = []
+        for sname, s in self.sources.items():
+            rmname = sname + '_rate_multiplier'
+            if rmname in rate_multipliers:
+                rm = rate_multipliers[rmname]
+            else:
+                rm = self._get_rate_mult(sname, **params)
+
+            # mean number of events to simulate, rate mult times mu source
+            mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
+                                                                       sname))
+            # Simulate events from source
+            ds.append(s.simulate(np.random.poisson(mu),
+                                 fix_truth=fix_truth,
+                                 **params))
+        # Concatenate results and shuffle them
+        return pd.concat(ds).sample(frac=1).reset_index(drop=True)
+
     def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
         return self.log_likelihood(second_order=False, **kwargs)[0].numpy()
