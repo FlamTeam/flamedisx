@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import typing as ty
 from iminuit import Minuit
-from iminuit.util import make_func_code
+
 
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -424,12 +424,10 @@ class LogLikelihood:
             return {**res, **fix}
         
     def objective_tf(self, x_guess):
-        x = x_guess #tensor
-
         # Fill in the fixed variables / convert to dict
         params = dict(**self._fix)
         for i, k in enumerate(self._varnames):
-            params[k] = x[i]
+            params[k] = x_guess[i]
 
         ll, grad = self.minus_ll(
             **params,
@@ -442,22 +440,8 @@ class LogLikelihood:
         return ll, grad 
 
     def objective_numpy(self, x_guess):
-        x = fd.np_to_tf(x_guess) 
-
-        # Fill in the fixed variables / convert to dict
-        params = dict(**self._fix)
-        for i, k in enumerate(self._varnames):
-            params[k] = x[i]
-
-        ll, grad = self.minus_ll(
-            **params,
-            autograph=self._autograph_objective,
-            omit_grads=tuple(self._fix.keys()))
-        if tf.math.is_nan(ll):
-            tf.print(f"Objective at {x_guess} is Nan!")
-            ll *= float('inf')
-            grad *= float('nan')
-        return ll.numpy(), grad.numpy()
+        ll, grad = self.objective_tf(fd.np_to_tf(x_guess))
+    return ll.numpy(), grad.numpy()
 
     #TODO: make a nice wrapper for objective and gradient
     def objective_minuit(self, x_guess):
