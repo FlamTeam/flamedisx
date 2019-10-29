@@ -94,8 +94,9 @@ class LogLikelihood:
 
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
-            sname: sclass(data=None if data[self.d_for_s[sname]] is None \
-                            else data[self.d_for_s[sname]].copy(),
+            sname: sclass(data=(None
+                                if data[self.d_for_s[sname]] is None
+                                else data[self.d_for_s[sname]].copy()),
                           max_sigma=max_sigma,
                           fit_params=list(common_param_specs.keys()),
                           batch_size=batch_size)
