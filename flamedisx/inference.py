@@ -178,9 +178,11 @@ class LogLikelihood:
             mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
                                                                        sname))
             # Simulate events from source
-            ds.append(s.simulate(np.random.poisson(mu),
-                                 fix_truth=fix_truth,
-                                 **params))
+            d = s.simulate(np.random.poisson(mu),
+                           fix_truth=fix_truth,
+                           **params)
+            d['source'] = sname
+            ds.append(d)
         # Concatenate results and shuffle them
         return pd.concat(ds, sort=False).sample(frac=1).reset_index(drop=True)
 
