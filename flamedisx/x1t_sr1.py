@@ -152,12 +152,5 @@ class SR1NRSource(SR1Source, fd.NRSource):
         return fd.safe_p(n_el / nq)
     
     #TODO: Define the proper nr spectrum
-    #def _single_spectrum(self):
-    #    """Return (energies in keV, events at these energies),
-    #    both (n_events, n_energies) tensors.
-    #    """   
-    #    e = fd.np_to_tf(spectrum_df['rec_energy'])
-    #    ev = fd.np_to_tf(spectrum_df['rate']) 
-    #    return e, ev   
 
 # TODO: Modify the SR1NRSource to fit AmBe data better and add WIMPSource
