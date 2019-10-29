@@ -101,6 +101,48 @@ def test_columnsource(xes: fd.ERSource):
     np.testing.assert_almost_equal(lf(), -3.14 + len(xes.data) * np.log(5.))
 
 
+def test_no_dset(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=None)
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(data1=dict(er1=fd.ERSource),
+                     data2=dict(er2=fd.ERSource)),
+        data=dict(data1=None,
+                  data2=None))
+
+
+def test_set_data_on_no_dset(xes: fd.ERSource):
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=None,
+        batch_size=4)
+    # The batch_size can be at most 2 * len(data) or padding wont work
+    # which is why it is set explicitly in this test with only 2 events
+    # Usually when constructing the likelihood with a very small dataset
+    # the batch_size is set accordingly, but in this test with data=None
+    # that is not possible (an assert has been put in Source._init_padding)
+
+    lf.set_data(xes.data.copy())
+
+    assert lf.sources['er'].batch_size == 4
+    assert lf.sources['er'].n_batches == 1
+    assert lf.sources['er'].n_padding == 2
+    ll1 = lf()
+
+    lf2 = fd.LogLikelihood(
+        sources=dict(data1=dict(er1=fd.ERSource),
+                     data2=dict(er2=fd.ERSource)),
+        data=dict(data1=None,
+                  data2=None),
+        batch_size=4)
+
+    lf2.set_data(dict(data1=xes.data.copy(),
+                      data2=xes.data.copy()))
+    ll2 = lf2()
+
+
 def test_multi_dset(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
@@ -169,6 +211,7 @@ def test_set_data(xes: fd.ERSource):
     lf.set_data(dict(data2=data1))
 
     pd.testing.assert_series_equal(internal_data('er2', 's1'), data1['s1'])
+
 
 def test_constraint(xes: fd.ERSource):
     lf = fd.LogLikelihood(
