@@ -422,7 +422,7 @@ class LogLikelihood:
                 raise ValueError(f"Optimizer failure! Result: {res}")
             res = res.position
             res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
-            return {**res, **fix}
+            return {**res, **fix}, dict()
         
     def objective_tf(self, x_guess):
         # Fill in the fixed variables / convert to dict
