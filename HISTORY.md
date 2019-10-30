@@ -1,3 +1,9 @@
+0.2.2 / 2019-10-30
+------------------
+- Minuit optimizer (#40)
+- Likelihood simulator (#43, #44)
+- Updates to NRSource (#40)
+
 0.2.1 / 2019-10-24
 ------------------
 - Workaround for numerical errors (#38, #39)
