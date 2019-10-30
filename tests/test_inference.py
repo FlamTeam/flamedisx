@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import tensorflow as tf
+import tensorflow_probability as tfp
+from iminuit import Minuit
 
 import flamedisx as fd
 from flamedisx.inference import DEFAULT_DSETNAME
@@ -267,7 +269,7 @@ def test_hessian(xes: fd.ERSource):
     assert abs(a - b)/(a+b) < 1e-3
 
 
-def test_bestfit(xes):
+def test_bestfit_tf(xes):
     # Test bestfit (including hessian)
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
@@ -285,7 +287,31 @@ def test_bestfit(xes):
     guess['er_rate_multiplier'] = xs[np.argmin(ys)]
     assert len(guess) == 2
 
-    bestfit = lf.bestfit(guess, use_hessian=True)
-    assert isinstance(bestfit, dict)
-    assert len(bestfit) == 2
-    assert bestfit['er_rate_multiplier'].dtype == np.float32
+    bestfit = lf.bestfit(guess, optimizer=tfp.optimizer.bfgs_minimize, use_hessian=True)
+    assert isinstance(bestfit[0], dict)
+    assert len(bestfit[0]) == 2
+    assert bestfit[0]['er_rate_multiplier'].dtype == np.float32
+
+
+def test_bestfit_minuit(xes):
+    # Test bestfit (including hessian)
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__),
+        elife=(100e3, 500e3, 5),
+        free_rates='er',
+        data=xes.data)
+
+    guess = lf.guess()
+    # Set reasonable rate
+    # Evaluate the likelihood curve around the minimum
+    xs_er = np.linspace(0.001, 0.004, 20)  # ER source range
+    xs_nr = np.linspace(0.04, 0.1, 20)  # NR source range
+    xs = list(xs_er) + list(xs_nr)
+    ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
+    guess['er_rate_multiplier'] = xs[np.argmin(ys)]
+    assert len(guess) == 2
+
+    bestfit = lf.bestfit(guess, optimizer=Minuit.from_array_func, error = (0.0001,1000))
+    assert isinstance(bestfit[0], dict)
+    assert len(bestfit[0]) == 2
+    

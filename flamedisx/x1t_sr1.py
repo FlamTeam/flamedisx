@@ -71,7 +71,7 @@ class SR1Source:
 
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
-    def photon_detection_eff(s1_relative_ly, g1 =0.123): 
+    def photon_detection_eff(s1_relative_ly, g1 =0.142): 
         #g1 = 0.142 from paper
         mean_eff= g1 / (1. + 0.219)
         return mean_eff * s1_relative_ly
@@ -118,6 +118,39 @@ class SR1ERSource(SR1Source,fd.ERSource):
 class SR1NRSource(SR1Source, fd.NRSource):
     extra_needed_columns = tuple(set(
         list(SR1Source.extra_needed_columns) + 
-        list(fd.NRSource.extra_needed_columns)))
+        list(fd.NRSource.extra_needed_columns)+
+        ['x_observed', 'y_observed']))
+
+    def p_electron(self, nq, *,
+            alpha=1.280, zeta=0.045, beta=273 * .9e-4, 
+            gamma=0.0141, delta=0.062,
+            drift_field=81):
+        """Fraction of detectable NR quanta that become electrons,
+        slightly adjusted from Lenardo et al.'s global fit
+        (https://arxiv.org/abs/1412.4417).
+
+        Penning quenching is accounted in the photon detection efficiency.
+        """
+        # TODO: so to make field pos-dependent, override this entire f?
+        # could be made easier...
+
+        # prevent /0  # TODO can do better than this
+        nq = nq + 1e-9
+
+        # Note: final term depends on nq now, not energy
+        # this means beta is different from lenardo et al
+        nexni = alpha * drift_field ** -zeta * (1 - tf.exp(-beta * nq))
+        ni = nq * 1 / (1 + nexni)
+
+        # Fraction of ions NOT participating in recombination
+        squiggle = gamma * drift_field ** -delta
+        fnotr = tf.math.log(1 + ni * squiggle) / (ni * squiggle)
+
+        # Finally, number of electrons produced..
+        n_el = ni * fnotr
+
+        return fd.safe_p(n_el / nq)
+    
+    #TODO: Define the proper nr spectrum
 
 # TODO: Modify the SR1NRSource to fit AmBe data better and add WIMPSource
