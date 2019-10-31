@@ -370,18 +370,19 @@ class LogLikelihood:
     def bestfit(self,
                 guess=None,
                 fix=None,
-                optimizer= Minuit.from_array_func,
+                optimizer='bfgs',
                 llr_tolerance=0.1,
                 get_lowlevel_result=False,
                 use_hessian=True,
+                return_errors=False,
                 autograph=True,
                 **kwargs):
-        """Return best-fit parameter tensor
+        """Return best-fit parameter dict
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
         :param fix: dict {param: value} of parameters to keep fixed
         during the minimzation.
-        :param optimizer: Minuit.from_array_func or tfp.optimizer.bfgs_minimize
+        :param optimizer: 'bfgs' or 'minuit'
         :param llr_tolerance: stop minimizer if change in -2 log likelihood
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
@@ -389,44 +390,40 @@ class LogLikelihood:
         of only the best fit parameters. Bool.
         :param use_hessian: Passes the hessian estimated at the guess to the
         optimizer. Bool.
+        :param return_errors: If using the minuit minimizer, instead return
+        a 2-tuple of (bestfit dict, error dict).
+        :param autograph: If true (default), use tensorflow's autograph
+        during minimization.
         """
         if fix is None:
             fix = dict()
         if guess is None:
             guess = dict()
 
+        # Create temp attributes for access in the objective
+        self._varnames = [k for k in self.param_names if k not in fix]
+        self._fix = fix
+        self._autograph_objective = autograph
+
+        # Create a vector of guesses for the optimizer
         if not isinstance(guess, dict):
             raise ValueError("Guess must be a dictionary")
         guess = {**self.guess(), **guess, **fix}
-
-        # Create a vector of guesses for the optimizer
-        # Store as temp attributes so we can access them also in objective
-        self._varnames = [k for k in self.param_names if k not in fix]
-        self._guess_vect = fd.np_to_tf(np.array([
+        x_guess = fd.np_to_tf(np.array([
             guess[k] for k in self._varnames]))
-        self._fix = fix
 
-        if optimizer == tfp.optimizer.bfgs_minimize and use_hessian:
-            # This optimizer can use the hessian information
-            # Compute the inverse hessian at the guess
-            inv_hess = self.inverse_hessian(guess, omit_grads=tuple(fix.keys()))
-            # Explicitly symmetrize the matrix
-            inv_hess = fd.symmetrize_matrix(inv_hess)
-        else:
-            inv_hess = None
-
-        self._autograph_objective = autograph
-
-        if optimizer == Minuit.from_array_func:
-            x_guess =  np.array([
-            guess[k] for k in self._varnames])
-
-            fit = optimizer(self.objective_minuit,
-                           x_guess,
-                           grad=self.grad_minuit,
-                           errordef=0.5,
-                           name = self._varnames,
-                           **kwargs)
+        if optimizer == 'minuit':
+            for i in range(len(x_guess)):
+                # Set initial step sizes of 0.1 * guess
+                kwargs.setdefault('error_' + self._varnames[i],
+                                  x_guess[i] * 0.1)
+            fit = Minuit.from_array_func(
+                self.objective_minuit,
+                x_guess,
+                grad=self.grad_minuit,
+                errordef=0.5,
+                name=self._varnames,
+                **kwargs)
 
             fit.migrad()
             fit_result = dict(fit.values)
@@ -436,11 +433,22 @@ class LogLikelihood:
             for (k, v) in fit.errors.items():
                 fit_errors[k + '_error'] = v
 
-            return fit_result, fit_errors
+            fit_result = {**fit_result, **fix}
+            if return_errors:
+                return fit_result, fit_errors
+            return fit_result
 
-        else:
-            x_guess = tf.ones(len(self._varnames), dtype=fd.float_type()) \
-                * self._guess_vect
+        elif optimizer == 'bfgs':
+            if use_hessian:
+                # This optimizer can use the hessian information
+                # Compute the inverse hessian at the guess
+                inv_hess = self.inverse_hessian(guess,
+                                                omit_grads=tuple(fix.keys()))
+                # Explicitly symmetrize the matrix
+                inv_hess = fd.symmetrize_matrix(inv_hess)
+            else:
+                inv_hess = None
+
             # Unfortunately we can only set the relative tolerance for the
             # objective; we'd like to set the absolute one.
             # Use the guess log likelihood to normalize;
@@ -448,17 +456,20 @@ class LogLikelihood:
                 kwargs.setdefault('f_relative_tolerance',
                                  llr_tolerance/self.minus_ll(**guess)[0])
 
-            res = optimizer(self.objective_tf,
-                            x_guess,
-                            initial_inverse_hessian_estimate=inv_hess,
-                            **kwargs)
+            res = tfp.optimizer.bfgs_minimize(
+                self.objective_tf,
+                x_guess,
+                initial_inverse_hessian_estimate=inv_hess,
+                **kwargs)
             if get_lowlevel_result:
                 return res
             if res.failed:
                 raise ValueError(f"Optimizer failure! Result: {res}")
             res = res.position
             res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
-            return {**res, **fix}, dict()
+            return {**res, **fix}
+
+        raise ValueError(f"Unsupported optimizer {optimizer}")
 
     def objective_tf(self, x_guess):
         # Fill in the fixed variables / convert to dict
@@ -480,7 +491,7 @@ class LogLikelihood:
         ll, grad = self.objective_tf(fd.np_to_tf(x_guess))
         return ll.numpy(), grad.numpy()
 
-    #TODO: make a nice wrapper for objective and gradient
+    # TODO: make a nice wrapper for objective and gradient
     def objective_minuit(self, x_guess):
         return self.objective_numpy(x_guess)[0]
 
