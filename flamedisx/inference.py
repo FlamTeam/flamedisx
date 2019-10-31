@@ -185,8 +185,11 @@ class LogLikelihood:
             # mean number of events to simulate, rate mult times mu source
             mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
                                                                        sname))
-            # Simulate events from source
-            d = s.simulate(np.random.poisson(mu),
+            # Simulate this many events from source
+            n_to_sim = np.random.poisson(mu)
+            if n_to_sim == 0:
+                continue
+            d = s.simulate(n_to_sim,
                            fix_truth=fix_truth,
                            **params)
             d['source'] = sname
@@ -402,7 +405,7 @@ class LogLikelihood:
         self._guess_vect = fd.np_to_tf(np.array([
             guess[k] for k in self._varnames]))
         self._fix = fix
-        
+
         if optimizer == tfp.optimizer.bfgs_minimize and use_hessian:
             # This optimizer can use the hessian information
             # Compute the inverse hessian at the guess
@@ -424,7 +427,7 @@ class LogLikelihood:
                            errordef=0.5,
                            name = self._varnames,
                            **kwargs)
-            
+
             fit.migrad()
             fit_result = dict(fit.values)
             if use_hessian:
@@ -456,7 +459,7 @@ class LogLikelihood:
             res = res.position
             res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
             return {**res, **fix}, dict()
-        
+
     def objective_tf(self, x_guess):
         # Fill in the fixed variables / convert to dict
         params = dict(**self._fix)
@@ -471,7 +474,7 @@ class LogLikelihood:
             tf.print(f"Objective at {x_guess} is Nan!")
             ll *= float('inf')
             grad *= float('nan')
-        return ll, grad 
+        return ll, grad
 
     def objective_numpy(self, x_guess):
         ll, grad = self.objective_tf(fd.np_to_tf(x_guess))
