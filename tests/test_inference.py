@@ -287,10 +287,10 @@ def test_bestfit_tf(xes):
     guess['er_rate_multiplier'] = xs[np.argmin(ys)]
     assert len(guess) == 2
 
-    bestfit = lf.bestfit(guess, optimizer=tfp.optimizer.bfgs_minimize, use_hessian=True)
-    assert isinstance(bestfit[0], dict)
-    assert len(bestfit[0]) == 2
-    assert bestfit[0]['er_rate_multiplier'].dtype == np.float32
+    bestfit = lf.bestfit(guess, optimizer='bfgs', use_hessian=True)
+    assert isinstance(bestfit, dict)
+    assert len(bestfit) == 2
+    assert bestfit['er_rate_multiplier'].dtype == np.float32
 
 
 def test_bestfit_minuit(xes):
@@ -311,7 +311,8 @@ def test_bestfit_minuit(xes):
     guess['er_rate_multiplier'] = xs[np.argmin(ys)]
     assert len(guess) == 2
 
-    bestfit = lf.bestfit(guess, optimizer=Minuit.from_array_func, error = (0.0001,1000))
+    bestfit = lf.bestfit(guess, optimizer='minuit',
+                         return_errors=True,
+                         error=(0.0001, 1000))
     assert isinstance(bestfit[0], dict)
     assert len(bestfit[0]) == 2
-    
