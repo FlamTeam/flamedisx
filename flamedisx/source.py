@@ -36,7 +36,7 @@ class SourceBase:
             # However, we still have to check if the new data being set is
             # not less than half the batch size or the padding wont work
             assert self.n_events * 2 >= self.batch_size, ("batch_size "
-                f"{self.batch_size} is too small for {self.n_events} events")
+                f"{self.batch_size} is too large for {self.n_events} events")
         else:
             if batch_size is None or batch_size > self.n_events or _skip_tf_init:
                 batch_size = self.n_events
