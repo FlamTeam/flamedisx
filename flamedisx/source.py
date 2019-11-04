@@ -215,8 +215,6 @@ class Source(SourceBase):
             if k in self.defaults:
                 self.defaults[k] = tf.convert_to_tensor(
                     v, dtype=fd.float_type())
-            else:
-                raise ValueError(f"Key {k} not in defaults")
 
     def set_data(self,
                  data,
