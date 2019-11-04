@@ -93,14 +93,22 @@ class LogLikelihood:
             if sn not in self.sources:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
             param_defaults[sn + '_rate_multiplier'] = 1.
-
+        
+        sources_null_init = {
+            sname: sclass(data=None)
+            for sname, sclass in self.sources.items()}
+        defaults_in_sources = {
+            sname : sclass.defaults
+            for sname, sclass in sources_null_init.items()}
+            
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
             sname: sclass(data=(None
                                 if data[self.d_for_s[sname]] is None
                                 else data[self.d_for_s[sname]].copy()),
                           max_sigma=max_sigma,
-                          fit_params=list(common_param_specs.keys()),
+                          fit_params=list(k for k in common_param_specs.keys() 
+                                          if k in defaults_in_sources[sname].keys()),
                           batch_size=batch_size)
             for sname, sclass in self.sources.items()}
         del data  # use data from sources (which is now annotated)
@@ -131,7 +139,8 @@ class LogLikelihood:
 
         self.mu_itps = {
             sname: s.mu_function(n_trials=n_trials,
-                                 **common_param_specs)
+                                 **{p_name: par for p_name, par in common_param_specs.items()
+                                 if p_name in defaults_in_sources[sname].keys()})
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
