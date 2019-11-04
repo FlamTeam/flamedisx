@@ -185,7 +185,7 @@ class LogLikelihood:
 
         ds = []
         for sname, s in self.sources.items():
-            if self.s.defaults:
+            if s.defaults:
                 rmname = sname + '_rate_multiplier'
                 if rmname in rate_multipliers:
                     rm = rate_multipliers[rmname]
