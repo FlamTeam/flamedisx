@@ -22,6 +22,17 @@ class SourceBase:
     n_padding = None
     trace_difrate = True
 
+    @classmethod
+    def find_defaults(cls):
+        """Discover which functions need which arguments / dimensions
+        Discover possible parameters.
+        Returns f_dims, f_params and defaults.
+
+        Overwritten by Source, SourceBase has no default f_dims,
+        f_params or defaults.
+        """
+        return dict(), dict(), dict()
+
     def _init_padding(self, batch_size, _skip_tf_init):
         # Annotate requests n_events, currently no padding
         self.n_padding = 0
@@ -100,7 +111,7 @@ class ColumnSource(SourceBase):
             self._init_padding(batch_size, _skip_tf_init)
             self.data_tensor = fd.np_to_tf(self.data[self.column])
             self.data_tensor = tf.reshape(self.data_tensor,
-                                          (-1,self.batch_size, 1))
+                                          (-1, self.batch_size, 1))
 
     def differential_rate(self, data_tensor, **params):
         return data_tensor[:, 0]
