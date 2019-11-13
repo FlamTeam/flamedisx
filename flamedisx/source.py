@@ -150,7 +150,7 @@ class Source(SourceBase):
         f_params = {x: [] for x in cls.data_methods}
         defaults = dict()
         for fname in cls.data_methods:
-            f = getattr(self, fname)
+            f = getattr(cls, fname)
             if not callable(f):
                 # Constant
                 continue
