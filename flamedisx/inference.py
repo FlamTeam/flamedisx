@@ -93,21 +93,19 @@ class LogLikelihood:
             if sn not in self.sources:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
             param_defaults[sn + '_rate_multiplier'] = 1.
-        
-        sources_null_init = {
-            sname: sclass(data=None)
-            for sname, sclass in self.sources.items()}
+
+        # Determine default parameters for each source
         defaults_in_sources = {
-            sname : sclass.defaults
-            for sname, sclass in sources_null_init.items()}
-            
+            sname : sclass.find_defaults()[2]
+            for sname, sclass in self.sources.items()}
+
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
             sname: sclass(data=(None
                                 if data[self.d_for_s[sname]] is None
                                 else data[self.d_for_s[sname]].copy()),
                           max_sigma=max_sigma,
-                          fit_params=list(k for k in common_param_specs.keys() 
+                          fit_params=list(k for k in common_param_specs.keys()
                                           if k in defaults_in_sources[sname].keys()),
                           batch_size=batch_size)
             for sname, sclass in self.sources.items()}
