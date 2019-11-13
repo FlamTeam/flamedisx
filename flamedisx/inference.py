@@ -185,6 +185,8 @@ class LogLikelihood:
 
         ds = []
         for sname, s in self.sources.items():
+            # done to ignore ColumnSource.
+            # TODO: remove if when simulate for ColumnSource is implemented
             if s.defaults:
                 rmname = sname + '_rate_multiplier'
                 if rmname in rate_multipliers:
