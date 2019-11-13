@@ -96,7 +96,7 @@ class LogLikelihood:
 
         # Determine default parameters for each source
         defaults_in_sources = {
-            sname : sclass.find_defaults()[2]
+            sname : sclass().find_defaults()[2]
             for sname, sclass in self.sources.items()}
 
         # Create sources. Have to copy data, it's modified by set_data

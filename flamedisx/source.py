@@ -140,7 +140,7 @@ class Source(SourceBase):
     # Initialization and helpers
     ##
 
-    @classmethod
+    #@classmethod
     def find_defaults(cls):
         """Discover which functions need which arguments / dimensions
         Discover possible parameters.
