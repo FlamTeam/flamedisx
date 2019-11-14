@@ -111,7 +111,7 @@ class SR1ERSource(SR1Source,fd.ERSource):
                                 float('inf'))
     @staticmethod
     def s2_acceptance(s2):
-        return tf.where((s2 < 500) | (s2 > 6000),
+        return tf.where((s2 < 100) | (s2 > 6000),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 

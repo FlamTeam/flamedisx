@@ -94,13 +94,19 @@ class LogLikelihood:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
             param_defaults[sn + '_rate_multiplier'] = 1.
 
+        # Determine default parameters for each source
+        defaults_in_sources = {
+            sname : sclass.find_defaults()[2]
+            for sname, sclass in self.sources.items()}
+
         # Create sources. Have to copy data, it's modified by set_data
         self.sources = {
             sname: sclass(data=(None
                                 if data[self.d_for_s[sname]] is None
                                 else data[self.d_for_s[sname]].copy()),
                           max_sigma=max_sigma,
-                          fit_params=list(common_param_specs.keys()),
+                          fit_params=list(k for k in common_param_specs.keys()
+                                          if k in defaults_in_sources[sname].keys()),
                           batch_size=batch_size)
             for sname, sclass in self.sources.items()}
         del data  # use data from sources (which is now annotated)
@@ -131,7 +137,8 @@ class LogLikelihood:
 
         self.mu_itps = {
             sname: s.mu_function(n_trials=n_trials,
-                                 **common_param_specs)
+                                 **{p_name: par for p_name, par in common_param_specs.items()
+                                 if p_name in defaults_in_sources[sname].keys()})
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
@@ -176,24 +183,28 @@ class LogLikelihood:
 
         ds = []
         for sname, s in self.sources.items():
-            rmname = sname + '_rate_multiplier'
-            if rmname in rate_multipliers:
-                rm = rate_multipliers[rmname]
-            else:
-                rm = self._get_rate_mult(sname, params)
+            # done to ignore ColumnSource.
+            # TODO: remove if when simulate for ColumnSource is implemented
+            if s.defaults:
+                rmname = sname + '_rate_multiplier'
+                if rmname in rate_multipliers:
+                    rm = rate_multipliers[rmname]
+                else:
+                  rm = self._get_rate_mult(sname, params)
 
-            # mean number of events to simulate, rate mult times mu source
-            mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
-                                                                       sname))
-            # Simulate this many events from source
-            n_to_sim = np.random.poisson(mu)
-            if n_to_sim == 0:
-                continue
-            d = s.simulate(n_to_sim,
-                           fix_truth=fix_truth,
-                           **params)
-            d['source'] = sname
-            ds.append(d)
+                # mean number of events to simulate, rate mult times mu source
+                mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
+                                                                           sname))
+                # Simulate this many events from source
+                n_to_sim = np.random.poisson(mu)
+                if n_to_sim == 0:
+                    continue
+                d = s.simulate(n_to_sim,
+                               fix_truth=fix_truth,
+                               **self._filter_source_kwargs(params,
+                                                            sname))
+                d['source'] = sname
+                ds.append(d)
         # Concatenate results and shuffle them
         return pd.concat(ds, sort=False).sample(frac=1).reset_index(drop=True)
 

@@ -22,6 +22,17 @@ class SourceBase:
     n_padding = None
     trace_difrate = True
 
+    @classmethod
+    def find_defaults(cls):
+        """Discover which functions need which arguments / dimensions
+        Discover possible parameters.
+        Returns f_dims, f_params and defaults.
+
+        Overwritten by Source, SourceBase has no default f_dims,
+        f_params or defaults.
+        """
+        return dict(), dict(), dict()
+
     def _init_padding(self, batch_size, _skip_tf_init):
         # Annotate requests n_events, currently no padding
         self.n_padding = 0
@@ -100,7 +111,7 @@ class ColumnSource(SourceBase):
             self._init_padding(batch_size, _skip_tf_init)
             self.data_tensor = fd.np_to_tf(self.data[self.column])
             self.data_tensor = tf.reshape(self.data_tensor,
-                                          (-1,self.batch_size, 1))
+                                          (-1, self.batch_size, 1))
 
     def differential_rate(self, data_tensor, **params):
         return data_tensor[:, 0]
@@ -129,6 +140,43 @@ class Source(SourceBase):
     # Initialization and helpers
     ##
 
+    @classmethod
+    def find_defaults(cls):
+        """Discover which functions need which arguments / dimensions
+        Discover possible parameters.
+        Returns f_dims, f_params and defaults.
+        """
+        f_dims = {x: [] for x in cls.data_methods}
+        f_params = {x: [] for x in cls.data_methods}
+        defaults = dict()
+        for fname in cls.data_methods:
+            f = getattr(cls, fname)
+            if not callable(f):
+                # Constant
+                continue
+            seen_special = False
+            for pname, p in inspect.signature(f).parameters.items():
+                if pname == 'self':
+                    continue
+                if pname == 'i_batch':
+                    # This function uses precomputed data
+                    f_dims[fname].append(pname)
+                    continue
+                if p.default is inspect.Parameter.empty:
+                    if fname in cls.special_data_methods and not seen_special:
+                        seen_special = True
+                    else:
+                        # It's an observable dimension
+                        f_dims[fname].append(pname)
+                else:
+                    # It's a parameter that can be fitted
+                    f_params[fname].append(pname)
+                    if (pname in defaults and p.default != defaults[pname]):
+                        raise ValueError(f"Inconsistent defaults for {pname}")
+                    defaults[pname] = tf.convert_to_tensor(
+                        p.default, dtype=fd.float_type())
+        return f_dims, f_params, defaults
+
     def __init__(self,
                  data=None,
                  batch_size=10,
@@ -149,36 +197,11 @@ class Source(SourceBase):
         :param fit_params: List of parameters to fit
         :param params: New defaults to use
         """
-        self.max_sigma = max_sigma
-
         # Discover which functions need which arguments / dimensions
-        # Discover possible parameters
-        self.f_dims = {x: [] for x in self.data_methods}
-        self.f_params = {x: [] for x in self.data_methods}
-        self.defaults = dict()
-        for fname in self.data_methods:
-            f = getattr(self, fname)
-            if not callable(f):
-                # Constant
-                continue
-            for i, (pname, p) in enumerate(
-                    inspect.signature(f).parameters.items()):
-                if pname == 'i_batch':
-                    # This function uses precomputed data
-                    self.f_dims[fname].append(pname)
-                    continue
-                if p.default is inspect.Parameter.empty:
-                    if not (fname in self.special_data_methods and i == 0):
-                        # It's an observable dimension
-                        self.f_dims[fname].append(pname)
-                else:
-                    # It's a parameter that can be fitted
-                    self.f_params[fname].append(pname)
-                    if (pname in self.defaults
-                            and p.default != self.defaults[pname]):
-                        raise ValueError(f"Inconsistent defaults for {pname}")
-                    self.defaults[pname] = tf.convert_to_tensor(
-                        p.default, dtype=fd.float_type())
+        # Discover possible parameters.
+        self.f_dims, self.f_params, self.defaults = self.find_defaults()
+
+        self.max_sigma = max_sigma
 
         self.set_defaults(**params)
 
@@ -215,8 +238,6 @@ class Source(SourceBase):
             if k in self.defaults:
                 self.defaults[k] = tf.convert_to_tensor(
                     v, dtype=fd.float_type())
-            else:
-                raise ValueError(f"Key {k} not in defaults")
 
     def set_data(self,
                  data,
