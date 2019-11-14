@@ -6,7 +6,7 @@ import tensorflow_probability as tfp
 from iminuit import Minuit
 
 import flamedisx as fd
-from flamedisx.inference import DEFAULT_DSETNAME
+from flamedisx.likelihood import DEFAULT_DSETNAME
 
 
 n_events = 2
