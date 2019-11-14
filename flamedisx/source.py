@@ -140,7 +140,7 @@ class Source(SourceBase):
     # Initialization and helpers
     ##
 
-    #@classmethod
+    @classmethod
     def find_defaults(cls):
         """Discover which functions need which arguments / dimensions
         Discover possible parameters.
@@ -154,14 +154,18 @@ class Source(SourceBase):
             if not callable(f):
                 # Constant
                 continue
-            for i, (pname, p) in enumerate(
-                    inspect.signature(f).parameters.items()):
+            seen_special = False
+            for pname, p in inspect.signature(f).parameters.items():
+                if pname == 'self':
+                    continue
                 if pname == 'i_batch':
                     # This function uses precomputed data
                     f_dims[fname].append(pname)
                     continue
                 if p.default is inspect.Parameter.empty:
-                    if not (fname in cls.special_data_methods and i == 0):
+                    if fname in cls.special_data_methods and not seen_special:
+                        seen_special = True
+                    else:
                         # It's an observable dimension
                         f_dims[fname].append(pname)
                 else:
