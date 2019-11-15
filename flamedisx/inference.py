@@ -26,7 +26,7 @@ def bestfit_tf(lf: fd.LogLikelihood,
                get_lowlevel_result=False,
                **kwargs):
     """Minimize the -2lnL using TFP optimization"""
-    objective = make_objective(lf, arg_names=arg_names, fix=fix)
+    f = Objective(lf, arg_names=arg_names, fix=fix)
 
     x_guess = fd.np_to_tf(x_guess)
 
@@ -45,9 +45,9 @@ def bestfit_tf(lf: fd.LogLikelihood,
     # Use the guess log likelihood to normalize;
     if llr_tolerance is not None:
         kwargs.setdefault('f_relative_tolerance',
-                          llr_tolerance/objective(x_guess)[0].numpy())
+                          llr_tolerance/f.fun(x_guess).numpy())
 
-    res = tfp.optimizer.bfgs_minimize(objective, x_guess,
+    res = tfp.optimizer.bfgs_minimize(f, x_guess,
                                       initial_inverse_hessian_estimate=inv_hess,
                                       **kwargs)
     if get_lowlevel_result:
@@ -70,17 +70,14 @@ def bestfit_minuit(lf: fd.LogLikelihood,
                    get_lowlevel_result=False,
                    **kwargs):
     """Minimize the -2lnL using Minuit optimization"""
-    fun, jac = make_objective(lf,
-                              arg_names=arg_names,
-                              fix=fix,
-                              separate_func_grad=True,
-                              numpy_in_out=True)
+    # TODO: memoize kan ook wel voor minuit toch...
+    f = Objective(lf, arg_names, fix, numpy_in_out=True)
 
     for i in range(len(x_guess)):
         # Set initial step sizes of 0.1 * guess
         kwargs.setdefault('error_' + arg_names[i], x_guess[i] * 0.1)
 
-    fit = Minuit.from_array_func(fun, x_guess, grad=jac,
+    fit = Minuit.from_array_func(f.fun, x_guess, grad=f.grad,
                                  errordef=0.5, name=arg_names, **kwargs)
 
     fit.migrad()
@@ -109,16 +106,11 @@ def bestfit_scipy(lf: fd.LogLikelihood,
                   get_lowlevel_result=False,
                   method='TNC', tol=5e-3, **kwargs):
     """Minimize the -2lnL using SciPy optimization"""
-    fun, jac = make_objective(lf,
-                              arg_names,
-                              fix,
-                              separate_func_grad=True,
-                              memoize=True,
-                              numpy_in_out=True)
+    f = Objective(lf, arg_names, fix, memoize=True, numpy_in_out=True)
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
               for n in arg_names]           # TODO: can user give bounds?
-    res = minimize(fun, x_guess,
-                   jac=jac,
+    res = minimize(f.fun, x_guess,
+                   jac=f.grad,
                    method=method,
                    bounds=bounds,
                    tol=tol,
@@ -129,12 +121,12 @@ def bestfit_scipy(lf: fd.LogLikelihood,
     return {**dict(zip(arg_names, res.x)), **fix}
 
 
-def make_objective(lf: fd.LogLikelihood,
-                   arg_names: ty.List[str],
-                   fix: ty.Dict[str, ty.Union[float, tf.constant]],
-                   separate_func_grad=False,
-                   numpy_in_out=False, autograph=True,
-                   nan_val=float('inf'), memoize=False):
+class ObjectiveResult(ty.NamedTuple):
+    fun: ty.Union[np.ndarray, tf.Tensor]
+    grad: ty.Union[np.ndarray, tf.Tensor]
+
+
+class Objective:
     """Construct the function that is minimized by the optimizer.
     That function should take one argument x_guess that is a list of values
     each belonging to the parameters being varied.
@@ -144,64 +136,80 @@ def make_objective(lf: fd.LogLikelihood,
     minimizer
     :param fix: Dict of parameter names and value which are kept fixed (and
     whose gradients are omitted)
-    :param separate_func_grad: If True returns two objective functions for
-    the likelihood and gradient respectively, otherwise return one objective
-    function, default False.
     :param numpy_in_out: Converts inputs to tensors and outputs to numpy arrays
     if True, default False
     :param autograph: Use tf.function inside likelihood, default True
     :param nan_val: Value to use if likelihood evaluates to NaN
-    :param memoize_dict: Dict which stores calls to objective. Useful
-    in combination with separate_func_grad=True
-
-    Returns function that evaluates the likelihood at x_guess and returns the
-    likelihood and gradient (or two functions for likelihood and gradient
-    separately if separate_func_grad=True)
+    :param memoize: Whether to cache values during minimization. Useful
+    in combination with separate_func_grad=True...
     """
-    if memoize:
-        memoize_dict = dict()
+    _cache: dict
 
-    def objective(x_guess):
-        if memoize:
-            memkey = tuple(x_guess)
-            if memkey in memoize_dict:
-                return memoize_dict[memkey]
-        if numpy_in_out:
-            x_guess = fd.np_to_tf(x_guess)
+    def __init__(self,
+                 lf: fd.LogLikelihood,
+                 arg_names: ty.List[str],
+                 fix: ty.Dict[str, ty.Union[float, tf.constant]],
+                 numpy_in_out=False,
+                 autograph=True,
+                 nan_val=float('inf'),
+                 memoize=False):
+        self.lf = lf
+        self.arg_names = arg_names
+        self.fix = fix
+        self.numpy_in_out = numpy_in_out
+        self.autograph = autograph
+        self.nan_val = nan_val
+        self.memoize = memoize
+        self._cache = dict()
 
-        assert len(arg_names) == len(x_guess)
+    def __call__(self, x):
+        """Return (objective, gradient)"""
+        if self.memoize:
+            assert self.numpy_in_out, "Fix memoization for tensorflow..."
+            memkey = tuple(x)
+            if memkey in self._cache:
+                return self._cache[memkey]
+
+        if self.numpy_in_out:
+            x = fd.np_to_tf(x)
+
+        assert len(self.arg_names) == len(x)
         # Build parameter dict, pair arg_names with x_guess values and add
         # fixed pars
-        params = {**{arg_names[i]: x_guess[i] for i in range(len(x_guess))},
-                  **fix}
+        params = {**{self.arg_names[i]: x[i]
+                     for i in range(len(x))},
+                  **self.fix}
 
         # Get -2lnL and its gradient
-        ll, grad = lf.minus_ll(**params,
-                               autograph=autograph,
-                               omit_grads=tuple(fix.keys()))
+        ll, grad = self.lf.minus_ll(
+            **params,
+            autograph=self.autograph,
+            omit_grads=tuple(self.fix.keys()))
+
         # Check NaNs
         if tf.math.is_nan(ll):
-            tf.print(f"Objective at {x_guess} is Nan!")
-            ll = tf.constant(nan_val, dtype=tf.float32)
+            tf.print(f"Objective at {x} is Nan!")
+            ll = tf.constant(self.nan_val, dtype=tf.float32)
 
-        if numpy_in_out:
-            if memoize:
-                memoize_dict[memkey] = (ll.numpy(), grad.numpy())
-            return ll.numpy(), grad.numpy()
-        if memoize:
-            memoize_dict[memkey] = (ll, grad)
-        return ll, grad
+        if self.numpy_in_out:
+            ll = ll.numpy()
+            grad = grad.numpy()
+        result = ObjectiveResult(fun=ll, grad=grad)
+        if self.memoize:
+            self._cache[memkey] = result
+        return result
 
-    if not separate_func_grad:
-        return objective
+    def fun_and_grad(self, x):
+        r = self(x)
+        return r.fun, r.grad
 
-    def fun(x_guess):
-        return objective(x_guess)[0]
+    def fun(self, x):
+        """Return only objective"""
+        return self(x).fun
 
-    def jac(x_guess):
-        return objective(x_guess)[1]
-
-    return fun, jac
+    def grad(self, x):
+        """Return only gradient"""
+        return self(x).grad
 
 ##
 # Interval estimation
@@ -222,21 +230,17 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
     x_guess = np.array([guess[k] for k in arg_names])
 
     # Construct t-stat objective + grad, get regular objective first
-    objective = make_objective(lf, arg_names,
-                               fix=dict(),
-                               numpy_in_out=True,
-                               # Cache repeated calls in entire inference
-                               memoize=True)
+    f = Objective(lf=lf, arg_names=arg_names, fix=dict(),
+                  numpy_in_out=True, memoize=True)
     # Wrap in new func minimizing:
     # (2 (lnL max - lnL s) - critical_value) ** 2
     def t_fun(x):
-        return (objective(x)[0] - ll_best - t_ppf(x, critical_quantile)) ** 2
+        return (f(x).fun - ll_best - t_ppf(x, critical_quantile)) ** 2
 
     def t_grad(x):
-        # original function and gradient f(x), df/dx
-        f, grad = objective(x)
+        r = f(x)
         # t_fun is g=f(x)**2 - const, so dg/dx = 2*f(x)*df/dx
-        return 2 * f * grad
+        return 2 * r.fun * r.grad
 
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
               for n in arg_names]
