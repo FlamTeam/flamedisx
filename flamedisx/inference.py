@@ -106,7 +106,7 @@ def bestfit_scipy(lf: fd.LogLikelihood,
                   x_guess: np.array,
                   fix: ty.Dict[str, float],
                   get_lowlevel_result=False,
-                  method='TNC', tol=5e3, **kwargs):
+                  method='TNC', tol=5e-3, **kwargs):
     """Minimize the -2lnL using SciPy optimization"""
     precomp = dict()
 
@@ -210,5 +210,41 @@ def make_objective(lf: fd.LogLikelihood,
 ##
 
 @export
-def one_parameter_interval(lf: fd.LogLikelihood):
-    pass
+def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
+                           bound: ty.Tuple[float, float],
+                           guess: ty.Dict[str, float],
+                           t_ppf: ty.Callable[[float, float], float],
+                           ll_best: float,
+                           critical_quantile: float):
+    """Compute upper/lower/central interval on parameter at confidence level"""
+
+    #TODO add possible fixed parameters
+    arg_names = lf.param_names
+    x_guess = np.array([guess[k] for k in arg_names])
+
+    # Cache repeated calls to objective
+    precomp = dict()
+    # Construct t-stat objective + grad, get regular objective first
+    objective = make_objective(lf, arg_names, fix=dict(),
+                               numpy_in_out=True, memoize_dict=precomp)
+    # Wrap in new func minimizing:
+    # (2 (lnL max - lnL s) - critical_value) ** 2
+    def t_fun(x):
+        return (objective(x)[0] - ll_best - t_ppf(x, critical_quantile)) ** 2
+
+    def t_grad(x):
+        # original function and gradient f(x), df/dx
+        f, grad = objective(x)
+        # t_fun is g=f(x)**2 - const, so dg/dx = 2*f(x)*df/dx
+        return 2 * f * grad
+
+    bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
+              for n in arg_names]
+    bounds[arg_names.index(parameter)] = bound
+    res = minimize(t_fun, x_guess,
+                   jac=t_grad,
+                   method='TNC',
+                   bounds=bounds,
+                   tol=1e-5)
+
+    return res.x[arg_names.index(parameter)]

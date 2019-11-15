@@ -4,7 +4,7 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 import typing as ty
-from iminuit import Minuit
+from scipy import stats
 
 
 export, __all__ = fd.exporter()
@@ -440,6 +440,60 @@ class LogLikelihood:
                                     **kwargs)
 
         raise ValueError(f"Unsupported optimizer {optimizer}")
+
+    def one_parameter_interval(self, parameter, guess, confidence_level=0.9,
+                               kind='upper', t_ppf=None):
+        """Compute upper/lowel/central interval of parameter at confidence
+        level assuming Wilk's theorem if t_ppf=None. Use critical value
+        curve t_ppf for non-asymptotic case.
+
+        :param parameter: string, the parameter to set the interval on
+        :param guess: dictionary of parameter, value pairs for the minimizer
+        :param confidence_level: The confidence level of the method
+        :param kind: 'upper', 'lower' or 'central' type of limit/interval
+        :param t_ppf: returns critical value as function of parameter
+
+        Return limit if kind='upper' or 'lower', returns interval if 'central'
+        """
+        # Determine global bestfit and global minimum -2lnL
+        x_best = self.bestfit(guess, optimizer='scipy')
+        # TODO, we can avoid this call and have bestfit return ll_best
+        ll_best = self.minus_ll(**x_best)[0]
+
+        if t_ppf is None:
+            def t_ppf(x, crit_quant):
+                """Return critical value given parameter value and critical
+                quantile.
+                Asymptotic case using Wilk's theorem."""
+                return stats.norm.ppf(crit_quant) ** 2
+
+        if kind == 'upper':
+            bound = (x_best[parameter], None)
+            q = confidence_level
+            return fd.one_parameter_interval(self, parameter, bound,
+                                             guess, t_ppf, ll_best,
+                                             critical_quantile=q)
+        elif kind == 'lower':
+            bound = (None, x_best[parameter])
+            q = 1 - confidence_level
+            return fd.one_parameter_interval(self, parameter, bound,
+                                             guess, t_ppf, ll_best,
+                                             critical_quantile=q)
+        elif kind == 'central':
+            bound = (None, x_best[parameter])
+            q = (1 - confidence_level) / 2
+            low = fd.one_parameter_interval(self, parameter, bound,
+                                            guess, t_ppf, ll_best,
+                                            critical_quantile=q)
+
+            bound = (x_best[parameter], None)
+            q = 1 - (1 - confidence_level) / 2
+            high = fd.one_parameter_interval(self, parameter, bound,
+                                             guess, t_ppf, ll_best,
+                                             critical_quantile=q)
+            return low, high
+        else:
+            raise ValueError(f"kind must be upper/lower/central but is {kind}")
 
     def inverse_hessian(self, params, omit_grads=tuple()):
         """Return inverse hessian (square tensor)
