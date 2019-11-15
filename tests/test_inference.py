@@ -60,6 +60,12 @@ def test_one_parameter_interval(xes):
     assert (ll <= bestfit['er_rate_multiplier']
             and ul >= bestfit['er_rate_multiplier'])
 
+    # Test fixed parameter
+    fix = dict(elife=bestfit['elife'])
+
+    ul = lf.one_parameter_interval('er_rate_multiplier', guess, fix=fix,
+                                   confidence_level=0.9, kind='upper')
+
 
 def test_bestfit_tf(xes):
     # Test bestfit (including hessian)
