@@ -100,6 +100,7 @@ def bestfit_minuit(lf: fd.LogLikelihood,
         return fit_result, fit_errors
     return fit_result
 
+
 @export
 def bestfit_scipy(lf: fd.LogLikelihood,
                   arg_names: ty.List[str],
@@ -108,16 +109,14 @@ def bestfit_scipy(lf: fd.LogLikelihood,
                   get_lowlevel_result=False,
                   method='TNC', tol=5e-3, **kwargs):
     """Minimize the -2lnL using SciPy optimization"""
-    precomp = dict()
-
     fun, jac = make_objective(lf,
                               arg_names,
                               fix,
                               separate_func_grad=True,
-                              memoize_dict=precomp,
+                              memoize=True,
                               numpy_in_out=True)
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
-              for n in arg_names]
+              for n in arg_names]           # TODO: can user give bounds?
     res = minimize(fun, x_guess,
                    jac=jac,
                    method=method,
@@ -129,12 +128,13 @@ def bestfit_scipy(lf: fd.LogLikelihood,
 
     return {**dict(zip(arg_names, res.x)), **fix}
 
+
 def make_objective(lf: fd.LogLikelihood,
                    arg_names: ty.List[str],
                    fix: ty.Dict[str, ty.Union[float, tf.constant]],
                    separate_func_grad=False,
                    numpy_in_out=False, autograph=True,
-                   nan_val=float('inf'), memoize_dict=None):
+                   nan_val=float('inf'), memoize=False):
     """Construct the function that is minimized by the optimizer.
     That function should take one argument x_guess that is a list of values
     each belonging to the parameters being varied.
@@ -158,10 +158,8 @@ def make_objective(lf: fd.LogLikelihood,
     likelihood and gradient (or two functions for likelihood and gradient
     separately if separate_func_grad=True)
     """
-    if isinstance(memoize_dict, dict):
-        memoize=True
-    else:
-        memoize=False
+    if memoize:
+        memoize_dict = dict()
 
     def objective(x_guess):
         if memoize:
@@ -217,16 +215,18 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
                            ll_best: float,
                            critical_quantile: float):
     """Compute upper/lower/central interval on parameter at confidence level"""
+    # TODO: try with other minimizers
 
     #TODO add possible fixed parameters
     arg_names = lf.param_names
     x_guess = np.array([guess[k] for k in arg_names])
 
-    # Cache repeated calls to objective
-    precomp = dict()
     # Construct t-stat objective + grad, get regular objective first
-    objective = make_objective(lf, arg_names, fix=dict(),
-                               numpy_in_out=True, memoize_dict=precomp)
+    objective = make_objective(lf, arg_names,
+                               fix=dict(),
+                               numpy_in_out=True,
+                               # Cache repeated calls in entire inference
+                               memoize=True)
     # Wrap in new func minimizing:
     # (2 (lnL max - lnL s) - critical_value) ** 2
     def t_fun(x):
