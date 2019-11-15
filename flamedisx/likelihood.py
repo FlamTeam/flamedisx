@@ -442,7 +442,7 @@ class LogLikelihood:
         raise ValueError(f"Unsupported optimizer {optimizer}")
 
     def one_parameter_interval(self, parameter, guess, confidence_level=0.9,
-                               kind='upper', t_ppf=None):
+                               kind='upper', t_ppf=None, t_ppf_grad=None):
         """Compute upper/lowel/central interval of parameter at confidence
         level assuming Wilk's theorem if t_ppf=None. Use critical value
         curve t_ppf for non-asymptotic case.
@@ -460,37 +460,33 @@ class LogLikelihood:
         # TODO, we can avoid this call and have bestfit return ll_best
         ll_best = self.minus_ll(**x_best)[0]
 
-        if t_ppf is None:
-            def t_ppf(x, crit_quant):
-                """Return critical value given parameter value and critical
-                quantile.
-                Asymptotic case using Wilk's theorem."""
-                return stats.norm.ppf(crit_quant) ** 2
-
         if kind == 'upper':
             bound = (x_best[parameter], None)
             q = confidence_level
             return fd.one_parameter_interval(self, parameter, bound,
-                                             guess, t_ppf, ll_best,
-                                             critical_quantile=q)
+                                             guess, ll_best, critical_quantile=q,
+                                             t_ppf=t_ppf, t_ppf_grad=t_ppf_grad)
         elif kind == 'lower':
             bound = (None, x_best[parameter])
             q = 1 - confidence_level
             return fd.one_parameter_interval(self, parameter, bound,
-                                             guess, t_ppf, ll_best,
-                                             critical_quantile=q)
+                                             guess, ll_best,
+                                             critical_quantile=q,
+                                             t_ppf=t_ppf, t_ppf_grad=t_ppf_grad)
         elif kind == 'central':
             bound = (None, x_best[parameter])
             q = (1 - confidence_level) / 2
             low = fd.one_parameter_interval(self, parameter, bound,
-                                            guess, t_ppf, ll_best,
-                                            critical_quantile=q)
+                                            guess, ll_best,
+                                            critical_quantile=q,
+                                            t_ppf=t_ppf, t_ppf_grad=t_ppf_grad)
 
             bound = (x_best[parameter], None)
             q = 1 - (1 - confidence_level) / 2
             high = fd.one_parameter_interval(self, parameter, bound,
-                                             guess, t_ppf, ll_best,
-                                             critical_quantile=q)
+                                             guess, ll_best,
+                                             critical_quantile=q,
+                                             t_ppf=t_ppf, t_ppf_grad=t_ppf_grad)
             return low, high
         else:
             raise ValueError(f"kind must be upper/lower/central but is {kind}")

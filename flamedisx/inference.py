@@ -1,9 +1,9 @@
 import flamedisx as fd
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 import typing as ty
+from scipy import stats
 from scipy.optimize import minimize
 from iminuit import Minuit
 
@@ -47,7 +47,7 @@ def bestfit_tf(lf: fd.LogLikelihood,
         kwargs.setdefault('f_relative_tolerance',
                           llr_tolerance/f.fun(x_guess).numpy())
 
-    res = tfp.optimizer.bfgs_minimize(f, x_guess,
+    res = tfp.optimizer.bfgs_minimize(f.fun_and_grad, x_guess,
                                       initial_inverse_hessian_estimate=inv_hess,
                                       **kwargs)
     if get_lowlevel_result:
@@ -58,6 +58,7 @@ def bestfit_tf(lf: fd.LogLikelihood,
     res = res.position
     res = {k: res[i].numpy() for i, k in enumerate(arg_names)}
     return {**res, **fix}
+
 
 @export
 def bestfit_minuit(lf: fd.LogLikelihood,
@@ -180,11 +181,7 @@ class Objective:
                      for i in range(len(x))},
                   **self.fix}
 
-        # Get -2lnL and its gradient
-        ll, grad = self.lf.minus_ll(
-            **params,
-            autograph=self.autograph,
-            omit_grads=tuple(self.fix.keys()))
+        ll, grad = self._inner_fun_and_grad(params)
 
         # Check NaNs
         if tf.math.is_nan(ll):
@@ -198,6 +195,13 @@ class Objective:
         if self.memoize:
             self._cache[memkey] = result
         return result
+
+    def _inner_fun_and_grad(self, params):
+        # Get -2lnL and its gradient
+        return self.lf.minus_ll(
+            **params,
+            autograph=self.autograph,
+            omit_grads=tuple(self.fix.keys()))
 
     def fun_and_grad(self, x):
         r = self(x)
@@ -215,13 +219,49 @@ class Objective:
 # Interval estimation
 ##
 
+class IntervalObjective(Objective):
+
+    def __init__(self, ll_best, critical_quantile, target_parameter,
+                 *args, t_ppf=None, t_ppf_grad=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if t_ppf:
+            assert self.t_ppf_grad is not None
+            self.t_ppf = t_ppf
+            self.t_ppf_grad = t_ppf_grad
+
+        self.critical_quantile = critical_quantile
+        self.ll_best = ll_best
+        self.target_parameter = target_parameter
+
+    def t_ppf(self, target_param_value):
+        """Return critical value given parameter value and critical
+        quantile.
+        Asymptotic case using Wilk's theorem, does not depend
+        on the value of the target parameter."""
+        return stats.norm.ppf(self.critical_quantile) ** 2
+
+    def t_ppf_grad(self, target_param_value):
+        """Return derivative of t_ppf wrt target_param_value"""
+        return 0
+
+    def _inner_fun_and_grad(self, params):
+        fun, grad = super()._inner_fun_and_grad(params)
+        ll_ratio = fun - self.ll_best
+        x = params[self.target_parameter]
+        crit = self.t_ppf(x)
+        diff = ll_ratio - crit
+        return (diff ** 2,
+                2 * diff * (grad - self.t_ppf_grad(x)))
+
+type()
+
 @export
 def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
                            bound: ty.Tuple[float, float],
                            guess: ty.Dict[str, float],
-                           t_ppf: ty.Callable[[float, float], float],
                            ll_best: float,
-                           critical_quantile: float):
+                           critical_quantile: float,
+                           t_ppf=None, t_ppf_grad=None):
     """Compute upper/lower/central interval on parameter at confidence level"""
     # TODO: try with other minimizers
 
@@ -230,23 +270,17 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
     x_guess = np.array([guess[k] for k in arg_names])
 
     # Construct t-stat objective + grad, get regular objective first
-    f = Objective(lf=lf, arg_names=arg_names, fix=dict(),
-                  numpy_in_out=True, memoize=True)
-    # Wrap in new func minimizing:
-    # (2 (lnL max - lnL s) - critical_value) ** 2
-    def t_fun(x):
-        return (f(x).fun - ll_best - t_ppf(x, critical_quantile)) ** 2
-
-    def t_grad(x):
-        r = f(x)
-        # t_fun is g=f(x)**2 - const, so dg/dx = 2*f(x)*df/dx
-        return 2 * r.fun * r.grad
+    f = IntervalObjective(lf=lf, arg_names=arg_names, fix=dict(),
+                          ll_best=ll_best, target_parameter=parameter,
+                          t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
+                          critical_quantile=critical_quantile,
+                          numpy_in_out=True, memoize=True)
 
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
               for n in arg_names]
     bounds[arg_names.index(parameter)] = bound
-    res = minimize(t_fun, x_guess,
-                   jac=t_grad,
+    res = minimize(f.fun, x_guess,
+                   jac=f.grad,
                    method='TNC',
                    bounds=bounds,
                    tol=1e-5)
