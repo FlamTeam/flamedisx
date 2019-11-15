@@ -110,8 +110,10 @@ class ScipyObjective(Objective):
     numpy_in_out = True
     memoize = True
 
-    def minimize(self, x_guess, get_lowlevel_result=False, **kwargs):
-        kwargs.setdefault('tol', 5e-3)
+    def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=False,
+                 llr_tolerance=5e-3, **kwargs):
+        #TODO implement optimizer methods the use hessian
+        kwargs.setdefault('tol', llr_tolerance)
         kwargs.setdefault('method', 'TNC')
 
         bounds = [(1e-9, None) if n.endswith('_rate_multiplier')
@@ -166,7 +168,8 @@ class MinuitObjective(Objective):
     memoize = True
 
     def minimize(self, x_guess, use_hessian=True, get_lowlevel_result=False,
-                 **kwargs):
+                 llr_tolerance=None, **kwargs):
+        # TODO llr_tolerance
         for i in range(len(x_guess)):
             # Set initial step sizes of 0.1 * guess
             kwargs.setdefault('error_' + self.arg_names[i], x_guess[i] * 0.1)
@@ -184,52 +187,19 @@ class MinuitObjective(Objective):
         return fit.fitarg
 
 
+OBJECTIVES = dict(tfp=TensorFlowObjective,
+                  minuit=MinuitObjective,
+                  scipy=ScipyObjective)
+
 ##
 # Bestfit functions
 ##
 
 @export
-def bestfit(lf: fd.LogLikelihood,
-            arg_names: ty.List[str],
-            x_guess: ty.Union[ty.List[float], np.array],
-            fix: ty.Dict[str, float],
-            optimizer: ty.Union['tfp', 'minuit', 'scipy'],
-            use_hessian: bool=True,
-            get_lowlevel_result: bool=False,
-            llr_tolerance=0.1,
-            return_errors=False,
-            autograph=True,
-            nan_val=float('inf'),
-            **kwargs):
-    """Minimize -2lnL using optimizer"""
-    if optimizer == 'scipy':
-        # Pass hessian to scipy
-        obj = ScipyObjective(lf, arg_names=arg_names, fix=fix,
-                             autograph=autograph, nan_val=nan_val)
-        return obj.minimize(x_guess,
-                            get_lowlevel_result=get_lowlevel_result, **kwargs)
-    elif optimizer == 'tfp':
-        obj = TensorFlowObjective(lf, arg_names=arg_names, fix=fix,
-                                  autograph=autograph, nan_val=nan_val)
-        return obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result,
-                            use_hessian=use_hessian,
-                            llr_tolerance=llr_tolerance, **kwargs)
-    elif optimizer == 'minuit':
-        # TODO: memoize kan ook wel voor minuit toch...
-        obj = MinuitObjective(lf, arg_names=arg_names, fix=fix,
-                              autograph=autograph, nan_val=nan_val)
-        res = obj.minimize(x_guess, use_hessian=use_hessian,
-                        get_lowlevel_result=get_lowlevel_result, **kwargs)
-        # Return tuple (vals, errors) why?
-        if return_errors:
-            # split res in two dicts
-            names = list(arg_names) + list(fix.keys())
-            return ({k: v for k, v in res.items() if k in names},
-                    {k: v for k, v in res.items() if k.startswith('error_')})
-        else:
-            return res
-    else:
-        raise ValueError(f"Optimizer {optimizer} not implemented")
+def get_bestfit_objective(optimizer):
+    if optimizer not in OBJECTIVES:
+        raise ValueError(f"Optimizer {optimizer} not supported")
+    return OBJECTIVES[optimizer]
 
 ##
 # Interval estimation
@@ -279,6 +249,15 @@ class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
 
 class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
+
+INTERVALOBJECTIVES = dict(tfp=TensorFlowIntervalObjective,
+                          minuit=MinuitIntervalObjective,
+                          scipy=ScipyIntervalObjective)
+
+def get_interval_objective(optimizer):
+    if optimizer not in INTERVALOBJECTIVES:
+        raise ValueError(f"Optimizer {optimizer} not supported")
+    return INTERVALOBJECTIVES[optimizer]
 
 
 @export

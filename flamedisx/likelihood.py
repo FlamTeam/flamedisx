@@ -387,6 +387,7 @@ class LogLikelihood:
                 use_hessian=True,
                 return_errors=False,
                 autograph=True,
+                nan_val=float('inf'),
                 **kwargs):
         """Return best-fit parameter dict
 
@@ -421,17 +422,20 @@ class LogLikelihood:
         # Build x_guess list
         x_guess = np.array([guess[k] for k in arg_names])
 
-        return fd.bestfit(lf=self,
-                          arg_names=arg_names,
-                          x_guess=x_guess,
-                          fix=fix,
-                          optimizer=optimizer,
-                          use_hessian=use_hessian,
-                          get_lowlevel_result=get_lowlevel_result,
-                          llr_tolerance=llr_tolerance,
-                          return_errors=return_errors,
-                          autograph=autograph,
-                          **kwargs)
+        Optimizer = fd.get_bestfit_objective(optimizer)
+        obj = Optimizer(lf=self, arg_names=arg_names, fix=fix,
+                        autograph=autograph, nan_val=nan_val)
+        res = obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result,
+                           use_hessian=use_hessian,
+                           llr_tolerance=llr_tolerance, **kwargs)
+
+        if optimizer == 'minuit' and return_errors:
+            # Return tuple (vals, errors) why keep this?
+            # split res in two dicts
+            names = list(arg_names) + list(fix.keys())
+            return ({k: v for k, v in res.items() if k in names},
+                    {k: v for k, v in res.items() if k.startswith('error_')})
+        return res
 
     def one_parameter_interval(self, parameter, guess, fix=None,
                                confidence_level=0.9, kind='upper', t_ppf=None,
