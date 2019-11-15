@@ -34,8 +34,7 @@ class Objective:
     if True, default False
     :param autograph: Use tf.function inside likelihood, default True
     :param nan_val: Value to use if likelihood evaluates to NaN
-    :param memoize: Whether to cache values during minimization. Useful
-    in combination with separate_func_grad=True...
+    :param memoize: Whether to cache values during minimization.
     """
     _cache: dict
     numpy_in_out = False
@@ -202,7 +201,7 @@ def bestfit(lf: fd.LogLikelihood,
             autograph=True,
             nan_val=float('inf'),
             **kwargs):
-    """Minimize the -2lnL using SciPy optimization"""
+    """Minimize -2lnL using optimizer"""
     if optimizer == 'scipy':
         # Pass hessian to scipy
         obj = ScipyObjective(lf, arg_names=arg_names, fix=fix,
@@ -272,6 +271,15 @@ class IntervalObjective(Objective):
         return (diff ** 2,
                 2 * diff * (grad - self.t_ppf_grad(x)))
 
+class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
+    """IntervalObjective using TensorFlow optimizer"""
+
+class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
+    """IntervalObjective using Minuit optimizer"""
+
+class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
+    """IntervalObjective using Scipy optimizer"""
+
 
 @export
 def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
@@ -279,21 +287,30 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
                            guess: ty.Dict[str, float],
                            ll_best: float,
                            critical_quantile: float,
+                           optimizer: ty.Union['tfp', 'minuit', 'scipy'],
                            fix: ty.Dict[str, float]=None,
                            t_ppf=None, t_ppf_grad=None):
     """Compute upper/lower/central interval on parameter at confidence level"""
-    # TODO: try with other minimizers
 
     if fix is None:
         fix = dict()
     arg_names = [k for k in lf.param_names if k not in fix]
     x_guess = np.array([guess[k] for k in arg_names])
 
-    # Construct t-stat objective + grad, get regular objective first
-    f = IntervalObjective(lf=lf, arg_names=arg_names, fix=fix,
-                          ll_best=ll_best, target_parameter=parameter,
-                          t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
-                          critical_quantile=critical_quantile)
+    if optimizer == 'tfp':
+        interval_objective = TensorFlowIntervalObjective
+    elif optimizer == 'minuit':
+        interval_objective = MinuitIntervalObjective
+    elif optimizer == 'scipy':
+        interval_objective = ScipyIntervalObjective
+    else:
+        raise ValueError(f"Optimizer {optimizer} not implemented")
+
+    # Construct t-stat objective + grad
+    f = interval_objective(lf=lf, arg_names=arg_names, fix=fix,
+                           ll_best=ll_best, target_parameter=parameter,
+                           t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
+                           critical_quantile=critical_quantile)
 
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
               for n in arg_names]

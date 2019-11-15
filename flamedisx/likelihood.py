@@ -435,7 +435,7 @@ class LogLikelihood:
 
     def one_parameter_interval(self, parameter, guess, fix=None,
                                confidence_level=0.9, kind='upper', t_ppf=None,
-                               t_ppf_grad=None):
+                               t_ppf_grad=None, optimizer='scipy'):
         """Compute upper/lowel/central interval of parameter at confidence
         level assuming Wilk's theorem if t_ppf=None. Use critical value
         curve t_ppf for non-asymptotic case.
@@ -449,7 +449,7 @@ class LogLikelihood:
         Return limit if kind='upper' or 'lower', returns interval if 'central'
         """
         # Determine global bestfit and global minimum -2lnL
-        x_best = self.bestfit(guess, fix=fix, optimizer='scipy')
+        x_best = self.bestfit(guess, fix=fix, optimizer=optimizer)
         # TODO, we can avoid this call and have bestfit return ll_best
         ll_best = self.minus_ll(**x_best)[0]
 
@@ -458,6 +458,7 @@ class LogLikelihood:
             q = confidence_level
             return fd.one_parameter_interval(self, parameter, bound, guess,
                                              ll_best, critical_quantile=q,
+                                             optimizer=optimizer,
                                              fix=fix, t_ppf=t_ppf,
                                              t_ppf_grad=t_ppf_grad)
         elif kind == 'lower':
@@ -465,6 +466,7 @@ class LogLikelihood:
             q = 1 - confidence_level
             return fd.one_parameter_interval(self, parameter, bound, guess,
                                              ll_best, critical_quantile=q,
+                                             optimizer=optimizer,
                                              fix=fix, t_ppf=t_ppf,
                                              t_ppf_grad=t_ppf_grad)
         elif kind == 'central':
@@ -472,6 +474,7 @@ class LogLikelihood:
             q = (1 - confidence_level) / 2
             low = fd.one_parameter_interval(self, parameter, bound, guess,
                                             ll_best, critical_quantile=q,
+                                             optimizer=optimizer,
                                             fix=fix, t_ppf=t_ppf,
                                             t_ppf_grad=t_ppf_grad)
 
@@ -479,6 +482,7 @@ class LogLikelihood:
             q = 1 - (1 - confidence_level) / 2
             high = fd.one_parameter_interval(self, parameter, bound, guess,
                                              ll_best, critical_quantile=q,
+                                             optimizer=optimizer,
                                              fix=fix, t_ppf=t_ppf,
                                              t_ppf_grad=t_ppf_grad)
             return low, high
