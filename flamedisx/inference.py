@@ -275,29 +275,17 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
         fix = dict()
     arg_names = [k for k in lf.param_names if k not in fix]
     x_guess = np.array([guess[k] for k in arg_names])
-
-    if optimizer == 'tfp':
-        interval_objective = TensorFlowIntervalObjective
-    elif optimizer == 'minuit':
-        interval_objective = MinuitIntervalObjective
-    elif optimizer == 'scipy':
-        interval_objective = ScipyIntervalObjective
-    else:
-        raise ValueError(f"Optimizer {optimizer} not implemented")
-
-    # Construct t-stat objective + grad
-    f = interval_objective(lf=lf, arg_names=arg_names, fix=fix,
-                           ll_best=ll_best, target_parameter=parameter,
-                           t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
-                           critical_quantile=critical_quantile)
-
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
               for n in arg_names]
     bounds[arg_names.index(parameter)] = bound
-    res = scipy.optimize.minimize(f.fun, x_guess,
-                                  jac=f.grad,
-                                  method='TNC',
-                                  bounds=bounds,
-                                  tol=1e-5)
 
-    return res.x[arg_names.index(parameter)]
+    Optimizer = get_interval_objective(optimizer)
+
+    # Construct t-stat objective + grad
+    obj = Optimizer(lf=lf, arg_names=arg_names, fix=fix, ll_best=ll_best,
+                    target_parameter=parameter, t_ppf=t_ppf,
+                    t_ppf_grad=t_ppf_grad, critical_quantile=critical_quantile)
+    res = obj.minimize(x_guess, use_hessian=False, get_lowlevel_result=False,
+                       bounds=bounds)
+
+    return res[parameter]

@@ -457,41 +457,30 @@ class LogLikelihood:
         # TODO, we can avoid this call and have bestfit return ll_best
         ll_best = self.minus_ll(**x_best)[0]
 
+        # Set (bound, critical_quantile) for the desired kind of limit
         if kind == 'upper':
-            bound = (x_best[parameter], None)
-            q = confidence_level
-            return fd.one_parameter_interval(self, parameter, bound, guess,
-                                             ll_best, critical_quantile=q,
-                                             optimizer=optimizer,
-                                             fix=fix, t_ppf=t_ppf,
-                                             t_ppf_grad=t_ppf_grad)
+            limits = [((x_best[parameter], None),  # UL bound
+                       confidence_level)]          # UL critical quantile
         elif kind == 'lower':
-            bound = (None, x_best[parameter])
-            q = 1 - confidence_level
-            return fd.one_parameter_interval(self, parameter, bound, guess,
-                                             ll_best, critical_quantile=q,
-                                             optimizer=optimizer,
-                                             fix=fix, t_ppf=t_ppf,
-                                             t_ppf_grad=t_ppf_grad)
+            limits = [((None, x_best[parameter]),  # LL bound
+                       1 - confidence_level)]      # LL critical quantile
         elif kind == 'central':
-            bound = (None, x_best[parameter])
-            q = (1 - confidence_level) / 2
-            low = fd.one_parameter_interval(self, parameter, bound, guess,
-                                            ll_best, critical_quantile=q,
-                                             optimizer=optimizer,
-                                            fix=fix, t_ppf=t_ppf,
-                                            t_ppf_grad=t_ppf_grad)
-
-            bound = (x_best[parameter], None)
-            q = 1 - (1 - confidence_level) / 2
-            high = fd.one_parameter_interval(self, parameter, bound, guess,
-                                             ll_best, critical_quantile=q,
-                                             optimizer=optimizer,
-                                             fix=fix, t_ppf=t_ppf,
-                                             t_ppf_grad=t_ppf_grad)
-            return low, high
+            limits = [((None, x_best[parameter]),        # LL bound
+                       (1 - confidence_level) / 2),      # LL critical quantile
+                      ((x_best[parameter], None),        # UL bound
+                       1 - (1 - confidence_level) / 2)]  # UL critical quantile
         else:
             raise ValueError(f"kind must be upper/lower/central but is {kind}")
+
+        res = [fd.one_parameter_interval(self, parameter, bound, guess,
+                                         ll_best, critical_quantile=q,
+                                         optimizer=optimizer, fix=fix,
+                                         t_ppf=t_ppf, t_ppf_grad=t_ppf_grad)
+               for bound, q in limits]
+
+        if len(res) == 1:
+            return res[0]
+        return res
 
     def inverse_hessian(self, params, omit_grads=tuple()):
         """Return inverse hessian (square tensor)
