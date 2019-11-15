@@ -85,7 +85,7 @@ def test_bestfit_tf(xes):
     guess['er_rate_multiplier'] = xs[np.argmin(ys)]
     assert len(guess) == 2
 
-    bestfit = lf.bestfit(guess, optimizer='bfgs', use_hessian=True)
+    bestfit = lf.bestfit(guess, optimizer='tfp', use_hessian=True)
     assert isinstance(bestfit, dict)
     assert len(bestfit) == 2
     assert bestfit['er_rate_multiplier'].dtype == np.float32

@@ -381,7 +381,7 @@ class LogLikelihood:
     def bestfit(self,
                 guess=None,
                 fix=None,
-                optimizer='bfgs',
+                optimizer='tfp',
                 llr_tolerance=0.1,
                 get_lowlevel_result=False,
                 use_hessian=True,
@@ -393,7 +393,7 @@ class LogLikelihood:
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
         :param fix: dict {param: value} of parameters to keep fixed
         during the minimzation.
-        :param optimizer: 'bfgs', 'minuit' or 'scipy'
+        :param optimizer: 'tf', 'minuit' or 'scipy'
         :param llr_tolerance: stop minimizer if change in -2 log likelihood
         becomes less than this (roughly: using guess to convert to
         relative tolerance threshold)
@@ -421,25 +421,17 @@ class LogLikelihood:
         # Build x_guess list
         x_guess = np.array([guess[k] for k in arg_names])
 
-        if optimizer == 'minuit':
-            return fd.bestfit_minuit(self, arg_names, x_guess, fix,
-                                     use_hessian=use_hessian,
-                                     return_errors=return_errors,
-                                     autograph=autograph,
-                                     get_lowlevel_result=get_lowlevel_result,
-                                     **kwargs)
-        elif optimizer == 'bfgs':
-            return fd.bestfit_tf(self, arg_names, x_guess, fix,
-                                 use_hessian=use_hessian,
-                                 llr_tolerance=llr_tolerance,
-                                 get_lowlevel_result=get_lowlevel_result,
-                                 **kwargs)
-        elif optimizer == 'scipy':
-            return fd.bestfit_scipy(self, arg_names, x_guess, fix,
-                                    get_lowlevel_result=get_lowlevel_result,
-                                    **kwargs)
-
-        raise ValueError(f"Unsupported optimizer {optimizer}")
+        return fd.bestfit(lf=self,
+                          arg_names=arg_names,
+                          x_guess=x_guess,
+                          fix=fix,
+                          optimizer=optimizer,
+                          use_hessian=use_hessian,
+                          get_lowlevel_result=get_lowlevel_result,
+                          llr_tolerance=llr_tolerance,
+                          return_errors=return_errors,
+                          autograph=autograph,
+                          **kwargs)
 
     def one_parameter_interval(self, parameter, guess, fix=None,
                                confidence_level=0.9, kind='upper', t_ppf=None,

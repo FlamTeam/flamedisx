@@ -45,22 +45,13 @@ class Objective:
                  lf: fd.LogLikelihood,
                  arg_names: ty.List[str],
                  fix: ty.Dict[str, ty.Union[float, tf.constant]],
-                 numpy_in_out=None,
                  autograph=True,
-                 nan_val=float('inf'),
-                 memoize=None):
+                 nan_val=float('inf')):
         self.lf = lf
         self.arg_names = arg_names
         self.fix = fix
         self.autograph = autograph
         self.nan_val = nan_val
-
-        # TEMPORARY
-        if self.numpy_in_out is None:
-            self.numpy_in_out = numpy_in_out
-        if self.memoize is None:
-            self.memoize = memoize
-
         self._cache = dict()
 
     def __call__(self, x):
@@ -116,25 +107,6 @@ class Objective:
         return self(x).grad
 
 
-##
-# Bestfit functions
-##
-
-
-@export
-def bestfit_scipy(lf: fd.LogLikelihood,
-                  arg_names: ty.List[str],
-                  x_guess: np.array,
-                  fix: ty.Dict[str, float],
-                  get_lowlevel_result=False,
-                  **kwargs):
-    """Minimize the -2lnL using SciPy optimization"""
-    # TODO Add autograph and nan_val options
-    obj = ScipyObjective(lf, arg_names=arg_names, fix=fix)
-    return obj.minimize(x_guess,
-                        get_lowlevel_result=get_lowlevel_result, **kwargs)
-
-
 class ScipyObjective(Objective):
     numpy_in_out = True
     memoize = True
@@ -151,23 +123,6 @@ class ScipyObjective(Objective):
         if get_lowlevel_result:
             return res
         return {**dict(zip(self.arg_names, res.x)), **self.fix}
-
-
-@export
-def bestfit_tf(lf: fd.LogLikelihood,
-               arg_names: ty.List[str],
-               x_guess: np.array,
-               fix: ty.Dict[str, float],
-               use_hessian=True,
-               llr_tolerance=0.1,
-               get_lowlevel_result=False,
-               **kwargs):
-    """Minimize the -2lnL using TFP optimization"""
-    # TODO Add autograph and nan_val options
-    obj = TensorFlowObjective(lf, arg_names=arg_names, fix=fix)
-    return obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result,
-                        use_hessian=use_hessian, llr_tolerance=llr_tolerance,
-                        **kwargs)
 
 
 class TensorFlowObjective(Objective):
@@ -206,32 +161,6 @@ class TensorFlowObjective(Objective):
         return {**res, **self.fix}
 
 
-@export
-def bestfit_minuit(lf: fd.LogLikelihood,
-                   arg_names: ty.List[str],
-                   x_guess: ty.Union[ty.List[float], np.array],
-                   fix: ty.Dict[str, float],
-                   use_hessian=True,
-                   return_errors=False,
-                   autograph=True,
-                   get_lowlevel_result=False,
-                   **kwargs):
-    """Minimize the -2lnL using Minuit optimization"""
-    # TODO Add autograph and nan_val options
-    # TODO: memoize kan ook wel voor minuit toch...
-    obj = MinuitObjective(lf, arg_names=arg_names, fix=fix)
-    res = obj.minimize(x_guess, use_hessian=use_hessian,
-                       get_lowlevel_result=get_lowlevel_result, **kwargs)
-    # Return tuple (vals, errors) why?
-    if return_errors:
-        # split res in two dicts
-        names = list(arg_names) + list(fix.keys())
-        return ({k: v for k, v in res.items() if k in names},
-                {k: v for k, v in res.items() if k.startswith('error_')})
-    else:
-        return res
-
-
 class MinuitObjective(Objective):
     numpy_in_out = True
     # TODO: memoize kan ook wel voor minuit toch... Nou vooruit dan
@@ -257,6 +186,53 @@ class MinuitObjective(Objective):
 
 
 ##
+# Bestfit functions
+##
+
+@export
+def bestfit(lf: fd.LogLikelihood,
+            arg_names: ty.List[str],
+            x_guess: ty.Union[ty.List[float], np.array],
+            fix: ty.Dict[str, float],
+            optimizer: ty.Union['tfp', 'minuit', 'scipy'],
+            use_hessian: bool=True,
+            get_lowlevel_result: bool=False,
+            llr_tolerance=0.1,
+            return_errors=False,
+            autograph=True,
+            nan_val=float('inf'),
+            **kwargs):
+    """Minimize the -2lnL using SciPy optimization"""
+    if optimizer == 'scipy':
+        # Pass hessian to scipy
+        obj = ScipyObjective(lf, arg_names=arg_names, fix=fix,
+                             autograph=autograph, nan_val=nan_val)
+        return obj.minimize(x_guess,
+                            get_lowlevel_result=get_lowlevel_result, **kwargs)
+    elif optimizer == 'tfp':
+        obj = TensorFlowObjective(lf, arg_names=arg_names, fix=fix,
+                                  autograph=autograph, nan_val=nan_val)
+        return obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result,
+                            use_hessian=use_hessian,
+                            llr_tolerance=llr_tolerance, **kwargs)
+    elif optimizer == 'minuit':
+        # TODO: memoize kan ook wel voor minuit toch...
+        obj = MinuitObjective(lf, arg_names=arg_names, fix=fix,
+                              autograph=autograph, nan_val=nan_val)
+        res = obj.minimize(x_guess, use_hessian=use_hessian,
+                        get_lowlevel_result=get_lowlevel_result, **kwargs)
+        # Return tuple (vals, errors) why?
+        if return_errors:
+            # split res in two dicts
+            names = list(arg_names) + list(fix.keys())
+            return ({k: v for k, v in res.items() if k in names},
+                    {k: v for k, v in res.items() if k.startswith('error_')})
+        else:
+            return res
+    else:
+        raise ValueError(f"Optimizer {optimizer} not implemented")
+
+##
 # Interval estimation
 ##
 
@@ -273,6 +249,8 @@ class IntervalObjective(Objective):
         self.critical_quantile = critical_quantile
         self.ll_best = ll_best
         self.target_parameter = target_parameter
+
+        self.numpy_in_out = True
 
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical
@@ -315,8 +293,7 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
     f = IntervalObjective(lf=lf, arg_names=arg_names, fix=fix,
                           ll_best=ll_best, target_parameter=parameter,
                           t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
-                          critical_quantile=critical_quantile,
-                          numpy_in_out=True, memoize=True)
+                          critical_quantile=critical_quantile)
 
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
               for n in arg_names]
