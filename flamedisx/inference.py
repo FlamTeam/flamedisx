@@ -3,8 +3,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import typing as ty
-from scipy import stats
-from scipy.optimize import minimize
+import scipy
 from iminuit import Minuit
 
 
@@ -129,8 +128,11 @@ def bestfit_scipy(lf: fd.LogLikelihood,
                   fix: ty.Dict[str, float],
                   get_lowlevel_result=False,
                   **kwargs):
-    obj = ScipyObjective(lf, arg_names, fix)
-    obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result, **kwargs)
+    """Minimize the -2lnL using SciPy optimization"""
+    # TODO Add autograph and nan_val options
+    obj = ScipyObjective(lf, arg_names=arg_names, fix=fix)
+    return obj.minimize(x_guess,
+                        get_lowlevel_result=get_lowlevel_result, **kwargs)
 
 
 class ScipyObjective(Objective):
@@ -141,36 +143,15 @@ class ScipyObjective(Objective):
         kwargs.setdefault('tol', 5e-3)
         kwargs.setdefault('method', 'TNC')
 
-        bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
-                  for n in self.arg_names]
+        bounds = [(1e-9, None) if n.endswith('_rate_multiplier')
+                  else (None, None) for n in self.arg_names]
         kwargs.setdefault('bounds', bounds)
-        res = minimize(self.fun, x_guess, jac=self.grad, **kwargs)
+        res = scipy.optimize.minimize(self.fun, x_guess, jac=self.grad,
+                                      **kwargs)
         if get_lowlevel_result:
             return res
         return {**dict(zip(self.arg_names, res.x)), **self.fix}
 
-
-@export
-def bestfit_scipy(lf: fd.LogLikelihood,
-                  arg_names: ty.List[str],
-                  x_guess: np.array,
-                  fix: ty.Dict[str, float],
-                  get_lowlevel_result=False,
-                  method='TNC', tol=5e-3, **kwargs):
-    """Minimize the -2lnL using SciPy optimization"""
-    f = Objective(lf, arg_names, fix, memoize=True, numpy_in_out=True)
-    bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
-              for n in arg_names]           # TODO: can user give bounds?
-    res = minimize(f.fun, x_guess,
-                   jac=f.grad,
-                   method=method,
-                   bounds=bounds,
-                   tol=tol,
-                   **kwargs)
-    if get_lowlevel_result:
-        return res
-
-    return {**dict(zip(arg_names, res.x)), **fix}
 
 @export
 def bestfit_tf(lf: fd.LogLikelihood,
@@ -182,38 +163,47 @@ def bestfit_tf(lf: fd.LogLikelihood,
                get_lowlevel_result=False,
                **kwargs):
     """Minimize the -2lnL using TFP optimization"""
-    f = Objective(lf, arg_names=arg_names, fix=fix)
+    # TODO Add autograph and nan_val options
+    obj = TensorFlowObjective(lf, arg_names=arg_names, fix=fix)
+    return obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result,
+                        use_hessian=use_hessian, llr_tolerance=llr_tolerance,
+                        **kwargs)
 
-    x_guess = fd.np_to_tf(x_guess)
 
-    if use_hessian:
-        guess = {**dict(zip(arg_names, x_guess)), **fix}
-        # This optimizer can use the hessian information
-        # Compute the inverse hessian at the guess
-        inv_hess = lf.inverse_hessian(guess, omit_grads=tuple(fix.keys()))
-        # Explicitly symmetrize the matrix
-        inv_hess = fd.symmetrize_matrix(inv_hess)
-    else:
-        inv_hess = None
+class TensorFlowObjective(Objective):
+    def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=True,
+                 llr_tolerance=None, **kwargs):
+        x_guess = fd.np_to_tf(x_guess)
 
-    # Unfortunately we can only set the relative tolerance for the
-    # objective; we'd like to set the absolute one.
-    # Use the guess log likelihood to normalize;
-    if llr_tolerance is not None:
-        kwargs.setdefault('f_relative_tolerance',
-                          llr_tolerance/f.fun(x_guess).numpy())
+        if use_hessian:
+            guess = {**dict(zip(self.arg_names, x_guess)), **self.fix}
+            # This optimizer can use the hessian information
+            # Compute the inverse hessian at the guess
+            inv_hess = self.lf.inverse_hessian(guess,
+                                        omit_grads=tuple(self.fix.keys()))
+            # Explicitly symmetrize the matrix
+            inv_hess = fd.symmetrize_matrix(inv_hess)
+        else:
+            inv_hess = None
 
-    res = tfp.optimizer.bfgs_minimize(f.fun_and_grad, x_guess,
-                                      initial_inverse_hessian_estimate=inv_hess,
-                                      **kwargs)
-    if get_lowlevel_result:
-        return res
-    if res.failed:
-        raise ValueError(f"Optimizer failure! Result: {res}")
+        # Unfortunately we can only set the relative tolerance for the
+        # objective; we'd like to set the absolute one.
+        # Use the guess log likelihood to normalize;
+        if llr_tolerance is not None:
+            kwargs.setdefault('f_relative_tolerance',
+                              llr_tolerance/self.fun(x_guess).numpy())
 
-    res = res.position
-    res = {k: res[i].numpy() for i, k in enumerate(arg_names)}
-    return {**res, **fix}
+        res = tfp.optimizer.bfgs_minimize(self.fun_and_grad, x_guess,
+                                    initial_inverse_hessian_estimate=inv_hess,
+                                    **kwargs)
+        if get_lowlevel_result:
+            return res
+        if res.failed:
+            raise ValueError(f"Optimizer failure! Result: {res}")
+
+        res = res.position
+        res = {k: res[i].numpy() for i, k in enumerate(self.arg_names)}
+        return {**res, **self.fix}
 
 
 @export
@@ -227,32 +217,43 @@ def bestfit_minuit(lf: fd.LogLikelihood,
                    get_lowlevel_result=False,
                    **kwargs):
     """Minimize the -2lnL using Minuit optimization"""
+    # TODO Add autograph and nan_val options
     # TODO: memoize kan ook wel voor minuit toch...
-    f = Objective(lf, arg_names, fix, numpy_in_out=True)
-
-    for i in range(len(x_guess)):
-        # Set initial step sizes of 0.1 * guess
-        kwargs.setdefault('error_' + arg_names[i], x_guess[i] * 0.1)
-
-    fit = Minuit.from_array_func(f.fun, x_guess, grad=f.grad,
-                                 errordef=0.5, name=arg_names, **kwargs)
-
-    fit.migrad()
-    fit_result = dict(fit.values)
-    if use_hessian:
-        fit.hesse()
-
-    if get_lowlevel_result:
-        return fit
-
-    fit_errors = dict()
-    for (k, v) in fit.errors.items():
-        fit_errors[k + '_error'] = v
-
-    fit_result = {**fit_result, **fix}
+    obj = MinuitObjective(lf, arg_names=arg_names, fix=fix)
+    res = obj.minimize(x_guess, use_hessian=use_hessian,
+                       get_lowlevel_result=get_lowlevel_result, **kwargs)
+    # Return tuple (vals, errors) why?
     if return_errors:
-        return fit_result, fit_errors
-    return fit_result
+        # split res in two dicts
+        names = list(arg_names) + list(fix.keys())
+        return ({k: v for k, v in res.items() if k in names},
+                {k: v for k, v in res.items() if k.startswith('error_')})
+    else:
+        return res
+
+
+class MinuitObjective(Objective):
+    numpy_in_out = True
+    # TODO: memoize kan ook wel voor minuit toch... Nou vooruit dan
+    memoize = True
+
+    def minimize(self, x_guess, use_hessian=True, get_lowlevel_result=False,
+                 **kwargs):
+        for i in range(len(x_guess)):
+            # Set initial step sizes of 0.1 * guess
+            kwargs.setdefault('error_' + self.arg_names[i], x_guess[i] * 0.1)
+
+        fit = Minuit.from_array_func(self.fun, x_guess, grad=self.grad,
+                                     errordef=0.5, name=self.arg_names,
+                                     **kwargs)
+
+        fit.migrad()
+        if use_hessian:
+            fit.hesse()
+
+        if get_lowlevel_result:
+            return fit
+        return fit.fitarg
 
 
 ##
@@ -278,7 +279,7 @@ class IntervalObjective(Objective):
         quantile.
         Asymptotic case using Wilk's theorem, does not depend
         on the value of the target parameter."""
-        return stats.norm.ppf(self.critical_quantile) ** 2
+        return scipy.stats.norm.ppf(self.critical_quantile) ** 2
 
     def t_ppf_grad(self, target_param_value):
         """Return derivative of t_ppf wrt target_param_value"""
@@ -300,16 +301,18 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
                            guess: ty.Dict[str, float],
                            ll_best: float,
                            critical_quantile: float,
+                           fix: ty.Dict[str, float]=None,
                            t_ppf=None, t_ppf_grad=None):
     """Compute upper/lower/central interval on parameter at confidence level"""
     # TODO: try with other minimizers
 
-    #TODO add possible fixed parameters
-    arg_names = lf.param_names
+    if fix is None:
+        fix = dict()
+    arg_names = [k for k in lf.param_names if k not in fix]
     x_guess = np.array([guess[k] for k in arg_names])
 
     # Construct t-stat objective + grad, get regular objective first
-    f = IntervalObjective(lf=lf, arg_names=arg_names, fix=dict(),
+    f = IntervalObjective(lf=lf, arg_names=arg_names, fix=fix,
                           ll_best=ll_best, target_parameter=parameter,
                           t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
                           critical_quantile=critical_quantile,
@@ -318,10 +321,10 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
     bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
               for n in arg_names]
     bounds[arg_names.index(parameter)] = bound
-    res = minimize(f.fun, x_guess,
-                   jac=f.grad,
-                   method='TNC',
-                   bounds=bounds,
-                   tol=1e-5)
+    res = scipy.optimize.minimize(f.fun, x_guess,
+                                  jac=f.grad,
+                                  method='TNC',
+                                  bounds=bounds,
+                                  tol=1e-5)
 
     return res.x[arg_names.index(parameter)]
