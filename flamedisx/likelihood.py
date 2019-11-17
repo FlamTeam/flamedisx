@@ -99,7 +99,7 @@ class LogLikelihood:
             sname : sclass.find_defaults()[2]
             for sname, sclass in self.sources.items()}
 
-        # Create sources. Have to copy data, it's modified by set_data
+        # Create sources. Have to copy data, it's modified by Source.set_data
         self.sources = {
             sname: sclass(data=(None
                                 if data[self.d_for_s[sname]] is None
@@ -429,13 +429,14 @@ class LogLikelihood:
                            use_hessian=use_hessian,
                            llr_tolerance=llr_tolerance, **kwargs)
 
-        if optimizer == 'minuit' and return_errors:
-            # Return tuple (vals, errors) why keep this?
-            # split res in two dicts
-            names = list(arg_names) + list(fix.keys())
-            return ({k: v for k, v in res.items() if k in names},
-                    {k: v for k, v in res.items() if k.startswith('error_')})
-        return res
+        names = list(arg_names) + list(fix.keys())
+        result, errors = (
+            {k: v for k, v in res.items() if k in names},
+            {k: v for k, v in res.items() if k.startswith('error_')})
+
+        if return_errors:
+            return result, errors
+        return result
 
     def one_parameter_interval(self, parameter, guess, fix=None,
                                confidence_level=0.9, kind='upper', t_ppf=None,

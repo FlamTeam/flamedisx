@@ -170,12 +170,11 @@ class MinuitObjective(Objective):
     def minimize(self, x_guess, use_hessian=True, get_lowlevel_result=False,
                  llr_tolerance=None, **kwargs):
         # TODO llr_tolerance
-        for i in range(len(x_guess)):
-            # Set initial step sizes of 0.1 * guess
-            kwargs.setdefault('error_' + self.arg_names[i], x_guess[i] * 0.1)
+        kwargs.setdefault('error', x_guess * 0.1)
 
         fit = Minuit.from_array_func(self.fun, x_guess, grad=self.grad,
-                                     errordef=0.5, name=self.arg_names,
+                                     errordef=0.5,
+                                     name=self.arg_names,
                                      **kwargs)
 
         fit.migrad()
