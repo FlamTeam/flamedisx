@@ -12,8 +12,6 @@ o = tf.newaxis
 
 DEFAULT_DSETNAME = 'the_dataset'
 
-print_trace = False
-
 @export
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
@@ -148,6 +146,9 @@ class LogLikelihood:
             log_constraint = lambda **kwargs: 0.
         self.log_constraint = log_constraint
 
+        self.trace_log_likelihood()
+        self.trace_log_likelihood_grad2()
+
     def set_data(self,
                  data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]]):
         """set new data for sources in the likelihood.
@@ -173,6 +174,9 @@ class LogLikelihood:
                 self.n_padding[dname] = source.n_padding
             elif dname not in self.dsetnames:
                 raise ValueError(f"Dataset name {dname} not known")
+
+        self.trace_log_likelihood()
+        self.trace_log_likelihood_grad2()
 
     def simulate(self, rate_multipliers=None, fix_truth=None, **params):
         """Simulate events from sources, optionally pass custom
@@ -301,13 +305,8 @@ class LogLikelihood:
         grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
-    @tf.function
-    def _log_likelihood_tf(self, i_batch, dsetname, autograph,
-                           omit_grads=tuple(), **params):
-        if print_trace:
-            print("Tracing _log_likelihood")
-        return self._log_likelihood(i_batch, dsetname, autograph,
-                                    omit_grads=omit_grads, **params)
+    def trace_log_likelihood(self):
+        self._log_likelihood_tf = tf.function(self._log_likelihood)
 
     def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
                               omit_grads=tuple(), **params):
@@ -326,13 +325,8 @@ class LogLikelihood:
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
 
-    @tf.function
-    def _log_likelihood_grad2_tf(self, i_batch, dsetname, autograph,
-                                 omit_grads=tuple(), **params):
-        if print_trace:
-            print("Tracing _log_likelihood_grad2_tf")
-        return self._log_likelihood_grad2(i_batch, dsetname, autograph,
-                                          omit_grads=omit_grads, **params)
+    def trace_log_likelihood_grad2(self):
+        self._log_likelihood_grad2_tf = tf.function(self._log_likelihood_grad2)
 
     def _log_likelihood_inner(self, i_batch, params, dsetname, autograph):
         # Does for loop over datasets and sources, not batches
