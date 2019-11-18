@@ -167,8 +167,6 @@ class LogLikelihood:
             if dname in data:
                 source.set_data(data[dname])
                 # Update batches and padding
-                # TODO changes here should trigger a retrace of ll
-                # how to test this
                 self.n_batches[dname] = source.n_batches
                 self.batch_size[dname] = source.batch_size
                 self.n_padding[dname] = source.n_padding
