@@ -1,3 +1,13 @@
+0.3.0 / 2019-11-19
+------------------
+- Split off notebook folder to flamedisx-notebooks
+- Pass source specific parameters correctly (#51)
+- Flexible event padding (#54)
+- SciPy optimizer and optimizer settings (#54)
+- one_parameter_interval (#54)
+- Bugfixes (#46, #55, #51)
+- Unify optimizers (#54)
+
 0.2.2 / 2019-10-30
 ------------------
 - Minuit optimizer (#40)
