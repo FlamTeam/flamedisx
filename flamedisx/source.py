@@ -76,7 +76,7 @@ class SourceBase:
             self.n_padding = self.n_batches * self.batch_size - len(self.data)
             if self.n_padding > 0:
                 # Repeat first event n_padding times and concat to rest of data
-                df_pad = self.data.iloc[np.full(self.n_padding, 0)]
+                df_pad = self.data.iloc[np.zeros(self.n_padding)]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
         # Add i_batch column to data for use with precomputed model functions
