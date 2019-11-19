@@ -383,8 +383,8 @@ class LogLikelihood:
     def bestfit(self,
                 guess=None,
                 fix=None,
-                optimizer='tfp',
-                llr_tolerance=0.1,
+                optimizer='scipy',
+                llr_tolerance=0.01,
                 get_lowlevel_result=False,
                 use_hessian=True,
                 return_errors=False,
@@ -440,37 +440,46 @@ class LogLikelihood:
             return result, errors
         return result
 
-    def one_parameter_interval(self, parameter, guess, fix=None,
+    def one_parameter_interval(self, parameter,
+                               guess=None,
+                               bestfit=None,
+                               fix=None,
                                confidence_level=0.9, kind='upper', t_ppf=None,
-                               t_ppf_grad=None, optimizer='scipy'):
+                               t_ppf_grad=None, optimizer='scipy',
+                               llr_tolerance=0.005):
         """Compute upper/lowel/central interval of parameter at confidence
         level assuming Wilk's theorem if t_ppf=None. Use critical value
         curve t_ppf for non-asymptotic case.
 
         :param parameter: string, the parameter to set the interval on
-        :param guess: dictionary of parameter, value pairs for the minimizer
+        :param bestfit: dictionary of parameter, value pairs, global best-fit.
+        :param guess: dictionary of parameter, value pairs, guess
+        (only necessary if not providing bestfit)
         :param confidence_level: The confidence level of the method
         :param kind: 'upper', 'lower' or 'central' type of limit/interval
         :param t_ppf: returns critical value as function of parameter
+        :param llr_tolerance: see bestfit
 
         Return limit if kind='upper' or 'lower', returns interval if 'central'
         """
-        # Determine global bestfit and global minimum -2lnL
-        x_best = self.bestfit(guess, fix=fix, optimizer=optimizer)
+        if bestfit is None:
+            assert guess is not None, "Provide either bestfit or guess"
+            # Determine global bestfit and global minimum -2lnL
+            bestfit = self.bestfit(guess, fix=fix, optimizer=optimizer)
         # TODO, we can avoid this call and have bestfit return ll_best
-        ll_best = self.minus_ll(**x_best)[0]
+        ll_best = self.minus_ll(**bestfit)[0]
 
         # Set (bound, critical_quantile) for the desired kind of limit
         if kind == 'upper':
-            limits = [((x_best[parameter], None),  # UL bound
+            limits = [((bestfit[parameter], None),  # UL bound
                        confidence_level)]          # UL critical quantile
         elif kind == 'lower':
-            limits = [((None, x_best[parameter]),  # LL bound
+            limits = [((None, bestfit[parameter]),  # LL bound
                        1 - confidence_level)]      # LL critical quantile
         elif kind == 'central':
-            limits = [((None, x_best[parameter]),        # LL bound
+            limits = [((None, bestfit[parameter]),        # LL bound
                        (1 - confidence_level) / 2),      # LL critical quantile
-                      ((x_best[parameter], None),        # UL bound
+                      ((bestfit[parameter], None),        # UL bound
                        1 - (1 - confidence_level) / 2)]  # UL critical quantile
         else:
             raise ValueError(f"kind must be upper/lower/central but is {kind}")
@@ -478,7 +487,8 @@ class LogLikelihood:
         res = [fd.one_parameter_interval(self, parameter, bound, guess,
                                          ll_best, critical_quantile=q,
                                          optimizer=optimizer, fix=fix,
-                                         t_ppf=t_ppf, t_ppf_grad=t_ppf_grad)
+                                         t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
+                                         llr_tolerance=llr_tolerance)
                for bound, q in limits]
 
         if len(res) == 1:
