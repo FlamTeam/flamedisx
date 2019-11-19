@@ -165,10 +165,22 @@ def test_multi_dset(xes: fd.ERSource):
 
 
 def test_simulate(xes):
-    # Once PR #43 merged we can set data=None here
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        data=xes.data.copy())
+        data=None)
+
+    events = lf.simulate()
+    events = lf.simulate(rate_multipliers=dict(er_rate_multiplier=2.))
+    events = lf.simulate(fix_truth=dict(x=0., y=0., z=-50.))
+
+
+def test_simulate_column(xes):
+    # Test for issue #47, check if not crashing since ColumnSource has no
+    # simulator
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource,
+                     muur=fd.ColumnSource),
+        data=None)
 
     events = lf.simulate()
     events = lf.simulate(rate_multipliers=dict(er_rate_multiplier=2.))

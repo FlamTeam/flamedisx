@@ -183,28 +183,25 @@ class LogLikelihood:
 
         ds = []
         for sname, s in self.sources.items():
-            # done to ignore ColumnSource.
-            # TODO: remove if when simulate for ColumnSource is implemented
-            if s.defaults:
-                rmname = sname + '_rate_multiplier'
-                if rmname in rate_multipliers:
-                    rm = rate_multipliers[rmname]
-                else:
-                  rm = self._get_rate_mult(sname, params)
+            rmname = sname + '_rate_multiplier'
+            if rmname in rate_multipliers:
+                rm = rate_multipliers[rmname]
+            else:
+                rm = self._get_rate_mult(sname, params)
 
-                # mean number of events to simulate, rate mult times mu source
-                mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
-                                                                           sname))
-                # Simulate this many events from source
-                n_to_sim = np.random.poisson(mu)
-                if n_to_sim == 0:
-                    continue
-                d = s.simulate(n_to_sim,
-                               fix_truth=fix_truth,
-                               **self._filter_source_kwargs(params,
-                                                            sname))
-                d['source'] = sname
-                ds.append(d)
+            # mean number of events to simulate, rate mult times mu source
+            mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
+                                                                        sname))
+            # Simulate this many events from source
+            n_to_sim = np.random.poisson(mu)
+            if n_to_sim == 0:
+                continue
+            d = s.simulate(n_to_sim,
+                            fix_truth=fix_truth,
+                            **self._filter_source_kwargs(params,
+                                                        sname))
+            d['source'] = sname
+            ds.append(d)
         # Concatenate results and shuffle them
         return pd.concat(ds, sort=False).sample(frac=1).reset_index(drop=True)
 
