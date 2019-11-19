@@ -1,584 +1,290 @@
 import flamedisx as fd
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 import typing as ty
+import scipy
 from iminuit import Minuit
 
 
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-DEFAULT_DSETNAME = 'the_dataset'
 
-print_trace = False
-
-@export
-class LogLikelihood:
-    param_defaults: ty.Dict[str, float]
-
-    mu_iterpolators: ty.Dict[str, ty.Callable]
-
-    # Source name -> Source instance
-    sources: ty.Dict[str, fd.Source]
-
-    # Source name -> dataset name
-    d_for_s = ty.Dict[str, str]
-
-    # Datasetname -> value
-    batch_size: ty.Dict[str, int]
-    n_batches: ty.Dict[str, int]
-    n_padding: ty.Dict[str, int]
-
-    dsetnames: ty.List
-
-    def __init__(
-            self,
-            sources: ty.Union[
-                ty.Dict[str, fd.Source.__class__],
-                ty.Dict[str, ty.Dict[str, fd.Source.__class__]]],
-            data: ty.Union[
-                None,
-                pd.DataFrame,
-                ty.Dict[str, pd.DataFrame]] = None,
-            free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
-            batch_size=10,
-            max_sigma=3,
-            n_trials=int(1e5),
-            log_constraint=None,
-            **common_param_specs):
-        """
-
-        :param sources: Dictionary {datasetname : {sourcename: class,, ...}, ...}
-        or just {sourcename: class} in case you have one dataset
-        Every source name must be unique.
-        :param data: Dictionary {datasetname: pd.DataFrame}
-        or just pd.DataFrame if you have one dataset or None if you
-        set data later.
-        :param free_rates: names of sources whose rates are floating
-        :param batch_size:
-        :param max_sigma:
-        :param n_trials:
-        :param **common_param_specs:  param_name = (min, max, anchors), ...
-        """
-
-        param_defaults = dict()
-
-        if isinstance(data, pd.DataFrame) or data is None:
-            # Only one dataset
-            data = {DEFAULT_DSETNAME: data}
-        if not isinstance(list(sources.values())[0], dict):
-            sources: ty.Dict[str, ty.Dict[str, fd.Source.__class__]] = \
-                {DEFAULT_DSETNAME: sources}
-        assert data.keys() == sources.keys(), "Inconsistent dataset names"
-        self.dsetnames = list(data.keys())
-
-        # Flatten sources and fill data for source
-        self.sources: ty.Dict[str, fd.Source.__class__] = dict()
-        self.d_for_s = dict()
-        for dsetname, ss in sources.items():
-            for sname, s in ss.items():
-                self.d_for_s[sname] = dsetname
-                if sname in self.sources:
-                    raise ValueError(f"Duplicate source name {sname}")
-                self.sources[sname] = s
-        del sources  # so we don't use it by accident
-
-        if free_rates is None:
-            free_rates = tuple()
-        if isinstance(free_rates, str):
-            free_rates = (free_rates,)
-        for sn in free_rates:
-            if sn not in self.sources:
-                raise ValueError(f"Can't free rate of unknown source {sn}")
-            param_defaults[sn + '_rate_multiplier'] = 1.
-
-        # Determine default parameters for each source
-        defaults_in_sources = {
-            sname : sclass.find_defaults()[2]
-            for sname, sclass in self.sources.items()}
-
-        # Create sources. Have to copy data, it's modified by set_data
-        self.sources = {
-            sname: sclass(data=(None
-                                if data[self.d_for_s[sname]] is None
-                                else data[self.d_for_s[sname]].copy()),
-                          max_sigma=max_sigma,
-                          fit_params=list(k for k in common_param_specs.keys()
-                                          if k in defaults_in_sources[sname].keys()),
-                          batch_size=batch_size)
-            for sname, sclass in self.sources.items()}
-        del data  # use data from sources (which is now annotated)
-
-        for pname in common_param_specs:
-            # Check defaults for common parameters are consistent between
-            # sources
-            defs = [s.defaults[pname]
-                    for s in self.sources.values()
-                    if pname in s.defaults]
-            if len(set([x.numpy() for x in defs])) > 1:
-                raise ValueError(
-                    f"Inconsistent defaults {defs} for common parameters")
-            param_defaults[pname] = defs[0]
-
-        # Store n_batches, batch_size and n_padding for all datasets
-        self.n_batches = dict()
-        self.batch_size = dict()
-        self.n_padding = dict()
-        for sname, s in self.sources.items():
-            self.n_batches[self.d_for_s[sname]] = s.n_batches
-            self.batch_size[self.d_for_s[sname]] = s.batch_size
-            self.n_padding[self.d_for_s[sname]] = s.n_padding
-
-        self.param_defaults = {k: tf.constant(v, dtype=fd.float_type())
-                               for k, v in param_defaults.items()}
-        self.param_names = list(param_defaults.keys())
-
-        self.mu_itps = {
-            sname: s.mu_function(n_trials=n_trials,
-                                 **{p_name: par for p_name, par in common_param_specs.items()
-                                 if p_name in defaults_in_sources[sname].keys()})
-            for sname, s in self.sources.items()}
-        # Not used, but useful for mu smoothness diagnosis
-        self.param_specs = common_param_specs
-
-        # Add the constraint
-        if log_constraint is None:
-            log_constraint = lambda **kwargs: 0.
-        self.log_constraint = log_constraint
-
-    def set_data(self,
-                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]]):
-        """set new data for sources in the likelihood.
-        Data is passed in the same format as for __init__
-        Data can contain any subset of the original data keys to only
-        update specific datasets.
-        """
-        if isinstance(data, pd.DataFrame):
-            # Only one dataset
-            assert len(self.dsetnames) == 1, \
-                "You passed a DataFrame but there are multiple datasets"
-            data = {DEFAULT_DSETNAME: data}
-
-        for sname, source in self.sources.items():
-            dname = self.d_for_s[sname]
-            if dname in data:
-                source.set_data(data[dname])
-                # Update batches and padding
-                # TODO changes here should trigger a retrace of ll
-                # how to test this
-                self.n_batches[dname] = source.n_batches
-                self.batch_size[dname] = source.batch_size
-                self.n_padding[dname] = source.n_padding
-            elif dname not in self.dsetnames:
-                raise ValueError(f"Dataset name {dname} not known")
-
-    def simulate(self, rate_multipliers=None, fix_truth=None, **params):
-        """Simulate events from sources, optionally pass custom
-        rate_multipliers and fix_truth.
-        """
-        if rate_multipliers is None:
-            rate_multipliers = dict()
-
-        ds = []
-        for sname, s in self.sources.items():
-            # done to ignore ColumnSource.
-            # TODO: remove if when simulate for ColumnSource is implemented
-            if s.defaults:
-                rmname = sname + '_rate_multiplier'
-                if rmname in rate_multipliers:
-                    rm = rate_multipliers[rmname]
-                else:
-                  rm = self._get_rate_mult(sname, params)
-
-                # mean number of events to simulate, rate mult times mu source
-                mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
-                                                                           sname))
-                # Simulate this many events from source
-                n_to_sim = np.random.poisson(mu)
-                if n_to_sim == 0:
-                    continue
-                d = s.simulate(n_to_sim,
-                               fix_truth=fix_truth,
-                               **self._filter_source_kwargs(params,
-                                                            sname))
-                d['source'] = sname
-                ds.append(d)
-        # Concatenate results and shuffle them
-        return pd.concat(ds, sort=False).sample(frac=1).reset_index(drop=True)
-
-    def __call__(self, **kwargs):
-        assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
-        return self.log_likelihood(second_order=False, **kwargs)[0].numpy()
-
-    def log_likelihood(self, autograph=True, second_order=False,
-                       omit_grads=tuple(), **kwargs):
-        if second_order:
-            # Compute the likelihood, jacobian and hessian
-            # Use only non-tf.function version, in principle works with
-            # but this leads to very long tracing times and we only need
-            # hessian once
-            f = self._log_likelihood_grad2
-        else:
-            # Computes the likelihood and jacobian
-            f = self._log_likelihood_tf if autograph else self._log_likelihood
-
-        params = self.prepare_params(kwargs)
-        n_grads = len(self.param_defaults) - len(omit_grads)
-        ll = tf.constant(0., dtype=fd.float_type())
-        llgrad = tf.zeros(n_grads, dtype=fd.float_type())
-        llgrad2 = tf.zeros((n_grads, n_grads), dtype=fd.float_type())
-
-        for dsetname in self.dsetnames:
-            for i_batch in tf.range(self.n_batches[dsetname], dtype=fd.int_type()):
-                v = f(i_batch, dsetname, autograph, omit_grads=omit_grads, **params)
-                ll += v[0]
-                llgrad += v[1]
-                if second_order:
-                    llgrad2 += v[2]
-
-        if second_order:
-            return ll, llgrad, llgrad2
-        return ll, llgrad
-
-    def minus_ll(self, *, autograph=True, omit_grads=tuple(), **kwargs):
-        ll, grad = self.log_likelihood(
-            autograph=autograph, omit_grads=omit_grads, **kwargs)
-        return -2 * ll, -2 * grad
-
-    def prepare_params(self, kwargs):
-        for k in kwargs:
-            if k not in self.param_defaults:
-                raise ValueError(f"Unknown parameter {k}")
-        # tf.function doesn't support {**x, **y} dict merging
-        # return {**self.param_defaults, **kwargs}
-        z = self.param_defaults.copy()
-        for k, v in kwargs.items():
-            if isinstance(v, (float, int)) or fd.is_numpy_number(v):
-               kwargs[k] = tf.constant(v, dtype=fd.float_type())
-        z.update(kwargs)
-        return z
-
-    def _get_rate_mult(self, sname, kwargs):
-        rmname = sname + '_rate_multiplier'
-        if rmname in self.param_names:
-            return kwargs[rmname]
-        return tf.constant(1., dtype=fd.float_type())
-
-    def _source_kwargnames(self, source_name):
-        """Return parameter names that apply to source"""
-        return [pname for pname in self.param_names
-                if not pname.endswith('_rate_multiplier')
-                and pname in self.sources[source_name].defaults]
-
-    def _filter_source_kwargs(self, kwargs, source_name):
-        """Return {param: value} dictionary with keyword arguments
-        for source, with values extracted from kwargs"""
-        return {pname: kwargs[pname]
-                for pname in self._source_kwargnames(source_name)}
-
-    def _param_i(self, pname):
-        """Return index of parameter pname"""
-        return self.param_names.index(pname)
-
-    def mu(self, dsetname, **kwargs):
-        mu = tf.constant(0., dtype=fd.float_type())
-        for sname, s in self.sources.items():
-            if self.d_for_s[sname] != dsetname:
-                continue
-            mu += (self._get_rate_mult(sname, kwargs)
-                   * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
-        return mu
-
-    def _log_likelihood(self, i_batch, dsetname, autograph,
-                        omit_grads=tuple(), **params):
-        if omit_grads is None:
-            omit_grads = []
-        grad_par_list = [x for k, x in params.items()
-                         if k not in omit_grads]
-        with tf.GradientTape() as t:
-            t.watch(grad_par_list)
-            ll = self._log_likelihood_inner(
-                i_batch, params, dsetname, autograph)
-        grad = t.gradient(ll, grad_par_list)
-        return ll, tf.stack(grad)
-
-    @tf.function
-    def _log_likelihood_tf(self, i_batch, dsetname, autograph,
-                           omit_grads=tuple(), **params):
-        if print_trace:
-            print("Tracing _log_likelihood")
-        return self._log_likelihood(i_batch, dsetname, autograph,
-                                    omit_grads=omit_grads, **params)
-
-    def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
-                              omit_grads=tuple(), **params):
-        if omit_grads is None:
-            omit_grads = []
-        grad_par_list = [x for k, x in params.items()
-                         if k not in omit_grads]
-        with tf.GradientTape(persistent=True) as t2:
-            t2.watch(grad_par_list)
-            with tf.GradientTape() as t:
-                t.watch(grad_par_list)
-                ll = self._log_likelihood_inner(i_batch, params,
-                                                dsetname, autograph)
-            grads = t.gradient(ll, grad_par_list)
-        hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
-        del t2
-        return ll, tf.stack(grads), tf.stack(hessian)
-
-    @tf.function
-    def _log_likelihood_grad2_tf(self, i_batch, dsetname, autograph,
-                                 omit_grads=tuple(), **params):
-        if print_trace:
-            print("Tracing _log_likelihood_grad2_tf")
-        return self._log_likelihood_grad2(i_batch, dsetname, autograph,
-                                          omit_grads=omit_grads, **params)
-
-    def _log_likelihood_inner(self, i_batch, params, dsetname, autograph):
-        # Does for loop over datasets and sources, not batches
-        # Sum over sources is first in likelihood
-
-        # Compute differential rates from all sources
-        # drs = list[n_sources] of [n_events] tensors
-        drs = tf.zeros((self.batch_size[dsetname],), dtype=fd.float_type())
-        for sname, s in self.sources.items():
-            if not self.d_for_s[sname] == dsetname:
-                continue
-            rate_mult = self._get_rate_mult(sname, params)
-            dr = s.differential_rate(s.data_tensor[i_batch],
-                                     autograph=autograph,
-                                     **self._filter_source_kwargs(params, sname))
-            drs += dr * rate_mult
-
-        # Sum over events and remove padding
-        n = tf.where(tf.equal(i_batch,
-                              tf.constant(self.n_batches[dsetname] - 1,
-                                          dtype=fd.int_type())),
-                     self.batch_size[dsetname] - self.n_padding[dsetname],
-                     self.batch_size[dsetname])
-        ll = tf.reduce_sum(tf.math.log(drs[:n]))
-
-        # Add mu once (to the first batch)
-        # and constraint really only once (to first batch of first dataset)
-        ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       -self.mu(dsetname, **params)
-                           + (self.log_constraint(**params)
-                              if dsetname == self.dsetnames[0] else 0.),
-                       0.)
-        return ll
-
-    def guess(self):
-        """Return dictionary of parameter guesses"""
-        return self.param_defaults
-
-    def params_to_dict(self, values):
-        """Return parameter {name: value} dictionary"""
-        return {k: v for k, v in zip(self.param_names, tf.unstack(values))}
-
-    def bestfit(self,
-                guess=None,
-                fix=None,
-                optimizer='bfgs',
-                llr_tolerance=0.1,
-                get_lowlevel_result=False,
-                use_hessian=True,
-                return_errors=False,
-                autograph=True,
-                **kwargs):
-        """Return best-fit parameter dict
-
-        :param guess: Guess parameters: dict {param: guess} of guesses to use.
-        :param fix: dict {param: value} of parameters to keep fixed
-        during the minimzation.
-        :param optimizer: 'bfgs' or 'minuit'
-        :param llr_tolerance: stop minimizer if change in -2 log likelihood
-        becomes less than this (roughly: using guess to convert to
-        relative tolerance threshold)
-        :param get_lowlevel_result: Returns the full optimizer result instead
-        of only the best fit parameters. Bool.
-        :param use_hessian: Passes the hessian estimated at the guess to the
-        optimizer. Bool.
-        :param return_errors: If using the minuit minimizer, instead return
-        a 2-tuple of (bestfit dict, error dict).
-        :param autograph: If true (default), use tensorflow's autograph
-        during minimization.
-        """
-        if fix is None:
-            fix = dict()
-        if guess is None:
-            guess = dict()
-
-        # Create temp attributes for access in the objective
-        self._varnames = [k for k in self.param_names if k not in fix]
-        self._fix = fix
-        self._autograph_objective = autograph
-
-        # Create a vector of guesses for the optimizer
-        if not isinstance(guess, dict):
-            raise ValueError("Guess must be a dictionary")
-        guess = {**self.guess(), **guess, **fix}
-        x_guess = fd.np_to_tf(np.array([
-            guess[k] for k in self._varnames]))
-
-        if optimizer == 'minuit':
-            for i in range(len(x_guess)):
-                # Set initial step sizes of 0.1 * guess
-                kwargs.setdefault('error_' + self._varnames[i],
-                                  x_guess[i] * 0.1)
-            fit = Minuit.from_array_func(
-                self.objective_minuit,
-                x_guess,
-                grad=self.grad_minuit,
-                errordef=0.5,
-                name=self._varnames,
-                **kwargs)
-
-            fit.migrad()
-            fit_result = dict(fit.values)
-            if use_hessian:
-                fit.hesse()
-            fit_errors = dict()
-            for (k, v) in fit.errors.items():
-                fit_errors[k + '_error'] = v
-
-            fit_result = {**fit_result, **fix}
-            if return_errors:
-                return fit_result, fit_errors
-            return fit_result
-
-        elif optimizer == 'bfgs':
-            if use_hessian:
-                # This optimizer can use the hessian information
-                # Compute the inverse hessian at the guess
-                inv_hess = self.inverse_hessian(guess,
-                                                omit_grads=tuple(fix.keys()))
-                # Explicitly symmetrize the matrix
-                inv_hess = fd.symmetrize_matrix(inv_hess)
-            else:
-                inv_hess = None
-
-            # Unfortunately we can only set the relative tolerance for the
-            # objective; we'd like to set the absolute one.
-            # Use the guess log likelihood to normalize;
-            if llr_tolerance is not None:
-                kwargs.setdefault('f_relative_tolerance',
-                                 llr_tolerance/self.minus_ll(**guess)[0])
-
-            res = tfp.optimizer.bfgs_minimize(
-                self.objective_tf,
-                x_guess,
-                initial_inverse_hessian_estimate=inv_hess,
-                **kwargs)
-            if get_lowlevel_result:
-                return res
-            if res.failed:
-                raise ValueError(f"Optimizer failure! Result: {res}")
-            res = res.position
-            res = {k: res[i].numpy() for i, k in enumerate(self._varnames)}
-            return {**res, **fix}
-
-        raise ValueError(f"Unsupported optimizer {optimizer}")
-
-    def objective_tf(self, x_guess):
-        # Fill in the fixed variables / convert to dict
-        params = dict(**self._fix)
-        for i, k in enumerate(self._varnames):
-            params[k] = x_guess[i]
-
-        ll, grad = self.minus_ll(
-            **params,
-            autograph=self._autograph_objective,
-            omit_grads=tuple(self._fix.keys()))
-        if tf.math.is_nan(ll):
-            tf.print(f"Objective at {x_guess} is Nan!")
-            ll *= float('inf')
-            grad *= float('nan')
-        return ll, grad
-
-    def objective_numpy(self, x_guess):
-        ll, grad = self.objective_tf(fd.np_to_tf(x_guess))
-        return ll.numpy(), grad.numpy()
-
-    # TODO: make a nice wrapper for objective and gradient
-    def objective_minuit(self, x_guess):
-        return self.objective_numpy(x_guess)[0]
-
-    def grad_minuit(self, x_guess):
-        return self.objective_numpy(x_guess)[1]
-
-    def inverse_hessian(self, params, omit_grads=tuple()):
-        """Return inverse hessian (square tensor)
-        of -2 log_likelihood at params
-        """
-        # Also Tensorflow has tf.hessians, but:
-        # https://github.com/tensorflow/tensorflow/issues/29781
-
-        # Get second order derivatives of likelihood at params
-        _, _, grad2_ll = self.log_likelihood(**params,
-                                             autograph=False,
-                                             omit_grads=omit_grads,
-                                             second_order=True)
-
-        return tf.linalg.inv(-2 * grad2_ll)
-
-    def summary(self, bestfit=None, fix=None, guess=None,
-                inverse_hessian=None, precision=3):
-        """Print summary information about best fit"""
-        if fix is None:
-            fix = dict()
-        if bestfit is None:
-            bestfit = self.bestfit(guess=guess, fix=fix)
-
-        params = {**bestfit, **fix}
-        if inverse_hessian is None:
-            inverse_hessian = self.inverse_hessian(
-                params,
-                omit_grads=tuple(fix.keys()))
-        inverse_hessian = fd.tf_to_np(inverse_hessian)
-
-        stderr, cov = cov_to_std(inverse_hessian)
-
-        var_par_i = 0
-        for i, pname in enumerate(self.param_names):
-            if pname in fix:
-                print("{pname}: {x:.{precision}g} (fixed)".format(
-                    pname=pname, x=fix[pname], precision=precision))
-            else:
-                template = "{pname}: {x:.{precision}g} +- {xerr:.{precision}g}"
-                print(template.format(
-                    pname=pname,
-                    x=bestfit[pname],
-                    xerr=stderr[var_par_i],
-                    precision=precision))
-                var_par_i += 1
-
-        var_pars = [x for x in self.param_names if x not in fix]
-        df = pd.DataFrame(
-            {p1: {p2: cov[i1, i2]
-                  for i2, p2 in enumerate(var_pars)}
-             for i1, p1 in enumerate(var_pars)},
-            columns=var_pars)
-
-        # Get rows in the correct order
-        df['index'] = [var_pars.index(x)
-                       for x in df.index.values]
-        df = df.sort_values(by='index')
-        del df['index']
-
-        print("Correlation matrix:")
-        pd.set_option('precision', 3)
-        print(df)
-        pd.reset_option('precision')
-
-
-@export
-def cov_to_std(cov):
-    """Return (std errors, correlation coefficent matrix)
-    given covariance matrix cov
+##
+# Objective creation
+##
+
+class ObjectiveResult(ty.NamedTuple):
+    fun: ty.Union[np.ndarray, tf.Tensor]
+    grad: ty.Union[np.ndarray, tf.Tensor]
+
+
+class Objective:
+    """Construct the function that is minimized by the optimizer.
+    That function should take one argument x_guess that is a list of values
+    each belonging to the parameters being varied.
+
+    :param lf: LogLikelihood object implementing the likelihood to minimize
+    :param arg_names: List of parameter names whose values are varied by the
+    minimizer
+    :param fix: Dict of parameter names and value which are kept fixed (and
+    whose gradients are omitted)
+    :param numpy_in_out: Converts inputs to tensors and outputs to numpy arrays
+    if True, default False
+    :param autograph: Use tf.function inside likelihood, default True
+    :param nan_val: Value to use if likelihood evaluates to NaN
+    :param memoize: Whether to cache values during minimization.
     """
-    std_errs = np.diag(cov) ** 0.5
-    corr = cov * np.outer(1 / std_errs, 1 / std_errs)
-    return std_errs, corr
+    _cache: dict
+    numpy_in_out = False
+    memoize = False
+
+    def __init__(self,
+                 lf: fd.LogLikelihood,
+                 arg_names: ty.List[str],
+                 fix: ty.Dict[str, ty.Union[float, tf.constant]],
+                 autograph=True,
+                 nan_val=float('inf')):
+        self.lf = lf
+        self.arg_names = arg_names
+        self.fix = fix
+        self.autograph = autograph
+        self.nan_val = nan_val
+        self._cache = dict()
+
+    def __call__(self, x):
+        """Return (objective, gradient)"""
+        if self.memoize:
+            assert self.numpy_in_out, "Fix memoization for tensorflow..."
+            memkey = tuple(x)
+            if memkey in self._cache:
+                return self._cache[memkey]
+
+        if self.numpy_in_out:
+            x = fd.np_to_tf(x)
+
+        assert len(self.arg_names) == len(x)
+        # Build parameter dict, pair arg_names with x_guess values and add
+        # fixed pars
+        params = {**{self.arg_names[i]: x[i]
+                     for i in range(len(x))},
+                  **self.fix}
+
+        ll, grad = self._inner_fun_and_grad(params)
+
+        # Check NaNs
+        if tf.math.is_nan(ll):
+            tf.print(f"Objective at {x} is Nan!")
+            ll = tf.constant(self.nan_val, dtype=tf.float32)
+
+        if self.numpy_in_out:
+            ll = ll.numpy()
+            grad = grad.numpy()
+        result = ObjectiveResult(fun=ll, grad=grad)
+        if self.memoize:
+            self._cache[memkey] = result
+        return result
+
+    def _inner_fun_and_grad(self, params):
+        # Get -2lnL and its gradient
+        return self.lf.minus_ll(
+            **params,
+            autograph=self.autograph,
+            omit_grads=tuple(self.fix.keys()))
+
+    def fun_and_grad(self, x):
+        r = self(x)
+        return r.fun, r.grad
+
+    def fun(self, x):
+        """Return only objective"""
+        return self(x).fun
+
+    def grad(self, x):
+        """Return only gradient"""
+        return self(x).grad
+
+
+class ScipyObjective(Objective):
+    numpy_in_out = True
+    memoize = True
+
+    def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=False,
+                 llr_tolerance=5e-3, **kwargs):
+        #TODO implement optimizer methods the use hessian
+        kwargs.setdefault('tol', llr_tolerance)
+        kwargs.setdefault('method', 'TNC')
+
+        bounds = [(1e-9, None) if n.endswith('_rate_multiplier')
+                  else (None, None) for n in self.arg_names]
+        kwargs.setdefault('bounds', bounds)
+        res = scipy.optimize.minimize(self.fun, x_guess, jac=self.grad,
+                                      **kwargs)
+        if get_lowlevel_result:
+            return res
+        return {**dict(zip(self.arg_names, res.x)), **self.fix}
+
+
+class TensorFlowObjective(Objective):
+    def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=True,
+                 llr_tolerance=None, **kwargs):
+        x_guess = fd.np_to_tf(x_guess)
+
+        if use_hessian:
+            guess = {**dict(zip(self.arg_names, x_guess)), **self.fix}
+            # This optimizer can use the hessian information
+            # Compute the inverse hessian at the guess
+            inv_hess = self.lf.inverse_hessian(guess,
+                                        omit_grads=tuple(self.fix.keys()))
+            # Explicitly symmetrize the matrix
+            inv_hess = fd.symmetrize_matrix(inv_hess)
+        else:
+            inv_hess = None
+
+        # Unfortunately we can only set the relative tolerance for the
+        # objective; we'd like to set the absolute one.
+        # Use the guess log likelihood to normalize;
+        if llr_tolerance is not None:
+            kwargs.setdefault('f_relative_tolerance',
+                              llr_tolerance/self.fun(x_guess).numpy())
+
+        res = tfp.optimizer.bfgs_minimize(self.fun_and_grad, x_guess,
+                                    initial_inverse_hessian_estimate=inv_hess,
+                                    **kwargs)
+        if get_lowlevel_result:
+            return res
+        if res.failed:
+            raise ValueError(f"Optimizer failure! Result: {res}")
+
+        res = res.position
+        res = {k: res[i].numpy() for i, k in enumerate(self.arg_names)}
+        return {**res, **self.fix}
+
+
+class MinuitObjective(Objective):
+    numpy_in_out = True
+    # TODO: memoize kan ook wel voor minuit toch... Nou vooruit dan
+    memoize = True
+
+    def minimize(self, x_guess, use_hessian=True, get_lowlevel_result=False,
+                 llr_tolerance=None, **kwargs):
+        # TODO llr_tolerance
+        kwargs.setdefault('error', x_guess * 0.1)
+
+        fit = Minuit.from_array_func(self.fun, x_guess, grad=self.grad,
+                                     errordef=0.5,
+                                     name=self.arg_names,
+                                     **kwargs)
+
+        fit.migrad()
+        if use_hessian:
+            fit.hesse()
+
+        if get_lowlevel_result:
+            return fit
+        return fit.fitarg
+
+
+OBJECTIVES = dict(tfp=TensorFlowObjective,
+                  minuit=MinuitObjective,
+                  scipy=ScipyObjective)
+
+##
+# Bestfit functions
+##
+
+@export
+def get_bestfit_objective(optimizer):
+    if optimizer not in OBJECTIVES:
+        raise ValueError(f"Optimizer {optimizer} not supported")
+    return OBJECTIVES[optimizer]
+
+##
+# Interval estimation
+##
+
+class IntervalObjective(Objective):
+
+    def __init__(self, ll_best, critical_quantile, target_parameter,
+                 *args, t_ppf=None, t_ppf_grad=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if t_ppf:
+            assert self.t_ppf_grad is not None
+            self.t_ppf = t_ppf
+            self.t_ppf_grad = t_ppf_grad
+
+        self.critical_quantile = critical_quantile
+        self.ll_best = ll_best
+        self.target_parameter = target_parameter
+
+        self.numpy_in_out = True
+
+    def t_ppf(self, target_param_value):
+        """Return critical value given parameter value and critical
+        quantile.
+        Asymptotic case using Wilk's theorem, does not depend
+        on the value of the target parameter."""
+        return scipy.stats.norm.ppf(self.critical_quantile) ** 2
+
+    def t_ppf_grad(self, target_param_value):
+        """Return derivative of t_ppf wrt target_param_value"""
+        return 0
+
+    def _inner_fun_and_grad(self, params):
+        fun, grad = super()._inner_fun_and_grad(params)
+        ll_ratio = fun - self.ll_best
+        x = params[self.target_parameter]
+        crit = self.t_ppf(x)
+        diff = ll_ratio - crit
+        return (diff ** 2,
+                2 * diff * (grad - self.t_ppf_grad(x)))
+
+class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
+    """IntervalObjective using TensorFlow optimizer"""
+
+class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
+    """IntervalObjective using Minuit optimizer"""
+
+class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
+    """IntervalObjective using Scipy optimizer"""
+
+INTERVALOBJECTIVES = dict(tfp=TensorFlowIntervalObjective,
+                          minuit=MinuitIntervalObjective,
+                          scipy=ScipyIntervalObjective)
+
+def get_interval_objective(optimizer):
+    if optimizer not in INTERVALOBJECTIVES:
+        raise ValueError(f"Optimizer {optimizer} not supported")
+    return INTERVALOBJECTIVES[optimizer]
+
+
+@export
+def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
+                           bound: ty.Tuple[float, float],
+                           guess: ty.Dict[str, float],
+                           ll_best: float,
+                           critical_quantile: float,
+                           optimizer: ty.Union['tfp', 'minuit', 'scipy'],
+                           fix: ty.Dict[str, float]=None,
+                           t_ppf=None, t_ppf_grad=None):
+    """Compute upper/lower/central interval on parameter at confidence level"""
+
+    if fix is None:
+        fix = dict()
+    arg_names = [k for k in lf.param_names if k not in fix]
+    x_guess = np.array([guess[k] for k in arg_names])
+    bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
+              for n in arg_names]
+    bounds[arg_names.index(parameter)] = bound
+
+    Optimizer = get_interval_objective(optimizer)
+
+    # Construct t-stat objective + grad
+    obj = Optimizer(lf=lf, arg_names=arg_names, fix=fix, ll_best=ll_best,
+                    target_parameter=parameter, t_ppf=t_ppf,
+                    t_ppf_grad=t_ppf_grad, critical_quantile=critical_quantile)
+    res = obj.minimize(x_guess, use_hessian=False, get_lowlevel_result=False,
+                       bounds=bounds)
+
+    return res[parameter]

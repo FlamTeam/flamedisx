@@ -33,6 +33,18 @@ class SourceBase:
         """
         return dict(), dict(), dict()
 
+    def simulate(self, n_events, fix_truth=None, **params):
+        """Simulate n events.
+
+        Sources should override this method with their own implentation.
+        This method simply returns an empty DataFrame essentially skipping
+        the simulation of this source.
+        This ensures LogLikelihood can call simulate on all sources.
+        See issue #47
+        """
+        print(f"{self.__class__.__name__} has no simulate method, skipping")
+        return pd.DataFrame()
+
     def _init_padding(self, batch_size, _skip_tf_init):
         # Annotate requests n_events, currently no padding
         self.n_padding = 0
@@ -63,7 +75,8 @@ class SourceBase:
             # padded events are clipped when summing likelihood terms
             self.n_padding = self.n_batches * self.batch_size - len(self.data)
             if self.n_padding > 0:
-                df_pad = self.data.iloc[:self.n_padding, :]
+                # Repeat first event n_padding times and concat to rest of data
+                df_pad = self.data.iloc[np.zeros(self.n_padding)]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
         # Add i_batch column to data for use with precomputed model functions
@@ -456,14 +469,13 @@ class Source(SourceBase):
     # Simulation methods and helpers
     ##
 
-    def simulate(self, energies, fix_truth=None, **params):
-        """Simulate events at energies.
+    def simulate(self, n_events, fix_truth=None, **params):
+        """Simulate n events.
 
-        Will not return | energies | events lost due to
-        selection/detection efficiencies
+        Will not return events lost due to selection/detection efficiencies
         """
         # Draw random "deep truth" variables (energy, position)
-        sim_data = self.random_truth(energies, fix_truth=fix_truth, **params)
+        sim_data = self.random_truth(n_events, fix_truth=fix_truth, **params)
 
         with self._set_temporarily(sim_data, _skip_bounds_computation=True,
                                    **params):
