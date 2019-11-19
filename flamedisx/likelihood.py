@@ -60,6 +60,10 @@ class LogLikelihood:
         :param n_trials:
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
+        # Keep track of whether we traced ll after setting data
+        self.traced_after_set_data = False
+        # Only trace when we have data
+        trace_ll = False if data is None else True
 
         param_defaults = dict()
 
@@ -146,16 +150,23 @@ class LogLikelihood:
             log_constraint = lambda **kwargs: 0.
         self.log_constraint = log_constraint
 
-        self.trace_log_likelihood()
-        self.trace_log_likelihood_grad2()
+        # Only trace when we have data
+        if trace_ll:
+            self.trace_log_likelihood()
+            self.trace_log_likelihood_grad2()
+
+            self.traced_after_set_data = True
 
     def set_data(self,
-                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]]):
+                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]],
+                 autograph=True):
         """set new data for sources in the likelihood.
         Data is passed in the same format as for __init__
         Data can contain any subset of the original data keys to only
         update specific datasets.
         """
+        self.traced_after_set_data = False
+
         if isinstance(data, pd.DataFrame):
             # Only one dataset
             assert len(self.dsetnames) == 1, \
@@ -173,8 +184,13 @@ class LogLikelihood:
             elif dname not in self.dsetnames:
                 raise ValueError(f"Dataset name {dname} not known")
 
-        self.trace_log_likelihood()
-        self.trace_log_likelihood_grad2()
+        if autograph:
+            # When using traced ll, always retrace after setting data since
+            # n_events might be different
+            self.trace_log_likelihood()
+            self.trace_log_likelihood_grad2()
+
+            self.traced_after_set_data = True
 
     def simulate(self, rate_multipliers=None, fix_truth=None, **params):
         """Simulate events from sources, optionally pass custom
@@ -213,6 +229,10 @@ class LogLikelihood:
 
     def log_likelihood(self, autograph=True, second_order=False,
                        omit_grads=tuple(), **kwargs):
+        if autograph:
+            assert self.traced_after_set_data, \
+                "LL has not been retraced after last setting data"
+
         if second_order:
             # Compute the likelihood, jacobian and hessian
             # Use only non-tf.function version, in principle works with
