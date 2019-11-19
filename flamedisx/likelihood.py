@@ -12,8 +12,6 @@ o = tf.newaxis
 
 DEFAULT_DSETNAME = 'the_dataset'
 
-print_trace = False
-
 @export
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
@@ -62,6 +60,10 @@ class LogLikelihood:
         :param n_trials:
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
+        # Keep track of whether we traced ll after setting data
+        self.traced_after_set_data = False
+        # Only trace when we have data
+        trace_ll = False if data is None else True
 
         param_defaults = dict()
 
@@ -148,13 +150,20 @@ class LogLikelihood:
             log_constraint = lambda **kwargs: 0.
         self.log_constraint = log_constraint
 
+        # Only trace when we have data
+        if trace_ll:
+            self.trace_log_likelihood()
+
     def set_data(self,
-                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]]):
+                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]],
+                 autograph=True):
         """set new data for sources in the likelihood.
         Data is passed in the same format as for __init__
         Data can contain any subset of the original data keys to only
         update specific datasets.
         """
+        self.traced_after_set_data = False
+
         if isinstance(data, pd.DataFrame):
             # Only one dataset
             assert len(self.dsetnames) == 1, \
@@ -166,13 +175,16 @@ class LogLikelihood:
             if dname in data:
                 source.set_data(data[dname])
                 # Update batches and padding
-                # TODO changes here should trigger a retrace of ll
-                # how to test this
                 self.n_batches[dname] = source.n_batches
                 self.batch_size[dname] = source.batch_size
                 self.n_padding[dname] = source.n_padding
             elif dname not in self.dsetnames:
                 raise ValueError(f"Dataset name {dname} not known")
+
+        if autograph:
+            # When using traced ll, always retrace after setting data since
+            # n_events might be different
+            self.trace_log_likelihood()
 
     def simulate(self, rate_multipliers=None, fix_truth=None, **params):
         """Simulate events from sources, optionally pass custom
@@ -211,6 +223,10 @@ class LogLikelihood:
 
     def log_likelihood(self, autograph=True, second_order=False,
                        omit_grads=tuple(), **kwargs):
+        if autograph:
+            assert self.traced_after_set_data, \
+                "LL has not been retraced after last setting data"
+
         if second_order:
             # Compute the likelihood, jacobian and hessian
             # Use only non-tf.function version, in principle works with
@@ -301,13 +317,10 @@ class LogLikelihood:
         grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
-    @tf.function
-    def _log_likelihood_tf(self, i_batch, dsetname, autograph,
-                           omit_grads=tuple(), **params):
-        if print_trace:
-            print("Tracing _log_likelihood")
-        return self._log_likelihood(i_batch, dsetname, autograph,
-                                    omit_grads=omit_grads, **params)
+    def trace_log_likelihood(self):
+        self._log_likelihood_tf = tf.function(self._log_likelihood)
+        self._log_likelihood_grad2_tf = tf.function(self._log_likelihood_grad2)
+        self.traced_after_set_data = True
 
     def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
                               omit_grads=tuple(), **params):
@@ -325,14 +338,6 @@ class LogLikelihood:
         hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
-
-    @tf.function
-    def _log_likelihood_grad2_tf(self, i_batch, dsetname, autograph,
-                                 omit_grads=tuple(), **params):
-        if print_trace:
-            print("Tracing _log_likelihood_grad2_tf")
-        return self._log_likelihood_grad2(i_batch, dsetname, autograph,
-                                          omit_grads=omit_grads, **params)
 
     def _log_likelihood_inner(self, i_batch, params, dsetname, autograph):
         # Does for loop over datasets and sources, not batches

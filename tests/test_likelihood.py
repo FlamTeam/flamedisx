@@ -143,6 +143,23 @@ def test_set_data_on_no_dset(xes: fd.ERSource):
     ll2 = lf2()
 
 
+def test_retrace_set_data(xes: fd.ERSource):
+    # Test issue #53
+    lf = fd.LogLikelihood(
+        sources=dict(er=fd.ERSource),
+        data=xes.data.copy())
+    ll1 = lf()
+
+    new_data = xes.data.copy()
+    new_data['s2'] *= 2
+    lf.set_data(new_data)
+
+    ll2 = lf()
+
+    # issue 53 would not have retraced ll so lf() would be unchanged
+    assert not ll1 == ll2
+
+
 def test_multi_dset(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
