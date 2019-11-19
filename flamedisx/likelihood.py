@@ -153,9 +153,6 @@ class LogLikelihood:
         # Only trace when we have data
         if trace_ll:
             self.trace_log_likelihood()
-            self.trace_log_likelihood_grad2()
-
-            self.traced_after_set_data = True
 
     def set_data(self,
                  data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]],
@@ -188,9 +185,6 @@ class LogLikelihood:
             # When using traced ll, always retrace after setting data since
             # n_events might be different
             self.trace_log_likelihood()
-            self.trace_log_likelihood_grad2()
-
-            self.traced_after_set_data = True
 
     def simulate(self, rate_multipliers=None, fix_truth=None, **params):
         """Simulate events from sources, optionally pass custom
@@ -325,6 +319,8 @@ class LogLikelihood:
 
     def trace_log_likelihood(self):
         self._log_likelihood_tf = tf.function(self._log_likelihood)
+        self._log_likelihood_grad2_tf = tf.function(self._log_likelihood_grad2)
+        self.traced_after_set_data = True
 
     def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
                               omit_grads=tuple(), **params):
@@ -342,9 +338,6 @@ class LogLikelihood:
         hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
-
-    def trace_log_likelihood_grad2(self):
-        self._log_likelihood_grad2_tf = tf.function(self._log_likelihood_grad2)
 
     def _log_likelihood_inner(self, i_batch, params, dsetname, autograph):
         # Does for loop over datasets and sources, not batches
