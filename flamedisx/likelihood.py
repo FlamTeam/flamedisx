@@ -201,9 +201,10 @@ class LogLikelihood:
             else:
                 rm = self._get_rate_mult(sname, params)
 
-            # mean number of events to simulate, rate mult times mu source
-            mu = rm * self.mu_itps[sname](**self._filter_source_kwargs(params,
-                                                                        sname))
+            # mean number of events to simulate, rate mult times mu before
+            # efficiencies, the simulator deals with the efficiencies
+            mu = rm * s.mu_before_efficiencies(
+                **self._filter_source_kwargs(params, sname))
             # Simulate this many events from source
             n_to_sim = np.random.poisson(mu)
             if n_to_sim == 0:

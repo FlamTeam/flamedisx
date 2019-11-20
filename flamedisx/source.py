@@ -33,6 +33,12 @@ class SourceBase:
         """
         return dict(), dict(), dict()
 
+    def mu_before_efficiencies(self, **params):
+        """Return mean expected number of events BEFORE efficiencies/response
+        using data for the evaluation of the energy spectra
+        """
+        raise NotImplementedError
+
     def simulate(self, n_events, fix_truth=None, **params):
         """Simulate n events.
 
@@ -133,6 +139,12 @@ class ColumnSource(SourceBase):
         Parameters must be specified as kwarg=(start, stop, n_anchors)
         """
         return lambda **kwargs: cls.mu
+
+    def mu_before_efficiencies(self, **params):
+        """Return the number of expected events without any efficiencies
+        applied.
+        """
+        return self.mu
 
 
 @export
@@ -524,12 +536,6 @@ class Source(SourceBase):
             return mu
 
         return mu_itp
-
-    def mu_before_efficiencies(self, **params):
-        """Return mean expected number of events BEFORE efficiencies/response
-        using data for the evaluation of the energy spectra
-        """
-        raise NotImplementedError
 
     def estimate_mu(self, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
