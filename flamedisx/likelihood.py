@@ -193,7 +193,10 @@ class LogLikelihood:
         if rate_multipliers is None:
             rate_multipliers = dict()
 
-        ds = []
+        # Collect Source event DFs in ds, adding empty DataFrame ensures
+        # pd.concat doesn't fail if n_to_sim is 0 for all sources or all
+        # sources return 0 events
+        ds = [pd.DataFrame()]
         for sname, s in self.sources.items():
             rmname = sname + '_rate_multiplier'
             if rmname in rate_multipliers:
@@ -210,11 +213,22 @@ class LogLikelihood:
             if n_to_sim == 0:
                 continue
             d = s.simulate(n_to_sim,
-                            fix_truth=fix_truth,
-                            **self._filter_source_kwargs(params,
+                           fix_truth=fix_truth,
+                           **self._filter_source_kwargs(params,
                                                         sname))
-            d['source'] = sname
-            ds.append(d)
+            # If events were simulated add them to the list
+            if len(d) > 0:
+                # Keep track of what source simulated which events
+                d['source'] = sname
+                ds.append(d)
+
+        # Check if each source returned the same set of columns since
+        # columns outside the intersection will be filled with NaN values
+        if len(ds) > 2:
+            col_sets = set([frozenset(df.columns) for df in ds[1:]])
+            assert len(col_sets) == 1, \
+                f"Sources did not all simulate the same columns: {col_sets}"
+
         # Concatenate results and shuffle them
         return pd.concat(ds, sort=False).sample(frac=1).reset_index(drop=True)
 
