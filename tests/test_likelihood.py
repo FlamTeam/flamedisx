@@ -14,7 +14,7 @@ def xes(request):
     # warnings.filterwarnings("error")
     data = pd.DataFrame([dict(s1=56., s2=2905., drift_time=143465.,
                               x=2., y=0.4, z=-20, r=2.1, theta=0.1,
-                              event_time=15e17)
+                              event_time=15e17),
                          dict(s1=23, s2=1080., drift_time=445622.,
                               x=1.12, y=0.35, z=-59., r=1., theta=0.3,
                               event_time=15e17)])
