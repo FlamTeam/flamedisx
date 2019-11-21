@@ -53,7 +53,8 @@ class LXeSource(fd.Source):
     # tuple with columns needed from data
     # I guess we don't really need x y z by default, but they are just so nice
     # we should keep them around regardless.
-    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta'])
+    extra_needed_columns = tuple(['x', 'y', 'z', 'r',
+                                  'theta', 't', 'event_time'])
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
@@ -202,6 +203,13 @@ class LXeSource(fd.Source):
         energies = Hist1d.from_histogram(rs[:-1], es).get_random(n_events)
         data['energy'] = energies
         return data
+
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+        # Add J2000 timestamps to data for use with wimprates
+        if 't' not in d:
+            d['t'] = [wr.j2000(date=t)
+                      for t in pd.to_datetime(d['event_time'])]
 
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
@@ -797,9 +805,6 @@ class WIMPSource(NRSource):
     """NRSource with time dependent energy spectra from
     wimprates.
     """
-    extra_needed_columns = tuple(
-        list(NRSource.extra_needed_columns)
-        + ['t', 'event_time'])
     # Recoil energies and Wimprates settings
     es = np.geomspace(0.7, 50, 100)  # [keV]
     mw = 1e3  # GeV
@@ -884,13 +889,6 @@ class WIMPSource(NRSource):
         self.all_es_centers = fd.repeat(es_centers[o, :],
                                         repeats=self.batch_size,
                                         axis=0)
-
-    def add_extra_columns(self, d):
-        super().add_extra_columns(d)
-        # Add J2000 timestamps to data for use with wimprates
-        if 't' not in d:
-            d['t'] = [wr.j2000(date=t)
-                      for t in pd.to_datetime(d['event_time'])]
 
     def energy_spectrum(self, i_batch):
         """Return (energies in keV, events at these energies)
