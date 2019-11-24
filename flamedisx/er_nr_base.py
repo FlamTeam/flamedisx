@@ -208,8 +208,7 @@ class LXeSource(fd.Source):
         super().add_extra_columns(d)
         # Add J2000 timestamps to data for use with wimprates
         if 't' not in d:
-            d['t'] = [wr.j2000(date=t)
-                      for t in pd.to_datetime(d['event_time'])]
+            d['t'] = wr.j2000(d['event_time'])
 
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
@@ -282,8 +281,8 @@ class LXeSource(fd.Source):
 
         # Draw uniform time
         data['event_time'] = np.random.uniform(
-            pd.Timestamp(self.t_start).value,
-            pd.Timestamp(self.t_stop).value,
+            self.t_start.value,
+            self.t_stop.value,
             size=n_events).astype('float32')
         return data
 
@@ -818,8 +817,8 @@ class WIMPSource(NRSource):
         # Times used by wimprates are J2000 timestamps
         assert self.n_in > 1, \
             f"Number of time bin edges needs to be at least 2"
-        times = np.linspace(wr.j2000(date=self.t_start),
-                            wr.j2000(date=self.t_stop), self.n_in)
+        times = np.linspace(wr.j2000(self.t_start.value),
+                            wr.j2000(self.t_stop.value), self.n_in)
         time_centers = self.bin_centers(times)
 
         if wimp_kwargs is None:
@@ -860,12 +859,12 @@ class WIMPSource(NRSource):
         return 0.5 * (x[1:] + x[:-1])
 
     def to_event_time(self, jtimes):
-        j_start = wr.j2000(date=self.t_start)
-        j_stop = wr.j2000(date=self.t_stop)
+        j_start = wr.j2000(self.t_start.value)
+        j_stop = wr.j2000(self.t_stop.value)
         assert j_start < j_stop
 
-        ev_time_start = pd.Timestamp(self.t_start).value
-        ev_time_stop = pd.Timestamp(self.t_stop).value
+        ev_time_start = self.t_start.value
+        ev_time_stop = self.t_stop.value
         assert ev_time_start < ev_time_stop
 
         jfrac = (jtimes - j_start)/(j_stop - j_start)
