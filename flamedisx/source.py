@@ -103,7 +103,7 @@ class ColumnSource(SourceBase):
         self.defaults = dict()
         self.data = data
         # No point in batching: computation is trivial
-        self.batch_size = len(data) if data else batch_size
+        self.batch_size = len(data) if data is not None else batch_size
         if data:
             self._init_padding(_skip_tf_init)
             self.data_tensor = fd.np_to_tf(self.data[self.column])
