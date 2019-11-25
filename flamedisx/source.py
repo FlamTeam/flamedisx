@@ -80,10 +80,6 @@ class SourceBase:
                 df_pad = self.data.iloc[np.zeros(self.n_padding)]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
-        # Add i_batch column to data for use with precomputed model functions
-        self.data['i_batch'] = np.repeat(np.arange(self.n_batches),
-                                         self.batch_size)[:len(self.data)]
-
 
 @export
 class ColumnSource(SourceBase):
@@ -178,10 +174,6 @@ class Source(SourceBase):
             for pname, p in inspect.signature(f).parameters.items():
                 if pname == 'self':
                     continue
-                if pname == 'i_batch':
-                    # This function uses precomputed data
-                    f_dims[fname].append(pname)
-                    continue
                 if p.default is inspect.Parameter.empty:
                     if fname in cls.special_data_methods and not seen_special:
                         seen_special = True
@@ -217,6 +209,9 @@ class Source(SourceBase):
         :param fit_params: List of parameters to fit
         :param params: New defaults to use
         """
+        # Trace the differential_rate function only once
+        # (right after the first time we've set_data)
+        self.has_trace = False
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
         self.f_dims, self.f_params, self.defaults = self.find_defaults()
@@ -281,27 +276,29 @@ class Source(SourceBase):
             self._populate_tensor_cache()
             self._calculate_dimsizes()
 
-            self.trace_differential_rate()
+            if not self.has_trace:
+                self.trace_differential_rate()
+                self.has_trace = True
 
     def _populate_tensor_cache(self):
         # Cache only float and int cols
-        cols_to_cache = [x for x in self.data.columns
-                         if fd.is_numpy_number(self.data[x])]
+        self.cols_to_cache = ctc = [x for x in self.data.columns
+                                    if fd.is_numpy_number(self.data[x])]
 
         self.name_id = tf.lookup.StaticVocabularyTable(
-            tf.lookup.KeyValueTensorInitializer(tf.constant(cols_to_cache),
-                                                tf.range(len(cols_to_cache),
+            tf.lookup.KeyValueTensorInitializer(tf.constant(ctc),
+                                                tf.range(len(ctc),
                                                          dtype=tf.dtypes.int64)),
             num_oov_buckets=1,
             lookup_key_dtype=tf.dtypes.string)
 
         # Create one big data tensor (n_batches, events_per_batch, n_cols)
         # TODO: make a list
-        self.data_tensor = tf.constant(self.data[cols_to_cache].values,
+        self.data_tensor = tf.constant(self.data[ctc].values,
                                        dtype=fd.float_type())
         self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
                                                          -1,
-                                                         len(cols_to_cache)])
+                                                         len(ctc)])
 
     def _calculate_dimsizes(self):
         self.dimsizes = dict()
@@ -347,9 +344,6 @@ class Source(SourceBase):
 
         col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant(x)),
                                 fd.int_type())
-        # if i_batch is None:
-        #     return tf.reshape(self.data_tensor[:,:,col_id], [-1])
-        # else:
         return data_tensor[:, col_id]
 
     def _fetch_param(self, param, ptensor):
@@ -375,7 +369,6 @@ class Source(SourceBase):
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
-        # TODO: make a clean way to keep track of i_batch or have it as input
         assert (bonus_arg is not None) == (fname in self.special_data_methods)
 
         if data_tensor is None:
@@ -416,12 +409,13 @@ class Source(SourceBase):
     # TODO: remove duplication for batch loop? Also in inference
     def batched_differential_rate(self, progress=True, **params):
         progress = (lambda x: x) if not progress else tqdm
-        y = np.concatenate([
-            fd.tf_to_np(self.differential_rate(
-                data_tensor=self.data_tensor[i_batch],
-                **params))
-            for i_batch in progress(range(self.n_batches))])
-        return y[:self.n_events]
+        y = []
+        for i_batch in progress(range(self.n_batches)):
+            q = self.data_tensor[i_batch]
+            y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
+                                                        **params)))
+
+        return np.concatenate(y)[:self.n_events]
 
     def trace_differential_rate(self):
         input_signature = (

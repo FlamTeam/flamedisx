@@ -53,7 +53,8 @@ class LXeSource(fd.Source):
     # tuple with columns needed from data
     # I guess we don't really need x y z by default, but they are just so nice
     # we should keep them around regardless.
-    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta', 'event_time'])
+    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta',
+                                  'event_time', 'spatial_rate_multiplier'])
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
@@ -95,35 +96,27 @@ class LXeSource(fd.Source):
         # spatial_rate_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
 
-    def _populate_tensor_cache(self):
-        super()._populate_tensor_cache()
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
         if self.spatial_rate_hist is not None:
             # Setup tensor of histogram for lookup
             positions = self.data[self.spatial_rate_hist_dims].values.T
             v = self.spatial_rate_hist.lookup(*positions)
-            spatial_rate_tensor = tf.convert_to_tensor(v,
-                                                       dtype=fd.float_type())
-            self.spatial_rate_tensor = tf.reshape(spatial_rate_tensor,
-                                                  [self.n_batches, -1])
+            d['spatial_rate_multiplier'] = v.reshape([self.n_batches, -1])
         else:
-            # If no hist defined, set uniform response
-            self.spatial_rate_tensor = tf.ones([self.n_batches,
-                                                self.batch_size],
-                                               dtype=fd.float_type())
+            d['spatial_rate_multiplier'] = 1.
 
     ##
     # Model functions (data_methods)
     ##
 
     # Single constant energy spectrum
-    def energy_spectrum(self, i_batch):
+    def energy_spectrum(self, spatial_rate_multiplier):
         # Lookup the energy spectrum
         es, rs = self._single_spectrum()
-        # Lookup the spatial rate multiplier and scale the spectrum with it
-        sr = self.spatial_rate_mult(i_batch)
-        n = i_batch.shape[0]
-        return (fd.repeat(es[o, :], n, axis=0),
-                fd.repeat(rs[o, :], n, axis=0) * sr[:, o])
+        sr = spatial_rate_multiplier
+        return (fd.repeat(es[o, :], self.batch_size, axis=0),
+                fd.repeat(rs[o, :], self.batch_size, axis=0) * sr[:, o])
 
     work = 13.7e-3
 
@@ -612,10 +605,6 @@ class LXeSource(fd.Source):
     def _single_spectrum(self):
         raise NotImplementedError
 
-    def spatial_rate_mult(self, i_batch):
-        batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return self.spatial_rate_tensor[batch]
-
 
 @export
 class ERSource(LXeSource):
@@ -861,8 +850,11 @@ class WIMPSource(NRSource):
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
         assert energy_tensor.shape == [len(self.data), len(e_bin_centers)], \
             f"{energy_tensor.shape} != {len(self.data)}, {len(e_bin_centers)}"
-        self.energy_tensor = tf.reshape(energy_tensor,
-                                        [self.n_batches, self.batch_size, -1])
+        energy_tensor = tf.reshape(energy_tensor,
+                                   [self.n_batches, self.batch_size, -1])
+        self.data_tensor = tf.concat([self.data_tensor,
+                                      energy_tensor],
+                                     axis=2)
 
         es_centers = tf.convert_to_tensor(e_bin_centers,
                                           dtype=fd.float_type())
@@ -870,11 +862,15 @@ class WIMPSource(NRSource):
                                         repeats=self.batch_size,
                                         axis=0)
 
-    def energy_spectrum(self, i_batch):
+    def energy_spectrum(self, wimp_energies):
         """Return (energies in keV, events at these energies)
         """
-        batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return self.all_es_centers, self.energy_tensor[batch, :, :]
+        return self.all_es_centers, wimp_energies
+
+    def _fetch(self, x, data_tensor=None):
+        if x == 'wimp_energies':
+            return data_tensor[:, len(self.cols_to_cache):]
+        return super()._fetch(x, data_tensor=data_tensor)
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
