@@ -53,8 +53,7 @@ class LXeSource(fd.Source):
     # tuple with columns needed from data
     # I guess we don't really need x y z by default, but they are just so nice
     # we should keep them around regardless.
-    extra_needed_columns = tuple(['x', 'y', 'z', 'r',
-                                  'theta', 't', 'event_time'])
+    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta', 'event_time'])
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
@@ -207,8 +206,7 @@ class LXeSource(fd.Source):
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
         # Add J2000 timestamps to data for use with wimprates
-        if 't' not in d:
-            d['t'] = wr.j2000(d['event_time'])
+        d['t'] = wr.j2000(d['event_time'])
 
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
