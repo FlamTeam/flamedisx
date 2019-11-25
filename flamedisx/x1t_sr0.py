@@ -70,10 +70,6 @@ s1_map, s2_map = [
 class SR0Source:
     # TODO: add p_el_sr0
 
-    extra_needed_columns = tuple(
-        list(fd.ERSource.extra_needed_columns)
-        + ['x_observed', 'y_observed'])
-
     def random_truth(self, energies, fix_truth=None, **params):
         d = super().random_truth(energies, fix_truth=fix_truth, **params)
         # TODO: Add field distortion maps
@@ -106,16 +102,12 @@ class SR0Source:
 
 @export
 class SR0ERSource(SR0Source, fd.ERSource):
-    extra_needed_columns = tuple(set(
-        list(SR0Source.extra_needed_columns) +
-        list(fd.ERSource.extra_needed_columns)))
+    pass
 
 
 @export
 class SR0NRSource(SR0Source, fd.NRSource):
-    extra_needed_columns = tuple(set(
-        list(SR0Source.extra_needed_columns) +
-        list(fd.NRSource.extra_needed_columns)))
+    pass
 
 
 @export
@@ -124,9 +116,6 @@ class SR0WIMPSource(SR0Source, fd.WIMPSource):
     This describes an SR0-like WIMP source, not THE
     SR0 source. The time range is not changed from the default.
     """
-    extra_needed_columns = tuple(set(
-        list(SR0Source.extra_needed_columns) +
-        list(fd.WIMPSource.extra_needed_columns)))
     # WIMP settings
     es = np.geomspace(0.7, 50, 100)  # [keV]
     mw = 1e3  # GeV

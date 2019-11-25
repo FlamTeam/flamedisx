@@ -30,9 +30,6 @@ s1_map, s2_map = [
 
 class SR1Source:
     drift_velocity = 1.335 * 1e-4   # cm/ns
-    extra_needed_columns = tuple(
-        list(fd.ERSource.extra_needed_columns)
-        + ['x_observed', 'y_observed'])
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -116,11 +113,6 @@ class SR1ERSource(SR1Source,fd.ERSource):
 
 @export
 class SR1NRSource(SR1Source, fd.NRSource):
-    extra_needed_columns = tuple(set(
-        list(SR1Source.extra_needed_columns) +
-        list(fd.NRSource.extra_needed_columns)+
-        ['x_observed', 'y_observed']))
-
     # TODO: Define the proper nr spectrum
     # TODO: Modify the SR1NRSource to fit AmBe data better
 
