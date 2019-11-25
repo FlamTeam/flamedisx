@@ -25,6 +25,17 @@ def xes(request):
     return x
 
 
+def test_wimp_SR1_source(xes):
+    # test KeyError 't' issue, because of add_extra_columns bug
+    lf = fd.LogLikelihood(sources=dict(er=fd.SR1ERSource,
+                                       wimp=fd.SR1WIMPSource),
+                          free_rates=('er', 'wimp'))
+
+    d = lf.simulate(er_rate_multiplier=1.0,
+                    wimp_rate_multiplier=0.)
+    lf.set_data(d)
+
+
 def test_inference(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
