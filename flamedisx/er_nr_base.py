@@ -53,8 +53,7 @@ class LXeSource(fd.Source):
     # tuple with columns needed from data
     # I guess we don't really need x y z by default, but they are just so nice
     # we should keep them around regardless.
-    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta',
-                                  'event_time', 'spatial_rate_multiplier'])
+    extra_needed_columns = tuple(['s1', 's2'])
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
@@ -758,6 +757,7 @@ class NRSource(LXeSource):
     def rate_nq(self, nq_1d, data_tensor, ptensor):
         # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum', data_tensor=data_tensor, ptensor=ptensor)
+
         mean_q_produced = (
                 es
                 * self.gimme('lindhard_l', bonus_arg=es,
@@ -790,6 +790,9 @@ class WIMPSource(NRSource):
     es = np.geomspace(0.7, 50, 100)  # [keV]
     mw = 1e3  # GeV
     sigma_nucleon = 1e-45  # cm^2
+
+    ignore_columns = tuple(
+        list(NRSource.ignore_columns) + ['wimp_energies'])
 
     # Interpolator settings
     n_in = 10  # Number of time bin edges (wimprates function evaluations + 1)
@@ -840,6 +843,11 @@ class WIMPSource(NRSource):
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
 
+    def _batch_data_tensor_shape(self):
+        batch_size, n_names = super()._batch_data_tensor_shape()
+        return [batch_size,
+                n_names + len(self.energy_hist.bin_centers(1))]
+
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
         # Get energy bin centers
@@ -858,6 +866,7 @@ class WIMPSource(NRSource):
 
         es_centers = tf.convert_to_tensor(e_bin_centers,
                                           dtype=fd.float_type())
+
         self.all_es_centers = fd.repeat(es_centers[o, :],
                                         repeats=self.batch_size,
                                         axis=0)
@@ -869,7 +878,7 @@ class WIMPSource(NRSource):
 
     def _fetch(self, x, data_tensor=None):
         if x == 'wimp_energies':
-            return data_tensor[:, len(self.cols_to_cache):]
+            return data_tensor[:, len(self.name_id):]
         return super()._fetch(x, data_tensor=data_tensor)
 
     def add_extra_columns(self, d):

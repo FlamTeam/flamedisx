@@ -156,6 +156,7 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
                     res,
                     tf.zeros_like(res, dtype=float_type()))
 
+
 @export
 def is_numpy_number(x):
     try:
@@ -164,11 +165,13 @@ def is_numpy_number(x):
     except (AttributeError, TypeError):
         return False
 
+
 @export
 def symmetrize_matrix(x):
     upper = tf.linalg.band_part(x, 0, -1)
     diag = tf.linalg.band_part(x, 0, 0)
     return (upper - diag) + tf.transpose(upper)
+
 
 @export
 def j2000_to_event_time(dates):
@@ -178,3 +181,11 @@ def j2000_to_event_time(dates):
     zero = pd.to_datetime('2000-01-01T12:00')
     nanoseconds_per_day = 1e9 * 3600 * 24
     return nanoseconds_per_day * dates + zero.value
+
+
+@export
+def index_lookup_dict(names):
+    return dict(zip(
+        names,
+        [tf.constant(i, dtype=INT_TYPE)
+         for i in range(len(names))]))
