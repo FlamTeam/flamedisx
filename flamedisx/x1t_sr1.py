@@ -45,8 +45,8 @@ class SR1Source:
                                            scale=2)  # 2cm resolution)
         return d
 
-    @staticmethod
-    def add_extra_columns(d):
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
         d['s2_relative_ly'] = s2_map(
              np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
@@ -154,6 +154,7 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
         return fd.safe_p(n_el / nq)
 
+@export
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
     extra_needed_columns = tuple(set(
         list(SR1NRSource.extra_needed_columns) +
