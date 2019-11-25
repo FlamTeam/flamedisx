@@ -203,11 +203,6 @@ class LXeSource(fd.Source):
         data['energy'] = energies
         return data
 
-    def add_extra_columns(self, d):
-        super().add_extra_columns(d)
-        # Add J2000 timestamps to data for use with wimprates
-        d['t'] = wr.j2000(d['event_time'])
-
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
            Compute derived variables.
@@ -881,12 +876,16 @@ class WIMPSource(NRSource):
         batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
         return self.all_es_centers, self.energy_tensor[batch, :, :]
 
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+        # Add J2000 timestamps to data for use with wimprates
+        d['t'] = wr.j2000(d['event_time'])
+
     def _add_random_energies(self, data, n_events):
         """Draw n_events random energies and times from the energy/
         time spectrum and add them to the data dict.
         """
         events = self.energy_hist.get_random(n_events)
-        data['t'] = j2000_times = events[:, 0]
         data['energy'] = events[:, 1]
-        data['event_time'] = fd.j2000_to_event_time(j2000_times)
+        data['event_time'] = fd.j2000_to_event_time(events[:, 0])
         return data
