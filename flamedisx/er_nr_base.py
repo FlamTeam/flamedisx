@@ -856,18 +856,6 @@ class WIMPSource(NRSource):
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
 
-    def to_event_time(self, jtimes):
-        j_start = wr.j2000(self.t_start.value)
-        j_stop = wr.j2000(self.t_stop.value)
-        assert j_start < j_stop
-
-        ev_time_start = self.t_start.value
-        ev_time_stop = self.t_stop.value
-        assert ev_time_start < ev_time_stop
-
-        jfrac = (jtimes - j_start)/(j_stop - j_start)
-        return jfrac * (ev_time_stop - ev_time_start) + ev_time_start
-
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
         # Get energy bin centers
@@ -900,5 +888,5 @@ class WIMPSource(NRSource):
         events = self.energy_hist.get_random(n_events)
         data['t'] = j2000_times = events[:, 0]
         data['energy'] = events[:, 1]
-        data['event_time'] = self.to_event_time(j2000_times)
+        data['event_time'] = fd.j2000_to_event_time(j2000_times)
         return data

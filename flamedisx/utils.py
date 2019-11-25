@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 # Remove once tf.repeat is available in the tf api
@@ -168,3 +169,12 @@ def symmetrize_matrix(x):
     upper = tf.linalg.band_part(x, 0, -1)
     diag = tf.linalg.band_part(x, 0, 0)
     return (upper - diag) + tf.transpose(upper)
+
+@export
+def j2000_to_event_time(dates):
+    """Convert a numpy array of j2000 timestamps to event_times
+    which are ns unix timestamps. This is the reverse of wimprates.j2000
+    """
+    zero = pd.to_datetime('2000-01-01T12:00')
+    nanoseconds_per_day = 1e9 * 3600 * 24
+    return nanoseconds_per_day * dates + zero.value
