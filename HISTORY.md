@@ -1,3 +1,10 @@
+0.3.1 / 2019-11-26
+------------------
+- Performance improvements and cleanup (#58)
+- Improve one_parameter_interval arguments (#56)
+- Add Tutorial output to flamedisx-notebooks (#56)
+- Bugfixes (#57)
+
 0.3.0 / 2019-11-19
 ------------------
 - Split off notebook folder to flamedisx-notebooks
