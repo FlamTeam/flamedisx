@@ -12,7 +12,7 @@ with open('HISTORY.md') as file:
 
 setuptools.setup(
     name='flamedisx',
-    version='0.3.0',
+    version='0.3.1',
     description='Fast likelihood analysis in more dimensions for xenon TPCs',
     author='Jelle Aalbers, Bart Pelssers, Cristian Antochi',
     url='https://github.com/JelleAalbers/flamedisx',
