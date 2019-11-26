@@ -176,10 +176,8 @@ class LogLikelihood:
         if rate_multipliers is None:
             rate_multipliers = dict()
 
-        # Collect Source event DFs in ds, adding empty DataFrame ensures
-        # pd.concat doesn't fail if n_to_sim is 0 for all sources or all
-        # sources return 0 events
-        ds = [pd.DataFrame()]
+        # Collect Source event DFs in ds
+        ds = []
         for sname, s in self.sources.items():
             rmname = sname + '_rate_multiplier'
             if rmname in rate_multipliers:
@@ -207,13 +205,16 @@ class LogLikelihood:
 
         # Check if each source returned the same set of columns since
         # columns outside the intersection will be filled with NaN values
-        if len(ds) > 2:
-            col_sets = set([frozenset(df.columns) for df in ds[1:]])
+        if len(ds) > 1:
+            col_sets = set([frozenset(df.columns) for df in ds])
             assert len(col_sets) == 1, \
                 f"Sources did not all simulate the same columns: {col_sets}"
 
-        # Concatenate results and shuffle them
-        return pd.concat(ds, sort=False).sample(frac=1).reset_index(drop=True)
+        # Concatenate results and shuffle them.
+        # Adding empty DataFrame ensures pd.concat doesn't fail if
+        # n_to_sim is 0 for all sources or all sources return 0 events
+        ds = pd.concat([pd.DataFrame()] + ds, sort=False)
+        return ds.sample(frac=1).reset_index(drop=True)
 
     def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'

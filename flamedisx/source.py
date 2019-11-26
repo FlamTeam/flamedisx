@@ -277,10 +277,10 @@ class Source(SourceBase):
             self._calculate_dimsizes()
 
     def _populate_tensor_cache(self):
-        ctc = self.cols_to_cache
 
         # Create one big data tensor (n_batches, events_per_batch, n_cols)
         # TODO: make a list
+        ctc = self.cols_to_cache
         self.data_tensor = tf.constant(self.data[ctc].values,
                                        dtype=fd.float_type())
         self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
@@ -406,7 +406,6 @@ class Source(SourceBase):
         return np.concatenate(y)[:self.n_events]
 
     def _batch_data_tensor_shape(self):
-        # return self.data_tensor.shape[1:]
         return [self.batch_size, len(self.name_id)]
 
     def trace_differential_rate(self):

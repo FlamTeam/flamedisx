@@ -187,5 +187,5 @@ def j2000_to_event_time(dates):
 def index_lookup_dict(names):
     return dict(zip(
         names,
-        [tf.constant(i, dtype=INT_TYPE)
+        [tf.constant(i, dtype=int_type())
          for i in range(len(names))]))

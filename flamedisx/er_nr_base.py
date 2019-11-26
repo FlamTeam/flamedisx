@@ -852,7 +852,7 @@ class WIMPSource(NRSource):
         e_bin_centers = self.energy_hist.bin_centers(axis=1)
         # Construct the energy spectra at event times
         e = np.array([self.energy_hist.slicesum(t).histogram
-                      for t in self.data['t']])
+                      for t in self.data['t_j2000']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
         assert energy_tensor.shape == [len(self.data), len(e_bin_centers)], \
             f"{energy_tensor.shape} != {len(self.data)}, {len(e_bin_centers)}"
@@ -862,17 +862,17 @@ class WIMPSource(NRSource):
                                       energy_tensor],
                                      axis=2)
 
+        # Centers of energy bins, repeated across the batch dimension
         es_centers = tf.convert_to_tensor(e_bin_centers,
                                           dtype=fd.float_type())
-
-        self.all_es_centers = fd.repeat(es_centers[o, :],
-                                        repeats=self.batch_size,
-                                        axis=0)
+        self.es_centers_batch = fd.repeat(es_centers[o, :],
+                                          repeats=self.batch_size,
+                                          axis=0)
 
     def energy_spectrum(self, wimp_energies):
         """Return (energies in keV, events at these energies)
         """
-        return self.all_es_centers, wimp_energies
+        return self.es_centers_batch, wimp_energies
 
     def _fetch(self, x, data_tensor=None):
         if x == 'wimp_energies':
@@ -882,7 +882,7 @@ class WIMPSource(NRSource):
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
         # Add J2000 timestamps to data for use with wimprates
-        d['t'] = wr.j2000(d['event_time'])
+        d['t_j2000'] = wr.j2000(d['event_time'])
 
     def _add_random_energies(self, data, n_events):
         """Draw n_events random energies and times from the energy/
