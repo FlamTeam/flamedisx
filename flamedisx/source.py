@@ -139,12 +139,14 @@ class Source(SourceBase):
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
-    extra_needed_columns = tuple()
+    def extra_needed_columns(self):
+        return []
 
     # List all columns for which sneaky hacks are used to intercept _fetch here
     # These will not be added to the data tensor even when the model function
     # inspection does find them.
-    ignore_columns = tuple()
+    def ignore_columns(self):
+        return []
 
     data = None
 
@@ -213,9 +215,9 @@ class Source(SourceBase):
 
         # Which columns are needed from data?
         ctc = list(set(sum(self.f_dims.values(), [])))
-        ctc += list(self.extra_needed_columns)
+        ctc += self.extra_needed_columns()
         ctc += [x + '_min' for x in self.inner_dimensions]  # Needed in domain
-        ctc = [x for x in ctc if x not in self.ignore_columns]
+        ctc = [x for x in ctc if x not in self.ignore_columns()]
         self.cols_to_cache = ctc
         self.name_id = fd.index_lookup_dict(ctc)
 
@@ -323,7 +325,7 @@ class Source(SourceBase):
         :param x: column name
         :param data_tensor: Data tensor, columns as in self.name_id
         """
-        if x in self.ignore_columns:
+        if x in self.ignore_columns():
             raise RuntimeError(
                 "Attempt to fetch %s, which is in ignore_columns" % x)
         if data_tensor is None:
@@ -547,9 +549,6 @@ class Source(SourceBase):
 
     def add_extra_columns(self, data):
         """Add additional columns to data
-
-        You must add any columns from data you use here to
-        extra_needed.columns.
 
         :param data: pandas DataFrame
         """

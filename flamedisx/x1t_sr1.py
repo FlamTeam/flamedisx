@@ -146,8 +146,7 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
         return fd.safe_p(n_el / nq)
 
+
 @export
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
-    extra_needed_columns = tuple(set(
-        list(SR1NRSource.extra_needed_columns) +
-        list(fd.WIMPSource.extra_needed_columns)))
+    pass
