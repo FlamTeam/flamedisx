@@ -50,10 +50,8 @@ class LXeSource(fd.Source):
         'photon_produced',
         'electron_produced')
 
-    # tuple with columns needed from data
-    # I guess we don't really need x y z by default, but they are just so nice
-    # we should keep them around regardless.
-    extra_needed_columns = tuple(['x', 'y', 'z', 'r', 'theta'])
+    def extra_needed_columns(self):
+        return super().extra_needed_columns() + ['s1', 's2']
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
@@ -95,35 +93,27 @@ class LXeSource(fd.Source):
         # spatial_rate_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
 
-    def _populate_tensor_cache(self):
-        super()._populate_tensor_cache()
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
         if self.spatial_rate_hist is not None:
             # Setup tensor of histogram for lookup
             positions = self.data[self.spatial_rate_hist_dims].values.T
             v = self.spatial_rate_hist.lookup(*positions)
-            spatial_rate_tensor = tf.convert_to_tensor(v,
-                                                       dtype=fd.float_type())
-            self.spatial_rate_tensor = tf.reshape(spatial_rate_tensor,
-                                                  [self.n_batches, -1])
+            d['spatial_rate_multiplier'] = v.reshape([self.n_batches, -1])
         else:
-            # If no hist defined, set uniform response
-            self.spatial_rate_tensor = tf.ones([self.n_batches,
-                                                self.batch_size],
-                                               dtype=fd.float_type())
+            d['spatial_rate_multiplier'] = 1.
 
     ##
     # Model functions (data_methods)
     ##
 
     # Single constant energy spectrum
-    def energy_spectrum(self, i_batch):
+    def energy_spectrum(self, spatial_rate_multiplier):
         # Lookup the energy spectrum
         es, rs = self._single_spectrum()
-        # Lookup the spatial rate multiplier and scale the spectrum with it
-        sr = self.spatial_rate_mult(i_batch)
-        n = i_batch.shape[0]
-        return (fd.repeat(es[o, :], n, axis=0),
-                fd.repeat(rs[o, :], n, axis=0) * sr[:, o])
+        sr = spatial_rate_multiplier
+        return (fd.repeat(es[o, :], self.batch_size, axis=0),
+                fd.repeat(rs[o, :], self.batch_size, axis=0) * sr[:, o])
 
     work = 13.7e-3
 
@@ -274,8 +264,8 @@ class LXeSource(fd.Source):
 
         # Draw uniform time
         data['event_time'] = np.random.uniform(
-            pd.Timestamp(self.t_start).value,
-            pd.Timestamp(self.t_stop).value,
+            self.t_start.value,
+            self.t_stop.value,
             size=n_events).astype('float32')
         return data
 
@@ -612,10 +602,6 @@ class LXeSource(fd.Source):
     def _single_spectrum(self):
         raise NotImplementedError
 
-    def spatial_rate_mult(self, i_batch):
-        batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return self.spatial_rate_tensor[batch]
-
 
 @export
 class ERSource(LXeSource):
@@ -769,6 +755,7 @@ class NRSource(LXeSource):
     def rate_nq(self, nq_1d, data_tensor, ptensor):
         # (n_events, |ne|) tensors
         es, rate_e = self.gimme('energy_spectrum', data_tensor=data_tensor, ptensor=ptensor)
+
         mean_q_produced = (
                 es
                 * self.gimme('lindhard_l', bonus_arg=es,
@@ -797,13 +784,13 @@ class WIMPSource(NRSource):
     """NRSource with time dependent energy spectra from
     wimprates.
     """
-    extra_needed_columns = tuple(
-        list(NRSource.extra_needed_columns)
-        + ['t', 'event_time'])
     # Recoil energies and Wimprates settings
     es = np.geomspace(0.7, 50, 100)  # [keV]
     mw = 1e3  # GeV
     sigma_nucleon = 1e-45  # cm^2
+
+    def ignore_columns(self):
+        return super().ignore_columns() + ['wimp_energies']
 
     # Interpolator settings
     n_in = 10  # Number of time bin edges (wimprates function evaluations + 1)
@@ -813,8 +800,8 @@ class WIMPSource(NRSource):
         # Times used by wimprates are J2000 timestamps
         assert self.n_in > 1, \
             f"Number of time bin edges needs to be at least 2"
-        times = np.linspace(wr.j2000(date=self.t_start),
-                            wr.j2000(date=self.t_stop), self.n_in)
+        times = np.linspace(wr.j2000(self.t_start.value),
+                            wr.j2000(self.t_stop.value), self.n_in)
         time_centers = self.bin_centers(times)
 
         if wimp_kwargs is None:
@@ -854,17 +841,10 @@ class WIMPSource(NRSource):
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
 
-    def to_event_time(self, jtimes):
-        j_start = wr.j2000(date=self.t_start)
-        j_stop = wr.j2000(date=self.t_stop)
-        assert j_start < j_stop
-
-        ev_time_start = pd.Timestamp(self.t_start).value
-        ev_time_stop = pd.Timestamp(self.t_stop).value
-        assert ev_time_start < ev_time_stop
-
-        jfrac = (jtimes - j_start)/(j_stop - j_start)
-        return jfrac * (ev_time_stop - ev_time_start) + ev_time_start
+    def _batch_data_tensor_shape(self):
+        batch_size, n_names = super()._batch_data_tensor_shape()
+        return [batch_size,
+                n_names + len(self.energy_hist.bin_centers(1))]
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
@@ -872,38 +852,43 @@ class WIMPSource(NRSource):
         e_bin_centers = self.energy_hist.bin_centers(axis=1)
         # Construct the energy spectra at event times
         e = np.array([self.energy_hist.slicesum(t).histogram
-                      for t in self.data['t']])
+                      for t in self.data['t_j2000']])
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
         assert energy_tensor.shape == [len(self.data), len(e_bin_centers)], \
             f"{energy_tensor.shape} != {len(self.data)}, {len(e_bin_centers)}"
-        self.energy_tensor = tf.reshape(energy_tensor,
-                                        [self.n_batches, self.batch_size, -1])
+        energy_tensor = tf.reshape(energy_tensor,
+                                   [self.n_batches, self.batch_size, -1])
+        self.data_tensor = tf.concat([self.data_tensor,
+                                      energy_tensor],
+                                     axis=2)
 
+        # Centers of energy bins, repeated across the batch dimension
         es_centers = tf.convert_to_tensor(e_bin_centers,
                                           dtype=fd.float_type())
-        self.all_es_centers = fd.repeat(es_centers[o, :],
-                                        repeats=self.batch_size,
-                                        axis=0)
+        self.es_centers_batch = fd.repeat(es_centers[o, :],
+                                          repeats=self.batch_size,
+                                          axis=0)
+
+    def energy_spectrum(self, wimp_energies):
+        """Return (energies in keV, events at these energies)
+        """
+        return self.es_centers_batch, wimp_energies
+
+    def _fetch(self, x, data_tensor=None):
+        if x == 'wimp_energies':
+            return data_tensor[:, len(self.name_id):]
+        return super()._fetch(x, data_tensor=data_tensor)
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
         # Add J2000 timestamps to data for use with wimprates
-        if 't' not in d:
-            d['t'] = [wr.j2000(date=t)
-                      for t in pd.to_datetime(d['event_time'])]
-
-    def energy_spectrum(self, i_batch):
-        """Return (energies in keV, events at these energies)
-        """
-        batch = tf.dtypes.cast(i_batch[0], dtype=fd.int_type())
-        return self.all_es_centers, self.energy_tensor[batch, :, :]
+        d['t_j2000'] = wr.j2000(d['event_time'])
 
     def _add_random_energies(self, data, n_events):
         """Draw n_events random energies and times from the energy/
         time spectrum and add them to the data dict.
         """
         events = self.energy_hist.get_random(n_events)
-        data['t'] = j2000_times = events[:, 0]
         data['energy'] = events[:, 1]
-        data['event_time'] = self.to_event_time(j2000_times)
+        data['event_time'] = fd.j2000_to_event_time(events[:, 0])
         return data

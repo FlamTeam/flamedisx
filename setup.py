@@ -1,9 +1,8 @@
 import setuptools
 
-# Get requirements from requirements.txt, stripping the version tags
+# Get requirements from requirements.txt
 with open('requirements.txt') as f:
-    requires = [x.strip().split('=')[0]
-                for x in f.readlines()]
+    requires = [x.strip() for x in f.readlines()]
 
 with open('README.md') as file:
     readme = file.read()

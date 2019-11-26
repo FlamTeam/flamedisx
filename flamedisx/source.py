@@ -51,21 +51,10 @@ class SourceBase:
         print(f"{self.__class__.__name__} has no simulate method, skipping")
         return pd.DataFrame()
 
-    def _init_padding(self, batch_size, _skip_tf_init):
+    def _init_padding(self, _skip_tf_init):
         # Annotate requests n_events, currently no padding
         self.n_padding = 0
         self.n_events = len(self.data)
-
-        if hasattr(self, 'batch_size'):
-            # We have self.batch_size so the Source has been initialized before
-            # meaning we cannot change the batch_size anymore, check that we
-            # are not trying to change it by accident
-            assert batch_size is None
-        else:
-            if batch_size is None or batch_size > self.n_events or _skip_tf_init:
-                batch_size = self.n_events
-            self.batch_size = max(1, batch_size)
-
         self.n_batches = np.ceil(
             self.n_events / self.batch_size).astype(np.int)
 
@@ -79,10 +68,6 @@ class SourceBase:
                 # Repeat first event n_padding times and concat to rest of data
                 df_pad = self.data.iloc[np.zeros(self.n_padding)]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
-
-        # Add i_batch column to data for use with precomputed model functions
-        self.data['i_batch'] = np.repeat(np.arange(self.n_batches),
-                                         self.batch_size)[:len(self.data)]
 
 
 @export
@@ -117,12 +102,10 @@ class ColumnSource(SourceBase):
         """
         self.defaults = dict()
         self.data = data
-        if data is None:
-            # We're calling the source without data. Set the batch_size here
-            # since we can't pass it to set_data later
-            self.batch_size = batch_size
-        else:
-            self._init_padding(batch_size, _skip_tf_init)
+        # No point in batching: computation is trivial
+        self.batch_size = len(data) if data is not None else batch_size
+        if data is not None:
+            self._init_padding(_skip_tf_init)
             self.data_tensor = fd.np_to_tf(self.data[self.column])
             self.data_tensor = tf.reshape(self.data_tensor,
                                           (-1, self.batch_size, 1))
@@ -152,7 +135,18 @@ class Source(SourceBase):
     data_methods = tuple()
     special_data_methods = tuple()
     inner_dimensions = tuple()
-    extra_needed_columns = tuple()
+
+    # List all columns that are manually _fetch ed here
+    # These will be added to the data_tensor even when the model function
+    # inspection will not find them.
+    def extra_needed_columns(self):
+        return []
+
+    # List all columns for which sneaky hacks are used to intercept _fetch here
+    # These will not be added to the data tensor even when the model function
+    # inspection does find them.
+    def ignore_columns(self):
+        return []
 
     data = None
 
@@ -177,10 +171,6 @@ class Source(SourceBase):
             seen_special = False
             for pname, p in inspect.signature(f).parameters.items():
                 if pname == 'self':
-                    continue
-                if pname == 'i_batch':
-                    # This function uses precomputed data
-                    f_dims[fname].append(pname)
                     continue
                 if p.default is inspect.Parameter.empty:
                     if fname in cls.special_data_methods and not seen_special:
@@ -217,29 +207,32 @@ class Source(SourceBase):
         :param fit_params: List of parameters to fit
         :param params: New defaults to use
         """
+        self.max_sigma = max_sigma
+
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
         self.f_dims, self.f_params, self.defaults = self.find_defaults()
 
-        self.max_sigma = max_sigma
+        # Which columns are needed from data?
+        ctc = list(set(sum(self.f_dims.values(), [])))
+        ctc += self.extra_needed_columns()
+        ctc += [x + '_min' for x in self.inner_dimensions]  # Needed in domain
+        ctc = [x for x in ctc if x not in self.ignore_columns()]
+        self.cols_to_cache = ctc
+        self.name_id = fd.index_lookup_dict(ctc)
 
         self.set_defaults(**params)
 
         if fit_params is None:
             fit_params = list(self.defaults.keys())
-        self.fit_params = [tf.constant(x) for x in fit_params
+        self.fit_params = [x for x in fit_params
                            if x in self.defaults]
 
         if len(self.defaults):
-            self.param_id = tf.lookup.StaticVocabularyTable(
-                tf.lookup.KeyValueTensorInitializer(tf.constant(list(self.defaults.keys())),
-                                                    tf.range(len(self.defaults),
-                                                             dtype=tf.dtypes.int64)),
-                num_oov_buckets=1,
-                lookup_key_dtype=tf.dtypes.string)
+            self.param_id = fd.index_lookup_dict(self.defaults.keys())
             # Indices of params we actually want to fit; we have to differentiate wrt these
             self.fit_param_indices = tuple([
-                self.param_id.lookup(param_name)
+                self.param_id[param_name]
                 for param_name in self.fit_params])
 
         if data is None:
@@ -247,11 +240,14 @@ class Source(SourceBase):
             # since we can't pass it to set_data later
             self.batch_size = batch_size
         else:
+            self.batch_size = min(batch_size, len(data))
             self.set_data(data,
-                          batch_size=batch_size,
                           data_is_annotated=data_is_annotated,
                           _skip_tf_init=_skip_tf_init,
                           _skip_bounds_computation=_skip_bounds_computation)
+
+        if not _skip_tf_init:
+            self.trace_differential_rate()
 
     def set_defaults(self, **params):
         for k, v in params.items():
@@ -261,7 +257,6 @@ class Source(SourceBase):
 
     def set_data(self,
                  data,
-                 batch_size=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -271,7 +266,7 @@ class Source(SourceBase):
 
         self.set_defaults(**params)
 
-        self._init_padding(batch_size, _skip_tf_init)
+        self._init_padding(_skip_tf_init)
 
         if not data_is_annotated:
             self.add_extra_columns(self.data)
@@ -281,27 +276,16 @@ class Source(SourceBase):
             self._populate_tensor_cache()
             self._calculate_dimsizes()
 
-            self.trace_differential_rate()
-
     def _populate_tensor_cache(self):
-        # Cache only float and int cols
-        cols_to_cache = [x for x in self.data.columns
-                         if fd.is_numpy_number(self.data[x])]
-
-        self.name_id = tf.lookup.StaticVocabularyTable(
-            tf.lookup.KeyValueTensorInitializer(tf.constant(cols_to_cache),
-                                                tf.range(len(cols_to_cache),
-                                                         dtype=tf.dtypes.int64)),
-            num_oov_buckets=1,
-            lookup_key_dtype=tf.dtypes.string)
 
         # Create one big data tensor (n_batches, events_per_batch, n_cols)
         # TODO: make a list
-        self.data_tensor = tf.constant(self.data[cols_to_cache].values,
+        ctc = self.cols_to_cache
+        self.data_tensor = tf.constant(self.data[ctc].values,
                                        dtype=fd.float_type())
         self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
                                                          -1,
-                                                         len(cols_to_cache)])
+                                                         len(ctc)])
 
     def _calculate_dimsizes(self):
         self.dimsizes = dict()
@@ -341,21 +325,19 @@ class Source(SourceBase):
         :param x: column name
         :param data_tensor: Data tensor, columns as in self.name_id
         """
+        if x in self.ignore_columns():
+            raise RuntimeError(
+                "Attempt to fetch %s, which is in ignore_columns" % x)
         if data_tensor is None:
             # We're inside annotate, just return the column
             return fd.np_to_tf(self.data[x].values)
 
-        col_id = tf.dtypes.cast(self.name_id.lookup(tf.constant(x)),
-                                fd.int_type())
-        # if i_batch is None:
-        #     return tf.reshape(self.data_tensor[:,:,col_id], [-1])
-        # else:
-        return data_tensor[:, col_id]
+        return data_tensor[:, self.name_id[x]]
 
     def _fetch_param(self, param, ptensor):
         if ptensor is None:
             return self.defaults[param]
-        id = tf.dtypes.cast(self.param_id.lookup(tf.constant(param)),
+        id = tf.dtypes.cast(self.param_id[param],
                             dtype=fd.int_type())
         return ptensor[id]
 
@@ -375,7 +357,6 @@ class Source(SourceBase):
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
-        # TODO: make a clean way to keep track of i_batch or have it as input
         assert (bonus_arg is not None) == (fname in self.special_data_methods)
 
         if data_tensor is None:
@@ -416,18 +397,22 @@ class Source(SourceBase):
     # TODO: remove duplication for batch loop? Also in inference
     def batched_differential_rate(self, progress=True, **params):
         progress = (lambda x: x) if not progress else tqdm
-        y = np.concatenate([
-            fd.tf_to_np(self.differential_rate(
-                data_tensor=self.data_tensor[i_batch],
-                **params))
-            for i_batch in progress(range(self.n_batches))])
-        return y[:self.n_events]
+        y = []
+        for i_batch in progress(range(self.n_batches)):
+            q = self.data_tensor[i_batch]
+            y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
+                                                        **params)))
+
+        return np.concatenate(y)[:self.n_events]
+
+    def _batch_data_tensor_shape(self):
+        return [self.batch_size, len(self.name_id)]
 
     def trace_differential_rate(self):
         input_signature = (
-            tf.TensorSpec(shape=self.data_tensor.shape[1:],
+            tf.TensorSpec(shape=self._batch_data_tensor_shape(),
                           dtype=fd.float_type()),
-            tf.TensorSpec(shape=[len(self.defaults)],
+            tf.TensorSpec(shape=[len(self.param_id)],
                           dtype=fd.float_type()))
         self._differential_rate_tf = tf.function(
             self._differential_rate,
@@ -563,9 +548,6 @@ class Source(SourceBase):
 
     def add_extra_columns(self, data):
         """Add additional columns to data
-
-        You must add any columns from data you use here to
-        extra_needed.columns.
 
         :param data: pandas DataFrame
         """

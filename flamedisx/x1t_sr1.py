@@ -28,12 +28,8 @@ s1_map, s2_map = [
 ##
 
 
-@export
 class SR1Source:
     drift_velocity = 1.335 * 1e-4   # cm/ns
-    extra_needed_columns = tuple(
-        list(fd.ERSource.extra_needed_columns)
-        + ['x_observed', 'y_observed'])
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -46,8 +42,8 @@ class SR1Source:
                                            scale=2)  # 2cm resolution)
         return d
 
-    @staticmethod
-    def add_extra_columns(d):
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
         d['s2_relative_ly'] = s2_map(
              np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
@@ -67,15 +63,15 @@ class SR1Source:
 
     @staticmethod
     def electron_gain_std(s2_relative_ly, *, g2=11.4/(1.-0.63)/0.96):
-        return g2*0.96*0.25+0.*s2_relative_ly    
+        return g2*0.96*0.25+0.*s2_relative_ly
 
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
-    def photon_detection_eff(s1_relative_ly, g1 =0.142): 
+    def photon_detection_eff(s1_relative_ly, g1 =0.142):
         #g1 = 0.142 from paper
         mean_eff= g1 / (1. + 0.219)
         return mean_eff * s1_relative_ly
-    
+
 
 
 # ER Source for SR1
@@ -83,22 +79,22 @@ class SR1Source:
 class SR1ERSource(SR1Source,fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, W=13.8e-3, mean_nexni=0.135,  q0=1.13, q1=0.47, 
-                   gamma_er=0.031 , omega_er=31.): 
+    def p_electron(nq, W=13.8e-3, mean_nexni=0.135,  q0=1.13, q1=0.47,
+                   gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
 
         F = tf.constant(81.,dtype=fd.float_type())
-        
+
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24) 
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1. - r_er) / nq
-        
+
         return fd.safe_p(p_el)
 
     @staticmethod
@@ -115,14 +111,13 @@ class SR1ERSource(SR1Source,fd.ERSource):
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
+@export
 class SR1NRSource(SR1Source, fd.NRSource):
-    extra_needed_columns = tuple(set(
-        list(SR1Source.extra_needed_columns) + 
-        list(fd.NRSource.extra_needed_columns)+
-        ['x_observed', 'y_observed']))
+    # TODO: Define the proper nr spectrum
+    # TODO: Modify the SR1NRSource to fit AmBe data better
 
     def p_electron(self, nq, *,
-            alpha=1.280, zeta=0.045, beta=273 * .9e-4, 
+            alpha=1.280, zeta=0.045, beta=273 * .9e-4,
             gamma=0.0141, delta=0.062,
             drift_field=81):
         """Fraction of detectable NR quanta that become electrons,
@@ -150,7 +145,8 @@ class SR1NRSource(SR1Source, fd.NRSource):
         n_el = ni * fnotr
 
         return fd.safe_p(n_el / nq)
-    
-    #TODO: Define the proper nr spectrum
 
-# TODO: Modify the SR1NRSource to fit AmBe data better and add WIMPSource
+
+@export
+class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
+    pass
