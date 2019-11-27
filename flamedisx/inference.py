@@ -105,20 +105,37 @@ class Objective:
         """Return only gradient"""
         return self(x).grad
 
+    def guess_relative_tolerance(self, x_guess, llr_tolerance):
+        """Return relative tolerance corresponding to absolute llr_tolerance,
+        assuming guess is near the minimum
+        """
+        return abs(llr_tolerance / self.fun(x_guess))
+
 
 class ScipyObjective(Objective):
     numpy_in_out = True
     memoize = True
 
     def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=False,
-                 llr_tolerance=5e-3, **kwargs):
-        #TODO implement optimizer methods the use hessian
-        kwargs.setdefault('tol', llr_tolerance)
+                 llr_tolerance=None, **kwargs):
+        # TODO implement optimizer methods the use hessian
         kwargs.setdefault('method', 'TNC')
 
         bounds = [(1e-9, None) if n.endswith('_rate_multiplier')
                   else (None, None) for n in self.arg_names]
         kwargs.setdefault('bounds', bounds)
+
+        # Note the default 'tol' option is interpreted as xtol for TNC.
+        # ftol is cryptically described as "precision goal"... but from the code
+        # https://github.com/scipy/scipy/blob/81d2318e3a9ab172c05645e5d663979f7c594472/scipy/optimize/tnc/tnc.c#L844
+        # it appears this is the threshold relative change in f to trigger
+        # convergence.
+        kwargs.setdefault('options', dict())
+        if llr_tolerance is not None:
+            kwargs['options'].setdefault(
+                'ftol',
+                self.guess_relative_tolerance(x_guess, llr_tolerance))
+
         res = scipy.optimize.minimize(self.fun, x_guess, jac=self.grad,
                                       **kwargs)
         if get_lowlevel_result:
@@ -146,12 +163,15 @@ class TensorFlowObjective(Objective):
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
-            kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self.fun(x_guess).numpy())
+            kwargs.setdefault(
+                'f_relative_tolerance',
+                self.guess_relative_tolerance(x_guess, llr_tolerance))
 
-        res = tfp.optimizer.bfgs_minimize(self.fun_and_grad, x_guess,
-                                    initial_inverse_hessian_estimate=inv_hess,
-                                    **kwargs)
+        res = tfp.optimizer.bfgs_minimize(
+            self.fun_and_grad,
+            initial_position=x_guess,
+            initial_inverse_hessian_estimate=inv_hess,
+            **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
@@ -169,13 +189,24 @@ class MinuitObjective(Objective):
 
     def minimize(self, x_guess, use_hessian=True, get_lowlevel_result=False,
                  llr_tolerance=None, **kwargs):
-        # TODO llr_tolerance
-        kwargs.setdefault('error', x_guess * 0.1)
+        kwargs.setdefault('error',
+                          np.maximum(x_guess * 0.1,
+                                     1e-3 * np.ones_like(x_guess)))
+        for n in self.arg_names:
+            if n.endswith('_rate_multiplier'):
+                kwargs.setdefault('limit_' + n, (1e-9, None))
 
         fit = Minuit.from_array_func(self.fun, x_guess, grad=self.grad,
                                      errordef=0.5,
                                      name=self.arg_names,
                                      **kwargs)
+
+        if llr_tolerance is not None:
+            # From https://iminuit.readthedocs.io/en/latest/reference.html
+            # and https://root.cern.ch/download/minuit.pdf,
+            # this value is multiplied by 0.001 * 0.5, and then gives the
+            # estimated vertical distance to the minimum needed to stop
+            fit.tol = llr_tolerance/(0.001 * 0.5)
 
         fit.migrad()
         if use_hessian:
