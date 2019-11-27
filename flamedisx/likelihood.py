@@ -2,9 +2,7 @@ import flamedisx as fd
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import tensorflow_probability as tfp
 import typing as ty
-from scipy import stats
 
 
 export, __all__ = fd.exporter()
@@ -12,11 +10,10 @@ o = tf.newaxis
 
 DEFAULT_DSETNAME = 'the_dataset'
 
+
 @export
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
-
-    mu_iterpolators: ty.Dict[str, ty.Callable]
 
     # Source name -> Source instance
     sources: ty.Dict[str, fd.Source]
@@ -258,6 +255,7 @@ class LogLikelihood:
                 raise ValueError(f"Unknown parameter {k}")
         # tf.function doesn't support {**x, **y} dict merging
         # return {**self.param_defaults, **kwargs}
+        # TODO: but we're not tf.function'ing this anymore, right?
         z = self.param_defaults.copy()
         for k, v in kwargs.items():
             if isinstance(v, (float, int)) or fd.is_numpy_number(v):

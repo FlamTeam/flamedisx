@@ -42,7 +42,7 @@ class SourceBase:
     def simulate(self, n_events, fix_truth=None, **params):
         """Simulate n events.
 
-        Sources should override this method with their own implentation.
+        Sources should override this method with their own implementation.
         This method simply returns an empty DataFrame essentially skipping
         the simulation of this source.
         This ensures LogLikelihood can call simulate on all sources.

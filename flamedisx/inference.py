@@ -190,6 +190,7 @@ OBJECTIVES = dict(tfp=TensorFlowObjective,
                   minuit=MinuitObjective,
                   scipy=ScipyObjective)
 
+
 ##
 # Bestfit functions
 ##
@@ -199,6 +200,7 @@ def get_bestfit_objective(optimizer):
     if optimizer not in OBJECTIVES:
         raise ValueError(f"Optimizer {optimizer} not supported")
     return OBJECTIVES[optimizer]
+
 
 ##
 # Interval estimation
@@ -240,18 +242,23 @@ class IntervalObjective(Objective):
         return (diff ** 2,
                 2 * diff * (grad - self.t_ppf_grad(x)))
 
+
 class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
     """IntervalObjective using TensorFlow optimizer"""
+
 
 class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
     """IntervalObjective using Minuit optimizer"""
 
+
 class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
+
 
 INTERVALOBJECTIVES = dict(tfp=TensorFlowIntervalObjective,
                           minuit=MinuitIntervalObjective,
                           scipy=ScipyIntervalObjective)
+
 
 def get_interval_objective(optimizer):
     if optimizer not in INTERVALOBJECTIVES:
