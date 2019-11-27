@@ -166,6 +166,7 @@ class LogLikelihood:
             elif dname not in self.dsetnames:
                 raise ValueError(f"Dataset name {dname} not known")
 
+    # TODO: rate_multipliers here doesn't seem to work, also why??
     def simulate(self, rate_multipliers=None, fix_truth=None, **params):
         """Simulate events from sources, optionally pass custom
         rate_multipliers and fix_truth.
@@ -265,7 +266,7 @@ class LogLikelihood:
 
     def _get_rate_mult(self, sname, kwargs):
         rmname = sname + '_rate_multiplier'
-        if rmname in self.param_names:
+        if rmname in self.param_names and rmname in kwargs:
             return kwargs[rmname]
         return tf.constant(1., dtype=fd.float_type())
 
