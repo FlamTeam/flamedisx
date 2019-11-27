@@ -306,7 +306,7 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
                            optimizer: ty.Union['tfp', 'minuit', 'scipy'],
                            fix: ty.Dict[str, float]=None,
                            llr_tolerance=None,
-                           t_ppf=None, t_ppf_grad=None):
+                           t_ppf=None, t_ppf_grad=None, **kwargs):
     """Compute upper/lower/central interval on parameter at confidence level"""
 
     if fix is None:
@@ -324,6 +324,6 @@ def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
                     target_parameter=parameter, t_ppf=t_ppf,
                     t_ppf_grad=t_ppf_grad, critical_quantile=critical_quantile)
     res = obj.minimize(x_guess, use_hessian=False, get_lowlevel_result=False,
-                       bounds=bounds, llr_tolerance=llr_tolerance)
+                       bounds=bounds, llr_tolerance=llr_tolerance, **kwargs)
 
     return res[parameter]
