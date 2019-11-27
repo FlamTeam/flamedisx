@@ -432,7 +432,8 @@ class LogLikelihood:
                                fix=None,
                                confidence_level=0.9, kind='upper', t_ppf=None,
                                t_ppf_grad=None, optimizer='scipy',
-                               llr_tolerance=0.005):
+                               llr_tolerance=0.005,
+                               **kwargs):
         """Compute upper/lowel/central interval of parameter at confidence
         level assuming Wilk's theorem if t_ppf=None. Use critical value
         curve t_ppf for non-asymptotic case.
@@ -474,7 +475,7 @@ class LogLikelihood:
                                          ll_best, critical_quantile=q,
                                          optimizer=optimizer, fix=fix,
                                          t_ppf=t_ppf, t_ppf_grad=t_ppf_grad,
-                                         llr_tolerance=llr_tolerance)
+                                         llr_tolerance=llr_tolerance, **kwargs)
                for bound, q in limits]
 
         if len(res) == 1:
