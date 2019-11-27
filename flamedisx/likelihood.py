@@ -201,13 +201,6 @@ class LogLikelihood:
                 d['source'] = sname
                 ds.append(d)
 
-        # Check if each source returned the same set of columns since
-        # columns outside the intersection will be filled with NaN values
-        if len(ds) > 1:
-            col_sets = set([frozenset(df.columns) for df in ds])
-            assert len(col_sets) == 1, \
-                f"Sources did not all simulate the same columns: {col_sets}"
-
         # Concatenate results and shuffle them.
         # Adding empty DataFrame ensures pd.concat doesn't fail if
         # n_to_sim is 0 for all sources or all sources return 0 events
