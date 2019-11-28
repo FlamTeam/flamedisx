@@ -425,8 +425,8 @@ class LogLikelihood:
     def one_parameter_interval(
             self,
             parameter,
-            guess=None,
             bestfit=None,
+            guess=None,
             fix=None,
             confidence_level=0.9,
             kind='upper',

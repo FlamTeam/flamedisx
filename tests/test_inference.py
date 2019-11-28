@@ -49,15 +49,15 @@ def test_one_parameter_interval(xes):
     # First find global best so we can check intervals
     bestfit = lf.bestfit(guess, optimizer='scipy')
 
-    ul = lf.one_parameter_interval('er_rate_multiplier', guess,
+    ul = lf.one_parameter_interval('er_rate_multiplier', bestfit,
                                    confidence_level=0.9, kind='upper')
     assert ul >= bestfit['er_rate_multiplier']
 
-    ll = lf.one_parameter_interval('er_rate_multiplier', guess,
+    ll = lf.one_parameter_interval('er_rate_multiplier', bestfit,
                                    confidence_level=0.9, kind='lower')
     assert ll <= bestfit['er_rate_multiplier']
 
-    ll, ul = lf.one_parameter_interval('er_rate_multiplier', guess,
+    ll, ul = lf.one_parameter_interval('er_rate_multiplier', bestfit,
                                        confidence_level=0.9, kind='central')
     assert (ll <= bestfit['er_rate_multiplier']
             and ul >= bestfit['er_rate_multiplier'])
@@ -65,7 +65,7 @@ def test_one_parameter_interval(xes):
     # Test fixed parameter
     fix = dict(elife=bestfit['elife'])
 
-    ul = lf.one_parameter_interval('er_rate_multiplier', guess, fix=fix,
+    ul = lf.one_parameter_interval('er_rate_multiplier', bestfit, fix=fix,
                                    confidence_level=0.9, kind='upper')
 
 
