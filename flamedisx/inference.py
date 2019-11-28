@@ -345,8 +345,8 @@ def one_parameter_interval(
     optimizer = get_interval_objective(optimizer)
 
     if llr_tolerance is not None:
-        # The objective is a squared -2 log likelihood:
-        llr_tolerance = (2 * llr_tolerance) ** 2
+        # The objective is squared:
+        llr_tolerance = llr_tolerance ** 2
 
     # Construct t-stat objective + grad
     obj = optimizer(lf=lf, arg_names=arg_names, fix=fix, m2ll_best=m2ll_best,
