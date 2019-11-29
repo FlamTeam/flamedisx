@@ -355,14 +355,14 @@ def one_parameter_interval(
     arg_names = [k for k in lf.param_names if k not in fix]
     x_guess = np.array([guess[k] for k in arg_names])
 
-    optimizer = get_interval_objective(optimizer)
+    Optimizer = get_interval_objective(optimizer)
 
     if llr_tolerance is not None:
         # The objective is squared:
         llr_tolerance = llr_tolerance ** 2
 
     # Construct t-stat objective + grad
-    obj = optimizer(lf=lf, arg_names=arg_names, fix=fix, m2ll_best=m2ll_best,
+    obj = Optimizer(lf=lf, arg_names=arg_names, fix=fix, m2ll_best=m2ll_best,
                     target_parameter=parameter, t_ppf=t_ppf,
                     t_ppf_grad=t_ppf_grad, critical_quantile=critical_quantile)
     res = obj.minimize(x_guess, use_hessian=False, get_lowlevel_result=False,
