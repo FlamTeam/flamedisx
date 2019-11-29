@@ -378,6 +378,7 @@ class LogLikelihood:
         optimizer. Bool.
         :param return_errors: If using the minuit minimizer, instead return
         a 2-tuple of (bestfit dict, error dict).
+        In case optimizer is minuit, you can also pass 'hesse' or 'minos' here.
         :param autograph: If true (default), use tensorflow's autograph
         during minimization.
         """
@@ -400,19 +401,21 @@ class LogLikelihood:
         obj = Optimizer(lf=self, arg_names=arg_names, fix=fix,
                         autograph=autograph, nan_val=nan_val)
         res = obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result,
-                           use_hessian=use_hessian,
+                           use_hessian=use_hessian, return_errors=return_errors,
                            llr_tolerance=llr_tolerance, **kwargs)
         if get_lowlevel_result:
             return res
 
-        names = list(arg_names) + list(fix.keys())
-        result, errors = (
-            {k: v for k, v in res.items() if k in names},
-            {k: v for k, v in res.items() if k.startswith('error_')})
-
         if return_errors:
+            # Filter out errors and return separately
+            # TODO: This is to deal with a minuit-specific convention,
+            # should either put this to minuit or force others into same mold.
+            names = list(arg_names) + list(fix.keys())
+            result, errors = (
+                {k: v for k, v in res.items() if k in names},
+                {k: v for k, v in res.items() if k.startswith('error_')})
             return result, errors
-        return result
+        return res
 
     def one_parameter_interval(
             self,

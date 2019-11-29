@@ -132,7 +132,11 @@ class ScipyObjective(Objective):
     memoize = True
 
     def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=False,
-                 llr_tolerance=None, bounds=None, **kwargs):
+                 llr_tolerance=None, bounds=None, return_errors=False, **kwargs):
+        if return_errors:
+            raise NotImplementedError(
+                "Scipy minimizer does not yet support return errors")
+
         # TODO implement optimizer methods the use hessian
         kwargs.setdefault('method', 'TNC')
 
@@ -157,7 +161,12 @@ class ScipyObjective(Objective):
 
 class TensorFlowObjective(Objective):
     def minimize(self, x_guess, get_lowlevel_result=False, bounds=None,
-                 use_hessian=True, llr_tolerance=None, **kwargs):
+                 use_hessian=True, llr_tolerance=None,
+                 return_errors=False, **kwargs):
+        if return_errors:
+            raise NotImplementedError(
+                "Tensorflow minimizer does not yet support return errors")
+
         x_guess = fd.np_to_tf(x_guess)
 
         if use_hessian:
@@ -199,7 +208,7 @@ class MinuitObjective(Objective):
     memoize = True
 
     def minimize(self, x_guess, bounds=None, use_hessian=False,
-                 get_lowlevel_result=False,
+                 get_lowlevel_result=False, return_errors=False,
                  llr_tolerance=None, **kwargs):
 
         kwargs.setdefault('error',
@@ -225,6 +234,10 @@ class MinuitObjective(Objective):
             fit.tol = llr_tolerance/(0.001 * 0.5)
 
         fit.migrad()
+        if return_errors == 'hesse':
+            fit.hesse()
+        elif return_errors == 'minos':
+            fit.minos()
 
         if get_lowlevel_result:
             return fit
