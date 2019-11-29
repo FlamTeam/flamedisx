@@ -125,8 +125,7 @@ class LogLikelihood:
             self.batch_size[self.d_for_s[sname]] = s.batch_size
             self.n_padding[self.d_for_s[sname]] = s.n_padding
 
-        self.param_defaults = {k: tf.constant(v, dtype=fd.float_type())
-                               for k, v in param_defaults.items()}
+        self.param_defaults = fd.values_to_constants(param_defaults)
         self.param_names = list(param_defaults.keys())
 
         self.mu_itps = {
@@ -166,10 +165,8 @@ class LogLikelihood:
             elif dname not in self.dsetnames:
                 raise ValueError(f"Dataset name {dname} not known")
 
-    # TODO: rate_multipliers here doesn't seem to work, also why??
     def simulate(self, fix_truth=None, **params):
-        """Simulate events from sources, optionally pass custom
-        rate_multipliers and fix_truth.
+        """Simulate events from sources.
         """
         # Collect Source event DFs in ds
         ds = []
@@ -239,15 +236,7 @@ class LogLikelihood:
         for k in kwargs:
             if k not in self.param_defaults:
                 raise ValueError(f"Unknown parameter {k}")
-        # tf.function doesn't support {**x, **y} dict merging
-        # return {**self.param_defaults, **kwargs}
-        # TODO: but we're not tf.function'ing this anymore, right?
-        z = self.param_defaults.copy()
-        for k, v in kwargs.items():
-            if isinstance(v, (float, int)) or fd.is_numpy_number(v):
-               kwargs[k] = tf.constant(v, dtype=fd.float_type())
-        z.update(kwargs)
-        return z
+        return {**self.param_defaults, **fd.values_to_constants(kwargs)}
 
     def _get_rate_mult(self, sname, kwargs):
         rmname = sname + '_rate_multiplier'
@@ -406,16 +395,17 @@ class LogLikelihood:
         if get_lowlevel_result:
             return res
 
+        # TODO: This is to deal with a minuit-specific convention,
+        # should either put this to minuit or force others into same mold.
+        names = list(arg_names) + list(fix.keys())
+        result, errors = (
+            {k: v for k, v in res.items() if k in names},
+            {k: v for k, v in res.items() if k.startswith('error_')})
+
         if return_errors:
             # Filter out errors and return separately
-            # TODO: This is to deal with a minuit-specific convention,
-            # should either put this to minuit or force others into same mold.
-            names = list(arg_names) + list(fix.keys())
-            result, errors = (
-                {k: v for k, v in res.items() if k in names},
-                {k: v for k, v in res.items() if k.startswith('error_')})
             return result, errors
-        return res
+        return result
 
     def one_parameter_interval(
             self,
