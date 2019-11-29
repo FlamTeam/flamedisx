@@ -167,24 +167,16 @@ class LogLikelihood:
                 raise ValueError(f"Dataset name {dname} not known")
 
     # TODO: rate_multipliers here doesn't seem to work, also why??
-    def simulate(self, rate_multipliers=None, fix_truth=None, **params):
+    def simulate(self, fix_truth=None, **params):
         """Simulate events from sources, optionally pass custom
         rate_multipliers and fix_truth.
         """
-        if rate_multipliers is None:
-            rate_multipliers = dict()
-
         # Collect Source event DFs in ds
         ds = []
         for sname, s in self.sources.items():
-            rmname = sname + '_rate_multiplier'
-            if rmname in rate_multipliers:
-                rm = rate_multipliers[rmname]
-            else:
-                rm = self._get_rate_mult(sname, params)
-
             # mean number of events to simulate, rate mult times mu before
             # efficiencies, the simulator deals with the efficiencies
+            rm = self._get_rate_mult(sname, params)
             mu = rm * s.mu_before_efficiencies(
                 **self._filter_source_kwargs(params, sname))
             # Simulate this many events from source
