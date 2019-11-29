@@ -48,10 +48,6 @@ def test_one_parameter_interval(xes):
     ul = lf.limit('er_rate_multiplier', bestfit, fix=fix,
                   confidence_level=0.9, kind='upper')
 
-    ul = lf.limit('er_rate_multiplier', bestfit, fix=fix,
-                  optimizer='magic',
-                  confidence_level=0.9, kind='upper')
-
 
 def test_bestfit_tf(xes):
     # Test bestfit (including hessian)
