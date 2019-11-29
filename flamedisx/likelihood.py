@@ -6,8 +6,9 @@ import typing as ty
 
 
 export, __all__ = fd.exporter()
-o = tf.newaxis
+__all__ += ['DEFAULT_DSETNAME']
 
+o = tf.newaxis
 DEFAULT_DSETNAME = 'the_dataset'
 
 
@@ -90,7 +91,7 @@ class LogLikelihood:
 
         # Determine default parameters for each source
         defaults_in_sources = {
-            sname : sclass.find_defaults()[2]
+            sname: sclass.find_defaults()[2]
             for sname, sclass in self.sources.items()}
 
         # Create sources. Have to copy data, it's modified by Source.set_data
@@ -348,12 +349,12 @@ class LogLikelihood:
                 get_lowlevel_result=False,
                 use_hessian=True,
                 return_errors=False,
-                autograph=True,
                 nan_val=float('inf'),
-                **kwargs):
+                optimizer_kwargs=None):
         """Return best-fit parameter dict
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
+        Any omitted parameters will be guessed at LogLikelihood.defaults()
         :param fix: dict {param: value} of parameters to keep fixed
         during the minimzation.
         :param optimizer: 'tf', 'minuit' or 'scipy'
@@ -371,40 +372,36 @@ class LogLikelihood:
         :param autograph: If true (default), use tensorflow's autograph
         during minimization.
         """
-        if fix is None:
-            fix = dict()
         if guess is None:
             guess = dict()
-
-        # Names of parameters we want to fit
-        arg_names = [k for k in self.param_names if k not in fix]
-
         if not isinstance(guess, dict):
-            raise ValueError("Guess of bestfit must be a dictionary")
-        # These are all the parameters and their default or fixed values
-        guess = {**self.guess(), **guess, **fix}
-        # Build x_guess list
-        x_guess = np.array([guess[k] for k in arg_names])
+            raise ValueError("Must specify bestfit guess as a dictionary")
 
-        Optimizer = fd.get_bestfit_objective(optimizer)
-        obj = Optimizer(lf=self, arg_names=arg_names, fix=fix,
-                        autograph=autograph, nan_val=nan_val)
-        res = obj.minimize(x_guess, get_lowlevel_result=get_lowlevel_result,
-                           use_hessian=use_hessian, return_errors=return_errors,
-                           llr_tolerance=llr_tolerance, **kwargs)
+        res = fd.BESTFIT_OBJECTIVES[optimizer](
+            lf=self,
+            guess={**self.guess(), **guess},
+            fix=fix,
+            # TODO: bounds?
+            llr_tolerance=llr_tolerance,
+            nan_val=nan_val,
+            get_lowlevel_result=get_lowlevel_result,
+            use_hessian=use_hessian,
+            return_errors=return_errors,
+            optimizer_kwargs=optimizer_kwargs
+        ).minimize()
         if get_lowlevel_result:
             return res
 
         # TODO: This is to deal with a minuit-specific convention,
         # should either put this to minuit or force others into same mold.
-        names = list(arg_names) + list(fix.keys())
+        names = self.param_names
         result, errors = (
             {k: v for k, v in res.items() if k in names},
             {k: v for k, v in res.items() if k.startswith('error_')})
-
         if return_errors:
             # Filter out errors and return separately
             return result, errors
+
         return result
 
     def one_parameter_interval(
@@ -415,47 +412,43 @@ class LogLikelihood:
             fix=None,
             confidence_level=0.9,
             kind='upper',
+            sigma_guess=None,
             t_ppf=None,
             t_ppf_grad=None,
-            optimizer='scipy',
             # Broader tolerance than for bestfit, llr is steep at limit
+            optimizer='scipy',
             llr_tolerance=0.05,
-            print_guesstimate=False,
-            **kwargs):
-        """Compute upper/lowel/central interval of parameter at confidence
-        level assuming Wilk's theorem if t_ppf=None. Use critical value
-        curve t_ppf for non-asymptotic case.
+            optimizer_kwargs=None,):
+        """Return frequentist confidence interval or limit
 
         :param parameter: string, the parameter to set the interval on
         :param bestfit: {parameter: value} dictionary, global best-fit.
-        :param guess: guess of the result. Float for upper/lower, tuple of
-        floats otherwise. Nuisance parameters will be guessed equal to bestfit.
-        If omitted, guess will be based on Hessian-derived errors.
-        :param confidence_level: The confidence level of the method
-        :param kind: 'upper', 'lower' or 'central' type of limit/interval
+        If omitted, will compute it using bestfit.
+        :param guess: {param: value} guess of the result, or None.
+        If omitted, nuisance parameters will be guessed equal to bestfit.
+        If omitted, guess for target parameters will be based on asymptotic
+        parabolic computation.
+        :param fix: {param: value} to fix during interval computation.
+        Intervals are only valid if same parameters were fixed for bestfit.
+        :param confidence_level: Requried confidence level of the interval
+        :param kind: Type of interval, 'upper', 'lower' or 'central'
+        :param sigma_guess: Guess for one sigma uncertainty on the target
+        parameter. If not provided, will be computed from Hessian.
         :param t_ppf: returns critical value as function of parameter
-        :param llr_tolerance: see bestfit
+        Use Wilks' theorem if omitted.
+        :param t_ppf_grad: return derivative of t_ppf
+        :param llr_tolerance: See bestfit
+        :param optimizer_kwargs: dict of additional arguments for optimizer
 
-        Return limit if kind='upper' or 'lower', returns interval if 'central'
+        Returns a float (for upper or lower limits)
+        or a 2-tuple of floats (for a central interval)
         """
+        if optimizer_kwargs is None:
+            optimizer_kwargs = dict()
+
         if bestfit is None:
-            # Determine global bestfit and global minimum -2lnL
+            # Determine global bestfit
             bestfit = self.bestfit(fix=fix, optimizer=optimizer)
-
-        # TODO, we could avoid this if bestfit returned grad and user passes it
-        ll_best, ll_best_grad = self.minus_ll(**bestfit)
-
-        slope_in_param = one_sigma = None   # keeps pycharm happy
-        if guess is None:
-            # Prepare to guess a limit ourselves, using our knowledge that the
-            # function is parabolic
-
-            # Estimate one sigma interval using parabolic approx
-            param_i = self.param_names.index(parameter)
-            one_sigma = cov_to_std(self.inverse_hessian(bestfit))[0][param_i]
-
-            # Remaining gradient in direction of parameter
-            slope_in_param = ll_best_grad[param_i].numpy()
 
         lower_bound = None
         if parameter.endswith('rate_multiplier'):
@@ -463,74 +456,64 @@ class LogLikelihood:
 
         # Set (bound, critical_quantile) for the desired kind of limit
         if kind == 'upper':
-            limits = [dict(bound=(bestfit[parameter], None),
-                           crit=confidence_level,
-                           direction=1,
-                           guess=guess)]
+            requested_limits = [
+                dict(bound=(bestfit[parameter], None),
+                     crit=confidence_level,
+                     direction=1,
+                     guess=guess)]
         elif kind == 'lower':
-            limits = [dict(bound=(lower_bound, bestfit[parameter]),
-                           crit=1 - confidence_level,
-                           direction=-1,
-                           guess=guess)]
+            requested_limits = [
+                dict(bound=(lower_bound, bestfit[parameter]),
+                     crit=1 - confidence_level,
+                     direction=-1,
+                     guess=guess)]
         elif kind == 'central':
             if guess is None:
                 guess = (None, None)
-            limits = [dict(bound=(lower_bound, bestfit[parameter]),
-                           crit=(1 - confidence_level) / 2,
-                           direction=-1,
-                           guess=guess[0]),
-                      dict(bound=(bestfit[parameter], None),
-                           direction=+1,
-                           crit=1 - (1 - confidence_level) / 2,
-                           guess=guess[1])]
+            elif not isinstance(guess, tuple) or not len(guess) == 2:
+                raise ValueError("Guess for central interval must be a 2-tuple")
+            requested_limits = [
+                dict(bound=(lower_bound, bestfit[parameter]),
+                     crit=(1 - confidence_level) / 2,
+                     direction=-1,
+                     guess=guess[0]),
+                dict(bound=(bestfit[parameter], None),
+                     direction=+1,
+                     crit=1 - (1 - confidence_level) / 2,
+                     guess=guess[1])]
         else:
             raise ValueError(f"kind must be upper/lower/central but is {kind}")
 
         result = []
-        for q in limits:
+        for req in requested_limits:
 
-            if q['guess'] is None:
-                # Estimate crossing point from Wilks' theorem
-                dy = fd.wilks_crit(q['crit'])
+            if llr_tolerance is not None:
+                # The objective is squared:
+                llr_tolerance = llr_tolerance ** 2
 
-                # Guess the distance to the crossing point
-                # based on the Hessian
-                dx_1 = (2 * dy)**0.5 * abs(one_sigma)
-
-                # ... or the slope (for boundary solutions)
-                dx_2 = abs(dy / slope_in_param)
-
-                # Take the smaller of the two and add it on the correct side
-                # TODO: Is the best one always smallest? Don't know...
-                dx = min(dx_1, dx_2)
-                q['guess'] = max(
-                    fd.LOWER_RATE_MULTIPLIER_BOUND,
-                    bestfit[parameter] + q['direction'] * dx)
-
-                if parameter.endswith('rate_multiplier'):
-                    q['guess'] = max(q['guess'],
-                                     fd.LOWER_RATE_MULTIPLIER_BOUND)
-
-                if print_guesstimate:
-                    print(f"Using guesstimate: {q['guess']}")
-
-            guess = bestfit.copy()
-            guess[parameter] = q['guess']
-
-            w = fd.one_parameter_interval(
+            res = fd.INTERVAL_OBJECTIVES[optimizer](
+                # To generic objective
                 lf=self,
-                parameter=parameter,
-                bound=q['bound'],
-                guess=guess,
-                m2ll_best=ll_best,
-                critical_quantile=q['crit'],
-                optimizer=optimizer,
+                guess=req['guess'],
                 fix=fix,
+                bounds={parameter: req['bound']},
+                llr_tolerance=llr_tolerance,
+                # TODO: nan_val
+                get_lowlevel_result=False,
+                use_hessian=False,
+                optimizer_kwargs=optimizer_kwargs,
+
+                # To IntervalObjective
+                target_parameter=parameter,
+                bestfit=bestfit,
+                direction=req['direction'],
+                critical_quantile=req['crit'],
+                sigma_guess=sigma_guess,
                 t_ppf=t_ppf,
                 t_ppf_grad=t_ppf_grad,
-                llr_tolerance=llr_tolerance,
-                **kwargs)
-            result.append(w)
+            ).minimize()
+
+            result.append(res[parameter])
 
         if len(result) == 1:
             return result[0]

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
 # Remove once tf.repeat is available in the tf api
@@ -196,3 +197,9 @@ def values_to_constants(kwargs):
         if isinstance(v, (float, int)) or is_numpy_number(v):
             kwargs[k] = tf.constant(v, dtype=float_type())
     return kwargs
+
+
+@export
+def wilks_crit(confidence_level):
+    """Return critical value from Wilks' theorem for upper limits"""
+    return stats.norm.ppf(confidence_level) ** 2

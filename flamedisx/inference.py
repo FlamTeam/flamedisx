@@ -3,12 +3,14 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import typing as ty
-import scipy
+from scipy import optimize as scipy_optimize
 from iminuit import Minuit
 
 
 export, __all__ = fd.exporter()
-__all__ += ['LOWER_RATE_MULTIPLIER_BOUND']
+__all__ += ['LOWER_RATE_MULTIPLIER_BOUND',
+            'BESTFIT_OBJECTIVES',
+            'INTERVAL_OBJECTIVES']
 
 # Setting this to 0 does work, but makes the inference rather slow
 # (at least for scipy); probably there is a relative xtol computation,
@@ -29,55 +31,92 @@ class ObjectiveResult(ty.NamedTuple):
 
 class Objective:
     """Construct the function that is minimized by the optimizer.
-    That function should take one argument x_guess that is a list of values
-    each belonging to the parameters being varied.
 
     :param lf: LogLikelihood object implementing the likelihood to minimize
-    :param arg_names: List of parameter names whose values are varied by the
-    minimizer
-    :param fix: Dict of parameter names and value which are kept fixed (and
-    whose gradients are omitted)
-    :param numpy_in_out: Converts inputs to tensors and outputs to numpy arrays
-    if True, default False
-    :param autograph: Use tf.function inside likelihood, default True
-    :param nan_val: Value to use if likelihood evaluates to NaN
-    :param memoize: Whether to cache values during minimization.
+    :param guess: {param: value} guess for the result
+    :param fix: {param: value} for parameters to fix, or None (to fit all).
+    Gradients for fixed parameters are (of course) omitted.
+    :param bounds: {param: (left, right)} bounds, if any (otherwise None)
+    :param llr_tolerance: Allowed distance between true and found solution
+    in -2 log likelihood.
+    :param nan_val: Value to pass to optimizer if likelihood evaluates to NaN
+    :param get_lowlevel_result: Return low-level result from optimizer directly
+    :param use_hessian: If supported, use Hessian to improve error estimate
+    :param return_errors: If supported, return error estimates on parameters
     """
-    _cache: dict
-    numpy_in_out = False
-    memoize = False
+    numpy_in_out = False   # Minimizer works on numpy arrays, not tensors
+    memoize = False        # Cache values during minimization.
+    require_complete_guess = True   # Require a guess for all fitted parameters
+    arg_names: ty.List = None
 
-    def __init__(self,
+    _cache: dict
+
+    def __init__(self, *,
                  lf: fd.LogLikelihood,
-                 arg_names: ty.List[str],
-                 fix: ty.Dict[str, ty.Union[float, tf.constant]],
-                 autograph=True,
-                 nan_val=float('inf')):
+                 guess: ty.Dict[str, float] = None,
+                 fix: ty.Dict[str, ty.Union[float, tf.constant]] = None,
+                 bounds: dict = None,
+                 llr_tolerance=0.05,
+                 nan_val=float('inf'),
+                 get_lowlevel_result=False,
+                 use_hessian=False,
+                 return_errors=False,
+                 optimizer_kwargs: dict = None):
+        if guess is None:
+            guess = dict()
+        if fix is None:
+            fix = dict()
+        if optimizer_kwargs is None:
+            optimizer_kwargs = dict()
+
         self.lf = lf
-        self.arg_names = arg_names
+        self.guess = {**guess, **fix}
         self.fix = fix
-        self.autograph = autograph
+        # Bounds need processing, see deeper in init
+        self.llr_tolerance = llr_tolerance
         self.nan_val = nan_val
+        self.get_lowlevel_result = get_lowlevel_result
+        self.use_hessian = use_hessian
+        self.return_errors = return_errors
+        self.optimizer_kwargs = optimizer_kwargs
+
+        if self.arg_names is None:
+            self.arg_names = [k for k in self.lf.param_names if k not in self.fix]
         self._cache = dict()
+
+        if self.require_complete_guess:
+            for k in self.arg_names:
+                if k not in self.guess:
+                    raise ValueError("Incomplete guess: {k} missing")
+
+        if bounds is None:
+            bounds = dict()
+        for p in self.arg_names:
+            if p.endswith('_rate_multiplier'):
+                bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
+        self.bounds = bounds
+
+    def _dict_to_array(self, x: dict) -> np.array:
+        """Convert from {parameter: value} dictionary to numpy array"""
+        return np.array([x[k] for k in self.arg_names])
+
+    def _array_to_dict(self, x: ty.Union[np.ndarray, tf.Tensor]) -> dict:
+        """Convert from array/tensor to {parameter: value} dictionary"""
+        assert isinstance(x, (np.ndarray, tf.Tensor))
+        assert len(x) == len(self.arg_names)
+        return {k: x[i]
+                for i, k in enumerate(self.arg_names)}
 
     def __call__(self, x):
         """Return (objective, gradient)"""
+        memkey = None
         if self.memoize:
             assert self.numpy_in_out, "Fix memoization for tensorflow..."
             memkey = tuple(x)
             if memkey in self._cache:
                 return self._cache[memkey]
 
-        if self.numpy_in_out:
-            x = fd.np_to_tf(x)
-
-        assert len(self.arg_names) == len(x)
-        # Build parameter dict, pair arg_names with x_guess values and add
-        # fixed pars
-        params = {**{self.arg_names[i]: x[i]
-                     for i in range(len(x))},
-                  **self.fix}
-
+        params = {**self._array_to_dict(x), **self.fix}
         ll, grad = self._inner_fun_and_grad(params)
 
         # Check NaNs
@@ -97,7 +136,6 @@ class Objective:
         # Get -2lnL and its gradient
         return self.lf.minus_ll(
             **params,
-            autograph=self.autograph,
             omit_grads=tuple(self.fix.keys()))
 
     def fun_and_grad(self, x):
@@ -112,36 +150,22 @@ class Objective:
         """Return only gradient"""
         return self(x).grad
 
-    def absolute_to_relative_tol(self, x_guess, llr_tolerance):
-        return abs(llr_tolerance / self.fun(x_guess))
-
-    def prepare_bounds(self, bounds):
-        """Return dictionary of {parameter: (left, right)} bounds
-        given None or another such dictionary, setting defaults
-        for rate multipliers"""
-        if bounds is None:
-            bounds = dict()
-        for p in self.arg_names:
-            if p.endswith('_rate_multiplier'):
-                bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
-        return bounds
+    def absolute_to_relative_tol(self, llr_tolerance):
+        return abs(llr_tolerance / self._inner_fun_and_grad(self.guess)[0])
 
 
 class ScipyObjective(Objective):
     numpy_in_out = True
     memoize = True
 
-    def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=False,
-                 llr_tolerance=None, bounds=None, return_errors=False, **kwargs):
-        if return_errors:
+    def minimize(self):
+        if self.return_errors:
             raise NotImplementedError(
                 "Scipy minimizer does not yet support return errors")
 
-        # TODO implement optimizer methods the use hessian
+        kwargs: ty.Dict[str, ty.Any] = self.optimizer_kwargs
         kwargs.setdefault('method', 'TNC')
-
-        bounds = self.prepare_bounds(bounds)
-        kwargs['bounds'] = [bounds.get(x, (None, None))
+        kwargs['bounds'] = [self.bounds.get(x, (None, None))
                             for x in self.arg_names]
 
         # Note the default 'tol' option is interpreted as xtol for TNC.
@@ -150,50 +174,56 @@ class ScipyObjective(Objective):
         # it appears this is the absolute relative change in f to trigger
         # convergence. (not 100% sure, might be relative...)
         kwargs.setdefault('options', dict())
-        if llr_tolerance is not None:
-            kwargs['options'].setdefault('ftol', llr_tolerance)
-        res = scipy.optimize.minimize(self.fun, x_guess, jac=self.grad,
-                                      **kwargs)
-        if get_lowlevel_result:
+        if self.llr_tolerance is not None:
+            kwargs['options'].setdefault('ftol', self.llr_tolerance)
+
+        res = scipy_optimize.minimize(
+            fun=self.fun,
+            x0=self._dict_to_array(self.guess),
+            jac=self.grad,
+            **kwargs)
+
+        if self.get_lowlevel_result:
             return res
         return {**dict(zip(self.arg_names, res.x)), **self.fix}
 
 
 class TensorFlowObjective(Objective):
-    def minimize(self, x_guess, get_lowlevel_result=False, bounds=None,
-                 use_hessian=True, llr_tolerance=None,
-                 return_errors=False, **kwargs):
-        if return_errors:
+
+    def minimize(self):
+        if self.return_errors:
             raise NotImplementedError(
                 "Tensorflow minimizer does not yet support return errors")
 
-        x_guess = fd.np_to_tf(x_guess)
-
-        if use_hessian:
-            guess = {**dict(zip(self.arg_names, x_guess)), **self.fix}
+        if self.use_hessian:
             # This optimizer can use the hessian information
             # Compute the inverse hessian at the guess
-            inv_hess = self.lf.inverse_hessian(guess,
-                                        omit_grads=tuple(self.fix.keys()))
+            inv_hess = self.lf.inverse_hessian(
+                self.guess,
+                omit_grads=tuple(self.fix.keys()))
             # Explicitly symmetrize the matrix
             inv_hess = fd.symmetrize_matrix(inv_hess)
         else:
             inv_hess = None
 
+        kwargs = self.optimizer_kwargs
+
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
-        if llr_tolerance is not None:
+        if self.llr_tolerance is not None:
             kwargs.setdefault(
                 'f_relative_tolerance',
-                self.absolute_to_relative_tol(x_guess, llr_tolerance))
+                self.absolute_to_relative_tol(self.llr_tolerance))
+
+        x_guess = fd.np_to_tf(self._dict_to_array(self.guess))
 
         res = tfp.optimizer.bfgs_minimize(
             self.fun_and_grad,
             initial_position=x_guess,
             initial_inverse_hessian_estimate=inv_hess,
             **kwargs)
-        if get_lowlevel_result:
+        if self.get_lowlevel_result:
             return res
         if res.failed:
             raise ValueError(f"Optimizer failure! Result: {res}")
@@ -207,16 +237,14 @@ class MinuitObjective(Objective):
     numpy_in_out = True
     memoize = True
 
-    def minimize(self, x_guess, bounds=None, use_hessian=False,
-                 get_lowlevel_result=False, return_errors=False,
-                 llr_tolerance=None, **kwargs):
-
+    def minimize(self):
+        kwargs = self.optimizer_kwargs
+        x_guess = self._dict_to_array(self.guess)
         kwargs.setdefault('error',
                           np.maximum(x_guess * 0.1,
                                      1e-3 * np.ones_like(x_guess)))
 
-        bounds = self.prepare_bounds(bounds)
-        for param_name, b in bounds.items():
+        for param_name, b in self.bounds.items():
             kwargs.setdefault('limit_' + param_name, b)
 
         fit = Minuit.from_array_func(self.fun, x_guess, grad=self.grad,
@@ -224,40 +252,29 @@ class MinuitObjective(Objective):
                                      name=self.arg_names,
                                      **kwargs)
 
-        if llr_tolerance is not None:
+        if self.llr_tolerance is not None:
             # From https://iminuit.readthedocs.io/en/latest/reference.html
             # and https://root.cern.ch/download/minuit.pdf
             # this value is multiplied by 0.001 * 0.5, and then gives the
             # estimated vertical distance to the minimum needed to stop
             # Note the first reference gives 0.0001 instead of 0.001!
             # TODO make issue?
-            fit.tol = llr_tolerance/(0.001 * 0.5)
+            fit.tol = self.llr_tolerance/(0.001 * 0.5)
 
         fit.migrad()
-        if return_errors == 'hesse':
+        if self.return_errors == 'hesse':
             fit.hesse()
-        elif return_errors == 'minos':
+        elif self.return_errors == 'minos':
             fit.minos()
 
-        if get_lowlevel_result:
+        if self.get_lowlevel_result:
             return fit
         return fit.fitarg
 
 
-OBJECTIVES = dict(tfp=TensorFlowObjective,
-                  minuit=MinuitObjective,
-                  scipy=ScipyObjective)
-
-
-##
-# Bestfit functions
-##
-
-@export
-def get_bestfit_objective(optimizer):
-    if optimizer not in OBJECTIVES:
-        raise ValueError(f"Optimizer {optimizer} not supported")
-    return OBJECTIVES[optimizer]
+BESTFIT_OBJECTIVES = dict(tfp=TensorFlowObjective,
+                          minuit=MinuitObjective,
+                          scipy=ScipyObjective)
 
 
 ##
@@ -266,46 +283,118 @@ def get_bestfit_objective(optimizer):
 
 class IntervalObjective(Objective):
 
+    # We can guesstimate from the bestfit and Hessian
+    require_complete_guess = False
+
     # Add constant offset to objective, so objective is not 0 at the minimum
     # and relative tolerances mean something.
     _offset = 1
 
-    def __init__(self, m2ll_best, critical_quantile, target_parameter,
-                 *args, t_ppf=None, t_ppf_grad=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *,
+                 target_parameter,
+                 bestfit,
+                 direction: int,
+                 critical_quantile,
+                 sigma_guess=None,
+                 t_ppf=None,
+                 t_ppf_grad=None,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.target_parameter = target_parameter
+        self.bestfit = bestfit
+        self.direction = direction
+        self.critical_quantile = critical_quantile
+
+        if sigma_guess is None:
+            # Estimate one sigma interval using parabolic approx.
+            sigma_guess = fd.cov_to_std(
+                self.lf.inverse_hessian(bestfit)
+            )[0][self.lf.param_names.index(self.target_parameter)]
+        self.sigma_guess = sigma_guess
+
         if t_ppf:
             assert self.t_ppf_grad is not None
             self.t_ppf = t_ppf
             self.t_ppf_grad = t_ppf_grad
 
-        self.critical_quantile = critical_quantile
-        self.m2ll_best = m2ll_best
-        self.target_parameter = target_parameter
+        # TODO: add reference to computation for this
+        # TODO: let user specify multiplier for this
+        self.tilt = self.sigma_guess * \
+            (8 * self.llr_tolerance * self.critical_quantile)**0.5
 
-        self.numpy_in_out = True
+        # Store bestfit target, maximum likelihood and slope
+        self.bestfit_tp = self.bestfit[self.target_parameter]
+        self.m2ll_best, _grad_at_bestfit = \
+            super()._inner_fun_and_grad(bestfit)
+        self.bestfit_tp_slope = _grad_at_bestfit[
+            self.lf.param_names.index(self.target_parameter)]
+
+        # Incomplete guess support
+        if self.target_parameter not in self.guess:
+            # Estimate crossing point from Wilks' theorem
+            dy = fd.wilks_crit(self.critical_quantile)
+
+            # Guess the distance to the crossing point
+            # based on the Hessian
+            dx_1 = (2 * dy) ** 0.5 * abs(self.sigma_guess)
+
+            # ... or the slope (for boundary solutions)
+            dx_2 = abs(dy / self.bestfit_tp_slope)
+
+            # Take the smaller of the two and add it on the correct side
+            # TODO: Is the best one always smallest? Don't know...
+            dx = min(dx_1, dx_2)
+            tp_guess = max(
+                fd.LOWER_RATE_MULTIPLIER_BOUND,
+                self.bestfit_tp + self.direction * dx)
+
+            if self.target_parameter.endswith('rate_multiplier'):
+                tp_guess = max(tp_guess, fd.LOWER_RATE_MULTIPLIER_BOUND)
+        else:
+            tp_guess = self.guess[self.target_parameter]
+
+        self.guess = {**bestfit,
+                      **{self.target_parameter: tp_guess},
+                      **self.guess}
 
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical
         quantile.
         Asymptotic case using Wilk's theorem, does not depend
         on the value of the target parameter."""
-        return wilks_crit(self.critical_quantile)
+        return fd.wilks_crit(self.critical_quantile)
 
     def t_ppf_grad(self, target_param_value):
         """Return derivative of t_ppf wrt target_param_value"""
         return 0
 
     def _inner_fun_and_grad(self, params):
-        fun, grad = super()._inner_fun_and_grad(params)
-        ll_ratio = fun - self.m2ll_best
         x = params[self.target_parameter]
-        crit = self.t_ppf(x)
-        diff = ll_ratio - crit
+        x_norm = (x - self.bestfit_tp) / self.sigma_guess
 
-        return (self._offset + diff**2,
-                2 * diff * (grad - self.t_ppf_grad(x)))
+        fun, grad = super()._inner_fun_and_grad(params)
+        diff = (fun - self.m2ll_best) - self.t_ppf(x)
+        fun = diff ** 2
+        grad = 2 * diff * (grad - self.t_ppf_grad(x))
 
-    def absolute_to_relative_tol(self, x_guess, llr_tolerance):
+        # Add 'tilt' to push the minimum to extreme values of the parameter of
+        # interest. Without this, we would find any solution on the ellipsoid
+        # where our likelihood equals the target amplitude.
+        fun += - self.direction * self.tilt * x_norm
+        extra_grad = - self.direction * self.tilt / self.sigma_guess
+
+        # We're still in tensorflow, so adding to an index is annoying:
+        param_id = self.arg_names.index(self.target_parameter)
+        print(extra_grad, param_id, grad)
+        grad = tf.tensor_scatter_nd_add(
+            tensor=grad,
+            indices=tf.convert_to_tensor([[param_id]], dtype=fd.int_type()),
+            updates=tf.convert_to_tensor([extra_grad], dtype=fd.float_type()))
+
+        return fun + self._offset, grad
+
+    def absolute_to_relative_tol(self, llr_tolerance):
         # We know the objective is self.offset at the minimum,
         # so the relative to absolute tolerance conversion is easy:
         return llr_tolerance / self._offset
@@ -323,56 +412,6 @@ class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
 
 
-INTERVALOBJECTIVES = dict(tfp=TensorFlowIntervalObjective,
-                          minuit=MinuitIntervalObjective,
-                          scipy=ScipyIntervalObjective)
-
-
-def get_interval_objective(optimizer):
-    if optimizer not in INTERVALOBJECTIVES:
-        raise ValueError(f"Optimizer {optimizer} not supported")
-    return INTERVALOBJECTIVES[optimizer]
-
-
-@export
-def one_parameter_interval(
-        lf: fd.LogLikelihood,
-        parameter: str,
-        bound: ty.Tuple[ty.Union[float, None], ty.Union[float, None]],
-        guess: ty.Dict[str, float],
-        m2ll_best: float,
-        critical_quantile: float,
-        optimizer: str,
-        fix: ty.Dict[str, float] = None,
-        llr_tolerance=None,
-        t_ppf=None,
-        t_ppf_grad=None,
-        **kwargs):
-    """Compute upper/lower/central interval on parameter at confidence level"""
-
-    if fix is None:
-        fix = dict()
-    arg_names = [k for k in lf.param_names if k not in fix]
-    x_guess = np.array([guess[k] for k in arg_names])
-
-    Optimizer = get_interval_objective(optimizer)
-
-    if llr_tolerance is not None:
-        # The objective is squared:
-        llr_tolerance = llr_tolerance ** 2
-
-    # Construct t-stat objective + grad
-    obj = Optimizer(lf=lf, arg_names=arg_names, fix=fix, m2ll_best=m2ll_best,
-                    target_parameter=parameter, t_ppf=t_ppf,
-                    t_ppf_grad=t_ppf_grad, critical_quantile=critical_quantile)
-    res = obj.minimize(x_guess, use_hessian=False, get_lowlevel_result=False,
-                       bounds={parameter: bound},
-                       llr_tolerance=llr_tolerance, **kwargs)
-
-    return res[parameter]
-
-
-@export
-def wilks_crit(confidence_level):
-    """Return critical value from Wilks' theorem for upper limits"""
-    return scipy.stats.norm.ppf(confidence_level) ** 2
+INTERVAL_OBJECTIVES = dict(tfp=TensorFlowIntervalObjective,
+                           minuit=MinuitIntervalObjective,
+                           scipy=ScipyIntervalObjective)
