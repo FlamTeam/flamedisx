@@ -1,30 +1,10 @@
 import numpy as np
-import pandas as pd
-import pytest
-import tensorflow as tf
-import tensorflow_probability as tfp
-from iminuit import Minuit
 
 import flamedisx as fd
-from flamedisx.likelihood import DEFAULT_DSETNAME
+from test_source import xes   # Yes, it is used through pytest magic
 
 
 n_events = 2
-
-@pytest.fixture(params=["ER", "NR"])
-def xes(request):
-    # warnings.filterwarnings("error")
-    data = pd.DataFrame([dict(s1=56., s2=2905., drift_time=143465.,
-                              x=2., y=0.4, z=-20, r=2.1, theta=0.1,
-                              event_time=15e17),
-                         dict(s1=23, s2=1080., drift_time=445622.,
-                              x=1.12, y=0.35, z=-59., r=1., theta=0.3,
-                              event_time=15e17)])
-    if request.param == 'ER':
-        x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
-    else:
-        x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
-    return x
 
 
 def test_one_parameter_interval(xes):
