@@ -10,7 +10,7 @@ arg_names = ['er_rate_multplier', 'elife']
 truth_test = np.array([2., 3.])
 
 
-@pytest.fixture(params=fd.BESTFIT_OBJECTIVES.values())
+@pytest.fixture(params=fd.SUPPORTED_OPTIMIZERS.values())
 def mock_objective(request):
 
     class MockObjective(request.param):

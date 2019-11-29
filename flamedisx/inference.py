@@ -9,8 +9,8 @@ from iminuit import Minuit
 
 export, __all__ = fd.exporter()
 __all__ += ['LOWER_RATE_MULTIPLIER_BOUND',
-            'BESTFIT_OBJECTIVES',
-            'INTERVAL_OBJECTIVES']
+            'SUPPORTED_OPTIMIZERS',
+            'SUPPORTED_INTERVAL_OPTIMIZERS']
 
 # Setting this to 0 does work, but makes the inference rather slow
 # (at least for scipy); probably there is a relative xtol computation,
@@ -272,9 +272,9 @@ class MinuitObjective(Objective):
         return fit.fitarg
 
 
-BESTFIT_OBJECTIVES = dict(tfp=TensorFlowObjective,
-                          minuit=MinuitObjective,
-                          scipy=ScipyObjective)
+SUPPORTED_OPTIMIZERS = dict(tfp=TensorFlowObjective,
+                            minuit=MinuitObjective,
+                            scipy=ScipyObjective)
 
 
 ##
@@ -412,6 +412,6 @@ class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
 
 
-INTERVAL_OBJECTIVES = dict(tfp=TensorFlowIntervalObjective,
-                           minuit=MinuitIntervalObjective,
-                           scipy=ScipyIntervalObjective)
+SUPPORTED_INTERVAL_OPTIMIZERS = dict(tfp=TensorFlowIntervalObjective,
+                                     minuit=MinuitIntervalObjective,
+                                     scipy=ScipyIntervalObjective)

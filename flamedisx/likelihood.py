@@ -377,7 +377,8 @@ class LogLikelihood:
         if not isinstance(guess, dict):
             raise ValueError("Must specify bestfit guess as a dictionary")
 
-        res = fd.BESTFIT_OBJECTIVES[optimizer](
+        opt = fd.SUPPORTED_OPTIMIZERS[optimizer]
+        res = opt(
             lf=self,
             guess={**self.guess(), **guess},
             fix=fix,
@@ -404,7 +405,13 @@ class LogLikelihood:
 
         return result
 
-    def one_parameter_interval(
+    def interval(self, parameter, **kwargs):
+        """Return central confidence interval on parameter.
+        Options are the same as for limit."""
+        kwargs.setdefault('kind', 'central')
+        return self.limit(parameter, **kwargs)
+
+    def limit(
             self,
             parameter,
             bestfit=None,
@@ -419,7 +426,7 @@ class LogLikelihood:
             optimizer='scipy',
             llr_tolerance=0.05,
             optimizer_kwargs=None,):
-        """Return frequentist confidence interval or limit
+        """Return frequentist limit or confidence interval
 
         :param parameter: string, the parameter to set the interval on
         :param bestfit: {parameter: value} dictionary, global best-fit.
@@ -429,7 +436,7 @@ class LogLikelihood:
         If omitted, guess for target parameters will be based on asymptotic
         parabolic computation.
         :param fix: {param: value} to fix during interval computation.
-        Intervals are only valid if same parameters were fixed for bestfit.
+        Result is only valid if same parameters were fixed for bestfit.
         :param confidence_level: Requried confidence level of the interval
         :param kind: Type of interval, 'upper', 'lower' or 'central'
         :param sigma_guess: Guess for one sigma uncertainty on the target
@@ -491,7 +498,8 @@ class LogLikelihood:
                 # The objective is squared:
                 llr_tolerance = llr_tolerance ** 2
 
-            res = fd.INTERVAL_OBJECTIVES[optimizer](
+            opt = fd.SUPPORTED_INTERVAL_OPTIMIZERS[optimizer]
+            res = opt(
                 # To generic objective
                 lf=self,
                 guess=req['guess'],

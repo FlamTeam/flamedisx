@@ -29,24 +29,28 @@ def test_one_parameter_interval(xes):
     # First find global best so we can check intervals
     bestfit = lf.bestfit(guess, optimizer='scipy')
 
-    ul = lf.one_parameter_interval('er_rate_multiplier', bestfit,
-                                   confidence_level=0.9, kind='upper')
+    ul = lf.limit('er_rate_multiplier', bestfit,
+                  confidence_level=0.9, kind='upper')
     assert ul >= bestfit['er_rate_multiplier']
 
-    ll = lf.one_parameter_interval('er_rate_multiplier', bestfit,
-                                   confidence_level=0.9, kind='lower')
+    ll = lf.limit('er_rate_multiplier', bestfit,
+                  confidence_level=0.9, kind='lower')
     assert ll <= bestfit['er_rate_multiplier']
 
-    ll, ul = lf.one_parameter_interval('er_rate_multiplier', bestfit,
-                                       confidence_level=0.9, kind='central')
+    ll, ul = lf.limit('er_rate_multiplier', bestfit,
+                      confidence_level=0.9, kind='central')
     assert (ll <= bestfit['er_rate_multiplier']
             and ul >= bestfit['er_rate_multiplier'])
 
     # Test fixed parameter
     fix = dict(elife=bestfit['elife'])
 
-    ul = lf.one_parameter_interval('er_rate_multiplier', bestfit, fix=fix,
-                                   confidence_level=0.9, kind='upper')
+    ul = lf.limit('er_rate_multiplier', bestfit, fix=fix,
+                  confidence_level=0.9, kind='upper')
+
+    ul = lf.limit('er_rate_multiplier', bestfit, fix=fix,
+                  optimizer='magic',
+                  confidence_level=0.9, kind='upper')
 
 
 def test_bestfit_tf(xes):
@@ -93,7 +97,7 @@ def test_bestfit_minuit(xes):
 
     bestfit = lf.bestfit(guess, optimizer='minuit',
                          return_errors=True,
-                         error=(0.0001, 1000))
+                         optimizer_kwargs=dict(error=(0.0001, 1000)))
     assert isinstance(bestfit[0], dict)
     assert len(bestfit[0]) == 2
 
