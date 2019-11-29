@@ -15,123 +15,11 @@ o = tf.newaxis
 
 
 @export
-class SourceBase:
-    """Base class of Source"""
-
+class Source:
     n_batches = None
     n_padding = None
     trace_difrate = True
 
-    @classmethod
-    def find_defaults(cls):
-        """Discover which functions need which arguments / dimensions
-        Discover possible parameters.
-        Returns f_dims, f_params and defaults.
-
-        Overwritten by Source, SourceBase has no default f_dims,
-        f_params or defaults.
-        """
-        return dict(), dict(), dict()
-
-    def mu_before_efficiencies(self, **params):
-        """Return mean expected number of events BEFORE efficiencies/response
-        using data for the evaluation of the energy spectra
-        """
-        raise NotImplementedError
-
-    def simulate(self, n_events, fix_truth=None, **params):
-        """Simulate n events.
-
-        Sources should override this method with their own implentation.
-        This method simply returns an empty DataFrame essentially skipping
-        the simulation of this source.
-        This ensures LogLikelihood can call simulate on all sources.
-        See issue #47
-        """
-        print(f"{self.__class__.__name__} has no simulate method, skipping")
-        return pd.DataFrame()
-
-    def _init_padding(self, _skip_tf_init):
-        # Annotate requests n_events, currently no padding
-        self.n_padding = 0
-        self.n_events = len(self.data)
-        self.n_batches = np.ceil(
-            self.n_events / self.batch_size).astype(np.int)
-
-        if not _skip_tf_init:
-            # Extend dataframe with events to nearest batch_size multiple
-            # We're using actual events for padding, since using zeros or
-            # nans caused problems with gradient calculation
-            # padded events are clipped when summing likelihood terms
-            self.n_padding = self.n_batches * self.batch_size - len(self.data)
-            if self.n_padding > 0:
-                # Repeat first event n_padding times and concat to rest of data
-                df_pad = self.data.iloc[np.zeros(self.n_padding)]
-                self.data = pd.concat([self.data, df_pad], ignore_index=True)
-
-
-@export
-class ColumnSource(SourceBase):
-    """Source with a fixed mu (specified as self.mu)
-     and differential rate specified by a column in the data (self.column)
-    """
-    column = "Rename_me!"
-    mu = 42.
-
-    trace_difrate = False
-
-    def __init__(self,
-                 data=None,
-                 batch_size=10,
-                 max_sigma=3,
-                 data_is_annotated=False,
-                 _skip_tf_init=False,
-                 _skip_bounds_computation=False,
-                 fit_params=None,
-                 **params):
-        """
-
-        :param data:
-        :param batch_size: used
-        :param max_sigma:
-        :param data_is_annotated:
-        :param _skip_tf_init:
-        :param _skip_bounds_computation:
-        :param fit_params: List of parameters to fit
-        :param params: New defaults
-        """
-        self.defaults = dict()
-        self.data = data
-        # No point in batching: computation is trivial
-        self.batch_size = len(data) if data is not None else batch_size
-        if data is not None:
-            self._init_padding(_skip_tf_init)
-            self.data_tensor = fd.np_to_tf(self.data[self.column])
-            self.data_tensor = tf.reshape(self.data_tensor,
-                                          (-1, self.batch_size, 1))
-
-    def differential_rate(self, data_tensor, **params):
-        return data_tensor[:, 0]
-
-    @classmethod
-    def mu_function(cls,
-                    interpolation_method='star',
-                    n_trials=int(1e5),
-                    **params):
-        """Return function that maps params -> expected number of events
-        Parameters must be specified as kwarg=(start, stop, n_anchors)
-        """
-        return lambda **kwargs: cls.mu
-
-    def mu_before_efficiencies(self, **params):
-        """Return the number of expected events without any efficiencies
-        applied.
-        """
-        return self.mu
-
-
-@export
-class Source(SourceBase):
     data_methods = tuple()
     special_data_methods = tuple()
     inner_dimensions = tuple()
@@ -228,12 +116,11 @@ class Source(SourceBase):
         self.fit_params = [x for x in fit_params
                            if x in self.defaults]
 
-        if len(self.defaults):
-            self.param_id = fd.index_lookup_dict(self.defaults.keys())
-            # Indices of params we actually want to fit; we have to differentiate wrt these
-            self.fit_param_indices = tuple([
-                self.param_id[param_name]
-                for param_name in self.fit_params])
+        self.param_id = fd.index_lookup_dict(self.defaults.keys())
+        # Indices of params we actually want to fit; we have to differentiate wrt these
+        self.fit_param_indices = tuple([
+            self.param_id[param_name]
+            for param_name in self.fit_params])
 
         if data is None:
             # We're calling the source without data. Set the batch_size here
@@ -266,7 +153,22 @@ class Source(SourceBase):
 
         self.set_defaults(**params)
 
-        self._init_padding(_skip_tf_init)
+        # Annotate requests n_events, currently no padding
+        self.n_padding = 0
+        self.n_events = len(self.data)
+        self.n_batches = np.ceil(
+            self.n_events / self.batch_size).astype(np.int)
+
+        if not _skip_tf_init:
+            # Extend dataframe with events to nearest batch_size multiple
+            # We're using actual events for padding, since using zeros or
+            # nans caused problems with gradient calculation
+            # padded events are clipped when summing likelihood terms
+            self.n_padding = self.n_batches * self.batch_size - len(self.data)
+            if self.n_padding > 0:
+                # Repeat first event n_padding times and concat to rest of data
+                df_pad = self.data.iloc[np.zeros(self.n_padding)]
+                self.data = pd.concat([self.data, df_pad], ignore_index=True)
 
         if not data_is_annotated:
             self.add_extra_columns(self.data)
@@ -531,13 +433,21 @@ class Source(SourceBase):
                 * len(d_simulated) / n_trials)
 
     ##
-    # Functions probably want to override
+    # Functions you have to override
     ##
-    def energy_spectrum(self, **params):
-        raise NotImplementedError
 
     def _differential_rate(self, data_tensor, ptensor):
         raise NotImplementedError
+
+    def mu_before_efficiencies(self, **params):
+        """Return mean expected number of events BEFORE efficiencies/response
+        using data for the evaluation of the energy spectra
+        """
+        raise NotImplementedError
+
+    ##
+    # Functions you probably should override
+    ##
 
     def _annotate(self, _skip_bounds_computation=False):
         """Add columns needed in inference to self.data
@@ -561,4 +471,29 @@ class Source(SourceBase):
 
     def _simulate_response(self):
         """Do a forward simulation of the detector response, using self.data"""
-        raise NotImplementedError
+        return self.data
+
+
+@export
+class ColumnSource(Source):
+    """Source that expects precomputed differential rate in a column,
+    and precomputed mu in an attribute
+    """
+    column = 'rename_me!'
+    mu = 42.
+
+    def extra_needed_columns(self):
+        return super().extra_needed_columns() + [self.column]
+
+    def estimate_mu(self, n_trials=None, **params):
+        return self.mu
+
+    def mu_before_efficiencies(self, **params):
+        return self.mu
+
+    def _differential_rate(self, data_tensor, ptensor):
+        return self._fetch(self.column, data_tensor)
+
+    def random_truth(self, n_events, fix_truth=None, **params):
+        print(f"{self.__class__.__name__} cannot generate events, skipping")
+        return pd.DataFrame()

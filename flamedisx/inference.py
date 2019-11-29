@@ -8,6 +8,13 @@ from iminuit import Minuit
 
 
 export, __all__ = fd.exporter()
+__all__ += ['LOWER_RATE_MULTIPLIER_BOUND']
+
+# Setting this to 0 does work, but makes the inference rather slow
+# (at least for scipy); probably there is a relative xtol computation,
+# which fails when x -> 0.
+LOWER_RATE_MULTIPLIER_BOUND = 1e-9
+
 o = tf.newaxis
 
 
@@ -105,20 +112,46 @@ class Objective:
         """Return only gradient"""
         return self(x).grad
 
+    def absolute_to_relative_tol(self, x_guess, llr_tolerance):
+        return abs(llr_tolerance / self.fun(x_guess))
+
+    def prepare_bounds(self, bounds):
+        """Return dictionary of {parameter: (left, right)} bounds
+        given None or another such dictionary, setting defaults
+        for rate multipliers"""
+        if bounds is None:
+            bounds = dict()
+        for p in self.arg_names:
+            if p.endswith('_rate_multiplier'):
+                bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
+        return bounds
+
 
 class ScipyObjective(Objective):
     numpy_in_out = True
     memoize = True
 
     def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=False,
-                 llr_tolerance=5e-3, **kwargs):
-        #TODO implement optimizer methods the use hessian
-        kwargs.setdefault('tol', llr_tolerance)
+                 llr_tolerance=None, bounds=None, return_errors=False, **kwargs):
+        if return_errors:
+            raise NotImplementedError(
+                "Scipy minimizer does not yet support return errors")
+
+        # TODO implement optimizer methods the use hessian
         kwargs.setdefault('method', 'TNC')
 
-        bounds = [(1e-9, None) if n.endswith('_rate_multiplier')
-                  else (None, None) for n in self.arg_names]
-        kwargs.setdefault('bounds', bounds)
+        bounds = self.prepare_bounds(bounds)
+        kwargs['bounds'] = [bounds.get(x, (None, None))
+                            for x in self.arg_names]
+
+        # Note the default 'tol' option is interpreted as xtol for TNC.
+        # ftol is cryptically described as "precision goal"... but from the code
+        # https://github.com/scipy/scipy/blob/81d2318e3a9ab172c05645e5d663979f7c594472/scipy/optimize/tnc/tnc.c#L844
+        # it appears this is the absolute relative change in f to trigger
+        # convergence. (not 100% sure, might be relative...)
+        kwargs.setdefault('options', dict())
+        if llr_tolerance is not None:
+            kwargs['options'].setdefault('ftol', llr_tolerance)
         res = scipy.optimize.minimize(self.fun, x_guess, jac=self.grad,
                                       **kwargs)
         if get_lowlevel_result:
@@ -127,8 +160,13 @@ class ScipyObjective(Objective):
 
 
 class TensorFlowObjective(Objective):
-    def minimize(self, x_guess, get_lowlevel_result=False, use_hessian=True,
-                 llr_tolerance=None, **kwargs):
+    def minimize(self, x_guess, get_lowlevel_result=False, bounds=None,
+                 use_hessian=True, llr_tolerance=None,
+                 return_errors=False, **kwargs):
+        if return_errors:
+            raise NotImplementedError(
+                "Tensorflow minimizer does not yet support return errors")
+
         x_guess = fd.np_to_tf(x_guess)
 
         if use_hessian:
@@ -146,12 +184,15 @@ class TensorFlowObjective(Objective):
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
         if llr_tolerance is not None:
-            kwargs.setdefault('f_relative_tolerance',
-                              llr_tolerance/self.fun(x_guess).numpy())
+            kwargs.setdefault(
+                'f_relative_tolerance',
+                self.absolute_to_relative_tol(x_guess, llr_tolerance))
 
-        res = tfp.optimizer.bfgs_minimize(self.fun_and_grad, x_guess,
-                                    initial_inverse_hessian_estimate=inv_hess,
-                                    **kwargs)
+        res = tfp.optimizer.bfgs_minimize(
+            self.fun_and_grad,
+            initial_position=x_guess,
+            initial_inverse_hessian_estimate=inv_hess,
+            **kwargs)
         if get_lowlevel_result:
             return res
         if res.failed:
@@ -164,22 +205,39 @@ class TensorFlowObjective(Objective):
 
 class MinuitObjective(Objective):
     numpy_in_out = True
-    # TODO: memoize kan ook wel voor minuit toch... Nou vooruit dan
     memoize = True
 
-    def minimize(self, x_guess, use_hessian=True, get_lowlevel_result=False,
+    def minimize(self, x_guess, bounds=None, use_hessian=False,
+                 get_lowlevel_result=False, return_errors=False,
                  llr_tolerance=None, **kwargs):
-        # TODO llr_tolerance
-        kwargs.setdefault('error', x_guess * 0.1)
+
+        kwargs.setdefault('error',
+                          np.maximum(x_guess * 0.1,
+                                     1e-3 * np.ones_like(x_guess)))
+
+        bounds = self.prepare_bounds(bounds)
+        for param_name, b in bounds.items():
+            kwargs.setdefault('limit_' + param_name, b)
 
         fit = Minuit.from_array_func(self.fun, x_guess, grad=self.grad,
                                      errordef=0.5,
                                      name=self.arg_names,
                                      **kwargs)
 
+        if llr_tolerance is not None:
+            # From https://iminuit.readthedocs.io/en/latest/reference.html
+            # and https://root.cern.ch/download/minuit.pdf
+            # this value is multiplied by 0.001 * 0.5, and then gives the
+            # estimated vertical distance to the minimum needed to stop
+            # Note the first reference gives 0.0001 instead of 0.001!
+            # TODO make issue?
+            fit.tol = llr_tolerance/(0.001 * 0.5)
+
         fit.migrad()
-        if use_hessian:
+        if return_errors == 'hesse':
             fit.hesse()
+        elif return_errors == 'minos':
+            fit.minos()
 
         if get_lowlevel_result:
             return fit
@@ -189,6 +247,7 @@ class MinuitObjective(Objective):
 OBJECTIVES = dict(tfp=TensorFlowObjective,
                   minuit=MinuitObjective,
                   scipy=ScipyObjective)
+
 
 ##
 # Bestfit functions
@@ -200,13 +259,18 @@ def get_bestfit_objective(optimizer):
         raise ValueError(f"Optimizer {optimizer} not supported")
     return OBJECTIVES[optimizer]
 
+
 ##
 # Interval estimation
 ##
 
 class IntervalObjective(Objective):
 
-    def __init__(self, ll_best, critical_quantile, target_parameter,
+    # Add constant offset to objective, so objective is not 0 at the minimum
+    # and relative tolerances mean something.
+    _offset = 1
+
+    def __init__(self, m2ll_best, critical_quantile, target_parameter,
                  *args, t_ppf=None, t_ppf_grad=None, **kwargs):
         super().__init__(*args, **kwargs)
         if t_ppf:
@@ -215,7 +279,7 @@ class IntervalObjective(Objective):
             self.t_ppf_grad = t_ppf_grad
 
         self.critical_quantile = critical_quantile
-        self.ll_best = ll_best
+        self.m2ll_best = m2ll_best
         self.target_parameter = target_parameter
 
         self.numpy_in_out = True
@@ -225,7 +289,7 @@ class IntervalObjective(Objective):
         quantile.
         Asymptotic case using Wilk's theorem, does not depend
         on the value of the target parameter."""
-        return scipy.stats.norm.ppf(self.critical_quantile) ** 2
+        return wilks_crit(self.critical_quantile)
 
     def t_ppf_grad(self, target_param_value):
         """Return derivative of t_ppf wrt target_param_value"""
@@ -233,25 +297,36 @@ class IntervalObjective(Objective):
 
     def _inner_fun_and_grad(self, params):
         fun, grad = super()._inner_fun_and_grad(params)
-        ll_ratio = fun - self.ll_best
+        ll_ratio = fun - self.m2ll_best
         x = params[self.target_parameter]
         crit = self.t_ppf(x)
         diff = ll_ratio - crit
-        return (diff ** 2,
+
+        return (self._offset + diff**2,
                 2 * diff * (grad - self.t_ppf_grad(x)))
+
+    def absolute_to_relative_tol(self, x_guess, llr_tolerance):
+        # We know the objective is self.offset at the minimum,
+        # so the relative to absolute tolerance conversion is easy:
+        return llr_tolerance / self._offset
+
 
 class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
     """IntervalObjective using TensorFlow optimizer"""
 
+
 class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
     """IntervalObjective using Minuit optimizer"""
+
 
 class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
 
+
 INTERVALOBJECTIVES = dict(tfp=TensorFlowIntervalObjective,
                           minuit=MinuitIntervalObjective,
                           scipy=ScipyIntervalObjective)
+
 
 def get_interval_objective(optimizer):
     if optimizer not in INTERVALOBJECTIVES:
@@ -260,32 +335,44 @@ def get_interval_objective(optimizer):
 
 
 @export
-def one_parameter_interval(lf: fd.LogLikelihood, parameter: str,
-                           bound: ty.Tuple[float, float],
-                           guess: ty.Dict[str, float],
-                           ll_best: float,
-                           critical_quantile: float,
-                           optimizer: ty.Union['tfp', 'minuit', 'scipy'],
-                           fix: ty.Dict[str, float]=None,
-                           llr_tolerance=None,
-                           t_ppf=None, t_ppf_grad=None):
+def one_parameter_interval(
+        lf: fd.LogLikelihood,
+        parameter: str,
+        bound: ty.Tuple[ty.Union[float, None], ty.Union[float, None]],
+        guess: ty.Dict[str, float],
+        m2ll_best: float,
+        critical_quantile: float,
+        optimizer: str,
+        fix: ty.Dict[str, float] = None,
+        llr_tolerance=None,
+        t_ppf=None,
+        t_ppf_grad=None,
+        **kwargs):
     """Compute upper/lower/central interval on parameter at confidence level"""
 
     if fix is None:
         fix = dict()
     arg_names = [k for k in lf.param_names if k not in fix]
     x_guess = np.array([guess[k] for k in arg_names])
-    bounds = [(1e-9, None) if n.endswith('_rate_multiplier') else (None, None)
-              for n in arg_names]
-    bounds[arg_names.index(parameter)] = bound
 
     Optimizer = get_interval_objective(optimizer)
 
+    if llr_tolerance is not None:
+        # The objective is squared:
+        llr_tolerance = llr_tolerance ** 2
+
     # Construct t-stat objective + grad
-    obj = Optimizer(lf=lf, arg_names=arg_names, fix=fix, ll_best=ll_best,
+    obj = Optimizer(lf=lf, arg_names=arg_names, fix=fix, m2ll_best=m2ll_best,
                     target_parameter=parameter, t_ppf=t_ppf,
                     t_ppf_grad=t_ppf_grad, critical_quantile=critical_quantile)
     res = obj.minimize(x_guess, use_hessian=False, get_lowlevel_result=False,
-                       bounds=bounds, llr_tolerance=llr_tolerance)
+                       bounds={parameter: bound},
+                       llr_tolerance=llr_tolerance, **kwargs)
 
     return res[parameter]
+
+
+@export
+def wilks_crit(confidence_level):
+    """Return critical value from Wilks' theorem for upper limits"""
+    return scipy.stats.norm.ppf(confidence_level) ** 2

@@ -200,7 +200,7 @@ def test_simulate(xes):
         data=None)
 
     events = lf.simulate()
-    events = lf.simulate(rate_multipliers=dict(er_rate_multiplier=2.))
+    events = lf.simulate(er_rate_multiplier=2.)
     events = lf.simulate(fix_truth=dict(x=0., y=0., z=-50.))
 
 
@@ -213,7 +213,7 @@ def test_simulate_column(xes):
         data=None)
 
     events = lf.simulate()
-    events = lf.simulate(rate_multipliers=dict(er_rate_multiplier=2.))
+    events = lf.simulate(er_rate_multiplier=2.)
     events = lf.simulate(fix_truth=dict(x=0., y=0., z=-50.))
 
 

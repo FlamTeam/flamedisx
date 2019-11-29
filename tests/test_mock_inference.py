@@ -36,15 +36,17 @@ class MockObjective:
         return (tf.constant(ll, dtype=fd.float_type()),
                 tf.constant(list(ll_grad_dict.values()), dtype=fd.float_type()))
 
+
 class MockScipyObjective(MockObjective, ScipyObjective):
     pass
+
 
 class MockTensorFlowObjective(MockObjective, TensorFlowObjective):
     pass
 
+
 class MockMinuitObjective(MockObjective, MinuitObjective):
     pass
-
 
 
 def test_mock_bestfit_tf():
@@ -92,7 +94,7 @@ def test_mock_bestfit_minuit():
     res = mock_opt.minimize(x_guess,
                             get_lowlevel_result=False,
                             use_hessian=True,
-                            llr_tolerance=0.1)
+                            llr_tolerance=0.001)
 
     res_test = np.array([res[k] for k in arg_names])
 
