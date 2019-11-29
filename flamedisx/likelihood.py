@@ -518,7 +518,14 @@ class LogLikelihood:
                 # Take the smaller of the two and add it on the correct side
                 # TODO: Is the best one always smallest? Don't know...
                 dx = min(dx_1, dx_2)
-                q['guess'] = bestfit[parameter] + q['direction'] * dx
+                q['guess'] = max(
+                    fd.LOWER_RATE_MULTIPLIER_BOUND,
+                    bestfit[parameter] + q['direction'] * dx)
+
+                if parameter.endswith('rate_multiplier'):
+                    q['guess'] = max(q['guess'],
+                                     fd.LOWER_RATE_MULTIPLIER_BOUND)
+
                 if print_guesstimate:
                     print(f"Using guesstimate: {q['guess']}")
 
