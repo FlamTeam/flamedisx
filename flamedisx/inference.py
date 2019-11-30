@@ -313,6 +313,7 @@ class IntervalObjective(Objective):
                  bestfit,
                  direction: int,
                  critical_quantile,
+                 tilt_multiplier=1.,
                  sigma_guess=None,
                  t_ppf=None,
                  t_ppf_grad=None,
@@ -323,6 +324,7 @@ class IntervalObjective(Objective):
         self.bestfit = bestfit
         self.direction = direction
         self.critical_quantile = critical_quantile
+        self.tilt_multiplier = tilt_multiplier
 
         if sigma_guess is None:
             # Estimate one sigma interval using parabolic approx.
@@ -338,7 +340,7 @@ class IntervalObjective(Objective):
 
         # TODO: add reference to computation for this
         # TODO: let user specify multiplier for this
-        self.tilt = self.sigma_guess * \
+        self.tilt = self.sigma_guess * self.tilt_multiplier * \
             (8 * self.llr_tolerance * self.critical_quantile)**0.5
 
         # Store bestfit target, maximum likelihood and slope
