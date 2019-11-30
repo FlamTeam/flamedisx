@@ -347,6 +347,7 @@ class LogLikelihood:
                 optimizer='scipy',
                 llr_tolerance=0.01,
                 get_lowlevel_result=False,
+                get_history=False,
                 use_hessian=True,
                 return_errors=False,
                 nan_val=float('inf'),
@@ -363,7 +364,9 @@ class LogLikelihood:
         less than this.
         becomes less than this.
         :param get_lowlevel_result: Returns the full optimizer result instead
-        of only the best fit parameters. Bool.
+        of the best fit parameters. Bool.
+        :param get_history: Returns the history of optimizer calls instead
+        of the best fit parameters. Bool.
         :param use_hessian: Passes the hessian estimated at the guess to the
         optimizer. Bool.
         :param return_errors: If using the minuit minimizer, instead return
@@ -386,11 +389,12 @@ class LogLikelihood:
             llr_tolerance=llr_tolerance,
             nan_val=nan_val,
             get_lowlevel_result=get_lowlevel_result,
+            get_history=get_history,
             use_hessian=use_hessian,
             return_errors=return_errors,
             optimizer_kwargs=optimizer_kwargs
         ).minimize()
-        if get_lowlevel_result:
+        if get_lowlevel_result or get_history:
             return res
 
         # TODO: This is to deal with a minuit-specific convention,
@@ -424,6 +428,8 @@ class LogLikelihood:
             t_ppf_grad=None,
             # Broader tolerance than for bestfit, llr is steep at limit
             optimizer='scipy',
+            get_history=False,
+            get_lowlevel_result=False,
             llr_tolerance=0.05,
             optimizer_kwargs=None,):
         """Return frequentist limit or confidence interval
@@ -507,7 +513,8 @@ class LogLikelihood:
                 bounds={parameter: req['bound']},
                 llr_tolerance=llr_tolerance,
                 # TODO: nan_val
-                get_lowlevel_result=False,
+                get_lowlevel_result=get_lowlevel_result,
+                get_history=get_history,
                 use_hessian=False,
                 optimizer_kwargs=optimizer_kwargs,
 
@@ -520,8 +527,10 @@ class LogLikelihood:
                 t_ppf=t_ppf,
                 t_ppf_grad=t_ppf_grad,
             ).minimize()
-
-            result.append(res[parameter])
+            if get_lowlevel_result or get_history:
+                result.append(res)
+            else:
+                result.append(res[parameter])
 
         if len(result) == 1:
             return result[0]

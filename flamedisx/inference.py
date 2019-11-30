@@ -59,6 +59,7 @@ class Objective:
                  llr_tolerance=0.05,
                  nan_val=float('inf'),
                  get_lowlevel_result=False,
+                 get_history=False,
                  use_hessian=False,
                  return_errors=False,
                  optimizer_kwargs: dict = None):
@@ -76,6 +77,7 @@ class Objective:
         self.llr_tolerance = llr_tolerance
         self.nan_val = nan_val
         self.get_lowlevel_result = get_lowlevel_result
+        self.return_history = get_history
         self.use_hessian = use_hessian
         self.return_errors = return_errors
         self.optimizer_kwargs = optimizer_kwargs
@@ -83,6 +85,8 @@ class Objective:
         if self.arg_names is None:
             self.arg_names = [k for k in self.lf.param_names if k not in self.fix]
         self._cache = dict()
+        if self.return_history:
+            self._history = []
 
         if self.require_complete_guess:
             for k in self.arg_names:
@@ -127,6 +131,10 @@ class Objective:
         if self.numpy_in_out:
             ll = ll.numpy()
             grad = grad.numpy()
+
+        if self.return_history:
+            self._history.append(dict(params=params, ll=ll, grad=grad))
+
         result = ObjectiveResult(fun=ll, grad=grad)
         if self.memoize:
             self._cache[memkey] = result
@@ -152,6 +160,13 @@ class Objective:
 
     def absolute_to_relative_tol(self, llr_tolerance):
         return abs(llr_tolerance / self._inner_fun_and_grad(self.guess)[0])
+
+    def _lowlevel_shortcut(self, res):
+        if self.get_lowlevel_result:
+            return True, res
+        if self.return_history:
+            return True, self._history
+        return False, res
 
 
 class ScipyObjective(Objective):
@@ -183,7 +198,8 @@ class ScipyObjective(Objective):
             jac=self.grad,
             **kwargs)
 
-        if self.get_lowlevel_result:
+        ret, res = self._lowlevel_shortcut(res)
+        if ret:
             return res
         return {**dict(zip(self.arg_names, res.x)), **self.fix}
 
@@ -223,7 +239,8 @@ class TensorFlowObjective(Objective):
             initial_position=x_guess,
             initial_inverse_hessian_estimate=inv_hess,
             **kwargs)
-        if self.get_lowlevel_result:
+        ret, res = self._lowlevel_shortcut(res)
+        if ret:
             return res
         if res.failed:
             raise ValueError(f"Optimizer failure! Result: {res}")
@@ -267,8 +284,9 @@ class MinuitObjective(Objective):
         elif self.return_errors == 'minos':
             fit.minos()
 
-        if self.get_lowlevel_result:
-            return fit
+        ret, res = self._lowlevel_shortcut(fit)
+        if ret:
+            return res
         return fit.fitarg
 
 
@@ -386,7 +404,6 @@ class IntervalObjective(Objective):
 
         # We're still in tensorflow, so adding to an index is annoying:
         param_id = self.arg_names.index(self.target_parameter)
-        print(extra_grad, param_id, grad)
         grad = tf.tensor_scatter_nd_add(
             tensor=grad,
             indices=tf.convert_to_tensor([[param_id]], dtype=fd.int_type()),
