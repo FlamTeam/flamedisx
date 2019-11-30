@@ -378,6 +378,9 @@ class IntervalObjective(Objective):
                       **{self.target_parameter: tp_guess},
                       **self.guess}
 
+        # Objective is squared, so square the tolerance:
+        self.llr_tolerance = self.llr_tolerance ** 2
+
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical
         quantile.

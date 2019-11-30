@@ -500,11 +500,6 @@ class LogLikelihood:
 
         result = []
         for req in requested_limits:
-
-            if llr_tolerance is not None:
-                # The objective is squared:
-                llr_tolerance = llr_tolerance ** 2
-
             opt = fd.SUPPORTED_INTERVAL_OPTIMIZERS[optimizer]
             res = opt(
                 # To generic objective
