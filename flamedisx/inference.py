@@ -100,6 +100,8 @@ class Objective:
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
 
+        self.absolute_ftol = self.llr_tolerance
+
     def _dict_to_array(self, x: dict) -> np.array:
         """Convert from {parameter: value} dictionary to numpy array"""
         return np.array([x[k] for k in self.arg_names])
@@ -158,8 +160,8 @@ class Objective:
         """Return only gradient"""
         return self(x).grad
 
-    def absolute_to_relative_tol(self, llr_tolerance):
-        return abs(llr_tolerance / self._inner_fun_and_grad(self.guess)[0])
+    def relative_ftol_guess(self):
+        return abs(self.absolute_ftol / self._inner_fun_and_grad(self.guess)[0])
 
     def _lowlevel_shortcut(self, res):
         if self.get_lowlevel_result:
@@ -189,8 +191,8 @@ class ScipyObjective(Objective):
         # it appears this is the absolute relative change in f to trigger
         # convergence. (not 100% sure, might be relative...)
         kwargs.setdefault('options', dict())
-        if self.llr_tolerance is not None:
-            kwargs['options'].setdefault('ftol', self.llr_tolerance)
+        if self.absolute_ftol is not None:
+            kwargs['options'].setdefault('ftol', self.absolute_ftol)
 
         res = scipy_optimize.minimize(
             fun=self.fun,
@@ -227,10 +229,10 @@ class TensorFlowObjective(Objective):
         # Unfortunately we can only set the relative tolerance for the
         # objective; we'd like to set the absolute one.
         # Use the guess log likelihood to normalize;
-        if self.llr_tolerance is not None:
+        if self.absolute_ftol is not None:
             kwargs.setdefault(
                 'f_relative_tolerance',
-                self.absolute_to_relative_tol(self.llr_tolerance))
+                self.relative_ftol_guess())
 
         x_guess = fd.np_to_tf(self._dict_to_array(self.guess))
 
@@ -269,14 +271,14 @@ class MinuitObjective(Objective):
                                      name=self.arg_names,
                                      **kwargs)
 
-        if self.llr_tolerance is not None:
+        if self.absolute_ftol is not None:
             # From https://iminuit.readthedocs.io/en/latest/reference.html
             # and https://root.cern.ch/download/minuit.pdf
             # this value is multiplied by 0.001 * 0.5, and then gives the
             # estimated vertical distance to the minimum needed to stop
             # Note the first reference gives 0.0001 instead of 0.001!
-            # TODO make issue?
-            fit.tol = self.llr_tolerance/(0.001 * 0.5)
+            # See https://github.com/scikit-hep/iminuit/issues/353
+            fit.tol = self.absolute_ftol/(0.001 * 0.5)
 
         fit.migrad()
         if self.return_errors == 'hesse':
@@ -313,7 +315,7 @@ class IntervalObjective(Objective):
                  bestfit,
                  direction: int,
                  critical_quantile,
-                 tilt_multiplier=1.,
+                 tol_multiplier=1.,
                  sigma_guess=None,
                  t_ppf=None,
                  t_ppf_grad=None,
@@ -324,7 +326,7 @@ class IntervalObjective(Objective):
         self.bestfit = bestfit
         self.direction = direction
         self.critical_quantile = critical_quantile
-        self.tilt_multiplier = tilt_multiplier
+        self.tol_multiplier = tol_multiplier
 
         if sigma_guess is None:
             # Estimate one sigma interval using parabolic approx.
@@ -339,9 +341,7 @@ class IntervalObjective(Objective):
             self.t_ppf_grad = t_ppf_grad
 
         # TODO: add reference to computation for this
-        # TODO: let user specify multiplier for this
-        self.tilt = self.sigma_guess * self.tilt_multiplier * \
-            (8 * self.llr_tolerance * self.critical_quantile)**0.5
+        self.tilt = 4 * self.llr_tolerance * self.critical_quantile
 
         # Store bestfit target, maximum likelihood and slope
         self.bestfit_tp = self.bestfit[self.target_parameter]
@@ -378,8 +378,8 @@ class IntervalObjective(Objective):
                       **{self.target_parameter: tp_guess},
                       **self.guess}
 
-        # Objective is squared, so square the tolerance:
-        self.llr_tolerance = self.llr_tolerance ** 2
+        # Objective involves square likelihood, so square tolerance too:
+        self.absolute_ftol = self.tol_multiplier * self.llr_tolerance**2
 
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical

@@ -429,9 +429,12 @@ class LogLikelihood:
             optimizer='scipy',
             get_history=False,
             get_lowlevel_result=False,
-            # Broader tolerance than for bestfit, llr is steep at limit
-            llr_tolerance=0.05,
-            tilt_multiplier=1.,
+            # Broader tolerance than for bestfit, llr is steep at limit.
+            # Set so 90% CL intervals actually report ~90.25% intervals
+            # asymptotically due to the tilt.
+            llr_tolerance=0.037,
+            # Multiplier for optimizer tolerance.
+            tol_multiplier=3e-3,
             optimizer_kwargs=None,):
         """Return frequentist limit or confidence interval
 
@@ -519,7 +522,7 @@ class LogLikelihood:
                 bestfit=bestfit,
                 direction=req['direction'],
                 critical_quantile=req['crit'],
-                tilt_multiplier=tilt_multiplier,
+                tol_multiplier=tol_multiplier,
                 sigma_guess=sigma_guess,
                 t_ppf=t_ppf,
                 t_ppf_grad=t_ppf_grad,
