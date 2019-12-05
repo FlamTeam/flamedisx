@@ -203,14 +203,14 @@ class Source:
         if data is None:
             self.set_defaults(**kwargs)
         else:
-            old_data = self.data
+            old_data = self.data[:self.n_events]  # Remove padding
             self.set_data(data, **kwargs, _skip_tf_init=True)
         try:
             yield
         finally:
             self.defaults = old_defaults
             if data is not None:
-                self.data = old_data
+                self.set_data(old_data, _skip_tf_init=True)
 
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""
