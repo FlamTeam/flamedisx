@@ -197,19 +197,24 @@ class Source:
             self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
 
     @contextmanager
-    def _set_temporarily(self, data=None, **kwargs):
+    def _set_temporarily(self, data, **kwargs):
         """Set data and/or defaults temporarily"""
+        if data is None:
+            raise ValueError("No point in setting data = None temporarily")
         old_defaults = self.defaults
         if data is None:
             self.set_defaults(**kwargs)
         else:
-            old_data = self.data[:self.n_events]  # Remove padding
+            if self.data is None:
+                old_data = None
+            else:
+                old_data = self.data[:self.n_events]  # Remove padding
             self.set_data(data, **kwargs, _skip_tf_init=True)
         try:
             yield
         finally:
             self.defaults = old_defaults
-            if data is not None:
+            if old_data is not None:
                 self.set_data(old_data, _skip_tf_init=True)
 
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
