@@ -82,7 +82,10 @@ class Objective:
         self.return_errors = return_errors
         self.optimizer_kwargs = optimizer_kwargs
 
-        self.arg_names = [k for k in self.lf.param_names if k not in self.fix]
+        # The if is only here to support MockInference with static arg_names
+        if self.arg_names is None:
+            self.arg_names = [
+                k for k in self.lf.param_names if k not in self.fix]
         self._cache = dict()
         if self.return_history:
             self._history = []
