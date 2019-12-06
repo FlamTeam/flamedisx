@@ -263,7 +263,6 @@ def test_set_data(xes: fd.ERSource):
     x = xes.batched_differential_rate()
     assert x.shape == (2,)
 
-
     data1 = xes.data
     data2 = pd.concat([data1.copy(),
                        data1.iloc[:1].copy()])

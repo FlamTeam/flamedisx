@@ -6,7 +6,6 @@ import typing as ty
 
 
 export, __all__ = fd.exporter()
-__all__ += ['DEFAULT_DSETNAME']
 
 o = tf.newaxis
 DEFAULT_DSETNAME = 'the_dataset'
@@ -504,6 +503,7 @@ class LogLikelihood:
         result = []
         for req in requested_limits:
             opt = fd.SUPPORTED_INTERVAL_OPTIMIZERS[optimizer]
+
             res = opt(
                 # To generic objective
                 lf=self,

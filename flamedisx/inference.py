@@ -82,8 +82,7 @@ class Objective:
         self.return_errors = return_errors
         self.optimizer_kwargs = optimizer_kwargs
 
-        if self.arg_names is None:
-            self.arg_names = [k for k in self.lf.param_names if k not in self.fix]
+        self.arg_names = [k for k in self.lf.param_names if k not in self.fix]
         self._cache = dict()
         if self.return_history:
             self._history = []
@@ -179,6 +178,9 @@ class ScipyObjective(Objective):
         if self.return_errors:
             raise NotImplementedError(
                 "Scipy minimizer does not yet support return errors")
+
+        # TODO implement optimizer methods to use the Hessian,
+        # see https://github.com/FlamTeam/flamedisx/pull/60#discussion_r354832569
 
         kwargs: ty.Dict[str, ty.Any] = self.optimizer_kwargs
         kwargs.setdefault('method', 'TNC')
@@ -374,6 +376,13 @@ class IntervalObjective(Objective):
         else:
             tp_guess = self.guess[self.target_parameter]
 
+        # Check guess is in bounds
+        lb, rb = self.bounds.get(self.target_parameter, (None, None))
+        if lb is not None:
+            assert lb <= tp_guess, f"Guess {tp_guess} below lower bound {lb}"
+        if rb is not None:
+            assert tp_guess <= rb, f"Guess {tp_guess} above upper bound {rb}"
+
         self.guess = {**bestfit,
                       **{self.target_parameter: tp_guess},
                       **self.guess}
@@ -406,13 +415,10 @@ class IntervalObjective(Objective):
         # where our likelihood equals the target amplitude.
         fun += - self.direction * self.tilt * x_norm
         extra_grad = - self.direction * self.tilt / self.sigma_guess
-
-        # We're still in tensorflow, so adding to an index is annoying:
-        param_id = self.arg_names.index(self.target_parameter)
-        grad = tf.tensor_scatter_nd_add(
-            tensor=grad,
-            indices=tf.convert_to_tensor([[param_id]], dtype=fd.int_type()),
-            updates=tf.convert_to_tensor([extra_grad], dtype=fd.float_type()))
+        grad += tf.where(
+            tf.equal(self.arg_names, self.target_parameter),
+            extra_grad,
+            tf.constant(0., dtype=fd.float_type()))
 
         return fun + self._offset, grad
 
