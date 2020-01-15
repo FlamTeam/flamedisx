@@ -1,3 +1,12 @@
+0.4.0 / 2019-01-15
+-------------------
+- Many changes to objectives and inference (#39, #40)
+- Add tilt to objective for interval/limit searches
+- one_parameter_interval -> limit and interval methods
+- Optimizers use bounds
+- Tolerance option homogenization (first pass)
+- Auto-guess limits
+
 0.3.1 / 2019-11-26
 ------------------
 - Performance improvements and cleanup (#58)
