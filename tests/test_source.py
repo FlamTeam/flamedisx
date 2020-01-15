@@ -101,6 +101,11 @@ def test_simulate(xes: fd.ERSource):
     simd = xes.simulate(n_ev)
     assert len(simd) <= n_ev
 
+    # Test n_events etc. have not been changed
+    assert xes.n_events == 2
+    assert len(xes.data) == 2
+    assert xes.n_batches == 1
+
     # Test simulate with fix_truth DataFrame
     fix_truth_df = simd.iloc[:1].copy()
     simd = xes.simulate(n_ev, fix_truth=fix_truth_df)
@@ -257,7 +262,6 @@ def test_set_data(xes: fd.ERSource):
 
     x = xes.batched_differential_rate()
     assert x.shape == (2,)
-
 
     data1 = xes.data
     data2 = pd.concat([data1.copy(),
