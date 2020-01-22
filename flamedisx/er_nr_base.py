@@ -557,8 +557,11 @@ class LXeSource(fd.Source):
 
         if self.do_pel_fluct:
             d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
-            d['p_el_actual'] = stats.beta.rvs(
-                *fd.beta_params(d['p_el_mean'], d['p_el_fluct']))
+            d['p_el_fluct'] = tf.clip_by_value(d['p_el_fluct'],
+                                               fd.MIN_FLUCTUATION_P,
+                                               1.)
+            d['p_el_actual'] = 1. - stats.beta.rvs(
+                *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
         else:
             d['p_el_fluct'] = 0.
             d['p_el_actual'] = d['p_el_mean']
