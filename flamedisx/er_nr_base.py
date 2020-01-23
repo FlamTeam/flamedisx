@@ -797,16 +797,24 @@ class WIMPSource(NRSource):
     def ignore_columns(self):
         return super().ignore_columns() + ['wimp_energies']
 
-    # Interpolator settings
-    n_in = 10  # Number of time bin edges (wimprates function evaluations + 1)
+    n_time_bins = 24
+
+    # If set to True, the energy spectrum at each time will be set to its
+    # average over the data taking period.
+    pretend_wimps_dont_modulate = False
 
     def __init__(self, *args, wimp_kwargs=None, **kwargs):
         # Compute the energy spectrum in a given time range
         # Times used by wimprates are J2000 timestamps
-        assert self.n_in > 1, \
-            f"Number of time bin edges needs to be at least 2"
+        assert self.n_time_bins >= 1, "Need >= 1 time bin"
+        if hasattr(self, 'n_in'):
+            raise RuntimeError(
+                "n_in is gone! Use n_time_bins to control accuracy, or set "
+                "pretend_wimps_dont_modulate to use a time-averaged spectrum.")
+
         times = np.linspace(wr.j2000(self.t_start.value),
-                            wr.j2000(self.t_stop.value), self.n_in)
+                            wr.j2000(self.t_stop.value),
+                            self.n_time_bins + 1)
         time_centers = self.bin_centers(times)
 
         if wimp_kwargs is None:
@@ -835,12 +843,19 @@ class WIMPSource(NRSource):
 
         self.energy_hist = Histdd.from_histogram(spectra,
                                                  bin_edges=(times, es))
+
+        if self.pretend_wimps_dont_modulate:
+            self.energy_hist.histogram = (
+                np.ones_like(self.energy_hist.histogram)
+                * self.energy_hist.sum(axis=0).histogram.reshape(1, -1)
+                / self.n_time_bins)
+
         # Initialize the rest of the source, needs to be after energy_hist is
         # computed because of _populate_tensor_cache
         super().__init__(*args, **kwargs)
 
     def mu_before_efficiencies(self, **params):
-        return self.energy_hist.n / (self.n_in - 1)
+        return self.energy_hist.n / self.n_time_bins
 
     @staticmethod
     def bin_centers(x):
@@ -853,11 +868,15 @@ class WIMPSource(NRSource):
 
     def _populate_tensor_cache(self):
         super()._populate_tensor_cache()
-        # Get energy bin centers
+
+        # Create an (n_time_bins, len(es)) histogram of spectra
         e_bin_centers = self.energy_hist.bin_centers(axis=1)
-        # Construct the energy spectra at event times
         e = np.array([self.energy_hist.slicesum(t).histogram
                       for t in self.data['t_j2000']])
+
+        # Look up in which time row/bin each event falls, and concatenate
+        # the expected WIMP energy spectrum to the data tensor.
+        # We modified _fetch so we can access these as 'wimp_energies'
         energy_tensor = tf.convert_to_tensor(e, dtype=fd.float_type())
         assert energy_tensor.shape == [len(self.data), len(e_bin_centers)], \
             f"{energy_tensor.shape} != {len(self.data)}, {len(e_bin_centers)}"
@@ -867,7 +886,8 @@ class WIMPSource(NRSource):
                                       energy_tensor],
                                      axis=2)
 
-        # Centers of energy bins, repeated across the batch dimension
+        # Store the centers of energy bins separately, these are the same
+        # in each batch.
         es_centers = tf.convert_to_tensor(e_bin_centers,
                                           dtype=fd.float_type())
         self.es_centers_batch = fd.repeat(es_centers[o, :],
@@ -876,6 +896,8 @@ class WIMPSource(NRSource):
 
     def energy_spectrum(self, wimp_energies):
         """Return (energies in keV, events at these energies)
+        :param wimp_energies: Expected WIMP energy spectrum at the observed
+        time of each event.
         """
         return self.es_centers_batch, wimp_energies
 
