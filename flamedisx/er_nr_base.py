@@ -61,9 +61,11 @@ class LXeSource(fd.Source):
     tpc_length = 97.6   # cm
     drift_velocity = 1.335 * 1e-4   # cm/ns
 
-    # Uniform timestamps between 2016-09 and 2017-09
-    t_start = pd.to_datetime('2016-09-13T12:00:00')
-    t_stop = pd.to_datetime('2017-09-13T12:00:00')
+    # The default boundaries are at points where the WIMP wind is at its
+    # average speed.
+    # This will then also be true at the midpoint of these times.
+    t_start = pd.to_datetime('2019-09-01T08:28:00')
+    t_stop = pd.to_datetime('2020-09-01T08:28:00')
 
     # Spatial rate multiplier histogram
     # Multihist Histdd object to lookup space dependent rate multipliers
