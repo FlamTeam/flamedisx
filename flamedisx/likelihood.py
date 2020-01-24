@@ -196,7 +196,8 @@ class LogLikelihood:
 
         self.column_indices = dict()
         for dsetname in self.dsetnames:
-            stop_idx = np.cumsum([len(self.sources[sname].cols_to_cache)
+            # Do not use len(cols_to_cache), some sources have extra columns...
+            stop_idx = np.cumsum([self.sources[sname].data_tensor.shape[2]
                                   for sname in self.sources_in_dset[dsetname]])
             self.column_indices[dsetname] = np.transpose([
                 np.concatenate([[0], stop_idx[:-1]]),
