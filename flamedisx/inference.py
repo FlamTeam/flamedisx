@@ -44,7 +44,6 @@ class Objective:
     :param use_hessian: If supported, use Hessian to improve error estimate
     :param return_errors: If supported, return error estimates on parameters
     """
-    numpy_in_out = False   # Minimizer works on numpy arrays, not tensors
     memoize = False        # Cache values during minimization.
     require_complete_guess = True   # Require a guess for all fitted parameters
     arg_names: ty.List = None
@@ -119,7 +118,6 @@ class Objective:
         """Return (objective, gradient)"""
         memkey = None
         if self.memoize:
-            assert self.numpy_in_out, "Fix memoization for tensorflow..."
             memkey = tuple(x)
             if memkey in self._cache:
                 return self._cache[memkey]
@@ -131,10 +129,6 @@ class Objective:
         if tf.math.is_nan(ll):
             tf.print(f"Objective at {x} is Nan!")
             ll = tf.constant(self.nan_val, dtype=tf.float32)
-
-        if self.numpy_in_out:
-            ll = ll.numpy()
-            grad = grad.numpy()
 
         if self.return_history:
             self._history.append(dict(params=params, ll=ll, grad=grad))
@@ -174,7 +168,6 @@ class Objective:
 
 
 class ScipyObjective(Objective):
-    numpy_in_out = True
     memoize = True
 
     def minimize(self):
@@ -253,12 +246,11 @@ class TensorFlowObjective(Objective):
             raise ValueError(f"Optimizer failure! Result: {res}")
 
         res = res.position
-        res = {k: res[i].numpy() for i, k in enumerate(self.arg_names)}
+        res = {k: res[i] for i, k in enumerate(self.arg_names)}
         return {**res, **self.fix}
 
 
 class MinuitObjective(Objective):
-    numpy_in_out = True
     memoize = True
 
     def minimize(self):

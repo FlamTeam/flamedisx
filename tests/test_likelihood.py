@@ -86,7 +86,7 @@ def test_multisource(xes: fd.ERSource):
     # Prevent jitter from mu interpolator simulation to fail test
     itp = lf.mu_itps['er']
     lf2.mu_itps = dict(er=itp, er2=itp)
-    assert lf2.log_likelihood()[0].numpy() == l1[0].numpy()
+    assert lf2.log_likelihood()[0] == l1[0]
 
 
 def test_multisource_er_nr(xes: fd.ERSource):
@@ -296,12 +296,11 @@ def test_hessian(xes: fd.ERSource):
     assert len(guess) == 2
 
     inv_hess = lf.inverse_hessian(guess)
-    inv_hess_np = inv_hess.numpy()
-    assert inv_hess_np.shape == (2, 2)
-    assert inv_hess.dtype == fd.float_type()
+    assert inv_hess.shape == (2, 2)
+    assert inv_hess.dtype == np.float32
     # Check symmetry of hessian
     # The hessian is explicitly symmetrized before being passed to
     # the optimizer in bestfit
-    a = inv_hess_np[0, 1]
-    b = inv_hess_np[1, 0]
+    a = inv_hess[0, 1]
+    b = inv_hess[1, 0]
     assert abs(a - b)/(a+b) < 1e-3

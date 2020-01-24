@@ -236,7 +236,7 @@ class LogLikelihood:
 
     def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
-        return self.log_likelihood(second_order=False, **kwargs)[0].numpy()
+        return self.log_likelihood(second_order=False, **kwargs)[0]
 
     def log_likelihood(self, second_order=False,
                        omit_grads=tuple(), **kwargs):
@@ -249,24 +249,26 @@ class LogLikelihood:
 
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
-        ll = tf.constant(0., dtype=fd.float_type())
-        llgrad = tf.zeros(n_grads, dtype=fd.float_type())
-        llgrad2 = tf.zeros((n_grads, n_grads), dtype=fd.float_type())
+        ll = 0.
+        llgrad = np.zeros(n_grads, dtype=np.float32)
+        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float32)
 
-        for dset_index, dsetname in enumerate(self.dsetnames):
-            n_batches = self.batch_info[dset_index, 0]
+        for dsetname in self.dsetnames:
+            # Getting this from the batch_info tensor is much slower
+            n_batches = self.sources[self.sources_in_dset[dsetname][0]].n_batches
 
-            for i_batch in tf.range(n_batches, dtype=fd.int_type()):
-                v = f(i_batch,
+            for i_batch in range(n_batches):
+                # Iterating over tf.range seems much slower!
+                v = f(tf.constant(i_batch, dtype=fd.int_type()),
                       dsetname=dsetname,
                       data_tensor=self.data_tensors[dsetname],
                       batch_info=self.batch_info,
                       omit_grads=omit_grads,
                       **params)
-                ll += v[0]
-                llgrad += v[1]
+                ll += v[0].numpy()
+                llgrad += v[1].numpy()
                 if second_order:
-                    llgrad2 += v[2]
+                    llgrad2 += v[2].numpy()
 
         if second_order:
             return ll, llgrad, llgrad2
@@ -600,7 +602,7 @@ class LogLikelihood:
                                              omit_grads=omit_grads,
                                              second_order=True)
 
-        return tf.linalg.inv(-2 * grad2_ll)
+        return np.linalg.inv(-2 * grad2_ll)
 
     def summary(self, bestfit=None, fix=None, guess=None,
                 inverse_hessian=None, precision=3):
@@ -615,7 +617,6 @@ class LogLikelihood:
             inverse_hessian = self.inverse_hessian(
                 params,
                 omit_grads=tuple(fix.keys()))
-        inverse_hessian = fd.tf_to_np(inverse_hessian)
 
         stderr, cov = cov_to_std(inverse_hessian)
 
