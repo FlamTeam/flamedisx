@@ -1,3 +1,6 @@
+from copy import deepcopy
+import warnings
+
 import flamedisx as fd
 import numpy as np
 import pandas as pd
@@ -15,16 +18,14 @@ DEFAULT_DSETNAME = 'the_dataset'
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
 
-    # Source name -> Source instance
-    sources: ty.Dict[str, fd.Source]
+    dsetnames: ty.List[str]             # Dataset names
+    sources: ty.Dict[str, fd.Source]    # Source name -> Source instance
+    d_for_s = ty.Dict[str, str]         # Source name -> dataset name
 
-    # Source name -> dataset name
-    d_for_s = ty.Dict[str, str]
-
-    # Datasetname -> value
-    batch_size: ty.Dict[str, int]
-    n_batches: ty.Dict[str, int]
-    n_padding: ty.Dict[str, int]
+    # Tensor with batch info
+    # First dimension runs over datasets (same indices as dsetnames)
+    # Second dimension is (n_batches, batch_size, n_padding)
+    batch_info: tf.Tensor
 
     dsetnames: ty.List
 
@@ -66,6 +67,7 @@ class LogLikelihood:
             sources: ty.Dict[str, ty.Dict[str, fd.Source.__class__]] = \
                 {DEFAULT_DSETNAME: sources}
         assert data.keys() == sources.keys(), "Inconsistent dataset names"
+
         self.dsetnames = list(data.keys())
 
         # Flatten sources and fill data for source
@@ -93,17 +95,14 @@ class LogLikelihood:
             sname: sclass.find_defaults()[2]
             for sname, sclass in self.sources.items()}
 
-        # Create sources. Have to copy data, it's modified by Source.set_data
+        # Create sources
         self.sources = {
-            sname: sclass(data=(None
-                                if data[self.d_for_s[sname]] is None
-                                else data[self.d_for_s[sname]].copy()),
+            sname: sclass(data=None,
                           max_sigma=max_sigma,
                           fit_params=list(k for k in common_param_specs.keys()
                                           if k in defaults_in_sources[sname].keys()),
                           batch_size=batch_size)
             for sname, sclass in self.sources.items()}
-        del data  # use data from sources (which is now annotated)
 
         for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
@@ -115,15 +114,6 @@ class LogLikelihood:
                 raise ValueError(
                     f"Inconsistent defaults {defs} for common parameters")
             param_defaults[pname] = defs[0]
-
-        # Store n_batches, batch_size and n_padding for all datasets
-        self.n_batches = dict()
-        self.batch_size = dict()
-        self.n_padding = dict()
-        for sname, s in self.sources.items():
-            self.n_batches[self.d_for_s[sname]] = s.n_batches
-            self.batch_size[self.d_for_s[sname]] = s.batch_size
-            self.n_padding[self.d_for_s[sname]] = s.n_padding
 
         self.param_defaults = fd.values_to_constants(param_defaults)
         self.param_names = list(param_defaults.keys())
@@ -141,6 +131,8 @@ class LogLikelihood:
             log_constraint = lambda **kwargs: 0.
         self.log_constraint = log_constraint
 
+        self.set_data(data)
+
     def set_data(self,
                  data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]]):
         """set new data for sources in the likelihood.
@@ -149,21 +141,29 @@ class LogLikelihood:
         update specific datasets.
         """
         if isinstance(data, pd.DataFrame):
-            # Only one dataset
             assert len(self.dsetnames) == 1, \
-                "You passed a DataFrame but there are multiple datasets"
+                "You passed one DataFrame but there are multiple datasets"
             data = {DEFAULT_DSETNAME: data}
+
+        batch_info = np.zeros((len(self.dsetnames), 3), dtype=np.int)
 
         for sname, source in self.sources.items():
             dname = self.d_for_s[sname]
-            if dname in data:
-                source.set_data(data[dname])
-                # Update batches and padding
-                self.n_batches[dname] = source.n_batches
-                self.batch_size[dname] = source.batch_size
-                self.n_padding[dname] = source.n_padding
-            elif dname not in self.dsetnames:
-                raise ValueError(f"Dataset name {dname} not known")
+            if dname not in data:
+                warnings.warn(f"Dataset {dname} not provided in set_data")
+                continue
+
+            d = data[dname]
+            # Copy ensures annotations don't clobber
+            source.set_data(deepcopy(d))
+            if d is None:
+                continue
+
+            dset_index = self.dsetnames.index(dname)
+            batch_info[dset_index, :] = [
+                source.n_batches, source.batch_size, source.n_padding]
+
+        self.batch_info = tf.convert_to_tensor(batch_info, dtype=fd.int_type())
 
     def simulate(self, fix_truth=None, **params):
         """Simulate events from sources.
@@ -215,9 +215,12 @@ class LogLikelihood:
         llgrad = tf.zeros(n_grads, dtype=fd.float_type())
         llgrad2 = tf.zeros((n_grads, n_grads), dtype=fd.float_type())
 
-        for dsetname in self.dsetnames:
-            for i_batch in tf.range(self.n_batches[dsetname], dtype=fd.int_type()):
-                v = f(i_batch, dsetname, autograph, omit_grads=omit_grads, **params)
+        for dset_index, dsetname in enumerate(self.dsetnames):
+            n_batches = self.batch_info[dset_index, 0]
+
+            for i_batch in tf.range(n_batches, dtype=fd.int_type()):
+                v = f(i_batch, dsetname, autograph, omit_grads=omit_grads,
+                      batch_info=self.batch_info, **params)
                 ll += v[0]
                 llgrad += v[1]
                 if second_order:
@@ -270,42 +273,45 @@ class LogLikelihood:
         return mu
 
     def _log_likelihood(self, i_batch, dsetname, autograph,
-                        omit_grads=tuple(), **params):
-        if omit_grads is None:
-            omit_grads = []
+                        batch_info, omit_grads=tuple(), **params):
         grad_par_list = [x for k, x in params.items()
                          if k not in omit_grads]
         with tf.GradientTape() as t:
             t.watch(grad_par_list)
             ll = self._log_likelihood_inner(
-                i_batch, params, dsetname, autograph)
+                i_batch, params, dsetname, batch_info, autograph)
         grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
     def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
-                              omit_grads=tuple(), **params):
-        if omit_grads is None:
-            omit_grads = []
+                              batch_info, omit_grads=tuple(), **params):
         grad_par_list = [x for k, x in params.items()
                          if k not in omit_grads]
         with tf.GradientTape(persistent=True) as t2:
             t2.watch(grad_par_list)
             with tf.GradientTape() as t:
                 t.watch(grad_par_list)
-                ll = self._log_likelihood_inner(i_batch, params,
-                                                dsetname, autograph)
+                ll = self._log_likelihood_inner(
+                    i_batch, params, dsetname, batch_info, autograph)
             grads = t.gradient(ll, grad_par_list)
         hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
 
-    def _log_likelihood_inner(self, i_batch, params, dsetname, autograph):
-        # Does for loop over datasets and sources, not batches
-        # Sum over sources is first in likelihood
+    def _log_likelihood_inner(self,
+                              i_batch, params, dsetname, batch_info, autograph):
+        """Return log likelihood contribution of one batch in a dataset
+
+        This loops over sources in the dataset and events in the batch,
+        but not not over datasets or batches.
+        """
+
+        n_batches, batch_size, n_padding = batch_info[
+            self.dsetnames.index(dsetname)]
 
         # Compute differential rates from all sources
         # drs = list[n_sources] of [n_events] tensors
-        drs = tf.zeros((self.batch_size[dsetname],), dtype=fd.float_type())
+        drs = tf.zeros((batch_size,), dtype=fd.float_type())
         for sname, s in self.sources.items():
             if not self.d_for_s[sname] == dsetname:
                 continue
@@ -317,10 +323,10 @@ class LogLikelihood:
 
         # Sum over events and remove padding
         n = tf.where(tf.equal(i_batch,
-                              tf.constant(self.n_batches[dsetname] - 1,
+                              tf.constant(n_batches - 1,
                                           dtype=fd.int_type())),
-                     self.batch_size[dsetname] - self.n_padding[dsetname],
-                     self.batch_size[dsetname])
+                     batch_size - n_padding,
+                     batch_size)
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
 
         # Add mu once (to the first batch)

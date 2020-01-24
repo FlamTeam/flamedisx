@@ -48,6 +48,7 @@ def test_inference(xes: fd.ERSource):
     x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                    dsetname=DEFAULT_DSETNAME,
                                    autograph=False,
+                                   batch_info=lf.batch_info,
                                    elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
@@ -61,6 +62,7 @@ def test_inference(xes: fd.ERSource):
     x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                      dsetname=DEFAULT_DSETNAME,
                                      autograph=False,
+                                     batch_info=lf.batch_info,
                                      elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
     assert (x_grad - x2_grad).numpy().sum() !=0
