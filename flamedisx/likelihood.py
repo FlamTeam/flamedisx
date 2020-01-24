@@ -598,7 +598,6 @@ class LogLikelihood:
         # Get second order derivatives of likelihood at params
         _, _, grad2_ll = self.log_likelihood(**params,
                                              omit_grads=omit_grads,
-                                             autograph=False,
                                              second_order=True)
 
         return tf.linalg.inv(-2 * grad2_ll)
