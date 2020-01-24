@@ -237,7 +237,7 @@ class TensorFlowObjective(Objective):
         res = tfp.optimizer.bfgs_minimize(
             self.fun_and_grad,
             initial_position=x_guess,
-            initial_inverse_hessian_estimate=inv_hess,
+            initial_inverse_hessian_estimate=fd.np_to_tf(inv_hess),
             **kwargs)
         ret, res = self._lowlevel_shortcut(res)
         if ret:
@@ -248,6 +248,9 @@ class TensorFlowObjective(Objective):
         res = res.position
         res = {k: res[i] for i, k in enumerate(self.arg_names)}
         return {**res, **self.fix}
+
+    def fun_and_grad(self, x):
+        return fd.np_to_tf(super().fun_and_grad(x))
 
 
 class MinuitObjective(Objective):
