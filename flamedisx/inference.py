@@ -357,7 +357,10 @@ class IntervalObjective(Objective):
             dx_1 = (2 * dy) ** 0.5 * abs(self.sigma_guess)
 
             # ... or the slope (for boundary solutions)
-            dx_2 = abs(dy / self.bestfit_tp_slope)
+            if self.bestfit_tp_slope == 0:
+                dx_2 = float('inf')
+            else:
+                dx_2 = abs(dy / self.bestfit_tp_slope)
 
             # Take the smaller of the two and add it on the correct side
             # TODO: Is the best one always smallest? Don't know...
