@@ -321,7 +321,8 @@ class LogLikelihood:
         with tf.GradientTape() as t:
             t.watch(grad_par_list)
             ll = self._log_likelihood_inner(
-                i_batch, params, dsetname, data_tensor, batch_info)
+                i_batch, params, dsetname, data_tensor, batch_info,
+                autograph=True)
         grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
@@ -334,14 +335,16 @@ class LogLikelihood:
             with tf.GradientTape() as t:
                 t.watch(grad_par_list)
                 ll = self._log_likelihood_inner(
-                    i_batch, params, dsetname, data_tensor, batch_info)
+                    i_batch, params, dsetname, data_tensor, batch_info,
+                    autograph=False)
             grads = t.gradient(ll, grad_par_list)
         hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
 
     def _log_likelihood_inner(self, i_batch, params,
-                              dsetname, data_tensor, batch_info):
+                              dsetname, data_tensor, batch_info,
+                              autograph):
         """Return log likelihood contribution of one batch in a dataset
 
         This loops over sources in the dataset and events in the batch,
@@ -364,7 +367,7 @@ class LogLikelihood:
             col_start, col_stop = self.column_indices[dsetname][source_i]
             dr = s.differential_rate(
                 data_tensor[i_batch, :, col_start:col_stop],
-                autograph=True,
+                autograph=autograph,
                 **self._filter_source_kwargs(params, sname))
             drs += dr * rate_mult
 
@@ -595,6 +598,7 @@ class LogLikelihood:
         # Get second order derivatives of likelihood at params
         _, _, grad2_ll = self.log_likelihood(**params,
                                              omit_grads=omit_grads,
+                                             autograph=False,
                                              second_order=True)
 
         return tf.linalg.inv(-2 * grad2_ll)
