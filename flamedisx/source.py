@@ -143,11 +143,15 @@ class Source:
                     v, dtype=fd.float_type())
 
     def set_data(self,
-                 data,
+                 data=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  **params):
+        if data is None:
+            self.data = self.n_batches = self.n_padding = None
+            return
+
         self.data = data
         del data
 
