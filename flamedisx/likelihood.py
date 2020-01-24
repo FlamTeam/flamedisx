@@ -272,6 +272,7 @@ class LogLikelihood:
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
         return mu
 
+    @tf.function
     def _log_likelihood(self, i_batch, dsetname, autograph,
                         batch_info, omit_grads=tuple(), **params):
         grad_par_list = [x for k, x in params.items()
@@ -283,6 +284,7 @@ class LogLikelihood:
         grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
+    @tf.function
     def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
                               batch_info, omit_grads=tuple(), **params):
         grad_par_list = [x for k, x in params.items()
@@ -305,9 +307,12 @@ class LogLikelihood:
         This loops over sources in the dataset and events in the batch,
         but not not over datasets or batches.
         """
-
-        n_batches, batch_size, n_padding = batch_info[
-            self.dsetnames.index(dsetname)]
+        # Retrieve batching info. Cannot use tuple-unpacking, tensorflow
+        # doesn't like it when you iterate over tenstors
+        dataset_index = self.dsetnames.index(dsetname)
+        n_batches = batch_info[dataset_index, 0]
+        batch_size = batch_info[dataset_index, 1]
+        n_padding = batch_info[dataset_index, 2]
 
         # Compute differential rates from all sources
         # drs = list[n_sources] of [n_events] tensors
@@ -322,9 +327,7 @@ class LogLikelihood:
             drs += dr * rate_mult
 
         # Sum over events and remove padding
-        n = tf.where(tf.equal(i_batch,
-                              tf.constant(n_batches - 1,
-                                          dtype=fd.int_type())),
+        n = tf.where(tf.equal(i_batch, n_batches - 1),
                      batch_size - n_padding,
                      batch_size)
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
