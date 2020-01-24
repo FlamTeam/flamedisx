@@ -259,9 +259,9 @@ class LogLikelihood:
             for i_batch in tf.range(n_batches, dtype=fd.int_type()):
                 v = f(i_batch,
                       dsetname=dsetname,
-                      omit_grads=omit_grads,
                       data_tensor=self.data_tensors[dsetname],
                       batch_info=self.batch_info,
+                      omit_grads=omit_grads,
                       **params)
                 ll += v[0]
                 llgrad += v[1]
@@ -325,9 +325,8 @@ class LogLikelihood:
         grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
-    @tf.function
-    def _log_likelihood_grad2(self, i_batch, dsetname, data_tensor,
-                              batch_info, omit_grads=tuple(), **params):
+    def _log_likelihood_grad2(self, i_batch, dsetname, data_tensor, batch_info,
+                              omit_grads=tuple(), **params):
         grad_par_list = [x for k, x in params.items()
                          if k not in omit_grads]
         with tf.GradientTape(persistent=True) as t2:
