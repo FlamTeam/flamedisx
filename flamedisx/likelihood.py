@@ -18,9 +18,12 @@ DEFAULT_DSETNAME = 'the_dataset'
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
 
-    dsetnames: ty.List[str]             # Dataset names
-    sources: ty.Dict[str, fd.Source]    # Source name -> Source instance
-    d_for_s = ty.Dict[str, str]         # Source name -> dataset name
+    dsetnames: ty.List[str]              # Dataset names
+    sources: ty.Dict[str, fd.Source]     # Source name -> Source instance
+
+    # Track which source takes which dataset, and converse
+    dset_for_source = ty.Dict[str, str]
+    sources_in_dset = ty.Dict[str, str]
 
     # Tensor with batch info
     # First dimension runs over datasets (same indices as dsetnames)
@@ -28,6 +31,14 @@ class LogLikelihood:
     batch_info: tf.Tensor
 
     dsetnames: ty.List
+
+    # Concatenated data tensors for all sources in each dataset
+    # dsetname -> Tensor
+    data_tensors: ty.Dict[str, tf.Tensor]
+
+    # Track which columns in the data tensor belong to which sources
+    # dsetname -> [start, stop] array over sources
+    column_indices: ty.Dict[str, np.ndarray]
 
     def __init__(
             self,
@@ -38,7 +49,7 @@ class LogLikelihood:
                 None,
                 pd.DataFrame,
                 ty.Dict[str, pd.DataFrame]] = None,
-            free_rates: ty.Union[None, str, ty.Tuple[str]] = None,
+            free_rates=None,
             batch_size=10,
             max_sigma=3,
             n_trials=int(1e5),
@@ -72,10 +83,13 @@ class LogLikelihood:
 
         # Flatten sources and fill data for source
         self.sources: ty.Dict[str, fd.Source.__class__] = dict()
-        self.d_for_s = dict()
+        self.dset_for_source = dict()
+        self.sources_in_dset = dict()
         for dsetname, ss in sources.items():
+            self.sources_in_dset[dsetname] = []
             for sname, s in ss.items():
-                self.d_for_s[sname] = dsetname
+                self.dset_for_source[sname] = dsetname
+                self.sources_in_dset[dsetname].append(sname)
                 if sname in self.sources:
                     raise ValueError(f"Duplicate source name {sname}")
                 self.sources[sname] = s
@@ -145,25 +159,49 @@ class LogLikelihood:
                 "You passed one DataFrame but there are multiple datasets"
             data = {DEFAULT_DSETNAME: data}
 
+        if any([d is None for d in data.values()]):
+            # At least one dataset is None => reset everything!
+            # TODO: should this give a warning?
+            for s in self.sources.values():
+                s.set_data(None)
+                return
+
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=np.int)
 
         for sname, source in self.sources.items():
-            dname = self.d_for_s[sname]
+            dname = self.dset_for_source[sname]
             if dname not in data:
                 warnings.warn(f"Dataset {dname} not provided in set_data")
                 continue
 
-            d = data[dname]
             # Copy ensures annotations don't clobber
-            source.set_data(deepcopy(d))
-            if d is None:
-                continue
+            source.set_data(deepcopy(data[dname]))
 
             dset_index = self.dsetnames.index(dname)
             batch_info[dset_index, :] = [
                 source.n_batches, source.batch_size, source.n_padding]
 
         self.batch_info = tf.convert_to_tensor(batch_info, dtype=fd.int_type())
+
+        # Build a big data tensor for each dataset.
+        # Each source has an [n_batches, batch_size, n_columns] tensor.
+        # Since the number of columns are different, we must concat along
+        # axis=2 and track which indices belong to which source.
+        self.data_tensors = {
+            dsetname: tf.concat(
+                [self.sources[sname].data_tensor
+                 for sname in self.sources_in_dset[dsetname]],
+                axis=2)
+            for dsetname in self.dsetnames}
+
+        self.column_indices = dict()
+        for dsetname in self.dsetnames:
+            stop_idx = np.cumsum([len(self.sources[sname].cols_to_cache)
+                                  for sname in self.sources_in_dset[dsetname]])
+            self.column_indices[dsetname] = np.transpose([
+                np.concatenate([[0], stop_idx[:-1]]),
+                stop_idx])
+
 
     def simulate(self, fix_truth=None, **params):
         """Simulate events from sources.
@@ -200,7 +238,7 @@ class LogLikelihood:
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
         return self.log_likelihood(second_order=False, **kwargs)[0].numpy()
 
-    def log_likelihood(self, autograph=True, second_order=False,
+    def log_likelihood(self, second_order=False,
                        omit_grads=tuple(), **kwargs):
         if second_order:
             # Compute the likelihood, jacobian and hessian
@@ -219,8 +257,12 @@ class LogLikelihood:
             n_batches = self.batch_info[dset_index, 0]
 
             for i_batch in tf.range(n_batches, dtype=fd.int_type()):
-                v = f(i_batch, dsetname, autograph, omit_grads=omit_grads,
-                      batch_info=self.batch_info, **params)
+                v = f(i_batch,
+                      dsetname=dsetname,
+                      omit_grads=omit_grads,
+                      data_tensor=self.data_tensors[dsetname],
+                      batch_info=self.batch_info,
+                      **params)
                 ll += v[0]
                 llgrad += v[1]
                 if second_order:
@@ -230,9 +272,8 @@ class LogLikelihood:
             return ll, llgrad, llgrad2
         return ll, llgrad
 
-    def minus_ll(self, *, autograph=True, omit_grads=tuple(), **kwargs):
-        ll, grad = self.log_likelihood(
-            autograph=autograph, omit_grads=omit_grads, **kwargs)
+    def minus_ll(self, *, omit_grads=tuple(), **kwargs):
+        ll, grad = self.log_likelihood(omit_grads=omit_grads, **kwargs)
         return -2 * ll, -2 * grad
 
     def prepare_params(self, kwargs):
@@ -266,26 +307,26 @@ class LogLikelihood:
     def mu(self, dsetname, **kwargs):
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
-            if self.d_for_s[sname] != dsetname:
+            if self.dset_for_source[sname] != dsetname:
                 continue
             mu += (self._get_rate_mult(sname, kwargs)
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
         return mu
 
     @tf.function
-    def _log_likelihood(self, i_batch, dsetname, autograph,
-                        batch_info, omit_grads=tuple(), **params):
+    def _log_likelihood(self, i_batch, dsetname, data_tensor, batch_info,
+                        omit_grads=tuple(), **params):
         grad_par_list = [x for k, x in params.items()
                          if k not in omit_grads]
         with tf.GradientTape() as t:
             t.watch(grad_par_list)
             ll = self._log_likelihood_inner(
-                i_batch, params, dsetname, batch_info, autograph)
+                i_batch, params, dsetname, data_tensor, batch_info)
         grad = t.gradient(ll, grad_par_list)
         return ll, tf.stack(grad)
 
     @tf.function
-    def _log_likelihood_grad2(self, i_batch, dsetname, autograph,
+    def _log_likelihood_grad2(self, i_batch, dsetname, data_tensor,
                               batch_info, omit_grads=tuple(), **params):
         grad_par_list = [x for k, x in params.items()
                          if k not in omit_grads]
@@ -294,14 +335,14 @@ class LogLikelihood:
             with tf.GradientTape() as t:
                 t.watch(grad_par_list)
                 ll = self._log_likelihood_inner(
-                    i_batch, params, dsetname, batch_info, autograph)
+                    i_batch, params, dsetname, data_tensor, batch_info)
             grads = t.gradient(ll, grad_par_list)
         hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
         del t2
         return ll, tf.stack(grads), tf.stack(hessian)
 
-    def _log_likelihood_inner(self,
-                              i_batch, params, dsetname, batch_info, autograph):
+    def _log_likelihood_inner(self, i_batch, params,
+                              dsetname, data_tensor, batch_info):
         """Return log likelihood contribution of one batch in a dataset
 
         This loops over sources in the dataset and events in the batch,
@@ -317,13 +358,15 @@ class LogLikelihood:
         # Compute differential rates from all sources
         # drs = list[n_sources] of [n_events] tensors
         drs = tf.zeros((batch_size,), dtype=fd.float_type())
-        for sname, s in self.sources.items():
-            if not self.d_for_s[sname] == dsetname:
-                continue
+        for source_i, sname in enumerate(self.sources_in_dset[dsetname]):
+            s = self.sources[sname]
             rate_mult = self._get_rate_mult(sname, params)
-            dr = s.differential_rate(s.data_tensor[i_batch],
-                                     autograph=autograph,
-                                     **self._filter_source_kwargs(params, sname))
+
+            col_start, col_stop = self.column_indices[dsetname][source_i]
+            dr = s.differential_rate(
+                data_tensor[i_batch, :, col_start:col_stop],
+                autograph=True,
+                **self._filter_source_kwargs(params, sname))
             drs += dr * rate_mult
 
         # Sum over events and remove padding
@@ -380,8 +423,6 @@ class LogLikelihood:
         :param return_errors: If using the minuit minimizer, instead return
         a 2-tuple of (bestfit dict, error dict).
         In case optimizer is minuit, you can also pass 'hesse' or 'minos' here.
-        :param autograph: If true (default), use tensorflow's autograph
-        during minimization.
         """
         if guess is None:
             guess = dict()
@@ -554,7 +595,6 @@ class LogLikelihood:
 
         # Get second order derivatives of likelihood at params
         _, _, grad2_ll = self.log_likelihood(**params,
-                                             autograph=False,
                                              omit_grads=omit_grads,
                                              second_order=True)
 

@@ -42,12 +42,10 @@ def test_inference(xes: fd.ERSource):
         elife=(100e3, 500e3, 5),
         data=xes.data)
 
-    ##
-    # Test non-autograph version
-    ##
+    # Test single-batch likelihood
     x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                    dsetname=DEFAULT_DSETNAME,
-                                   autograph=False,
+                                   data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
                                    batch_info=lf.batch_info,
                                    elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
@@ -61,18 +59,16 @@ def test_inference(xes: fd.ERSource):
     # Test a different parameter gives a different likelihood
     x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                      dsetname=DEFAULT_DSETNAME,
-                                     autograph=False,
+                                     data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
                                      batch_info=lf.batch_info,
                                      elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
     assert (x_grad - x2_grad).numpy().sum() !=0
 
-    ##
     # Test batching
-    # ##
-    l1 = lf.log_likelihood(autograph=False)
-    l2 = lf(autograph=False)
-    lf.log_likelihood(elife=tf.constant(200e3), autograph=False)
+    l1 = lf.log_likelihood()
+    l2 = lf()
+    lf.log_likelihood(elife=tf.constant(200e3))
 
 
 def test_multisource(xes: fd.ERSource):
