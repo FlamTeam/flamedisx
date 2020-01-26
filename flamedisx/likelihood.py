@@ -321,7 +321,8 @@ class LogLikelihood:
     @tf.function
     def _log_likelihood(self, i_batch, dsetname, data_tensor, batch_info,
                         omit_grads=tuple(), **params):
-        grad_par_list = [x for k, x in params.items()
+        # Gradient ordering must be that of self.param_names
+        grad_par_list = [params[k] for k in self.param_names
                          if k not in omit_grads]
         with tf.GradientTape() as t:
             t.watch(grad_par_list)
