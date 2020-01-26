@@ -1,23 +1,35 @@
+import typing as ty
+import warnings
+
 import flamedisx as fd
+from iminuit import Minuit
 import numpy as np
+from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
-import typing as ty
-from scipy import optimize as scipy_optimize
-from iminuit import Minuit
 
 
 export, __all__ = fd.exporter()
 __all__ += ['LOWER_RATE_MULTIPLIER_BOUND',
             'SUPPORTED_OPTIMIZERS',
-            'SUPPORTED_INTERVAL_OPTIMIZERS']
+            'SUPPORTED_INTERVAL_OPTIMIZERS',
+            'FLOAT32_EPS']
 
 # Setting this to 0 does work, but makes the inference rather slow
 # (at least for scipy); probably there is a relative xtol computation,
 # which fails when x -> 0.
 LOWER_RATE_MULTIPLIER_BOUND = 1e-9
 
-o = tf.newaxis
+# Floating point precision of 32-bit computations
+FLOAT32_EPS = np.finfo(np.float32).eps
+
+
+class OptimizerWarning(UserWarning):
+    pass
+
+
+class OptimizerFailure(ValueError):
+    pass
 
 
 ##
@@ -25,7 +37,7 @@ o = tf.newaxis
 ##
 
 class ObjectiveResult(ty.NamedTuple):
-    fun: ty.Union[np.ndarray, tf.Tensor]
+    fun: float
     grad: ty.Union[np.ndarray, tf.Tensor]
 
 
@@ -44,7 +56,7 @@ class Objective:
     :param use_hessian: If supported, use Hessian to improve error estimate
     :param return_errors: If supported, return error estimates on parameters
     """
-    memoize = False        # Cache values during minimization.
+    memoize = True                  # Cache values during minimization.
     require_complete_guess = True   # Require a guess for all fitted parameters
     arg_names: ty.List = None
 
@@ -61,7 +73,8 @@ class Objective:
                  get_history=False,
                  use_hessian=False,
                  return_errors=False,
-                 optimizer_kwargs: dict = None):
+                 optimizer_kwargs: dict = None,
+                 allow_failure=False):
         if guess is None:
             guess = dict()
         if fix is None:
@@ -80,6 +93,7 @@ class Objective:
         self.use_hessian = use_hessian
         self.return_errors = return_errors
         self.optimizer_kwargs = optimizer_kwargs
+        self.allow_failure = allow_failure
 
         # The if is only here to support MockInference with static arg_names
         if self.arg_names is None:
@@ -114,6 +128,11 @@ class Objective:
         return {k: x[i]
                 for i, k in enumerate(self.arg_names)}
 
+    def nan_result(self):
+        return ObjectiveResult(
+            fun=self.nan_val,
+            grad=np.ones(len(self.arg_names)) * float('nan'))
+
     def __call__(self, x):
         """Return (objective, gradient)"""
         memkey = None
@@ -122,18 +141,38 @@ class Objective:
             if memkey in self._cache:
                 return self._cache[memkey]
 
+        # Check parameters are valid
         params = {**self._array_to_dict(x), **self.fix}
-        ll, grad = self._inner_fun_and_grad(params)
+        for k, v in params.items():
+            if np.isnan(v):
+                warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
+                              OptimizerWarning)
+                return self.nan_result()
+            if k in self.bounds:
+                b = self.bounds[k]
+                if not ((b[0] is None or b[0] <= v)
+                        and (b[1] is None or v < b[1])):
+                    warnings.warn(
+                        f"Optimizer requested likelihood at {k} = {v}, "
+                        f"which is outside the bounds {b}.")
+                    return self.nan_result()
 
-        # Check NaNs
-        if np.isnan(ll):
-            print(f"Objective at {x} is Nan!")
-            ll = self.nan_val
+        y, grad = self._inner_fun_and_grad(params)
 
         if self.return_history:
-            self._history.append(dict(params=params, ll=ll, grad=grad))
+            self._history.append(dict(params=params, y=y, grad=grad))
 
-        result = ObjectiveResult(fun=ll, grad=grad)
+        if np.isnan(y):
+            warnings.warn(f"Objective at {x} is Nan!",
+                          OptimizerWarning)
+            result = self.nan_result()
+        elif np.any(np.isnan(grad)):
+            warnings.warn(f"Objective at {x} has NaN gradient {grad}",
+                          OptimizerWarning)
+            result = self.nan_result()
+        else:
+            result = ObjectiveResult(fun=y, grad=grad)
+
         if self.memoize:
             self._cache[memkey] = result
         return result
@@ -166,11 +205,36 @@ class Objective:
             return True, self._history
         return False, res
 
+    def minimize(self):
+        result = self._minimize()
+
+        if self.get_lowlevel_result:
+            return result
+        if self.return_history:
+            return self._history
+        result, llval = self.parse_result(result)
+
+        # Compare the result against the guess
+        for k, v in result.items():
+            if self.guess[k] == v:
+                warnings.warn(
+                    f"Optimizer returned {k} = {v}, equal to the guess",
+                    OptimizerWarning)
+
+        result = {**result, **self.fix}
+        # TODO: return ll_val, use it
+        return result
+
+    def fail(self, message):
+        if self.allow_failure:
+            warnings.warn(message, OptimizerWarning)
+        else:
+            raise OptimizerFailure(message)
+
 
 class ScipyObjective(Objective):
-    memoize = True
 
-    def minimize(self):
+    def _minimize(self):
         if self.return_errors:
             raise NotImplementedError(
                 "Scipy minimizer does not yet support return errors")
@@ -192,21 +256,31 @@ class ScipyObjective(Objective):
         if self.absolute_ftol is not None:
             kwargs['options'].setdefault('ftol', self.absolute_ftol)
 
-        res = scipy_optimize.minimize(
+        # Adjust tolerance options to what they would be on a float32 machine,
+        # since the underlying tensorflow computation has float32 precision.
+        kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
+        kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
+        kwargs['options'].setdefault('gtol',
+                                     1e-2 * kwargs['options']['accuracy']**0.5)
+
+        return scipy_optimize.minimize(
             fun=self.fun,
             x0=self._dict_to_array(self.guess),
             jac=self.grad,
             **kwargs)
 
-        ret, res = self._lowlevel_shortcut(res)
-        if ret:
-            return res
-        return {**dict(zip(self.arg_names, res.x)), **self.fix}
+    def parse_result(self, result: scipy_optimize.OptimizeResult):
+        if not result.success:
+            self.fail(f"Scipy optimizer failed: "
+                      f"status = {result.status}: {result.message}")
+        return dict(zip(self.arg_names, result.x)), result.fun
+
 
 
 class TensorFlowObjective(Objective):
+    memoize = False
 
-    def minimize(self):
+    def _minimize(self):
         if self.return_errors:
             raise NotImplementedError(
                 "Tensorflow minimizer does not yet support return errors")
@@ -235,34 +309,37 @@ class TensorFlowObjective(Objective):
 
         x_guess = fd.np_to_tf(self._dict_to_array(self.guess))
 
-        res = tfp.optimizer.bfgs_minimize(
+        return tfp.optimizer.bfgs_minimize(
             self.fun_and_grad,
             initial_position=x_guess,
             initial_inverse_hessian_estimate=inv_hess,
             **kwargs)
-        ret, res = self._lowlevel_shortcut(res)
-        if ret:
-            return res
-        if res.failed:
-            raise ValueError(f"Optimizer failure! Result: {res}")
 
-        res = res.position
-        res = {k: res[i] for i, k in enumerate(self.arg_names)}
-        return {**res, **self.fix}
+    def parse_result(self, result):
+        if result.failed:
+            self.fail(f"TFP optimizer failed! Result: {result}")
+        return (
+            dict(zip(self.arg_names, fd.tf_to_np(result.position))),
+            result.objective_value)
 
     def fun_and_grad(self, x):
         return fd.np_to_tf(super().fun_and_grad(x))
 
 
 class MinuitObjective(Objective):
-    memoize = True
 
-    def minimize(self):
+    def _minimize(self):
         kwargs = self.optimizer_kwargs
         x_guess = self._dict_to_array(self.guess)
         kwargs.setdefault('error',
                           np.maximum(x_guess * 0.1,
                                      1e-3 * np.ones_like(x_guess)))
+
+        if 'precision' in kwargs:
+            precision = kwargs['precision']
+            del kwargs['precision']
+        else:
+            precision = FLOAT32_EPS
 
         for param_name, b in self.bounds.items():
             kwargs.setdefault('limit_' + param_name, b)
@@ -281,16 +358,21 @@ class MinuitObjective(Objective):
             # See https://github.com/scikit-hep/iminuit/issues/353
             fit.tol = self.absolute_ftol/(0.001 * 0.5)
 
-        fit.migrad()
-        if self.return_errors == 'hesse':
-            fit.hesse()
-        elif self.return_errors == 'minos':
-            fit.minos()
+        fit.migrad(precision=precision)
+        return fit
 
-        ret, res = self._lowlevel_shortcut(fit)
-        if ret:
-            return res
-        return fit.fitarg
+    def parse_result(self, result: Minuit):
+        if not result.migrad_ok():
+            # Borrowed from https://github.com/scikit-hep/iminuit/blob/2ff3cd79b84bf3b25b83f78523312a7c48e26b73/iminuit/_minimize.py#L107
+            message = "Migrad failed! "
+            fmin = result.get_fmin()
+            if fmin.has_reached_call_limit:
+                message += " Call limit was reached. "
+            if fmin.is_above_max_edm:
+                message += " Estimated distance to minimum too large. "
+            self.fail(message)
+        position = {k: result.fitarg[k] for k in self.arg_names}
+        return position, result.fval
 
 
 SUPPORTED_OPTIMIZERS = dict(tfp=TensorFlowObjective,

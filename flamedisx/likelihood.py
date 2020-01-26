@@ -410,7 +410,8 @@ class LogLikelihood:
                 use_hessian=True,
                 return_errors=False,
                 nan_val=float('inf'),
-                optimizer_kwargs=None):
+                optimizer_kwargs=None,
+                allow_failure=False):
         """Return best-fit parameter dict
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
@@ -431,6 +432,8 @@ class LogLikelihood:
         :param return_errors: If using the minuit minimizer, instead return
         a 2-tuple of (bestfit dict, error dict).
         In case optimizer is minuit, you can also pass 'hesse' or 'minos' here.
+        :param allow_failure: If True, raise a warning instead of an exception
+        if there is an optimizer failure.
         """
         if guess is None:
             guess = dict()
@@ -449,7 +452,8 @@ class LogLikelihood:
             get_history=get_history,
             use_hessian=use_hessian,
             return_errors=return_errors,
-            optimizer_kwargs=optimizer_kwargs
+            optimizer_kwargs=optimizer_kwargs,
+            allow_failure=allow_failure,
         ).minimize()
         if get_lowlevel_result or get_history:
             return res
@@ -492,7 +496,9 @@ class LogLikelihood:
             llr_tolerance=0.037,
             # Multiplier for optimizer tolerance.
             tol_multiplier=3e-3,
-            optimizer_kwargs=None,):
+            optimizer_kwargs=None,
+            allow_failure=False,
+    ):
         """Return frequentist limit or confidence interval
 
         :param parameter: string, the parameter to set the interval on
@@ -513,6 +519,8 @@ class LogLikelihood:
         :param t_ppf_grad: return derivative of t_ppf
         :param llr_tolerance: See bestfit
         :param optimizer_kwargs: dict of additional arguments for optimizer
+        :param allow_failure: If True, raise a warning instead of an exception
+        if there is an optimizer failure.
 
         Returns a float (for upper or lower limits)
         or a 2-tuple of floats (for a central interval)
@@ -574,6 +582,7 @@ class LogLikelihood:
                 get_history=get_history,
                 use_hessian=False,
                 optimizer_kwargs=optimizer_kwargs,
+                allow_failure=allow_failure,
 
                 # To IntervalObjective
                 target_parameter=parameter,
