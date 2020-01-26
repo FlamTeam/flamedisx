@@ -126,9 +126,9 @@ class Objective:
         ll, grad = self._inner_fun_and_grad(params)
 
         # Check NaNs
-        if tf.math.is_nan(ll):
-            tf.print(f"Objective at {x} is Nan!")
-            ll = tf.constant(self.nan_val, dtype=tf.float32)
+        if np.isnan(ll):
+            print(f"Objective at {x} is Nan!")
+            ll = self.nan_val
 
         if self.return_history:
             self._history.append(dict(params=params, ll=ll, grad=grad))
@@ -416,10 +416,7 @@ class IntervalObjective(Objective):
         # where our likelihood equals the target amplitude.
         fun += - self.direction * self.tilt * x_norm
         extra_grad = - self.direction * self.tilt / self.sigma_guess
-        grad += tf.where(
-            tf.equal(self.arg_names, self.target_parameter),
-            extra_grad,
-            tf.constant(0., dtype=fd.float_type()))
+        grad[self.arg_names.index(self.target_parameter)] += extra_grad
 
         return fun + self._offset, grad
 
