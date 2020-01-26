@@ -211,11 +211,21 @@ class Objective:
         if self.get_lowlevel_result:
             return result
         if self.return_history:
-            return self._history
+            # Convert history to a more manageable format
+            import pandas as pd
+            return pd.concat([
+                pd.DataFrame([h['params'] for h in self._history]),
+                pd.DataFrame(dict(y=[h['y'] for h in self._history])),
+                pd.DataFrame([h['grad'] for h in self._history],
+                             columns=[k + '_grad'
+                                      for k in self.arg_names])
+            ], axis=1)
         result, llval = self.parse_result(result)
 
         # Compare the result against the guess
         for k, v in result.items():
+            if k in self.fix:
+                continue
             if self.guess[k] == v:
                 warnings.warn(
                     f"Optimizer returned {k} = {v}, equal to the guess",
@@ -256,12 +266,12 @@ class ScipyObjective(Objective):
         if self.absolute_ftol is not None:
             kwargs['options'].setdefault('ftol', self.absolute_ftol)
 
-        # Adjust tolerance options to what they would be on a float32 machine,
-        # since the underlying tensorflow computation has float32 precision.
-        kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
-        kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
+        # The underlying tensorflow computation has float32 precision,
+        # so we have to adjust the precision options
+        if kwargs['method'] == 'tnc':
+            kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
         kwargs['options'].setdefault('gtol',
-                                     1e-2 * kwargs['options']['accuracy']**0.5)
+                                     1e-2 * FLOAT32_EPS**0.25)
 
         return scipy_optimize.minimize(
             fun=self.fun,
@@ -415,7 +425,7 @@ class IntervalObjective(Objective):
             # Estimate one sigma interval using parabolic approx.
             sigma_guess = fd.cov_to_std(
                 self.lf.inverse_hessian(bestfit)
-            )[0][self.lf.param_names.index(self.target_parameter)]
+            )[0][self.arg_names.index(self.target_parameter)]
         self.sigma_guess = sigma_guess
 
         if t_ppf:
@@ -431,7 +441,7 @@ class IntervalObjective(Objective):
         self.m2ll_best, _grad_at_bestfit = \
             super()._inner_fun_and_grad(bestfit)
         self.bestfit_tp_slope = _grad_at_bestfit[
-            self.lf.param_names.index(self.target_parameter)]
+            self.arg_names.index(self.target_parameter)]
 
         # Incomplete guess support
         if self.target_parameter not in self.guess:
