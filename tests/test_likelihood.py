@@ -297,7 +297,7 @@ def test_hessian(xes: fd.ERSource):
 
     inv_hess = lf.inverse_hessian(guess)
     assert inv_hess.shape == (2, 2)
-    assert inv_hess.dtype == np.float32
+    assert inv_hess.dtype == np.float64
     # Check symmetry of hessian
     # The hessian is explicitly symmetrized before being passed to
     # the optimizer in bestfit
