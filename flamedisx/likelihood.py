@@ -253,8 +253,8 @@ class LogLikelihood:
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
         ll = 0.
-        llgrad = np.zeros(n_grads, dtype=np.float32)
-        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float32)
+        llgrad = np.zeros(n_grads, dtype=np.float64)
+        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
 
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
@@ -268,10 +268,10 @@ class LogLikelihood:
                       batch_info=self.batch_info,
                       omit_grads=omit_grads,
                       **params)
-                ll += v[0].numpy()
-                llgrad += v[1].numpy()
+                ll += v[0].numpy().astype(np.float64)
+                llgrad += v[1].numpy().astype(np.float64)
                 if second_order:
-                    llgrad2 += v[2].numpy()
+                    llgrad2 += v[2].numpy().astype(np.float64)
 
         if second_order:
             return ll, llgrad, llgrad2
