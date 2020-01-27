@@ -42,12 +42,11 @@ def test_inference(xes: fd.ERSource):
         elife=(100e3, 500e3, 5),
         data=xes.data)
 
-    ##
-    # Test non-autograph version
-    ##
+    # Test single-batch likelihood
     x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                    dsetname=DEFAULT_DSETNAME,
-                                   autograph=False,
+                                   data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
+                                   batch_info=lf.batch_info,
                                    elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
@@ -60,17 +59,16 @@ def test_inference(xes: fd.ERSource):
     # Test a different parameter gives a different likelihood
     x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                      dsetname=DEFAULT_DSETNAME,
-                                     autograph=False,
+                                     data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
+                                     batch_info=lf.batch_info,
                                      elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
     assert (x_grad - x2_grad).numpy().sum() !=0
 
-    ##
     # Test batching
-    # ##
-    l1 = lf.log_likelihood(autograph=False)
-    l2 = lf(autograph=False)
-    lf.log_likelihood(elife=tf.constant(200e3), autograph=False)
+    l1 = lf.log_likelihood()
+    l2 = lf()
+    lf.log_likelihood(elife=tf.constant(200e3))
 
 
 def test_multisource(xes: fd.ERSource):
@@ -88,7 +86,7 @@ def test_multisource(xes: fd.ERSource):
     # Prevent jitter from mu interpolator simulation to fail test
     itp = lf.mu_itps['er']
     lf2.mu_itps = dict(er=itp, er2=itp)
-    assert lf2.log_likelihood()[0].numpy() == l1[0].numpy()
+    assert lf2.log_likelihood()[0] == l1[0]
 
 
 def test_multisource_er_nr(xes: fd.ERSource):
@@ -191,7 +189,7 @@ def test_multi_dset(xes: fd.ERSource):
 
     ll2 = lf2()
 
-    np.testing.assert_almost_equal(2 * ll1, ll2)
+    np.testing.assert_almost_equal(2 * ll1, ll2, decimal=2)
 
 
 def test_simulate(xes):
@@ -298,12 +296,11 @@ def test_hessian(xes: fd.ERSource):
     assert len(guess) == 2
 
     inv_hess = lf.inverse_hessian(guess)
-    inv_hess_np = inv_hess.numpy()
-    assert inv_hess_np.shape == (2, 2)
-    assert inv_hess.dtype == fd.float_type()
+    assert inv_hess.shape == (2, 2)
+    assert inv_hess.dtype == np.float32
     # Check symmetry of hessian
     # The hessian is explicitly symmetrized before being passed to
     # the optimizer in bestfit
-    a = inv_hess_np[0, 1]
-    b = inv_hess_np[1, 0]
+    a = inv_hess[0, 1]
+    b = inv_hess[1, 0]
     assert abs(a - b)/(a+b) < 1e-3

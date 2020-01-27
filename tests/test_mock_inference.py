@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import tensorflow as tf
 
 import flamedisx as fd
 
@@ -10,7 +9,7 @@ arg_names = ['er_rate_multplier', 'elife']
 truth_test = np.array([2., 3.])
 
 
-@pytest.fixture(params=fd.SUPPORTED_OPTIMIZERS.values())
+@pytest.fixture(params=list(fd.SUPPORTED_OPTIMIZERS.values()))
 def mock_objective(request):
 
     class MockObjective(request.param):
@@ -29,12 +28,6 @@ def mock_objective(request):
             ll_grad_dict = {k: 0 for k in grads_to_return}
 
             for k, v in params.items():
-                # TODO: investigate and remove hack
-                try:
-                    v = v.numpy()
-                except AttributeError:
-                    pass
-
                 if k.endswith('_rate_multiplier') and v <= 0.:
                     ll = float('nan')
                     ll_grad = [float('nan')] * n_grads
@@ -42,8 +35,7 @@ def mock_objective(request):
                 # Add parabola
                 ll += (v - self.truths[k]) ** 2
                 ll_grad_dict[k] += 2 * (v - self.truths[k])
-            return (tf.constant(ll, dtype=fd.float_type()),
-                    tf.constant(list(ll_grad_dict.values()), dtype=fd.float_type()))
+            return ll, np.array(list(ll_grad_dict.values()))
 
     truths = {k: truth_test[i] for i, k in enumerate(arg_names)}
     guess = {k: 1. for k in arg_names}

@@ -44,7 +44,6 @@ class Objective:
     :param use_hessian: If supported, use Hessian to improve error estimate
     :param return_errors: If supported, return error estimates on parameters
     """
-    numpy_in_out = False   # Minimizer works on numpy arrays, not tensors
     memoize = False        # Cache values during minimization.
     require_complete_guess = True   # Require a guess for all fitted parameters
     arg_names: ty.List = None
@@ -119,7 +118,6 @@ class Objective:
         """Return (objective, gradient)"""
         memkey = None
         if self.memoize:
-            assert self.numpy_in_out, "Fix memoization for tensorflow..."
             memkey = tuple(x)
             if memkey in self._cache:
                 return self._cache[memkey]
@@ -128,13 +126,9 @@ class Objective:
         ll, grad = self._inner_fun_and_grad(params)
 
         # Check NaNs
-        if tf.math.is_nan(ll):
-            tf.print(f"Objective at {x} is Nan!")
-            ll = tf.constant(self.nan_val, dtype=tf.float32)
-
-        if self.numpy_in_out:
-            ll = ll.numpy()
-            grad = grad.numpy()
+        if np.isnan(ll):
+            print(f"Objective at {x} is Nan!")
+            ll = self.nan_val
 
         if self.return_history:
             self._history.append(dict(params=params, ll=ll, grad=grad))
@@ -174,7 +168,6 @@ class Objective:
 
 
 class ScipyObjective(Objective):
-    numpy_in_out = True
     memoize = True
 
     def minimize(self):
@@ -226,6 +219,7 @@ class TensorFlowObjective(Objective):
                 omit_grads=tuple(self.fix.keys()))
             # Explicitly symmetrize the matrix
             inv_hess = fd.symmetrize_matrix(inv_hess)
+            inv_hess = fd.np_to_tf(inv_hess)
         else:
             inv_hess = None
 
@@ -253,12 +247,14 @@ class TensorFlowObjective(Objective):
             raise ValueError(f"Optimizer failure! Result: {res}")
 
         res = res.position
-        res = {k: res[i].numpy() for i, k in enumerate(self.arg_names)}
+        res = {k: res[i] for i, k in enumerate(self.arg_names)}
         return {**res, **self.fix}
+
+    def fun_and_grad(self, x):
+        return fd.np_to_tf(super().fun_and_grad(x))
 
 
 class MinuitObjective(Objective):
-    numpy_in_out = True
     memoize = True
 
     def minimize(self):
@@ -365,7 +361,10 @@ class IntervalObjective(Objective):
             dx_1 = (2 * dy) ** 0.5 * abs(self.sigma_guess)
 
             # ... or the slope (for boundary solutions)
-            dx_2 = abs(dy / self.bestfit_tp_slope)
+            if self.bestfit_tp_slope == 0:
+                dx_2 = float('inf')
+            else:
+                dx_2 = abs(dy / self.bestfit_tp_slope)
 
             # Take the smaller of the two and add it on the correct side
             # TODO: Is the best one always smallest? Don't know...
@@ -418,10 +417,7 @@ class IntervalObjective(Objective):
         # where our likelihood equals the target amplitude.
         fun += - self.direction * self.tilt * x_norm
         extra_grad = - self.direction * self.tilt / self.sigma_guess
-        grad += tf.where(
-            tf.equal(self.arg_names, self.target_parameter),
-            extra_grad,
-            tf.constant(0., dtype=fd.float_type()))
+        grad[self.arg_names.index(self.target_parameter)] += extra_grad
 
         return fun + self._offset, grad
 
