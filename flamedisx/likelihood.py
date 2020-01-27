@@ -109,11 +109,6 @@ class LogLikelihood:
             sname: sclass.find_defaults()[2]
             for sname, sclass in self.sources.items()}
 
-        if data is not None:
-            # Use smaller batch size if data is tiny
-            # (have to do it here, cannot be changed after initing source)
-            batch_size = min(len(data), batch_size)
-
         # Create sources
         self.sources = {
             sname: sclass(data=None,

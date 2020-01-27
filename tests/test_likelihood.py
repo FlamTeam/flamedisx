@@ -189,7 +189,7 @@ def test_multi_dset(xes: fd.ERSource):
 
     ll2 = lf2()
 
-    np.testing.assert_almost_equal(2 * ll1, ll2)
+    np.testing.assert_almost_equal(2 * ll1, ll2, decimal=2)
 
 
 def test_simulate(xes):
