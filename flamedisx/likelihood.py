@@ -109,6 +109,11 @@ class LogLikelihood:
             sname: sclass.find_defaults()[2]
             for sname, sclass in self.sources.items()}
 
+        if data is not None:
+            # Use smaller batch size if data is tiny
+            # (have to do it here, cannot be changed after initing source)
+            batch_size = min(len(data), batch_size)
+
         # Create sources
         self.sources = {
             sname: sclass(data=None,
@@ -159,9 +164,12 @@ class LogLikelihood:
                 "You passed one DataFrame but there are multiple datasets"
             data = {DEFAULT_DSETNAME: data}
 
-        if any([d is None for d in data.values()]):
-            # At least one dataset is None => reset everything!
-            # TODO: should this give a warning?
+        is_none = [d is None for d in data.values()]
+        if any(is_none):
+            if not all(is_none):
+                warnings.warn("Cannot set only one dataset to None: "
+                              "setting all to None instead.",
+                              UserWarning)
             for s in self.sources.values():
                 s.set_data(None)
                 return
@@ -202,7 +210,6 @@ class LogLikelihood:
             self.column_indices[dsetname] = np.transpose([
                 np.concatenate([[0], stop_idx[:-1]]),
                 stop_idx])
-
 
     def simulate(self, fix_truth=None, **params):
         """Simulate events from sources.

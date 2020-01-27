@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import tensorflow as tf
 
 import flamedisx as fd
 
@@ -10,8 +9,7 @@ arg_names = ['er_rate_multplier', 'elife']
 truth_test = np.array([2., 3.])
 
 
-@pytest.fixture(params=[x for x in fd.SUPPORTED_OPTIMIZERS.values()
-                        if x != fd.inference.TensorFlowObjective])
+@pytest.fixture(params=list(fd.SUPPORTED_OPTIMIZERS.values()))
 def mock_objective(request):
 
     class MockObjective(request.param):

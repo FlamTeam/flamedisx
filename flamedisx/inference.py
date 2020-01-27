@@ -219,6 +219,7 @@ class TensorFlowObjective(Objective):
                 omit_grads=tuple(self.fix.keys()))
             # Explicitly symmetrize the matrix
             inv_hess = fd.symmetrize_matrix(inv_hess)
+            inv_hess = fd.np_to_tf(inv_hess)
         else:
             inv_hess = None
 
@@ -237,7 +238,7 @@ class TensorFlowObjective(Objective):
         res = tfp.optimizer.bfgs_minimize(
             self.fun_and_grad,
             initial_position=x_guess,
-            initial_inverse_hessian_estimate=fd.np_to_tf(inv_hess),
+            initial_inverse_hessian_estimate=inv_hess,
             **kwargs)
         ret, res = self._lowlevel_shortcut(res)
         if ret:
