@@ -154,7 +154,8 @@ class Objective:
                         and (b[1] is None or v < b[1])):
                     warnings.warn(
                         f"Optimizer requested likelihood at {k} = {v}, "
-                        f"which is outside the bounds {b}.")
+                        f"which is outside the bounds {b}.",
+                        OptimizerWarning)
                     return self.nan_result()
 
         y, grad = self._inner_fun_and_grad(params)
@@ -493,7 +494,7 @@ class IntervalObjective(Objective):
 
     def t_ppf_grad(self, target_param_value):
         """Return derivative of t_ppf wrt target_param_value"""
-        return 0
+        return 0.
 
     def _inner_fun_and_grad(self, params):
         x = params[self.target_parameter]
@@ -502,6 +503,7 @@ class IntervalObjective(Objective):
         fun, grad = super()._inner_fun_and_grad(params)
         diff = (fun - self.m2ll_best) - self.t_ppf(x)
         fun = diff ** 2
+        # TODO: shouldn't we subtract t_ppf_grad only for the target param?!
         grad = 2 * diff * (grad - self.t_ppf_grad(x))
 
         # Add 'tilt' to push the minimum to extreme values of the parameter of
