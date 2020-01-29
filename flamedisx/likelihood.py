@@ -243,13 +243,6 @@ class LogLikelihood:
 
     def log_likelihood(self, second_order=False,
                        omit_grads=tuple(), **kwargs):
-        if second_order:
-            # Compute the likelihood, jacobian and hessian
-            f = self._log_likelihood_grad2
-        else:
-            # Computes the likelihood and jacobian
-            f = self._log_likelihood
-
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
         ll = 0.
@@ -262,16 +255,23 @@ class LogLikelihood:
 
             for i_batch in range(n_batches):
                 # Iterating over tf.range seems much slower!
-                v = f(tf.constant(i_batch, dtype=fd.int_type()),
-                      dsetname=dsetname,
-                      data_tensor=self.data_tensors[dsetname],
-                      batch_info=self.batch_info,
-                      omit_grads=omit_grads,
-                      **params)
-                ll += v[0].numpy().astype(np.float64)
-                llgrad += v[1].numpy().astype(np.float64)
-                if second_order:
-                    llgrad2 += v[2].numpy().astype(np.float64)
+                results = self._log_likelihood(
+                    tf.constant(i_batch, dtype=fd.int_type()),
+                    dsetname=dsetname,
+                    # TODO: This will retrace if the batch count changes;
+                    # we should slice out the i_batch already here
+                    data_tensor=self.data_tensors[dsetname],
+                    batch_info=self.batch_info,
+                    omit_grads=omit_grads,
+                    second_order=second_order,
+                    **params)
+
+                ll += results[0].numpy().astype(np.float64)
+
+                if len(self.param_names):
+                    llgrad += results[1].numpy().astype(np.float64)
+                    if second_order:
+                        llgrad2 += results[2].numpy().astype(np.float64)
 
         if second_order:
             return ll, llgrad, llgrad2
@@ -319,38 +319,31 @@ class LogLikelihood:
         return mu
 
     @tf.function
-    def _log_likelihood(self, i_batch, dsetname, data_tensor, batch_info,
-                        omit_grads=tuple(), **params):
-        # Gradient ordering must be that of self.param_names
-        grad_par_list = [params[k] for k in self.param_names
-                         if k not in omit_grads]
-        with tf.GradientTape() as t:
-            t.watch(grad_par_list)
-            ll = self._log_likelihood_inner(
-                i_batch, params, dsetname, data_tensor, batch_info,
-                autograph=True)
-        grad = t.gradient(ll, grad_par_list)
-        return ll, tf.stack(grad)
+    def _log_likelihood(self,
+                        i_batch, dsetname, data_tensor, batch_info,
+                        omit_grads=tuple(), second_order=False, **params):
+        # Stack the params to create a single node
+        # to differentiate with respect to.
+        grad_par_stack = tf.stack([
+            params[k] for k in self.param_names
+            if k not in omit_grads])
 
-    def _log_likelihood_grad2(self, i_batch, dsetname, data_tensor, batch_info,
-                              omit_grads=tuple(), **params):
-        grad_par_list = [x for k, x in params.items()
-                         if k not in omit_grads]
-        with tf.GradientTape(persistent=True) as t2:
-            t2.watch(grad_par_list)
-            with tf.GradientTape() as t:
-                t.watch(grad_par_list)
-                ll = self._log_likelihood_inner(
-                    i_batch, params, dsetname, data_tensor, batch_info,
-                    autograph=False)
-            grads = t.gradient(ll, grad_par_list)
-        hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
-        del t2
-        return ll, tf.stack(grads), tf.stack(hessian)
+        # Retrieve individual params from the stacked node
+        params_unstacked = dict(zip(self.param_names,
+                                tf.unstack(grad_par_stack)))
+
+        # Forward computation
+        ll = self._log_likelihood_inner(
+            i_batch, params_unstacked, dsetname, data_tensor, batch_info)
+
+        # Autodifferentiation. This is why we use tensorflow:
+        grad = tf.gradients(ll, grad_par_stack)[0]
+        if second_order:
+            return ll, grad, tf.hessians(ll, grad_par_stack)[0]
+        return ll, grad
 
     def _log_likelihood_inner(self, i_batch, params,
-                              dsetname, data_tensor, batch_info,
-                              autograph):
+                              dsetname, data_tensor, batch_info):
         """Return log likelihood contribution of one batch in a dataset
 
         This loops over sources in the dataset and events in the batch,
@@ -373,7 +366,7 @@ class LogLikelihood:
             col_start, col_stop = self.column_indices[dsetname][source_i]
             dr = s.differential_rate(
                 data_tensor[i_batch, :, col_start:col_stop],
-                autograph=autograph,
+                autograph=True,
                 **self._filter_source_kwargs(params, sname))
             drs += dr * rate_mult
 
