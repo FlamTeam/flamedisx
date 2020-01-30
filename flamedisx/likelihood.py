@@ -273,12 +273,12 @@ class LogLikelihood:
 
         if second_order:
             return ll, llgrad, llgrad2
-        return ll, llgrad
+        return ll, llgrad, None
 
     def minus2_ll(self, *, omit_grads=tuple(), **kwargs):
         result = self.log_likelihood(omit_grads=omit_grads, **kwargs)
         ll, grad = result[:2]
-        hess = -2 * result[2] if kwargs.get('second_order') else None
+        hess = -2 * result[2] if result[2] is not None else None
         return -2 * ll, -2 * grad, hess
 
     def prepare_params(self, kwargs):
@@ -344,7 +344,7 @@ class LogLikelihood:
         grad = tf.gradients(ll, grad_par_stack)[0]
         if second_order:
             return ll, grad, tf.hessians(ll, grad_par_stack)[0]
-        return ll, grad
+        return ll, grad, None
 
     def _log_likelihood_inner(self, i_batch, params,
                               dsetname, data_tensor, batch_info):

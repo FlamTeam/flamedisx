@@ -126,7 +126,8 @@ class Objective:
     def nan_result(self):
         return ObjectiveResult(
             fun=self.nan_val,
-            grad=np.ones(len(self.arg_names)) * float('nan'))
+            grad=np.ones(len(self.arg_names)) * float('nan'),
+            hess=None)
 
     def __call__(self, x):
         """Return (objective, gradient)"""
@@ -546,9 +547,7 @@ class IntervalObjective(Objective):
         grad_objective[tp_index] -= self.direction * self.tilt / self.sigma_guess
         # The tilt is linear, so the Hessian is unaffected
 
-        if self.use_hessian:
-            return objective + self._offset, grad_objective, hess_objective
-        return objective + self._offset, grad_objective
+        return objective + self._offset, grad_objective, hess_objective
 
 
 class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
