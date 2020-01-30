@@ -275,7 +275,7 @@ class LogLikelihood:
             return ll, llgrad, llgrad2
         return ll, llgrad
 
-    def minus_ll(self, *, omit_grads=tuple(), **kwargs):
+    def minus2_ll(self, *, omit_grads=tuple(), **kwargs):
         result = self.log_likelihood(omit_grads=omit_grads, **kwargs)
         ll, grad = result[:2]
         hess = -2 * result[2] if kwargs.get('second_order') else None

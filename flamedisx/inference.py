@@ -178,7 +178,7 @@ class Objective:
 
     def _inner_fun_and_grad(self, params):
         # Get -2lnL and its gradient
-        return self.lf.minus_ll(
+        return self.lf.minus2_ll(
             **params,
             second_order=self.use_hessian,
             omit_grads=tuple(self.fix.keys()))
