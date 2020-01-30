@@ -243,18 +243,11 @@ class LogLikelihood:
 
     def log_likelihood(self, second_order=False,
                        omit_grads=tuple(), **kwargs):
-        if second_order:
-            # Compute the likelihood, jacobian and hessian
-            f = self._log_likelihood_grad2
-        else:
-            # Computes the likelihood and jacobian
-            f = self._log_likelihood
-
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
         ll = 0.
-        llgrad = np.zeros(n_grads, dtype=np.float32)
-        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float32)
+        llgrad = np.zeros(n_grads, dtype=np.float64)
+        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
 
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
@@ -262,24 +255,31 @@ class LogLikelihood:
 
             for i_batch in range(n_batches):
                 # Iterating over tf.range seems much slower!
-                v = f(tf.constant(i_batch, dtype=fd.int_type()),
-                      dsetname=dsetname,
-                      data_tensor=self.data_tensors[dsetname],
-                      batch_info=self.batch_info,
-                      omit_grads=omit_grads,
-                      **params)
-                ll += v[0].numpy()
-                llgrad += v[1].numpy()
-                if second_order:
-                    llgrad2 += v[2].numpy()
+                results = self._log_likelihood(
+                    tf.constant(i_batch, dtype=fd.int_type()),
+                    dsetname=dsetname,
+                    data_tensor=self.data_tensors[dsetname][i_batch],
+                    batch_info=self.batch_info,
+                    omit_grads=omit_grads,
+                    second_order=second_order,
+                    **params)
+
+                ll += results[0].numpy().astype(np.float64)
+
+                if len(self.param_names):
+                    llgrad += results[1].numpy().astype(np.float64)
+                    if second_order:
+                        llgrad2 += results[2].numpy().astype(np.float64)
 
         if second_order:
             return ll, llgrad, llgrad2
-        return ll, llgrad
+        return ll, llgrad, None
 
-    def minus_ll(self, *, omit_grads=tuple(), **kwargs):
-        ll, grad = self.log_likelihood(omit_grads=omit_grads, **kwargs)
-        return -2 * ll, -2 * grad
+    def minus2_ll(self, *, omit_grads=tuple(), **kwargs):
+        result = self.log_likelihood(omit_grads=omit_grads, **kwargs)
+        ll, grad = result[:2]
+        hess = -2 * result[2] if result[2] is not None else None
+        return -2 * ll, -2 * grad, hess
 
     def prepare_params(self, kwargs):
         for k in kwargs:
@@ -319,37 +319,35 @@ class LogLikelihood:
         return mu
 
     @tf.function
-    def _log_likelihood(self, i_batch, dsetname, data_tensor, batch_info,
-                        omit_grads=tuple(), **params):
-        grad_par_list = [x for k, x in params.items()
-                         if k not in omit_grads]
-        with tf.GradientTape() as t:
-            t.watch(grad_par_list)
-            ll = self._log_likelihood_inner(
-                i_batch, params, dsetname, data_tensor, batch_info,
-                autograph=True)
-        grad = t.gradient(ll, grad_par_list)
-        return ll, tf.stack(grad)
+    def _log_likelihood(self,
+                        i_batch, dsetname, data_tensor, batch_info,
+                        omit_grads=tuple(), second_order=False, **params):
+        # Stack the params to create a single node
+        # to differentiate with respect to.
+        grad_par_stack = tf.stack([
+            params[k] for k in self.param_names
+            if k not in omit_grads])
 
-    def _log_likelihood_grad2(self, i_batch, dsetname, data_tensor, batch_info,
-                              omit_grads=tuple(), **params):
-        grad_par_list = [x for k, x in params.items()
-                         if k not in omit_grads]
-        with tf.GradientTape(persistent=True) as t2:
-            t2.watch(grad_par_list)
-            with tf.GradientTape() as t:
-                t.watch(grad_par_list)
-                ll = self._log_likelihood_inner(
-                    i_batch, params, dsetname, data_tensor, batch_info,
-                    autograph=False)
-            grads = t.gradient(ll, grad_par_list)
-        hessian = [t2.gradient(grad, grad_par_list) for grad in grads]
-        del t2
-        return ll, tf.stack(grads), tf.stack(hessian)
+        # Retrieve individual params from the stacked node,
+        # then add back the params we do not differentiate w.r.t.
+        params_unstacked = dict(zip(
+            [x for x in self.param_names if x not in omit_grads],
+            tf.unstack(grad_par_stack)))
+        for k in omit_grads:
+            params_unstacked[k] = params[k]
+
+        # Forward computation
+        ll = self._log_likelihood_inner(
+            i_batch, params_unstacked, dsetname, data_tensor, batch_info)
+
+        # Autodifferentiation. This is why we use tensorflow:
+        grad = tf.gradients(ll, grad_par_stack)[0]
+        if second_order:
+            return ll, grad, tf.hessians(ll, grad_par_stack)[0]
+        return ll, grad, None
 
     def _log_likelihood_inner(self, i_batch, params,
-                              dsetname, data_tensor, batch_info,
-                              autograph):
+                              dsetname, data_tensor, batch_info):
         """Return log likelihood contribution of one batch in a dataset
 
         This loops over sources in the dataset and events in the batch,
@@ -371,8 +369,10 @@ class LogLikelihood:
 
             col_start, col_stop = self.column_indices[dsetname][source_i]
             dr = s.differential_rate(
-                data_tensor[i_batch, :, col_start:col_stop],
-                autograph=autograph,
+                data_tensor[:, col_start:col_stop],
+                # We are already tracing; if we call the traced function here
+                # it breaks the Hessian (it will give NaNs)
+                autograph=False,
                 **self._filter_source_kwargs(params, sname))
             drs += dr * rate_mult
 
@@ -403,13 +403,13 @@ class LogLikelihood:
                 guess=None,
                 fix=None,
                 optimizer='scipy',
-                llr_tolerance=0.01,
                 get_lowlevel_result=False,
                 get_history=False,
                 use_hessian=True,
                 return_errors=False,
                 nan_val=float('inf'),
-                optimizer_kwargs=None):
+                optimizer_kwargs=None,
+                allow_failure=False):
         """Return best-fit parameter dict
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
@@ -417,19 +417,18 @@ class LogLikelihood:
         :param fix: dict {param: value} of parameters to keep fixed
         during the minimzation.
         :param optimizer: 'tf', 'minuit' or 'scipy'
-        :param llr_tolerance: stop minimizer if estimated distance to minimum
-        (for minuit) or stepsize (for others) in -2 log likelihood becomes
-        less than this.
-        becomes less than this.
         :param get_lowlevel_result: Returns the full optimizer result instead
         of the best fit parameters. Bool.
         :param get_history: Returns the history of optimizer calls instead
         of the best fit parameters. Bool.
-        :param use_hessian: Passes the hessian estimated at the guess to the
-        optimizer. Bool.
+        :param use_hessian: If True, uses flamedisxs' exact Hessian
+        in the optimizer. Otherwise, most optimizers estimate it by finite-
+        difference calculations.
         :param return_errors: If using the minuit minimizer, instead return
         a 2-tuple of (bestfit dict, error dict).
         In case optimizer is minuit, you can also pass 'hesse' or 'minos' here.
+        :param allow_failure: If True, raise a warning instead of an exception
+        if there is an optimizer failure.
         """
         if guess is None:
             guess = dict()
@@ -441,14 +440,14 @@ class LogLikelihood:
             lf=self,
             guess={**self.guess(), **guess},
             fix=fix,
-            # TODO: bounds?
-            llr_tolerance=llr_tolerance,
+            # TODO: bounds overrides? Defaults set in inference.py
             nan_val=nan_val,
             get_lowlevel_result=get_lowlevel_result,
             get_history=get_history,
             use_hessian=use_hessian,
             return_errors=return_errors,
-            optimizer_kwargs=optimizer_kwargs
+            optimizer_kwargs=optimizer_kwargs,
+            allow_failure=allow_failure,
         ).minimize()
         if get_lowlevel_result or get_history:
             return res
@@ -482,16 +481,18 @@ class LogLikelihood:
             sigma_guess=None,
             t_ppf=None,
             t_ppf_grad=None,
+            t_ppf_hess=None,
             optimizer='scipy',
             get_history=False,
             get_lowlevel_result=False,
-            # Broader tolerance than for bestfit, llr is steep at limit.
             # Set so 90% CL intervals actually report ~90.25% intervals
-            # asymptotically due to the tilt.
-            llr_tolerance=0.037,
-            # Multiplier for optimizer tolerance.
-            tol_multiplier=3e-3,
-            optimizer_kwargs=None,):
+            # asymptotically due to the tilt... if a pen-and-paper computation
+            # Jelle did a long time ago is actually correct
+            tilt_overshoot=0.037,
+            optimizer_kwargs=None,
+            use_hessian=True,
+            allow_failure=False,
+    ):
         """Return frequentist limit or confidence interval
 
         :param parameter: string, the parameter to set the interval on
@@ -510,8 +511,15 @@ class LogLikelihood:
         :param t_ppf: returns critical value as function of parameter
         Use Wilks' theorem if omitted.
         :param t_ppf_grad: return derivative of t_ppf
-        :param llr_tolerance: See bestfit
+        :param t_ppf_hess: return second derivative of t_ppf
+        :param tilt_overshoot: Set tilt so the limit's log likelihood will
+        overshoot the target value by roughly this much.
         :param optimizer_kwargs: dict of additional arguments for optimizer
+        :param allow_failure: If True, raise a warning instead of an exception
+        if there is an optimizer failure.
+        :param use_hessian: If True, uses flamedisxs' exact Hessian
+        in the optimizer. Otherwise, most optimizers estimate it by finite-
+        difference calculations.
 
         Returns a float (for upper or lower limits)
         or a 2-tuple of floats (for a central interval)
@@ -567,22 +575,23 @@ class LogLikelihood:
                 guess=req['guess'],
                 fix=fix,
                 bounds={parameter: req['bound']},
-                llr_tolerance=llr_tolerance,
                 # TODO: nan_val
                 get_lowlevel_result=get_lowlevel_result,
                 get_history=get_history,
-                use_hessian=False,
+                use_hessian=use_hessian,
                 optimizer_kwargs=optimizer_kwargs,
+                allow_failure=allow_failure,
 
                 # To IntervalObjective
                 target_parameter=parameter,
                 bestfit=bestfit,
                 direction=req['direction'],
                 critical_quantile=req['crit'],
-                tol_multiplier=tol_multiplier,
+                tilt_overshoot=tilt_overshoot,
                 sigma_guess=sigma_guess,
                 t_ppf=t_ppf,
                 t_ppf_grad=t_ppf_grad,
+                t_ppf_hess=t_ppf_hess,
             ).minimize()
             if get_lowlevel_result or get_history:
                 result.append(res)

@@ -43,11 +43,11 @@ def test_inference(xes: fd.ERSource):
         data=xes.data)
 
     # Test single-batch likelihood
-    x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
-                                   dsetname=DEFAULT_DSETNAME,
-                                   data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
-                                   batch_info=lf.batch_info,
-                                   elife=tf.constant(200e3))
+    x, x_grad, _ = lf._log_likelihood(i_batch=tf.constant(0),
+                                      dsetname=DEFAULT_DSETNAME,
+                                      data_tensor=lf.data_tensors[DEFAULT_DSETNAME][0],
+                                      batch_info=lf.batch_info,
+                                      elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
     assert x.numpy() < 0
@@ -57,11 +57,11 @@ def test_inference(xes: fd.ERSource):
     assert x_grad.numpy().shape == (1,)
 
     # Test a different parameter gives a different likelihood
-    x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
-                                     dsetname=DEFAULT_DSETNAME,
-                                     data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
-                                     batch_info=lf.batch_info,
-                                     elife=tf.constant(300e3))
+    x2, x2_grad, _ = lf._log_likelihood(i_batch=tf.constant(0),
+                                        dsetname=DEFAULT_DSETNAME,
+                                        data_tensor=lf.data_tensors[DEFAULT_DSETNAME][0],
+                                        batch_info=lf.batch_info,
+                                        elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
     assert (x_grad - x2_grad).numpy().sum() !=0
 
@@ -284,8 +284,42 @@ def test_constraint(xes: fd.ERSource):
     np.testing.assert_almost_equal(ll1 + 100., ll2)
 
 
-def test_hessian(xes: fd.ERSource):
+def test_hessian_rateonly(xes: fd.ERSource):
+
+    class Bla(xes.__class__):
+        """ER source with slightly different elife
+        to prevent a singular matrix
+        """
+        @staticmethod
+        def electron_detection_eff(drift_time, *,
+                                   different_elife=333e3,
+                                   extraction_eff=0.96):
+            return extraction_eff * tf.exp(-drift_time / different_elife)
+
     # Test the hessian at the guess position
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__,  er2=Bla),
+        free_rates=['er', 'er2'],
+        data=xes.data)
+
+    guess = lf.guess()
+    assert len(guess) == 2
+
+    print(guess)
+    print(lf.log_likelihood(second_order=True, **guess))
+
+    inv_hess = lf.inverse_hessian(guess)
+    assert inv_hess.shape == (2, 2)
+    assert inv_hess.dtype == np.float64
+    # Check symmetry of hessian
+    # The hessian is explicitly symmetrized before being passed to
+    # the optimizer in bestfit
+    a = inv_hess[0, 1]
+    b = inv_hess[1, 0]
+    assert abs(a - b)/(a+b) < 1e-3
+
+
+def test_hessian_rate_and_shape(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
         elife=(100e3, 500e3, 5),
@@ -295,12 +329,12 @@ def test_hessian(xes: fd.ERSource):
     guess = lf.guess()
     assert len(guess) == 2
 
+    print(guess)
+    print(lf.log_likelihood(second_order=True, **guess))
+
     inv_hess = lf.inverse_hessian(guess)
     assert inv_hess.shape == (2, 2)
-    assert inv_hess.dtype == np.float32
-    # Check symmetry of hessian
-    # The hessian is explicitly symmetrized before being passed to
-    # the optimizer in bestfit
+    assert inv_hess.dtype == np.float64
     a = inv_hess[0, 1]
     b = inv_hess[1, 0]
     assert abs(a - b)/(a+b) < 1e-3

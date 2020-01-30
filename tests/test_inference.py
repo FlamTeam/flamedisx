@@ -24,29 +24,28 @@ def test_one_parameter_interval(xes):
     guess['er_rate_multiplier'] = xs[np.argmin(ys)]
     assert len(guess) == 2
 
-    # TODO remove equality tests below, limit stuck at bounds
-
     # First find global best so we can check intervals
-    bestfit = lf.bestfit(guess, optimizer='scipy')
+    bestfit = lf.bestfit(guess,
+                         optimizer='scipy')
 
     ul = lf.limit('er_rate_multiplier', bestfit,
                   confidence_level=0.9, kind='upper')
-    assert ul >= bestfit['er_rate_multiplier']
+    assert ul > bestfit['er_rate_multiplier']
 
     ll = lf.limit('er_rate_multiplier', bestfit,
                   confidence_level=0.9, kind='lower')
-    assert ll <= bestfit['er_rate_multiplier']
+    assert ll < bestfit['er_rate_multiplier']
 
     ll, ul = lf.limit('er_rate_multiplier', bestfit,
                       confidence_level=0.9, kind='central')
-    assert (ll <= bestfit['er_rate_multiplier']
-            and ul >= bestfit['er_rate_multiplier'])
+    assert ll < bestfit['er_rate_multiplier'] < ul
 
     # Test fixed parameter
     fix = dict(elife=bestfit['elife'])
 
     ul = lf.limit('er_rate_multiplier', bestfit, fix=fix,
                   confidence_level=0.9, kind='upper')
+    assert bestfit['er_rate_multiplier'] < ul
 
 
 def test_bestfit_minuit(xes):
@@ -69,6 +68,7 @@ def test_bestfit_minuit(xes):
 
     bestfit = lf.bestfit(guess, optimizer='minuit',
                          return_errors=True,
+                         use_hessian=False,
                          optimizer_kwargs=dict(error=(0.0001, 1000)))
     assert isinstance(bestfit[0], dict)
     assert len(bestfit[0]) == 2

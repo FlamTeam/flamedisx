@@ -45,7 +45,6 @@ def mock_objective(request):
         truths=truths,
         guess=guess,
         fix=dict(),
-        llr_tolerance=0.001,
         nan_val=float('nan'),
         get_lowlevel_result=False,
         # We haven't defined a mock grad2
