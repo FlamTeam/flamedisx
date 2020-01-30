@@ -258,9 +258,7 @@ class LogLikelihood:
                 results = self._log_likelihood(
                     tf.constant(i_batch, dtype=fd.int_type()),
                     dsetname=dsetname,
-                    # TODO: This will retrace if the batch count changes;
-                    # we should slice out the i_batch already here
-                    data_tensor=self.data_tensors[dsetname],
+                    data_tensor=self.data_tensors[dsetname][i_batch],
                     batch_info=self.batch_info,
                     omit_grads=omit_grads,
                     second_order=second_order,
@@ -371,7 +369,7 @@ class LogLikelihood:
 
             col_start, col_stop = self.column_indices[dsetname][source_i]
             dr = s.differential_rate(
-                data_tensor[i_batch, :, col_start:col_stop],
+                data_tensor[:, col_start:col_stop],
                 # We are already tracing; if we call the traced function here
                 # it breaks the Hessian (it will give NaNs)
                 autograph=False,

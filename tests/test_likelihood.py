@@ -45,7 +45,7 @@ def test_inference(xes: fd.ERSource):
     # Test single-batch likelihood
     x, x_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                    dsetname=DEFAULT_DSETNAME,
-                                   data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
+                                   data_tensor=lf.data_tensors[DEFAULT_DSETNAME][0],
                                    batch_info=lf.batch_info,
                                    elife=tf.constant(200e3))
     assert isinstance(x, tf.Tensor)
@@ -59,7 +59,7 @@ def test_inference(xes: fd.ERSource):
     # Test a different parameter gives a different likelihood
     x2, x2_grad = lf._log_likelihood(i_batch=tf.constant(0),
                                      dsetname=DEFAULT_DSETNAME,
-                                     data_tensor=lf.data_tensors[DEFAULT_DSETNAME],
+                                     data_tensor=lf.data_tensors[DEFAULT_DSETNAME][0],
                                      batch_info=lf.batch_info,
                                      elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
