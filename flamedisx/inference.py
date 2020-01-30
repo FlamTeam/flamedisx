@@ -269,8 +269,9 @@ class ScipyObjective(Objective):
 
         # The underlying tensorflow computation has float32 precision,
         # so we have to adjust the precision options
-        if kwargs['method'] == 'tnc':
+        if kwargs['method'].upper() == 'TNC':
             kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
+            kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
         kwargs['options'].setdefault('gtol',
                                      1e-2 * FLOAT32_EPS**0.25)
 
