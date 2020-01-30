@@ -25,28 +25,40 @@ def test_one_parameter_interval(xes):
     assert len(guess) == 2
 
     # TODO remove equality tests below, limit stuck at bounds
+    # TODO: is the above todo still accurate??
+
+    optimizer_kwargs = dict(options=dict(
+        offset=(1, 300e3),
+        scale=(0.1, 10e3)))
 
     # First find global best so we can check intervals
-    bestfit = lf.bestfit(guess, optimizer='scipy')
+    bestfit = lf.bestfit(guess,
+                         optimizer='scipy',
+                         optimizer_kwargs=optimizer_kwargs)
 
     ul = lf.limit('er_rate_multiplier', bestfit,
-                  confidence_level=0.9, kind='upper')
+                  confidence_level=0.9, kind='upper',
+                  optimizer_kwargs=optimizer_kwargs)
     assert ul >= bestfit['er_rate_multiplier']
 
     ll = lf.limit('er_rate_multiplier', bestfit,
-                  confidence_level=0.9, kind='lower')
+                  confidence_level=0.9, kind='lower',
+                  optimizer_kwargs=optimizer_kwargs)
     assert ll <= bestfit['er_rate_multiplier']
 
     ll, ul = lf.limit('er_rate_multiplier', bestfit,
-                      confidence_level=0.9, kind='central')
-    assert (ll <= bestfit['er_rate_multiplier']
-            and ul >= bestfit['er_rate_multiplier'])
+                      confidence_level=0.9, kind='central',
+                      optimizer_kwargs=optimizer_kwargs)
+    assert ll <= bestfit['er_rate_multiplier'] <= ul
 
     # Test fixed parameter
     fix = dict(elife=bestfit['elife'])
 
     ul = lf.limit('er_rate_multiplier', bestfit, fix=fix,
-                  confidence_level=0.9, kind='upper')
+                  confidence_level=0.9, kind='upper',
+                  # Don't pass the previous scale and offset,
+                  # the number of params is different now
+    )
 
 
 def test_bestfit_minuit(xes):
