@@ -328,9 +328,13 @@ class LogLikelihood:
             params[k] for k in self.param_names
             if k not in omit_grads])
 
-        # Retrieve individual params from the stacked node
-        params_unstacked = dict(zip(self.param_names,
-                                tf.unstack(grad_par_stack)))
+        # Retrieve individual params from the stacked node,
+        # then add back the params we do not differentiate w.r.t.
+        params_unstacked = dict(zip(
+            [x for x in self.param_names if x not in omit_grads],
+            tf.unstack(grad_par_stack)))
+        for k in omit_grads:
+            params_unstacked[k] = params[k]
 
         # Forward computation
         ll = self._log_likelihood_inner(
