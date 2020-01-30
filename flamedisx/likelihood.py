@@ -278,8 +278,10 @@ class LogLikelihood:
         return ll, llgrad
 
     def minus_ll(self, *, omit_grads=tuple(), **kwargs):
-        ll, grad = self.log_likelihood(omit_grads=omit_grads, **kwargs)
-        return -2 * ll, -2 * grad
+        result = self.log_likelihood(omit_grads=omit_grads, **kwargs)
+        ll, grad = result[:2]
+        hess = -2 * result[2] if kwargs.get('second_order') else None
+        return -2 * ll, -2 * grad, hess
 
     def prepare_params(self, kwargs):
         for k in kwargs:
@@ -403,7 +405,6 @@ class LogLikelihood:
                 guess=None,
                 fix=None,
                 optimizer='scipy',
-                llr_tolerance=0.01,
                 get_lowlevel_result=False,
                 get_history=False,
                 use_hessian=True,
@@ -418,16 +419,13 @@ class LogLikelihood:
         :param fix: dict {param: value} of parameters to keep fixed
         during the minimzation.
         :param optimizer: 'tf', 'minuit' or 'scipy'
-        :param llr_tolerance: stop minimizer if estimated distance to minimum
-        (for minuit) or stepsize (for others) in -2 log likelihood becomes
-        less than this.
-        becomes less than this.
         :param get_lowlevel_result: Returns the full optimizer result instead
         of the best fit parameters. Bool.
         :param get_history: Returns the history of optimizer calls instead
         of the best fit parameters. Bool.
-        :param use_hessian: Passes the hessian estimated at the guess to the
-        optimizer. Bool.
+        :param use_hessian: If True, uses flamedisxs' exact Hessian
+        in the optimizer. Otherwise, most optimizers estimate it by finite-
+        difference calculations.
         :param return_errors: If using the minuit minimizer, instead return
         a 2-tuple of (bestfit dict, error dict).
         In case optimizer is minuit, you can also pass 'hesse' or 'minos' here.
@@ -444,8 +442,7 @@ class LogLikelihood:
             lf=self,
             guess={**self.guess(), **guess},
             fix=fix,
-            # TODO: bounds?
-            llr_tolerance=llr_tolerance,
+            # TODO: bounds overrides? Defaults set in inference.py
             nan_val=nan_val,
             get_lowlevel_result=get_lowlevel_result,
             get_history=get_history,
@@ -486,16 +483,16 @@ class LogLikelihood:
             sigma_guess=None,
             t_ppf=None,
             t_ppf_grad=None,
+            t_ppf_hess=None,
             optimizer='scipy',
             get_history=False,
             get_lowlevel_result=False,
-            # Broader tolerance than for bestfit, llr is steep at limit.
             # Set so 90% CL intervals actually report ~90.25% intervals
-            # asymptotically due to the tilt.
-            llr_tolerance=0.037,
-            # Multiplier for optimizer tolerance.
-            tol_multiplier=3e-3,
+            # asymptotically due to the tilt... if a pen-and-paper computation
+            # Jelle did a long time ago is actually correct
+            tilt_overshoot=0.037,
             optimizer_kwargs=None,
+            use_hessian=True,
             allow_failure=False,
     ):
         """Return frequentist limit or confidence interval
@@ -516,10 +513,15 @@ class LogLikelihood:
         :param t_ppf: returns critical value as function of parameter
         Use Wilks' theorem if omitted.
         :param t_ppf_grad: return derivative of t_ppf
-        :param llr_tolerance: See bestfit
+        :param t_ppf_hess: return second derivative of t_ppf
+        :param tilt_overshoot: Set tilt so the limit's log likelihood will
+        overshoot the target value by roughly this much.
         :param optimizer_kwargs: dict of additional arguments for optimizer
         :param allow_failure: If True, raise a warning instead of an exception
         if there is an optimizer failure.
+        :param use_hessian: If True, uses flamedisxs' exact Hessian
+        in the optimizer. Otherwise, most optimizers estimate it by finite-
+        difference calculations.
 
         Returns a float (for upper or lower limits)
         or a 2-tuple of floats (for a central interval)
@@ -575,11 +577,10 @@ class LogLikelihood:
                 guess=req['guess'],
                 fix=fix,
                 bounds={parameter: req['bound']},
-                llr_tolerance=llr_tolerance,
                 # TODO: nan_val
                 get_lowlevel_result=get_lowlevel_result,
                 get_history=get_history,
-                use_hessian=False,
+                use_hessian=use_hessian,
                 optimizer_kwargs=optimizer_kwargs,
                 allow_failure=allow_failure,
 
@@ -588,10 +589,11 @@ class LogLikelihood:
                 bestfit=bestfit,
                 direction=req['direction'],
                 critical_quantile=req['crit'],
-                tol_multiplier=tol_multiplier,
+                tilt_overshoot=tilt_overshoot,
                 sigma_guess=sigma_guess,
                 t_ppf=t_ppf,
                 t_ppf_grad=t_ppf_grad,
+                t_ppf_hess=t_ppf_hess,
             ).minimize()
             if get_lowlevel_result or get_history:
                 result.append(res)

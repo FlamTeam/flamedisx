@@ -38,7 +38,8 @@ class OptimizerFailure(ValueError):
 
 class ObjectiveResult(ty.NamedTuple):
     fun: float
-    grad: ty.Union[np.ndarray, tf.Tensor]
+    grad: np.ndarray
+    hess: ty.Union[np.ndarray, None]
 
 
 class Objective:
@@ -49,8 +50,6 @@ class Objective:
     :param fix: {param: value} for parameters to fix, or None (to fit all).
     Gradients for fixed parameters are (of course) omitted.
     :param bounds: {param: (left, right)} bounds, if any (otherwise None)
-    :param llr_tolerance: Allowed distance between true and found solution
-    in -2 log likelihood.
     :param nan_val: Value to pass to optimizer if likelihood evaluates to NaN
     :param get_lowlevel_result: Return low-level result from optimizer directly
     :param use_hessian: If supported, use Hessian to improve error estimate
@@ -67,11 +66,10 @@ class Objective:
                  guess: ty.Dict[str, float] = None,
                  fix: ty.Dict[str, ty.Union[float, tf.constant]] = None,
                  bounds: dict = None,
-                 llr_tolerance=0.05,
                  nan_val=float('inf'),
                  get_lowlevel_result=False,
                  get_history=False,
-                 use_hessian=False,
+                 use_hessian=True,
                  return_errors=False,
                  optimizer_kwargs: dict = None,
                  allow_failure=False):
@@ -86,7 +84,6 @@ class Objective:
         self.guess = {**guess, **fix}
         self.fix = fix
         # Bounds need processing, see deeper in init
-        self.llr_tolerance = llr_tolerance
         self.nan_val = nan_val
         self.get_lowlevel_result = get_lowlevel_result
         self.return_history = get_history
@@ -114,8 +111,6 @@ class Objective:
             if p.endswith('_rate_multiplier'):
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
-
-        self.absolute_ftol = self.llr_tolerance
 
     def _dict_to_array(self, x: dict) -> np.array:
         """Convert from {parameter: value} dictionary to numpy array"""
@@ -158,7 +153,10 @@ class Objective:
                         OptimizerWarning)
                     return self.nan_result()
 
-        y, grad = self._inner_fun_and_grad(params)
+        result = self._inner_fun_and_grad(params)
+        y = result[0]
+        grad = result[1]
+        hess = result[2] if self.use_hessian else None
 
         if self.return_history:
             self._history.append(dict(params=params, y=y, grad=grad))
@@ -172,7 +170,7 @@ class Objective:
                           OptimizerWarning)
             result = self.nan_result()
         else:
-            result = ObjectiveResult(fun=y, grad=grad)
+            result = ObjectiveResult(fun=y, grad=grad, hess=hess)
 
         if self.memoize:
             self._cache[memkey] = result
@@ -182,6 +180,7 @@ class Objective:
         # Get -2lnL and its gradient
         return self.lf.minus_ll(
             **params,
+            second_order=self.use_hessian,
             omit_grads=tuple(self.fix.keys()))
 
     def fun_and_grad(self, x):
@@ -196,8 +195,9 @@ class Objective:
         """Return only gradient"""
         return self(x).grad
 
-    def relative_ftol_guess(self):
-        return abs(self.absolute_ftol / self._inner_fun_and_grad(self.guess)[0])
+    def hess(self, x):
+        """Return only Hessian"""
+        return self(x).hess
 
     def _lowlevel_shortcut(self, res):
         if self.get_lowlevel_result:
@@ -242,6 +242,9 @@ class Objective:
         else:
             raise OptimizerFailure(message)
 
+    def parse_result(self, result):
+        raise NotImplementedError
+
 
 class ScipyObjective(Objective):
 
@@ -254,26 +257,36 @@ class ScipyObjective(Objective):
         # see https://github.com/FlamTeam/flamedisx/pull/60#discussion_r354832569
 
         kwargs: ty.Dict[str, ty.Any] = self.optimizer_kwargs
-        kwargs.setdefault('method', 'TNC')
+
+        if self.use_hessian:
+            # Of all scipy-optimize methods, only trust-constr takes
+            # both a Hessian and bounds argument.
+            kwargs.setdefault('method', 'trust-constr')
+        else:
+            kwargs.setdefault('method', 'TNC')
+
         kwargs['bounds'] = [self.bounds.get(x, (None, None))
                             for x in self.arg_names]
-
-        # Note the default 'tol' option is interpreted as xtol for TNC.
-        # ftol is cryptically described as "precision goal"... but from the code
-        # https://github.com/scipy/scipy/blob/81d2318e3a9ab172c05645e5d663979f7c594472/scipy/optimize/tnc/tnc.c#L844
-        # it appears this is the absolute relative change in f to trigger
-        # convergence. (not 100% sure, might be relative...)
         kwargs.setdefault('options', dict())
-        if self.absolute_ftol is not None:
-            kwargs['options'].setdefault('ftol', self.absolute_ftol)
 
         # The underlying tensorflow computation has float32 precision,
         # so we have to adjust the precision options
         if kwargs['method'].upper() == 'TNC':
             kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
-            kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
-        kwargs['options'].setdefault('gtol',
-                                     1e-2 * FLOAT32_EPS**0.25)
+
+        kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
+        kwargs['options'].setdefault('gtol', 1e-2 * FLOAT32_EPS**0.25)
+
+        if self.use_hessian:
+            if (kwargs['method'].lower() in ('newton-cg', 'dogleg')
+                    or kwargs['method'].startswith('trust')):
+                kwargs['hess'] = self.hess
+            else:
+                warnings.warn(
+                    "You passed use_hessian = True, but scipy optimizer "
+                    f"method {kwargs['method']} does not support passing a "
+                    "Hessian. Hessian information will not be used.",
+                    UserWarning)
 
         return scipy_optimize.minimize(
             fun=self.fun,
@@ -286,7 +299,6 @@ class ScipyObjective(Objective):
             self.fail(f"Scipy optimizer failed: "
                       f"status = {result.status}: {result.message}")
         return dict(zip(self.arg_names, result.x)), result.fun
-
 
 
 class TensorFlowObjective(Objective):
@@ -306,18 +318,13 @@ class TensorFlowObjective(Objective):
             # Explicitly symmetrize the matrix
             inv_hess = fd.symmetrize_matrix(inv_hess)
             inv_hess = fd.np_to_tf(inv_hess)
+
+            # Hessian cannot be used later in the inference
+            self.use_hessian = False
         else:
             inv_hess = None
 
         kwargs = self.optimizer_kwargs
-
-        # Unfortunately we can only set the relative tolerance for the
-        # objective; we'd like to set the absolute one.
-        # Use the guess log likelihood to normalize;
-        if self.absolute_ftol is not None:
-            kwargs.setdefault(
-                'f_relative_tolerance',
-                self.relative_ftol_guess())
 
         x_guess = fd.np_to_tf(self._dict_to_array(self.guess))
 
@@ -341,6 +348,12 @@ class TensorFlowObjective(Objective):
 class MinuitObjective(Objective):
 
     def _minimize(self):
+        if self.use_hessian:
+            warnings.warn(
+                "You set use_hessian = True, but Minuit cannot use the Hessian",
+                UserWarning)
+            self.use_hessian = False
+
         kwargs = self.optimizer_kwargs
         x_guess = self._dict_to_array(self.guess)
         kwargs.setdefault('error',
@@ -360,15 +373,6 @@ class MinuitObjective(Objective):
                                      errordef=0.5,
                                      name=self.arg_names,
                                      **kwargs)
-
-        if self.absolute_ftol is not None:
-            # From https://iminuit.readthedocs.io/en/latest/reference.html
-            # and https://root.cern.ch/download/minuit.pdf
-            # this value is multiplied by 0.001 * 0.5, and then gives the
-            # estimated vertical distance to the minimum needed to stop
-            # Note the first reference gives 0.0001 instead of 0.001!
-            # See https://github.com/scikit-hep/iminuit/issues/353
-            fit.tol = self.absolute_ftol/(0.001 * 0.5)
 
         fit.migrad(precision=precision)
         return fit
@@ -414,6 +418,8 @@ class IntervalObjective(Objective):
                  sigma_guess=None,
                  t_ppf=None,
                  t_ppf_grad=None,
+                 t_ppf_hess=None,
+                 tilt_overshoot=0.037,
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -431,17 +437,21 @@ class IntervalObjective(Objective):
         self.sigma_guess = sigma_guess
 
         if t_ppf:
-            assert self.t_ppf_grad is not None
             self.t_ppf = t_ppf
+            assert self.t_ppf_grad is not None
             self.t_ppf_grad = t_ppf_grad
+            if self.use_hessian:
+                assert self.t_ppf_hess is not None
+                self.t_ppf_hess = t_ppf_hess
 
         # TODO: add reference to computation for this
-        self.tilt = 4 * self.llr_tolerance * self.critical_quantile
+        # TODO: better first check if it was actually correct!
+        self.tilt = 4 * tilt_overshoot * self.critical_quantile
 
         # Store bestfit target, maximum likelihood and slope
         self.bestfit_tp = self.bestfit[self.target_parameter]
         self.m2ll_best, _grad_at_bestfit = \
-            super()._inner_fun_and_grad(bestfit)
+            super()._inner_fun_and_grad(bestfit)[:2]
         self.bestfit_tp_slope = _grad_at_bestfit[
             self.arg_names.index(self.target_parameter)]
 
@@ -483,9 +493,6 @@ class IntervalObjective(Objective):
                       **{self.target_parameter: tp_guess},
                       **self.guess}
 
-        # Objective involves square likelihood, so square tolerance too:
-        self.absolute_ftol = self.tol_multiplier * self.llr_tolerance**2
-
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical
         quantile.
@@ -497,29 +504,51 @@ class IntervalObjective(Objective):
         """Return derivative of t_ppf wrt target_param_value"""
         return 0.
 
+    def t_ppf_hess(self, target_param_value):
+        """Return second derivative of t_ppf wrt target_param_value"""
+        return 0.
+
     def _inner_fun_and_grad(self, params):
         x = params[self.target_parameter]
         x_norm = (x - self.bestfit_tp) / self.sigma_guess
+        tp_index = self.arg_names.index(self.target_parameter)
 
-        fun, grad = super()._inner_fun_and_grad(params)
-        diff = (fun - self.m2ll_best) - self.t_ppf(x)
-        fun = diff ** 2
-        # TODO: shouldn't we subtract t_ppf_grad only for the target param?!
-        grad = 2 * diff * (grad - self.t_ppf_grad(x))
+        # Evaluate likelihood
+        result = super()._inner_fun_and_grad(params)
+        if self.use_hessian:
+            fun, grad, hess = result
+        else:
+            fun, grad = result[:2]
+            hess = None
+
+        # Compute Mexican hat objective
+        diff = fun - (self.m2ll_best + self.t_ppf(x))
+        objective = diff ** 2
+
+        grad_diff = grad
+        grad_diff[tp_index] -= self.t_ppf_grad(x)
+        grad_objective = 2 * diff * grad_diff
+
+        if self.use_hessian:
+            hess_of_diff = hess
+            hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
+
+            hess_objective = 2 * (
+                    diff * hess_of_diff
+                    + np.outer(grad_diff, grad_diff))
+        else:
+            hess_objective = None
 
         # Add 'tilt' to push the minimum to extreme values of the parameter of
         # interest. Without this, we would find any solution on the ellipsoid
         # where our likelihood equals the target amplitude.
-        fun += - self.direction * self.tilt * x_norm
-        extra_grad = - self.direction * self.tilt / self.sigma_guess
-        grad[self.arg_names.index(self.target_parameter)] += extra_grad
+        objective -= self.direction * self.tilt * x_norm
+        grad_objective[tp_index] -= self.direction * self.tilt / self.sigma_guess
+        # The tilt is linear, so the Hessian is unaffected
 
-        return fun + self._offset, grad
-
-    def absolute_to_relative_tol(self, llr_tolerance):
-        # We know the objective is self.offset at the minimum,
-        # so the relative to absolute tolerance conversion is easy:
-        return llr_tolerance / self._offset
+        if self.use_hessian:
+            return objective + self._offset, grad_objective, hess_objective
+        return objective + self._offset, grad_objective
 
 
 class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
