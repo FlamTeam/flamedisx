@@ -1,4 +1,4 @@
-0.5.0 / 2019-01-31
+0.5.0 / 2020-01-31
 ------------------
 - Autographed Hessian; use Hessian in the optimizer (#62)
 - Check for optimizer failures (#61) 
@@ -7,7 +7,7 @@
 - Adjust optimizer defaults
 - Option to use time-averaged WIMP spectra
 
-0.4.0 / 2019-01-15
+0.4.0 / 2020-01-15
 -------------------
 - Many changes to objectives and inference (#59, #60)
 - Add tilt to objective for interval/limit searches
