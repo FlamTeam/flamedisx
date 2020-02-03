@@ -99,6 +99,7 @@ class SR0Source:
                              mean_eff=0.142 / (1 + 0.219)):
         return mean_eff * s1_relative_ly
 
+    @staticmethod
     def s1_acceptance(s1, photon_detection_eff, photon_gain_mean):
         # Both cS1 and S1 acceptance
         cs1 = (0.142 / (1 + 0.219)) * s1 / (
