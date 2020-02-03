@@ -362,7 +362,7 @@ class LXeSource(fd.Source):
         ndet = self.domain(quanta_type + '_detected', data_tensor)
 
         observed = self._fetch(
-            signal_name[quanta_type], data_tensor=data_tensor)[:, o]
+            signal_name[quanta_type], data_tensor=data_tensor)
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean',
@@ -384,7 +384,7 @@ class LXeSource(fd.Source):
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
                 loc=mean, scale=std + 1e-10
-            ).prob(observed)
+            ).prob(observed[:, o])
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
