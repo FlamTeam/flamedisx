@@ -26,8 +26,6 @@ special_data_methods = [
     'p_electron_fluctuation',
     'electron_acceptance',
     'photon_acceptance',
-    's1_acceptance',
-    's2_acceptance',
     'penning_quenching_eff'
 ]
 
@@ -366,19 +364,19 @@ class LXeSource(fd.Source):
         ndet = self.domain(quanta_type + '_detected', data_tensor)
 
         observed = self._fetch(
-            signal_name[quanta_type], data_tensor=data_tensor)[:, o]
+            signal_name[quanta_type], data_tensor=data_tensor)
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean',
-                                data_tensor=data_tensor, ptensor=ptensor)[:, o]
+                                data_tensor=data_tensor, ptensor=ptensor)
         std_per_q = self.gimme(quanta_type + '_gain_std',
-                               data_tensor=data_tensor, ptensor=ptensor)[:, o]
+                               data_tensor=data_tensor, ptensor=ptensor)
 
         if quanta_type == 'photon':
             mean, std = self.dpe_mean_std(
                 ndet=ndet,
                 p_dpe=self.gimme('double_pe_fraction',
-                                 data_tensor=data_tensor, ptensor=ptensor)[:, o],
+                                 data_tensor=data_tensor, ptensor=ptensor),
                 mean_per_q=mean_per_q,
                 std_per_q=std_per_q)
         else:
@@ -392,9 +390,8 @@ class LXeSource(fd.Source):
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
-                             bonus_arg=observed,
                              data_tensor=data_tensor, ptensor=ptensor)
-        return result
+        return result[:, o]
 
     @staticmethod
     def dpe_mean_std(ndet, p_dpe, mean_per_q, std_per_q):
