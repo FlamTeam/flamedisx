@@ -49,9 +49,6 @@ class LXeSource(fd.Source):
         'photon_produced',
         'electron_produced')
 
-    def extra_needed_columns(self):
-        return super().extra_needed_columns() + ['s1', 's2']
-
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
     do_pel_fluct: bool
