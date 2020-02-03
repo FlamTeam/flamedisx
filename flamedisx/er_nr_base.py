@@ -31,8 +31,9 @@ special_data_methods = [
 
 data_methods = (
     special_data_methods
-    + ['energy_spectrum', 'work', 'double_pe_fraction'])
-hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
+    + ['energy_spectrum', 'work', 'double_pe_fraction',
+       's1_acceptance', 's2_acceptance'])
+hidden_vars_per_quanta = ['detection_eff', 'gain_mean', 'gain_std']
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
 
@@ -362,9 +363,6 @@ class LXeSource(fd.Source):
         for different number of detected quanta.
         """
         ndet = self.domain(quanta_type + '_detected', data_tensor)
-
-        observed = self._fetch(
-            signal_name[quanta_type], data_tensor=data_tensor)
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean',
