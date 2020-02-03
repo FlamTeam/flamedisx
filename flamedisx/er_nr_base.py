@@ -362,7 +362,7 @@ class LXeSource(fd.Source):
         ndet = self.domain(quanta_type + '_detected', data_tensor)
 
         observed = self._fetch(
-            signal_name[quanta_type], data_tensor=data_tensor)
+            signal_name[quanta_type], data_tensor=data_tensor)[:, o]
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean',
@@ -388,8 +388,8 @@ class LXeSource(fd.Source):
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)
-        return result[:, o]
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o]
+        return result
 
     @staticmethod
     def dpe_mean_std(ndet, p_dpe, mean_per_q, std_per_q):
