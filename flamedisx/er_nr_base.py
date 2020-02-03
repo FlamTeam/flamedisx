@@ -364,6 +364,9 @@ class LXeSource(fd.Source):
         """
         ndet = self.domain(quanta_type + '_detected', data_tensor)
 
+        observed = self._fetch(
+            signal_name[quanta_type], data_tensor=data_tensor)
+
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean',
                                 data_tensor=data_tensor, ptensor=ptensor)
