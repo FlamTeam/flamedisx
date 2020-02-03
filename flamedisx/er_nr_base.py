@@ -591,7 +591,7 @@ class LXeSource(fd.Source):
         for q in quanta_types:
             acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
             sn = signal_name[q]
-            acceptance *= gimme(sn + '_acceptance', d[sn].values)
+            acceptance *= gimme(sn + '_acceptance')
         return d.iloc[np.random.rand(len(d)) < acceptance].copy()
 
     def mu_before_efficiencies(self, **params):
