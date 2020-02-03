@@ -366,15 +366,15 @@ class LXeSource(fd.Source):
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean',
-                                data_tensor=data_tensor, ptensor=ptensor)
+                                data_tensor=data_tensor, ptensor=ptensor)[:, o]
         std_per_q = self.gimme(quanta_type + '_gain_std',
-                               data_tensor=data_tensor, ptensor=ptensor)
+                               data_tensor=data_tensor, ptensor=ptensor)[:, o]
 
         if quanta_type == 'photon':
             mean, std = self.dpe_mean_std(
                 ndet=ndet,
                 p_dpe=self.gimme('double_pe_fraction',
-                                 data_tensor=data_tensor, ptensor=ptensor),
+                                 data_tensor=data_tensor, ptensor=ptensor)[:, o],
                 mean_per_q=mean_per_q,
                 std_per_q=std_per_q)
         else:
