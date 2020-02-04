@@ -279,7 +279,7 @@ class LXeSource(fd.Source):
         data['event_time'] = np.random.uniform(
             self.t_start.value,
             self.t_stop.value,
-            size=n_events).astype('float32')
+            size=n_events)
         return data
 
     ##
