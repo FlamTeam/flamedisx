@@ -26,15 +26,14 @@ special_data_methods = [
     'p_electron_fluctuation',
     'electron_acceptance',
     'photon_acceptance',
-    's1_acceptance',
-    's2_acceptance',
     'penning_quenching_eff'
 ]
 
 data_methods = (
     special_data_methods
-    + ['energy_spectrum', 'work', 'double_pe_fraction'])
-hidden_vars_per_quanta = 'detection_eff gain_mean gain_std'.split()
+    + ['energy_spectrum', 'work', 'double_pe_fraction',
+       's1_acceptance', 's2_acceptance'])
+hidden_vars_per_quanta = ['detection_eff', 'gain_mean', 'gain_std']
 for _qn in quanta_types:
     data_methods += [_qn + '_' + x for x in hidden_vars_per_quanta]
 
@@ -49,9 +48,6 @@ class LXeSource(fd.Source):
         'electron_detected',
         'photon_produced',
         'electron_produced')
-
-    def extra_needed_columns(self):
-        return super().extra_needed_columns() + ['s1', 's2']
 
     # Whether or not to simulate overdispersion in electron/photon split
     # (e.g. due to non-binomial recombination fluctuation)
@@ -366,7 +362,7 @@ class LXeSource(fd.Source):
         ndet = self.domain(quanta_type + '_detected', data_tensor)
 
         observed = self._fetch(
-            signal_name[quanta_type], data_tensor=data_tensor)[:, o]
+            signal_name[quanta_type], data_tensor=data_tensor)
 
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(quanta_type + '_gain_mean',
@@ -388,12 +384,11 @@ class LXeSource(fd.Source):
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
                 loc=mean, scale=std + 1e-10
-            ).prob(observed)
+            ).prob(observed[:, o])
 
         # Add detection/selection efficiency
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
-                             bonus_arg=observed,
-                             data_tensor=data_tensor, ptensor=ptensor)
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o]
         return result
 
     @staticmethod
@@ -594,7 +589,7 @@ class LXeSource(fd.Source):
         for q in quanta_types:
             acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
             sn = signal_name[q]
-            acceptance *= gimme(sn + '_acceptance', d[sn].values)
+            acceptance *= gimme(sn + '_acceptance')
         return d.iloc[np.random.rand(len(d)) < acceptance].copy()
 
     def mu_before_efficiencies(self, **params):

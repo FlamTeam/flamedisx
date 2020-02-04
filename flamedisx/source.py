@@ -107,6 +107,15 @@ class Source:
         ctc += [x + '_min' for x in self.inner_dimensions]  # Needed in domain
         ctc = [x for x in ctc if x not in self.ignore_columns()]
         self.cols_to_cache = ctc
+
+        # Check for duplicate columns and give error
+        _seen = set()
+        for x in self.cols_to_cache:
+            if x in _seen:
+                raise RuntimeError(
+                    f"Column {x} requested twice for data_tensor!")
+            _seen.add(x)
+
         self.name_id = fd.index_lookup_dict(ctc)
 
         self.set_defaults(**params)

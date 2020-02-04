@@ -99,6 +99,16 @@ class SR0Source:
                              mean_eff=0.142 / (1 + 0.219)):
         return mean_eff * s1_relative_ly
 
+    @staticmethod
+    def s1_acceptance(s1, photon_detection_eff, photon_gain_mean,
+                      mean_eff=0.142 / (1 + 0.219)):
+        # Both cS1 and S1 acceptance
+        cs1 = mean_eff * s1 / (
+            photon_detection_eff * photon_gain_mean)
+        return tf.where((s1 < 2) | (s1 > 70) | (cs1 < 2),
+                        tf.zeros_like(s1, dtype=fd.float_type()),
+                        tf.ones_like(s1, dtype=fd.float_type()))
+
 
 @export
 class SR0ERSource(SR0Source, fd.ERSource):
