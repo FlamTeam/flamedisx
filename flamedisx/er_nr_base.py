@@ -252,10 +252,6 @@ class LXeSource(fd.Source):
         Takes into account spatial rate multiplier of the source.
         """
         data = dict()
-        # Add fake s1, s2 necessary for set_data to succeed
-        # TODO: check if we still need this...
-        data['s1'] = 1
-        data['s2'] = 100
 
         if self.spatial_rate_hist is None:
             # Draw uniform position
