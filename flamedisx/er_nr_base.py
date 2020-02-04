@@ -95,9 +95,9 @@ class LXeSource(fd.Source):
         super().add_extra_columns(d)
         if self.spatial_rate_hist is not None:
             # Setup tensor of histogram for lookup
-            positions = self.data[self.spatial_rate_hist_dims].values.T
+            positions = d[self.spatial_rate_hist_dims].values.T
             v = self.spatial_rate_hist.lookup(*positions)
-            d['spatial_rate_multiplier'] = v.reshape([self.n_batches, -1])
+            d['spatial_rate_multiplier'] = v
         else:
             d['spatial_rate_multiplier'] = 1.
 
