@@ -53,8 +53,12 @@ class LXeSource(fd.Source):
     # (e.g. due to non-binomial recombination fluctuation)
     do_pel_fluct: bool
 
-    tpc_radius = 47.9   # cm
-    tpc_length = 97.6   # cm
+    # The fiducial volume bounds for a cylindrical volume
+    # default to full (2t) XENON1T dimensions
+    fv_radius = 47.9   # cm
+    fv_high = 0  # cm
+    fv_low = -97.6  # cm
+
     drift_velocity = 1.335 * 1e-4   # cm/ns
 
     # The default boundaries are at points where the WIMP wind is at its
@@ -71,6 +75,20 @@ class LXeSource(fd.Source):
     spatial_rate_hist = None
 
     def __init__(self, *args, **kwargs):
+        # Deprecate tpc_radius and tpc_length
+        if hasattr(self, 'tpc_radius') or hasattr(self, 'tpc_length'):
+            raise DeprecationWarning("You've set either 'tpc_radius' or"
+                " 'tpc_length', these are deprecated. Use 'fv_radius',"
+                " 'fv_high' and 'fv_low' to denote the boundaries of the"
+                " detector.")
+            # Try and set the correct fv boundaries anyway
+            self.fv_radius = self.tpc_radius
+            self.fv_high = 0
+            self.fv_low = -self.tpc_length
+
+        assert self.fv_low < self.fv_high, \
+            f"fv_low ({self.fv_low}) not less then fv_high ({self.fv_high})"
+
         # Check validity of spatial rate hist
         if self.spatial_rate_hist is not None:
             assert isinstance(self.spatial_rate_hist, Histdd), \
@@ -241,9 +259,10 @@ class LXeSource(fd.Source):
 
         if self.spatial_rate_hist is None:
             # Draw uniform position
-            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+            data['r'] = (np.random.rand(n_events) * self.fv_radius**2)**0.5
             data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
-            data['z'] = - np.random.rand(n_events) * self.tpc_length
+            data['z'] = np.random.uniform(self.fv_low, self.fv_high,
+                                          size=n_events)
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         elif self.spatial_rate_hist_dims == ['r', 'theta', 'z']:
             # Spatial response in cylindrical coords
