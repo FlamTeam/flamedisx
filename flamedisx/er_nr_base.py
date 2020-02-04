@@ -81,10 +81,6 @@ class LXeSource(fd.Source):
                 " 'tpc_length', these are deprecated. Use 'fv_radius',"
                 " 'fv_high' and 'fv_low' to denote the boundaries of the"
                 " detector.")
-            # Try and set the correct fv boundaries anyway
-            self.fv_radius = self.tpc_radius
-            self.fv_high = 0
-            self.fv_low = -self.tpc_length
 
         assert self.fv_low < self.fv_high, \
             f"fv_low ({self.fv_low}) not less then fv_high ({self.fv_high})"
@@ -248,7 +244,6 @@ class LXeSource(fd.Source):
     def random_truth_observables(self, n_events):
         """Return dictionary with x, y, z, r, theta, drift_time
         and event_time randomly drawn.
-        S1 and S2 placeholder values are added for set_data.
         Takes into account spatial rate multiplier of the source.
         """
         data = dict()
