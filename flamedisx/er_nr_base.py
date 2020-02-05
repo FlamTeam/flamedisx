@@ -71,8 +71,10 @@ class LXeSource(fd.Source):
     # Multihist Histdd object to lookup space dependent rate multipliers
     # The histogram must have 'axis_names' set to either
     # ['r', 'theta', 'z'] or ['x', 'y', 'z']
-    # The histogram must be normalized to the histogram mean
+    # Must be events per bin histogram, not pdf
     spatial_rate_hist = None
+    spatial_rate_bin_volumes = None
+
 
     def __init__(self, *args, **kwargs):
         # Deprecate tpc_radius and tpc_length
@@ -87,20 +89,20 @@ class LXeSource(fd.Source):
 
         # Check validity of spatial rate hist
         if self.spatial_rate_hist is not None:
+            assert self.spatial_rate_bin_volumes is not None, \
+                "Must give bin volumes as well"
             assert isinstance(self.spatial_rate_hist, Histdd), \
                 "spatial_rate_hist needs to be a multihist Histdd object"
-            # The histogram mean needs to be normalized to one, meaning the
-            # histogram contains nbins/dim**ndims counts. This ensures we can
-            # use tf.ones is no hist is defined.
-            h = self.spatial_rate_hist.histogram
-            assert np.allclose(h.mean() * h.size, self.spatial_rate_hist.n), \
-                "spatial_rate_hist needs to be normalized to histogram mean"
             # Check histogram dimensions
             axes = self.spatial_rate_hist.axis_names
             assert axes == ['r', 'theta', 'z'] or axes == ['x', 'y', 'z'], \
                 ("axis_names of spatial_rate_hist must be either "
                  "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
             self.spatial_rate_hist_dims = axes
+
+            self.spatial_rate_pdf = self.spatial_rate_hist.similar_blank_hist()
+            self.spatial_rate_pdf.histogram = (self.spatial_rate_hist.histogram
+                                               / self.spatial_rate_bin_volumes)
         # Init rest of Source, this must be done after any checks on
         # spatial_rate_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
@@ -110,7 +112,7 @@ class LXeSource(fd.Source):
         if self.spatial_rate_hist is not None:
             # Setup tensor of histogram for lookup
             positions = d[self.spatial_rate_hist_dims].values.T
-            v = self.spatial_rate_hist.lookup(*positions)
+            v = self.spatial_rate_pdf.lookup(*positions)
             d['spatial_rate_multiplier'] = v
         else:
             d['spatial_rate_multiplier'] = 1.
