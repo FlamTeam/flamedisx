@@ -100,9 +100,19 @@ class LXeSource(fd.Source):
                  "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
             self.spatial_rate_hist_dims = axes
 
+            # Correctly scale the events/bin histogram E to make the pdf R
+            # histogram, taking into account (non uniform) bin volumes. This
+            # ensures we don't need to modify mu_before_efficiencies.
+            # R = E / bv
+            # R_norm = (E / sum E) / (bv / sum bv)
+            # R_norm = (E / bv) * (sum bv / sum E)
+            bv = self.spatial_rate_bin_volumes
+            E = self.spatial_rate_hist.histogram
+            R_norm = (E / bv) * (bv.sum() / E.sum())
+
             self.spatial_rate_pdf = self.spatial_rate_hist.similar_blank_hist()
-            self.spatial_rate_pdf.histogram = (self.spatial_rate_hist.histogram
-                                               / self.spatial_rate_bin_volumes)
+            self.spatial_rate_pdf.histogram = R_norm
+
         # Init rest of Source, this must be done after any checks on
         # spatial_rate_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
