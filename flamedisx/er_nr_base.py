@@ -53,8 +53,12 @@ class LXeSource(fd.Source):
     # (e.g. due to non-binomial recombination fluctuation)
     do_pel_fluct: bool
 
-    tpc_radius = 47.9   # cm
-    tpc_length = 97.6   # cm
+    # The fiducial volume bounds for a cylindrical volume
+    # default to full (2t) XENON1T dimensions
+    fv_radius = 47.9   # cm
+    fv_high = 0  # cm
+    fv_low = -97.6  # cm
+
     drift_velocity = 1.335 * 1e-4   # cm/ns
 
     # The default boundaries are at points where the WIMP wind is at its
@@ -67,26 +71,48 @@ class LXeSource(fd.Source):
     # Multihist Histdd object to lookup space dependent rate multipliers
     # The histogram must have 'axis_names' set to either
     # ['r', 'theta', 'z'] or ['x', 'y', 'z']
-    # The histogram must be normalized to the histogram mean
+    # Must be events per bin histogram, not pdf
     spatial_rate_hist = None
+    spatial_rate_bin_volumes = None
+
 
     def __init__(self, *args, **kwargs):
+        # Deprecate tpc_radius and tpc_length
+        if hasattr(self, 'tpc_radius') or hasattr(self, 'tpc_length'):
+            raise DeprecationWarning("You've set either 'tpc_radius' or"
+                " 'tpc_length', these are deprecated. Use 'fv_radius',"
+                " 'fv_high' and 'fv_low' to denote the boundaries of the"
+                " detector.")
+
+        assert self.fv_low < self.fv_high, \
+            f"fv_low ({self.fv_low}) not less then fv_high ({self.fv_high})"
+
         # Check validity of spatial rate hist
         if self.spatial_rate_hist is not None:
+            assert self.spatial_rate_bin_volumes is not None, \
+                "Must give bin volumes as well"
             assert isinstance(self.spatial_rate_hist, Histdd), \
                 "spatial_rate_hist needs to be a multihist Histdd object"
-            # The histogram mean needs to be normalized to one, meaning the
-            # histogram contains nbins/dim**ndims counts. This ensures we can
-            # use tf.ones is no hist is defined.
-            h = self.spatial_rate_hist.histogram
-            assert np.allclose(h.mean() * h.size, self.spatial_rate_hist.n), \
-                "spatial_rate_hist needs to be normalized to histogram mean"
             # Check histogram dimensions
             axes = self.spatial_rate_hist.axis_names
             assert axes == ['r', 'theta', 'z'] or axes == ['x', 'y', 'z'], \
                 ("axis_names of spatial_rate_hist must be either "
                  "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
             self.spatial_rate_hist_dims = axes
+
+            # Correctly scale the events/bin histogram E to make the pdf R
+            # histogram, taking into account (non uniform) bin volumes. This
+            # ensures we don't need to modify mu_before_efficiencies.
+            # R = E / bv
+            # R_norm = (E / sum E) / (bv / sum bv)
+            # R_norm = (E / bv) * (sum bv / sum E)
+            bv = self.spatial_rate_bin_volumes
+            E = self.spatial_rate_hist.histogram
+            R_norm = (E / bv) * (bv.sum() / E.sum())
+
+            self.spatial_rate_pdf = self.spatial_rate_hist.similar_blank_hist()
+            self.spatial_rate_pdf.histogram = R_norm
+
         # Init rest of Source, this must be done after any checks on
         # spatial_rate_hist since it calls _populate_tensor_cache as well
         super().__init__(*args, **kwargs)
@@ -95,9 +121,9 @@ class LXeSource(fd.Source):
         super().add_extra_columns(d)
         if self.spatial_rate_hist is not None:
             # Setup tensor of histogram for lookup
-            positions = self.data[self.spatial_rate_hist_dims].values.T
-            v = self.spatial_rate_hist.lookup(*positions)
-            d['spatial_rate_multiplier'] = v.reshape([self.n_batches, -1])
+            positions = d[self.spatial_rate_hist_dims].values.T
+            v = self.spatial_rate_pdf.lookup(*positions)
+            d['spatial_rate_multiplier'] = v
         else:
             d['spatial_rate_multiplier'] = 1.
 
@@ -230,20 +256,16 @@ class LXeSource(fd.Source):
     def random_truth_observables(self, n_events):
         """Return dictionary with x, y, z, r, theta, drift_time
         and event_time randomly drawn.
-        S1 and S2 placeholder values are added for set_data.
         Takes into account spatial rate multiplier of the source.
         """
         data = dict()
-        # Add fake s1, s2 necessary for set_data to succeed
-        # TODO: check if we still need this...
-        data['s1'] = 1
-        data['s2'] = 100
 
         if self.spatial_rate_hist is None:
             # Draw uniform position
-            data['r'] = (np.random.rand(n_events) * self.tpc_radius**2)**0.5
+            data['r'] = (np.random.rand(n_events) * self.fv_radius**2)**0.5
             data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
-            data['z'] = - np.random.rand(n_events) * self.tpc_length
+            data['z'] = np.random.uniform(self.fv_low, self.fv_high,
+                                          size=n_events)
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         elif self.spatial_rate_hist_dims == ['r', 'theta', 'z']:
             # Spatial response in cylindrical coords
@@ -264,7 +286,7 @@ class LXeSource(fd.Source):
         data['event_time'] = np.random.uniform(
             self.t_start.value,
             self.t_stop.value,
-            size=n_events).astype('float32')
+            size=n_events)
         return data
 
     ##
