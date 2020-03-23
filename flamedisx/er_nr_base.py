@@ -519,7 +519,7 @@ class LXeSource(fd.Source):
                 # (since fluctuations are tiny)
                 # so let's just use the relative error on the MLE
                 d[qn + '_detected_' + bound] = (
-                    (n - sign * self.max_sigma) / scale
+                    n + sign * self.max_sigma * scale
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
 
                 # For produced quanta, it is trickier, since the number
@@ -530,7 +530,7 @@ class LXeSource(fd.Source):
                 _loc = n_prod_mle
                 _std = (q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
                 d[qn + '_produced_' + bound] = (
-                    (_loc - sign * self.max_sigma) / _std
+                    _loc + sign * self.max_sigma * _std
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
 
             # Finally, round the detected MLEs
