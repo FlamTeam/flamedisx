@@ -15,7 +15,7 @@ setuptools.setup(
     version='0.5.0',
     description='Fast likelihood analysis in more dimensions for xenon TPCs',
     author='Jelle Aalbers, Bart Pelssers, Cristian Antochi',
-    url='https://github.com/JelleAalbers/flamedisx',
+    url='https://github.com/FlamTeam/flamedisx',
     python_requires=">=3.6",
     setup_requires=['pytest-runner'],
     install_requires=requires,
@@ -24,7 +24,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     packages=setuptools.find_packages(),
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3.6',
