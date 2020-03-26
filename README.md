@@ -27,7 +27,3 @@ This has several advantages:
   - Each event has its "private" detector model computation at the observed (x, y, z, time), so it is easy and cheap to add  time- and position dependences to the likelihood.
   - Since the likelihood for a dataset takes O(seconds) to compute, we can do this at each of optimizer's proposed points during inference. We thus remove a histogram precomputation step exponential in the number of parameters, and can thus fit a great deal more parameters.
   - By implementing the signal model in tensorflow, the likelihood becomes differentiable. Using the gradient during fitting drastically reducing the number of needed interactions for a fit or profile likelihood.
-  
-Note this is still under construction / development, so it probably has some bugs and little documentation.
-
-

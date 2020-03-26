@@ -1,3 +1,9 @@
+1.0.0 / 2020-03-26
+------------------
+- Fiducial volume specification (#64)
+- added default cS1 cut (#63)
+- Cleanup and optimizations (#63, #64, #65)
+
 0.5.0 / 2020-01-31
 ------------------
 - Autographed Hessian; use Hessian in the optimizer (#62)
