@@ -535,10 +535,8 @@ class LXeSource(fd.Source):
                 # For detected quanta the MLE is quite accurate
                 # (since fluctuations are tiny)
                 # so let's just use the relative error on the MLE
-                d[qn + '_detected_' + bound] = stats.norm.ppf(
-                    stats.norm.cdf(sign * self.max_sigma),
-                    loc=n,
-                    scale=scale,
+                d[qn + '_detected_' + bound] = (
+                    n + sign * self.max_sigma * scale
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
 
                 # For produced quanta, it is trickier, since the number
@@ -546,10 +544,10 @@ class LXeSource(fd.Source):
                 # TODO: where did this derivation come from again?
                 # TODO: maybe do a second bound based on CES
                 q = 1 / eff
-                d[qn + '_produced_' + bound] = stats.norm.ppf(
-                    stats.norm.cdf(sign * self.max_sigma),
-                    loc=n_prod_mle,
-                    scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
+                _loc = n_prod_mle
+                _std = (q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
+                d[qn + '_produced_' + bound] = (
+                    _loc + sign * self.max_sigma * _std
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
 
             # Finally, round the detected MLEs
@@ -576,9 +574,9 @@ class LXeSource(fd.Source):
 
         if self.do_pel_fluct:
             d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
-            d['p_el_fluct'] = tf.clip_by_value(d['p_el_fluct'],
-                                               fd.MIN_FLUCTUATION_P,
-                                               1.)
+            d['p_el_fluct'] = np.clip(d['p_el_fluct'].values,
+                                      fd.MIN_FLUCTUATION_P,
+                                      1.)
             d['p_el_actual'] = 1. - stats.beta.rvs(
                 *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
         else:

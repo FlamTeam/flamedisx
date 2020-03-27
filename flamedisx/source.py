@@ -210,7 +210,8 @@ class Source:
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
-        """Set data and/or defaults temporarily"""
+        """Set data and/or defaults temporarily, without affecting the
+        data tensor state"""
         if data is None:
             raise ValueError("No point in setting data = None temporarily")
         old_defaults = self.defaults
@@ -227,7 +228,10 @@ class Source:
         finally:
             self.defaults = old_defaults
             if old_data is not None:
-                self.set_data(old_data, _skip_tf_init=True)
+                self.set_data(
+                    old_data,
+                    data_is_annotated=True,
+                    _skip_tf_init=True)
 
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""
