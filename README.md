@@ -5,6 +5,7 @@ Fast likelihood analysis in more dimensions for xenon TPCs.
 
 [![Build Status](https://travis-ci.org/FlamTeam/flamedisx.svg?branch=master)](https://travis-ci.org/FlamTeam/flamedisx)
 [![DOI](https://zenodo.org/badge/176141558.svg)](https://zenodo.org/badge/latestdoi/176141558)
+[![DOI](https://img.shields.io/badge/physics.ins--det-arXiv%3A2003.12483-%23B31B1B)](https://arxiv.org/abs/2003.12483)
 
 By Jelle Aalbers, Bart Pelssers, and Cristian Antochi
 
