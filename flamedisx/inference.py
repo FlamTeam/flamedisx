@@ -8,6 +8,8 @@ from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+import pdb as pdb
+from scipy.optimize import NonlinearConstraint
 
 export, __all__ = fd.exporter()
 __all__ += ['LOWER_RATE_MULTIPLIER_BOUND',
@@ -73,6 +75,7 @@ class Objective:
                  return_errors=False,
                  optimizer_kwargs: dict = None,
                  allow_failure=False):
+        print('Stepped into Objective.__init__')
         if guess is None:
             guess = dict()
         if fix is None:
@@ -111,6 +114,7 @@ class Objective:
             if p.endswith('_rate_multiplier'):
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
+        print('Stepping out of Objective.__init__')
 
     def _dict_to_array(self, x: dict) -> np.array:
         """Convert from {parameter: value} dictionary to numpy array"""
@@ -208,6 +212,7 @@ class Objective:
         return False, res
 
     def minimize(self):
+        print('Stepped into Objective.minimize')
         result = self._minimize()
 
         if self.get_lowlevel_result:
@@ -235,6 +240,7 @@ class Objective:
 
         result = {**result, **self.fix}
         # TODO: return ll_val, use it
+        print('Stepping out of Objective.minimize')
         return result
 
     def fail(self, message):
@@ -248,8 +254,8 @@ class Objective:
 
 
 class ScipyObjective(Objective):
-
     def _minimize(self):
+        print('Stepped inside ScipyObjective._minimize')
         if self.return_errors:
             raise NotImplementedError(
                 "Scipy minimizer does not yet support return errors")
@@ -263,8 +269,10 @@ class ScipyObjective(Objective):
             # Of all scipy-optimize methods, only trust-constr takes
             # both a Hessian and bounds argument.
             kwargs.setdefault('method', 'trust-constr')
+            print('Using scipy trust-constr')
         else:
             kwargs.setdefault('method', 'TNC')
+            print('Using scipy TNC')
 
         kwargs['bounds'] = [self.bounds.get(x, (None, None))
                             for x in self.arg_names]
@@ -275,8 +283,11 @@ class ScipyObjective(Objective):
         if kwargs['method'].upper() == 'TNC':
             kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
 
+        # Achtung! setdefault will not kick in if user specified 'xtol' in the
+        # options.
         kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
         kwargs['options'].setdefault('gtol', 1e-2 * FLOAT32_EPS**0.25)
+        print(kwargs['options'])
 
         if self.use_hessian:
             if (kwargs['method'].lower() in ('newton-cg', 'dogleg')
@@ -288,7 +299,7 @@ class ScipyObjective(Objective):
                     f"method {kwargs['method']} does not support passing a "
                     "Hessian. Hessian information will not be used.",
                     UserWarning)
-
+        print('Stepping out of ScipyObjective._minimize')
         return scipy_optimize.minimize(
             fun=self.fun,
             x0=self._dict_to_array(self.guess),
@@ -391,11 +402,73 @@ class MinuitObjective(Objective):
         position = {k: result.fitarg[k] for k in self.arg_names}
         return position, result.fval
 
+class NonlinearObjective(Objective):
+
+    ######### old stuff
+    def testFunc(self, x):
+        return -1.*x[0]
+
+    def giveLh(self, x, **kwargs):
+        ll = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)[0]
+        bf = self.lf.log_likelihood()[0]
+        return -2*ll+2*bf
+
+    def giveJac(self, x, **kwargs):
+        jac = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)[1]
+        return -2*jac
+    
+    def giveHess(self, x, v, **kwargs):
+        res = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)
+        hess = -2 * res[2] if res[2] is not None else None
+        return v[0]*hess
+    ######### old stuff
+
+    def giveLh1(self, x, **kwargs):
+        #return self.fun(x)-self.bestfit
+        return self.fun(x)
+
+    def giveHess1(self, x, v, **kwargs):
+        return v[0]*self.hess(x)
+    
+    def _minimize(self):
+        if not self.use_hessian:
+            warnings.warn( "Non-linear constraint requires the Hessian:",
+                UserWarning)
+            self.use_hessian = True
+
+        kwargs = self.optimizer_kwargs
+        kwargs.setdefault('method', 'trust-constr')
+        kwargs.setdefault('options', dict())
+
+        r = fd.wilks_crit(self.critical_quantile)
+        lowBnd = r
+        upBnd = r
+
+        nonLinConstr = NonlinearConstraint(self.giveLh, lowBnd, upBnd,
+                jac=self.giveJac, hess=self.giveHess)
+                
+        nonLinConstr1 = NonlinearConstraint(self.giveLh1, lowBnd, upBnd,
+                jac=self.grad, hess=self.giveHess1)
+
+        print('zomg 10:46  from NonlinearObjective!')
+        print('x_guess %s' % self._dict_to_array(self.guess))
+
+        return scipy_optimize.minimize(
+            fun=self.testFunc,
+            x0=self._dict_to_array(self.guess),
+            #constraints=nonLinConstr,
+            constraints=nonLinConstr1,
+            **kwargs)
+
+    def parse_result(self, result: scipy_optimize.OptimizeResult):
+        if not result.success:
+            self.fail('Scipy trust-constr failed booo, status: %s, message:%s' % \
+                    (result.status, result.message))
+        return dict(zip(self.arg_names, result.x)), result.fun
 
 SUPPORTED_OPTIMIZERS = dict(tfp=TensorFlowObjective,
                             minuit=MinuitObjective,
                             scipy=ScipyObjective)
-
 
 ##
 # Interval estimation
@@ -423,7 +496,7 @@ class IntervalObjective(Objective):
                  tilt_overshoot=0.037,
                  **kwargs):
         super().__init__(**kwargs)
-
+        print('Stepped inside IntervalObjective.__init__')
         self.target_parameter = target_parameter
         self.bestfit = bestfit
         self.direction = direction
@@ -448,6 +521,161 @@ class IntervalObjective(Objective):
         # TODO: add reference to computation for this
         # TODO: better first check if it was actually correct!
         self.tilt = 4 * tilt_overshoot * self.critical_quantile
+
+        # Store bestfit target, maximum likelihood and slope
+        self.bestfit_tp = self.bestfit[self.target_parameter]
+        self.m2ll_best, _grad_at_bestfit = \
+            super()._inner_fun_and_grad(bestfit)[:2]
+        self.bestfit_tp_slope = _grad_at_bestfit[
+            self.arg_names.index(self.target_parameter)]
+
+        # Incomplete guess support
+        if self.target_parameter not in self.guess:
+            # Estimate crossing point from Wilks' theorem
+            dy = fd.wilks_crit(self.critical_quantile)
+
+            # Guess the distance to the crossing point
+            # based on the Hessian
+            dx_1 = (2 * dy) ** 0.5 * abs(self.sigma_guess)
+
+            # ... or the slope (for boundary solutions)
+            if self.bestfit_tp_slope == 0:
+                dx_2 = float('inf')
+            else:
+                dx_2 = abs(dy / self.bestfit_tp_slope)
+
+            # Take the smaller of the two and add it on the correct side
+            # TODO: Is the best one always smallest? Don't know...
+            dx = min(dx_1, dx_2)
+            tp_guess = max(
+                fd.LOWER_RATE_MULTIPLIER_BOUND,
+                self.bestfit_tp + self.direction * dx)
+
+            if self.target_parameter.endswith('rate_multiplier'):
+                tp_guess = max(tp_guess, fd.LOWER_RATE_MULTIPLIER_BOUND)
+        else:
+            tp_guess = self.guess[self.target_parameter]
+
+        # Check guess is in bounds
+        lb, rb = self.bounds.get(self.target_parameter, (None, None))
+        if lb is not None:
+            assert lb <= tp_guess, f"Guess {tp_guess} below lower bound {lb}"
+        if rb is not None:
+            assert tp_guess <= rb, f"Guess {tp_guess} above upper bound {rb}"
+
+        self.guess = {**bestfit,
+                      **{self.target_parameter: tp_guess},
+                      **self.guess}
+        print('Stepping out of IntervalObjective.__init__')
+
+    def t_ppf(self, target_param_value):
+        """Return critical value given parameter value and critical
+        quantile.
+        Asymptotic case using Wilk's theorem, does not depend
+        on the value of the target parameter."""
+        return fd.wilks_crit(self.critical_quantile)
+
+    def t_ppf_grad(self, target_param_value):
+        """Return derivative of t_ppf wrt target_param_value"""
+        return 0.
+
+    def t_ppf_hess(self, target_param_value):
+        """Return second derivative of t_ppf wrt target_param_value"""
+        return 0.
+
+    def _inner_fun_and_grad(self, params):
+        x = params[self.target_parameter]
+        x_norm = (x - self.bestfit_tp) / self.sigma_guess
+        tp_index = self.arg_names.index(self.target_parameter)
+
+        # Evaluate likelihood
+        result = super()._inner_fun_and_grad(params)
+        if self.use_hessian:
+            fun, grad, hess = result
+        else:
+            fun, grad = result[:2]
+            hess = None
+
+        # Compute Mexican hat objective
+        diff = fun - (self.m2ll_best + self.t_ppf(x))
+        objective = diff ** 2
+
+        grad_diff = grad
+        grad_diff[tp_index] -= self.t_ppf_grad(x)
+        grad_objective = 2 * diff * grad_diff
+
+        if self.use_hessian:
+            hess_of_diff = hess
+            hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
+
+            hess_objective = 2 * (
+                    diff * hess_of_diff
+                    + np.outer(grad_diff, grad_diff))
+        else:
+            hess_objective = None
+
+        # Add 'tilt' to push the minimum to extreme values of the parameter of
+        # interest. Without this, we would find any solution on the ellipsoid
+        # where our likelihood equals the target amplitude.
+        objective -= self.direction * self.tilt * x_norm
+        grad_objective[tp_index] -= self.direction * self.tilt / self.sigma_guess
+        # The tilt is linear, so the Hessian is unaffected
+
+        return objective + self._offset, grad_objective, hess_objective
+
+#### Start of my interval objective
+
+class IntervalObjective2(Objective):
+
+    # We can guesstimate from the bestfit and Hessian
+    require_complete_guess = False
+
+    '''
+    # Add constant offset to objective, so objective is not 0 at the minimum
+    # and relative tolerances mean something.
+    _offset = 1
+    '''
+
+    def __init__(self, *,
+                 target_parameter,
+                 bestfit,
+                 direction: int,
+                 critical_quantile,
+                 #tol_multiplier=1.,
+                 sigma_guess=None,
+                 t_ppf=None,
+                 t_ppf_grad=None,
+                 t_ppf_hess=None,
+                 #tilt_overshoot=0.037,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.target_parameter = target_parameter
+        self.bestfit = bestfit
+        self.direction = direction
+        self.critical_quantile = critical_quantile
+        #self.tol_multiplier = tol_multiplier
+
+        if sigma_guess is None:
+            # Estimate one sigma interval using parabolic approx.
+            sigma_guess = fd.cov_to_std(
+                self.lf.inverse_hessian(bestfit)
+            )[0][self.arg_names.index(self.target_parameter)]
+        self.sigma_guess = sigma_guess
+
+        if t_ppf:
+            self.t_ppf = t_ppf
+            assert self.t_ppf_grad is not None
+            self.t_ppf_grad = t_ppf_grad
+            if self.use_hessian:
+                assert self.t_ppf_hess is not None
+                self.t_ppf_hess = t_ppf_hess
+
+        '''
+        # TODO: add reference to computation for this
+        # TODO: better first check if it was actually correct!
+        self.tilt = 4 * tilt_overshoot * self.critical_quantile
+        '''
 
         # Store bestfit target, maximum likelihood and slope
         self.bestfit_tp = self.bestfit[self.target_parameter]
@@ -522,9 +750,15 @@ class IntervalObjective(Objective):
             fun, grad = result[:2]
             hess = None
 
+        '''
         # Compute Mexican hat objective
         diff = fun - (self.m2ll_best + self.t_ppf(x))
         objective = diff ** 2
+        '''
+        # Computing my objective, which isn't actually used as objective later
+        # It's just the likelihood ratio
+        objective = fun - self.m2ll_best
+        print('objective = %.3f', objective)
 
         grad_diff = grad
         grad_diff[tp_index] -= self.t_ppf_grad(x)
@@ -540,28 +774,34 @@ class IntervalObjective(Objective):
         else:
             hess_objective = None
 
+        '''
         # Add 'tilt' to push the minimum to extreme values of the parameter of
         # interest. Without this, we would find any solution on the ellipsoid
         # where our likelihood equals the target amplitude.
         objective -= self.direction * self.tilt * x_norm
         grad_objective[tp_index] -= self.direction * self.tilt / self.sigma_guess
         # The tilt is linear, so the Hessian is unaffected
+        '''
 
-        return objective + self._offset, grad_objective, hess_objective
+        #return objective + self._offset, grad_objective, hess_objective
+        return objective, grad_objective, hess_objective
 
+##### end of my interval objective
 
 class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
     """IntervalObjective using TensorFlow optimizer"""
 
-
 class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
     """IntervalObjective using Minuit optimizer"""
-
 
 class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
 
+class NonlinearIntervalObjective(IntervalObjective, NonlinearObjective):
+    """IntervalObjective using Scipy trust-constr optimizer with non-linear
+    constraints"""
 
 SUPPORTED_INTERVAL_OPTIMIZERS = dict(tfp=TensorFlowIntervalObjective,
                                      minuit=MinuitIntervalObjective,
-                                     scipy=ScipyIntervalObjective)
+                                     scipy=ScipyIntervalObjective,
+                                     nlin=NonlinearIntervalObjective)
