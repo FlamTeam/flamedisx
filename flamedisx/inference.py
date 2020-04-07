@@ -402,34 +402,42 @@ class MinuitObjective(Objective):
         position = {k: result.fitarg[k] for k in self.arg_names}
         return position, result.fval
 
+
 class NonlinearObjective(Objective):
+    """Compute limits on target parameter given nonlinear constraint
+    defined by likelihood ratio.
+    """
 
-    ######### old stuff
-    def testFunc(self, x):
-        return -1.*x[0]
+    # TODO: check that this function is correctly inherited in
+    # NonlinearIntervalObjective
+    def _inner_fun_and_grad(self, params):
+        # Return function, grad and hess for target parameter
+        # Direction switches between upper and lower limits
+        return (-1. * self.direction * params[self.target_parameter],
+                -1. * self.direction,
+                0.)
 
-    def giveLh(self, x, **kwargs):
-        ll = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)[0]
-        bf = self.lf.log_likelihood()[0]
-        return -2*ll+2*bf
+    def _likelihood_ratio(self, params):
+        m2ll, grad, hess =  self.lf.minus2_ll(**params,
+                                  second_order=self.use_hessian,
+                                  omit_grads=tuple(self.fix.keys()))
+        # TODO: Assuming grad and hess at bestfit is 0 for now
+        # TODO: Include self.t_ppf, self.t_ppf_grad, self.t_ppf_hess
+        return m2ll - self.m2ll_best, grad, hess
 
-    def giveJac(self, x, **kwargs):
-        jac = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)[1]
-        return -2*jac
-    
-    def giveHess(self, x, v, **kwargs):
-        res = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)
-        hess = -2 * res[2] if res[2] is not None else None
-        return v[0]*hess
-    ######### old stuff
+    # TODO: could implement memoization similar to what was done for likelihood
+    # in Objective.__call__
+    def fun_constraint(self, x):
+        return self._likelihood_ratio(self._array_to_dict(x))[0]
 
-    def giveLh1(self, x, **kwargs):
-        #return self.fun(x)-self.bestfit
-        return self.fun(x)
+    def jac_constraint(self, x):
+        return self._likelihood_ratio(self._array_to_dict(x))[1]
 
-    def giveHess1(self, x, v, **kwargs):
-        return v[0]*self.hess(x)
-    
+    def hess_constraint(self, x, v):
+        # TODO: Must return hessian matrix of dot(fun, v), is that what this
+        # does?
+        return np.dot(self._likelihood_ratio(self._array_to_dict(x))[2], v)
+
     def _minimize(self):
         if not self.use_hessian:
             warnings.warn( "Non-linear constraint requires the Hessian:",
@@ -440,24 +448,27 @@ class NonlinearObjective(Objective):
         kwargs.setdefault('method', 'trust-constr')
         kwargs.setdefault('options', dict())
 
+        # TODO: Use ppf function from IntervalObjective here
+        # These are functions of target_param so must be moved to
+        # _likelihood_ratio. Maybe substract from ratio and put bounds at 0
         r = fd.wilks_crit(self.critical_quantile)
+        # TODO: doesn't having the same bounds give numerical instability?
         lowBnd = r
         upBnd = r
 
-        nonLinConstr = NonlinearConstraint(self.giveLh, lowBnd, upBnd,
-                jac=self.giveJac, hess=self.giveHess)
-                
-        nonLinConstr1 = NonlinearConstraint(self.giveLh1, lowBnd, upBnd,
-                jac=self.grad, hess=self.giveHess1)
+        nonLinConstr = NonlinearConstraint(self.fun_constraint,
+                                           lowBnd, upBnd,
+                                           jac=self.jac_constraint,
+                                           hess=self.hess_constraint)
 
         print('zomg 10:46  from NonlinearObjective!')
         print('x_guess %s' % self._dict_to_array(self.guess))
 
         return scipy_optimize.minimize(
-            fun=self.testFunc,
+            fun=self.fun,
+            jac=self.grad,
             x0=self._dict_to_array(self.guess),
-            #constraints=nonLinConstr,
-            constraints=nonLinConstr1,
+            constraints=nonLinConstr,
             **kwargs)
 
     def parse_result(self, result: scipy_optimize.OptimizeResult):
@@ -623,170 +634,6 @@ class IntervalObjective(Objective):
 
         return objective + self._offset, grad_objective, hess_objective
 
-#### Start of my interval objective
-
-class IntervalObjective2(Objective):
-
-    # We can guesstimate from the bestfit and Hessian
-    require_complete_guess = False
-
-    '''
-    # Add constant offset to objective, so objective is not 0 at the minimum
-    # and relative tolerances mean something.
-    _offset = 1
-    '''
-
-    def __init__(self, *,
-                 target_parameter,
-                 bestfit,
-                 direction: int,
-                 critical_quantile,
-                 #tol_multiplier=1.,
-                 sigma_guess=None,
-                 t_ppf=None,
-                 t_ppf_grad=None,
-                 t_ppf_hess=None,
-                 #tilt_overshoot=0.037,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-        self.target_parameter = target_parameter
-        self.bestfit = bestfit
-        self.direction = direction
-        self.critical_quantile = critical_quantile
-        #self.tol_multiplier = tol_multiplier
-
-        if sigma_guess is None:
-            # Estimate one sigma interval using parabolic approx.
-            sigma_guess = fd.cov_to_std(
-                self.lf.inverse_hessian(bestfit)
-            )[0][self.arg_names.index(self.target_parameter)]
-        self.sigma_guess = sigma_guess
-
-        if t_ppf:
-            self.t_ppf = t_ppf
-            assert self.t_ppf_grad is not None
-            self.t_ppf_grad = t_ppf_grad
-            if self.use_hessian:
-                assert self.t_ppf_hess is not None
-                self.t_ppf_hess = t_ppf_hess
-
-        '''
-        # TODO: add reference to computation for this
-        # TODO: better first check if it was actually correct!
-        self.tilt = 4 * tilt_overshoot * self.critical_quantile
-        '''
-
-        # Store bestfit target, maximum likelihood and slope
-        self.bestfit_tp = self.bestfit[self.target_parameter]
-        self.m2ll_best, _grad_at_bestfit = \
-            super()._inner_fun_and_grad(bestfit)[:2]
-        self.bestfit_tp_slope = _grad_at_bestfit[
-            self.arg_names.index(self.target_parameter)]
-
-        # Incomplete guess support
-        if self.target_parameter not in self.guess:
-            # Estimate crossing point from Wilks' theorem
-            dy = fd.wilks_crit(self.critical_quantile)
-
-            # Guess the distance to the crossing point
-            # based on the Hessian
-            dx_1 = (2 * dy) ** 0.5 * abs(self.sigma_guess)
-
-            # ... or the slope (for boundary solutions)
-            if self.bestfit_tp_slope == 0:
-                dx_2 = float('inf')
-            else:
-                dx_2 = abs(dy / self.bestfit_tp_slope)
-
-            # Take the smaller of the two and add it on the correct side
-            # TODO: Is the best one always smallest? Don't know...
-            dx = min(dx_1, dx_2)
-            tp_guess = max(
-                fd.LOWER_RATE_MULTIPLIER_BOUND,
-                self.bestfit_tp + self.direction * dx)
-
-            if self.target_parameter.endswith('rate_multiplier'):
-                tp_guess = max(tp_guess, fd.LOWER_RATE_MULTIPLIER_BOUND)
-        else:
-            tp_guess = self.guess[self.target_parameter]
-
-        # Check guess is in bounds
-        lb, rb = self.bounds.get(self.target_parameter, (None, None))
-        if lb is not None:
-            assert lb <= tp_guess, f"Guess {tp_guess} below lower bound {lb}"
-        if rb is not None:
-            assert tp_guess <= rb, f"Guess {tp_guess} above upper bound {rb}"
-
-        self.guess = {**bestfit,
-                      **{self.target_parameter: tp_guess},
-                      **self.guess}
-
-    def t_ppf(self, target_param_value):
-        """Return critical value given parameter value and critical
-        quantile.
-        Asymptotic case using Wilk's theorem, does not depend
-        on the value of the target parameter."""
-        return fd.wilks_crit(self.critical_quantile)
-
-    def t_ppf_grad(self, target_param_value):
-        """Return derivative of t_ppf wrt target_param_value"""
-        return 0.
-
-    def t_ppf_hess(self, target_param_value):
-        """Return second derivative of t_ppf wrt target_param_value"""
-        return 0.
-
-    def _inner_fun_and_grad(self, params):
-        x = params[self.target_parameter]
-        x_norm = (x - self.bestfit_tp) / self.sigma_guess
-        tp_index = self.arg_names.index(self.target_parameter)
-
-        # Evaluate likelihood
-        result = super()._inner_fun_and_grad(params)
-        if self.use_hessian:
-            fun, grad, hess = result
-        else:
-            fun, grad = result[:2]
-            hess = None
-
-        '''
-        # Compute Mexican hat objective
-        diff = fun - (self.m2ll_best + self.t_ppf(x))
-        objective = diff ** 2
-        '''
-        # Computing my objective, which isn't actually used as objective later
-        # It's just the likelihood ratio
-        objective = fun - self.m2ll_best
-        print('objective = %.3f', objective)
-
-        grad_diff = grad
-        grad_diff[tp_index] -= self.t_ppf_grad(x)
-        grad_objective = 2 * diff * grad_diff
-
-        if self.use_hessian:
-            hess_of_diff = hess
-            hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
-
-            hess_objective = 2 * (
-                    diff * hess_of_diff
-                    + np.outer(grad_diff, grad_diff))
-        else:
-            hess_objective = None
-
-        '''
-        # Add 'tilt' to push the minimum to extreme values of the parameter of
-        # interest. Without this, we would find any solution on the ellipsoid
-        # where our likelihood equals the target amplitude.
-        objective -= self.direction * self.tilt * x_norm
-        grad_objective[tp_index] -= self.direction * self.tilt / self.sigma_guess
-        # The tilt is linear, so the Hessian is unaffected
-        '''
-
-        #return objective + self._offset, grad_objective, hess_objective
-        return objective, grad_objective, hess_objective
-
-##### end of my interval objective
 
 class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
     """IntervalObjective using TensorFlow optimizer"""
