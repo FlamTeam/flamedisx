@@ -275,7 +275,7 @@ def test_set_data(xes: fd.ERSource):
     data1 = xes.data
     data2 = pd.concat([data1.copy(),
                        data1.iloc[:1].copy()])
-    data2['s1'] *= 1.3
+    data2['s1'] *= 0.9
     data3 = pd.concat([data2, data2.iloc[:1]])
 
     # Setting temporarily
