@@ -408,14 +408,17 @@ class NonlinearObjective(Objective):
     defined by likelihood ratio.
     """
 
+    '''
     # TODO: check that this function is correctly inherited in
     # NonlinearIntervalObjective
     def _inner_fun_and_grad(self, params):
         # Return function, grad and hess for target parameter
         # Direction switches between upper and lower limits
+        print('!!!hi i''m called here')
         return (-1. * self.direction * params[self.target_parameter],
-                -1. * self.direction,
-                0.)
+                np.array([-1. * self.direction]),
+                np.array([[0.]]))
+    '''
 
     def _likelihood_ratio(self, params):
         m2ll, grad, hess =  self.lf.minus2_ll(**params,
@@ -423,22 +426,54 @@ class NonlinearObjective(Objective):
                                   omit_grads=tuple(self.fix.keys()))
         # TODO: Assuming grad and hess at bestfit is 0 for now
         # TODO: Include self.t_ppf, self.t_ppf_grad, self.t_ppf_hess
+        print('in _likelihood_ratio, ll = %.4f, bf = %.4f, llhr = %.4f' \
+                % (m2ll, self.m2ll_best, m2ll-self.m2ll_best))
         return m2ll - self.m2ll_best, grad, hess
 
     # TODO: could implement memoization similar to what was done for likelihood
     # in Objective.__call__
     def fun_constraint(self, x):
+        print('in fun_constraint, x = %.4f, llhr = %.4f' \
+                % (x, self._likelihood_ratio(self._array_to_dict(x))[0]))
         return self._likelihood_ratio(self._array_to_dict(x))[0]
 
     def jac_constraint(self, x):
+        print('in jac_constraint, x = %.4f, grad = %.4f' \
+                % (x, self._likelihood_ratio(self._array_to_dict(x))[1]))
         return self._likelihood_ratio(self._array_to_dict(x))[1]
 
     def hess_constraint(self, x, v):
         # TODO: Must return hessian matrix of dot(fun, v), is that what this
         # does?
+        print('in hess_constraint, x = %.4f, v = %.4f, hess = %.4f' \
+                % (x,v, self._likelihood_ratio(self._array_to_dict(x))[2]))
+        #return v[0]*self._likelihood_ratio(self._array_to_dict(x))[2]
         return np.dot(self._likelihood_ratio(self._array_to_dict(x))[2], v)
 
+############### for debug
+    def giveLh(self, x, **kwargs):
+        ll = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)[0]
+        bf = self.lf.log_likelihood()[0]
+        llhr = -2*ll+2*bf 
+        print('in giveLh, x = %.4f, ll = %.4f, bf = %.4f, llhr = %.4f' \
+                % (x, ll, bf, llhr))
+        return -2*ll+2*bf
+
+    def giveJac(self, x, **kwargs):
+        jac = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)[1]
+        print('in giveJac, x = %.4f, grad = %.4f' % (x, jac))
+        return -2*jac
+    
+    def giveHess(self, x, v, **kwargs):
+        res = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)
+        hess = -2 * res[2] if res[2] is not None else None
+        print('in giveHess, x = %.4f, v = %.4f, hess = %.4f' % (x,v, hess))
+        return v[0]*hess
+
+############### end debug
+
     def _minimize(self):
+        print('Stepped inside NonlinearObjective._minimize')
         if not self.use_hessian:
             warnings.warn( "Non-linear constraint requires the Hessian:",
                 UserWarning)
@@ -461,14 +496,20 @@ class NonlinearObjective(Objective):
                                            jac=self.jac_constraint,
                                            hess=self.hess_constraint)
 
-        print('zomg 10:46  from NonlinearObjective!')
-        print('x_guess %s' % self._dict_to_array(self.guess))
+        nonLinConstr1 = NonlinearConstraint(self.giveLh,
+                                           lowBnd, upBnd,
+                                           jac=self.giveJac,
+                                           hess=self.giveHess)
 
+        print('zomg 11:18  from NonlinearObjective!')
+        print('calling optimizer nao!')
+        print('Stepping out of ScipyObjective._minimize')
         return scipy_optimize.minimize(
             fun=self.fun,
             jac=self.grad,
             x0=self._dict_to_array(self.guess),
-            constraints=nonLinConstr,
+            #constraints=nonLinConstr,
+            constraints=nonLinConstr1,
             **kwargs)
 
     def parse_result(self, result: scipy_optimize.OptimizeResult):
@@ -537,8 +578,9 @@ class IntervalObjective(Objective):
         self.bestfit_tp = self.bestfit[self.target_parameter]
         self.m2ll_best, _grad_at_bestfit = \
             super()._inner_fun_and_grad(bestfit)[:2]
-        self.bestfit_tp_slope = _grad_at_bestfit[
-            self.arg_names.index(self.target_parameter)]
+        print('***Inside IntervalObjective __init__: bestfit = %.4f, self.m2ll_best = %.4f' \
+                        % (self._dict_to_array(bestfit), self.m2ll_best))
+        self.bestfit_tp_slope = _grad_at_bestfit[self.arg_names.index(self.target_parameter)]
 
         # Incomplete guess support
         if self.target_parameter not in self.guess:
@@ -617,8 +659,8 @@ class IntervalObjective(Objective):
 
         if self.use_hessian:
             hess_of_diff = hess
-            hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
 
+            hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
             hess_objective = 2 * (
                     diff * hess_of_diff
                     + np.outer(grad_diff, grad_diff))

@@ -7,6 +7,11 @@ import pandas as pd
 import tensorflow as tf
 import typing as ty
 
+#### PL
+import pdb as pdb
+import scipy.optimize as spo
+from scipy.optimize import NonlinearConstraint
+#### end PL
 
 export, __all__ = fd.exporter()
 
@@ -271,6 +276,7 @@ class LogLikelihood:
                     if second_order:
                         llgrad2 += results[2].numpy().astype(np.float64)
 
+        #print(params['a_rate_multiplier'])
         if second_order:
             return ll, llgrad, llgrad2
         return ll, llgrad, None
@@ -282,6 +288,7 @@ class LogLikelihood:
         return -2 * ll, -2 * grad, hess
 
     def prepare_params(self, kwargs):
+        #pdb.set_trace()
         for k in kwargs:
             if k not in self.param_defaults:
                 raise ValueError(f"Unknown parameter {k}")
@@ -430,6 +437,7 @@ class LogLikelihood:
         :param allow_failure: If True, raise a warning instead of an exception
         if there is an optimizer failure.
         """
+        print('In bestfit')
         if guess is None:
             guess = dict()
         if not isinstance(guess, dict):
@@ -461,7 +469,7 @@ class LogLikelihood:
         if return_errors:
             # Filter out errors and return separately
             return result, errors
-
+        print('Out bestfit')
         return result
 
     def interval(self, parameter, **kwargs):
@@ -470,6 +478,45 @@ class LogLikelihood:
         kwargs.setdefault('kind', 'central')
         return self.limit(parameter, **kwargs)
 
+################## start pl
+    # cause i don't need 'self' for this. i don't need this to be bound to the `Loglikelihood` class
+    @staticmethod 
+    def testFunc(x):
+        return -1.*x[0]
+
+    # the rest are bounded to `Loglikelihood` class
+    def giveLh(self, x, **kwargs):
+        res = self.log_likelihood(a_rate_multiplier=x[0], second_order=True)
+        ll, dmp = res[:2]
+        bf = self(a_rate_multiplier=1)
+        return -2*ll+2*bf
+
+    def giveJac(self, x, **kwargs):
+        res = self.log_likelihood(a_rate_multiplier=x[0], second_order=True)
+        dmp, jac = res[:2]
+        return -2*jac
+
+    def giveHess(self, x, v, **kwargs):
+        res = self.log_likelihood(a_rate_multiplier=x[0], second_order=True)
+        hess = -2 * res[2] if res[2] is not None else None
+        return v[0]*hess
+
+################ starting my stuff
+    def sayHi(self, *, initPt, cl, omit_grads=tuple(), **kwargs):
+        r = fd.wilks_crit(cl)
+        lowBnd = r
+        upBnd = r
+
+        nonLinConstr = NonlinearConstraint(self.giveLh, lowBnd, upBnd,
+                jac=self.giveJac, hess=self.giveHess)
+
+        resNonLin = spo.minimize(fun=self.testFunc,
+                                 x0=initPt,
+                                 method='trust-constr',
+                                 constraints=nonLinConstr)
+        return resNonLin
+
+################## end pl
     def limit(
             self,
             parameter,
@@ -524,6 +571,7 @@ class LogLikelihood:
         Returns a float (for upper or lower limits)
         or a 2-tuple of floats (for a central interval)
         """
+        print('Stepped in likelihood.limit')
         if optimizer_kwargs is None:
             optimizer_kwargs = dict()
 
@@ -568,7 +616,7 @@ class LogLikelihood:
         result = []
         for req in requested_limits:
             opt = fd.SUPPORTED_INTERVAL_OPTIMIZERS[optimizer]
-
+            print('right before calling optimizer')
             res = opt(
                 # To generic objective
                 lf=self,
@@ -597,7 +645,9 @@ class LogLikelihood:
                 result.append(res)
             else:
                 result.append(res[parameter])
+            print('right after calling optimizer')
 
+        print('stepped out of likelihood.limit')
         if len(result) == 1:
             return result[0]
         return result
