@@ -75,7 +75,6 @@ class LXeSource(fd.Source):
     spatial_rate_hist = None
     spatial_rate_bin_volumes = None
 
-
     def __init__(self, *args, **kwargs):
         # Deprecate tpc_radius and tpc_length
         if hasattr(self, 'tpc_radius') or hasattr(self, 'tpc_length'):
@@ -459,10 +458,16 @@ class LXeSource(fd.Source):
             for parname in hidden_vars_per_quanta:
                 fname = qn + '_' + parname
                 try:
-                    d[fname] = self.gimme(fname, data_tensor=None, ptensor=None, numpy_out=True)
+                    d[fname] = self.gimme(fname, data_tensor=None,
+                                          ptensor=None, numpy_out=True)
                 except Exception:
                     print(fname)
                     raise
+            if np.any(d[qn + '_detection_eff'].values <= 0):
+                raise ValueError(f"Found event with non-positive {qn} "
+                                 "detection efficiency: did you apply and "
+                                 "configure your cuts correctly?")
+
         d['double_pe_fraction'] = self.gimme('double_pe_fraction',
                                              data_tensor=None, ptensor=None,
                                              numpy_out=True)
