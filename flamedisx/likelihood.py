@@ -435,6 +435,26 @@ class LogLikelihood:
         if not isinstance(guess, dict):
             raise ValueError("Must specify bestfit guess as a dictionary")
 
+        # Check the likelihood has a finite value and gradient before starting
+        val, grad, hess = self.log_likelihood(**guess,
+                                              second_order=use_hessian)
+        if not np.isfinite(val):
+            raise ValueError("The likelihood is - infinity at your guess, "
+                             "please guess better, remove outlier events, or "
+                             "add a fallback background model.")
+        if not np.all(np.isfinite(grad)):
+            raise ValueError("The likelihood is finite at your guess, "
+                             "but the gradient is not. Are you starting at a "
+                             "cusp?")
+        if use_hessian:
+            if hess is None:
+                raise RuntimeError("Likelihood did't provide Hessian!")
+            if not np.all(np.isfinite(hess)):
+                raise ValueError("The likelihood and gradient are finite at "
+                                 "your guess, but the Hessian is not. "
+                                 "Are you starting at an unusual point? "
+                                 "You could also try use_hessian=False.")
+
         opt = fd.SUPPORTED_OPTIMIZERS[optimizer]
         res = opt(
             lf=self,
