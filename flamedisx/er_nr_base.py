@@ -440,6 +440,16 @@ class LXeSource(fd.Source):
                 else self.min_s2_electrons_detected,
                 None)
 
+    def _check_data(self):
+        super()._check_data()
+        for sn in signal_name.values():
+            s_acc = self.gimme(sn + '_acceptance',
+                               data_tensor=None, ptensor=None, numpy_out=True)
+            if np.any(s_acc <= 0):
+                raise ValueError(f"Found event with non-positive {sn} "
+                                 f"acceptance: did you apply and configure "
+                                 "your cuts correctly?")
+
     def _annotate(self, _skip_bounds_computation=False):
         d = self.data
 

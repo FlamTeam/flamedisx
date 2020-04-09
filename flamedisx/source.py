@@ -187,8 +187,18 @@ class Source:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
         if not _skip_tf_init:
+            self._check_data()
             self._populate_tensor_cache()
             self._calculate_dimsizes()
+
+    def _check_data(self):
+        """Do any final checks on the self.data dataframe,
+        before passing it on to the tensorflow layer.
+        """
+        for column in self.cols_to_cache:
+            if column not in self.data.columns:
+                raise ValueError(f"Data lacks required column {column}; "
+                                 f"did annotation happen correctly?")
 
     def _populate_tensor_cache(self):
 
