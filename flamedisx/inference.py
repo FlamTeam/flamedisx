@@ -412,12 +412,12 @@ class NonlinearObjective(Objective):
         return (-1. * self.direction * params[self.target_parameter],
                 np.array([-1. * self.direction]),
                 np.array([[0.]]))
-        
+
         #return (-1. * self.direction * params[self.target_parameter],
         #        np.array([-1. * self.direction]),
         #        np.array([[0.]]))
     #'''
-    
+
     # Callback function to capture intermediate states of optimizer
     def fishPath(self, a, b):
         self._callbackbag.append(a)
@@ -425,30 +425,23 @@ class NonlinearObjective(Objective):
     def tilt_fun(self, x):
         return -1.*x
 
-    def _likelihood_ratio(self, params):
-        m2ll, grad, hess =  self.lf.minus2_ll(**params,
-                                  second_order=self.use_hessian,
-                                  omit_grads=tuple(self.fix.keys()))
-
-        # TODO: Assuming grad and hess at bestfit is 0 for now
-        # TODO: Include self.t_ppf, self.t_ppf_grad, self.t_ppf_hess
-
-        # can subtract t_ppf here
+    def _inner_fun_and_grad(self, params):
+        m2ll, grad, hess = super()._inner_fun_and_grad(params)
         return m2ll - self.m2ll_best - self.t_ppf(params), grad, hess
 
     # TODO: could implement memoization similar to what was done for likelihood
     # in Objective.__call__
     def fun_constraint(self, x):
-        return self._likelihood_ratio(self._array_to_dict(x))[0]
+        return self(self._array_to_dict(x)).fun
 
     def jac_constraint(self, x):
-        return self._likelihood_ratio(self._array_to_dict(x))[1]
+        return self(self._array_to_dict(x)).grad
 
     def hess_constraint(self, x, v):
         # TODO: Must return hessian matrix of dot(fun, v), is that what this
         # does?
         #return v[0]*self._likelihood_ratio(self._array_to_dict(x))[2]
-        return np.dot(self._likelihood_ratio(self._array_to_dict(x))[2], v)
+        return np.dot(self(self._array_to_dict(x)).hess, v)
 
 ############### for debug
     def giveLh(self, x, **kwargs):
@@ -459,7 +452,7 @@ class NonlinearObjective(Objective):
     def giveJac(self, x, **kwargs):
         jac = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)[1]
         return -2*jac
-    
+
     def giveHess(self, x, v, **kwargs):
         res = self.lf.log_likelihood(a_rate_multiplier=x[0], second_order=True)
         hess = -2 * res[2] if res[2] is not None else None
@@ -481,11 +474,11 @@ class NonlinearObjective(Objective):
         # TODO: Use ppf function from IntervalObjective here
         # These are functions of target_param so must be moved to
         # _likelihood_ratio. Maybe substract from ratio and put bounds at 0
-        
-        
+
+
         # elegant code way of doing things
         # TODO: doesn't having the same bounds give numerical instability?
-        
+
         # clear-cut way of doing things
         #r = fd.wilks_crit(self.critical_quantile)
         '''
