@@ -181,6 +181,7 @@ class Objective:
 
     def _inner_fun_and_grad(self, params):
         # Get -2lnL and its gradient
+        print('origin')
         return self.lf.minus2_ll(
             **params,
             second_order=self.use_hessian,
@@ -417,7 +418,6 @@ class NonlinearObjective(Objective):
         #        np.array([-1. * self.direction]),
         #        np.array([[0.]]))
     #'''
-
     # Callback function to capture intermediate states of optimizer
     def fishPath(self, a, b):
         self._callbackbag.append(a)
@@ -427,21 +427,22 @@ class NonlinearObjective(Objective):
 
     def _inner_fun_and_grad(self, params):
         m2ll, grad, hess = super()._inner_fun_and_grad(params)
+        print('wowo')
         return m2ll - self.m2ll_best - self.t_ppf(params), grad, hess
 
     # TODO: could implement memoization similar to what was done for likelihood
     # in Objective.__call__
     def fun_constraint(self, x):
-        return self(self._array_to_dict(x)).fun
+        return self(x).fun
 
     def jac_constraint(self, x):
-        return self(self._array_to_dict(x)).grad
+        return self(x).grad
 
     def hess_constraint(self, x, v):
         # TODO: Must return hessian matrix of dot(fun, v), is that what this
         # does?
         #return v[0]*self._likelihood_ratio(self._array_to_dict(x))[2]
-        return np.dot(self(self._array_to_dict(x)).hess, v)
+        return np.dot(self(x).hess, v)
 
 ############### for debug
     def giveLh(self, x, **kwargs):
@@ -489,6 +490,8 @@ class NonlinearObjective(Objective):
 
         lowBnd = 0 #self.critical_value
         upBnd = 0 #self.critical_value
+
+        print('zomg 2:35')
 
         nonLinConstr = NonlinearConstraint(self.fun_constraint,
                                            lowBnd, upBnd,
@@ -638,6 +641,7 @@ class IntervalObjective(Objective):
         return 0.
 
     def _inner_fun_and_grad(self, params):
+        print('bloody hell')
         x = params[self.target_parameter]
         x_norm = (x - self.bestfit_tp) / self.sigma_guess
         tp_index = self.arg_names.index(self.target_parameter)
