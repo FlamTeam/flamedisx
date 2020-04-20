@@ -402,6 +402,12 @@ class NonlinearObjective(Objective):
     defined by likelihood ratio.
     """
 
+    def calc_m2ll_best(self, bestfit):
+        return self.lf.minus2_ll(
+            **bestfit,
+            second_order=self.use_hessian,
+            omit_grads=tuple(self.fix.keys()))
+
     '''
     # TODO: check that this function is correctly inherited in
     # NonlinearIntervalObjective
@@ -583,8 +589,7 @@ class IntervalObjective(Objective):
 
         # Store bestfit target, maximum likelihood and slope
         self.bestfit_tp = self.bestfit[self.target_parameter]
-        self.m2ll_best, _grad_at_bestfit = \
-            super()._inner_fun_and_grad(bestfit)[:2]
+        self.m2ll_best, _grad_at_bestfit = self.calc_m2ll_best(bestfit)
         self.bestfit_tp_slope = _grad_at_bestfit[self.arg_names.index(self.target_parameter)]
 
         # Incomplete guess support
@@ -624,6 +629,9 @@ class IntervalObjective(Objective):
         self.guess = {**bestfit,
                       **{self.target_parameter: tp_guess},
                       **self.guess}
+
+    def calc_m2ll_best(self, bestfit):
+        return super()._inner_fun_and_grad(bestfit)[:2]
 
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical
