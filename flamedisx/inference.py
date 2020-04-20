@@ -412,6 +412,10 @@ class NonlinearObjective(Objective):
         return (-1. * self.direction * params[self.target_parameter],
                 np.array([-1. * self.direction]),
                 np.array([[0.]]))
+        
+        #return (-1. * self.direction * params[self.target_parameter],
+        #        np.array([-1. * self.direction]),
+        #        np.array([[0.]]))
     #'''
     
     # Callback function to capture intermediate states of optimizer
@@ -425,9 +429,12 @@ class NonlinearObjective(Objective):
         m2ll, grad, hess =  self.lf.minus2_ll(**params,
                                   second_order=self.use_hessian,
                                   omit_grads=tuple(self.fix.keys()))
+
         # TODO: Assuming grad and hess at bestfit is 0 for now
         # TODO: Include self.t_ppf, self.t_ppf_grad, self.t_ppf_hess
-        return m2ll - self.m2ll_best, grad, hess
+
+        # can subtract t_ppf here
+        return m2ll - self.m2ll_best - self.t_ppf(params), grad, hess
 
     # TODO: could implement memoization similar to what was done for likelihood
     # in Objective.__call__
@@ -487,8 +494,8 @@ class NonlinearObjective(Objective):
         upBnd = r
         '''
 
-        lowBnd = self.critical_value
-        upBnd = self.critical_value
+        lowBnd = 0 #self.critical_value
+        upBnd = 0 #self.critical_value
 
         nonLinConstr = NonlinearConstraint(self.fun_constraint,
                                            lowBnd, upBnd,
