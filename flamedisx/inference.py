@@ -163,8 +163,10 @@ class Objective:
                     print('Objective __call__ out of bounds >>>')
                     return self.nan_result()
 
+        print('^^^^^^^^^^^^^^^^^^^^^^\n')
         result = self._inner_fun_and_grad(params)
         y = result[0]
+        print('^^^^^^^^^^^^^^^^^^^^^^ %.4f ^^^^^^^^\n' % y)
         grad = result[1]
         hess = result[2] if self.use_hessian else None
 
@@ -422,7 +424,6 @@ class NonlinearObjective(Objective):
     """Compute limits on target parameter given nonlinear constraint
     defined by likelihood ratio.
     """
-
     '''
     def calc_m2ll_best(self, bestfit):
         print('<<< NonlinearObjective calc_m2ll_best >>>')
@@ -431,28 +432,33 @@ class NonlinearObjective(Objective):
             second_order=self.use_hessian,
             omit_grads=tuple(self.fix.keys()))
     '''
-
+    
     # Callback function to capture intermediate states of optimizer
-    def fishPath(self, a, b):
-        self._callbackbag.append(a)
+    #def fishPath(self, a, b):
+    #    self._callbackbag.append(a)
 
     def tilt_fun(self, x):
         return -1.*x
 
     def _inner_fun_and_grad(self, params):
         print('### NonlinearObjective _inner_fun_and_grad')
-        m2ll, grad, hess = super()._inner_fun_and_grad(params)
+        m2ll, grad, hess = Objective._inner_fun_and_grad(self, params)
+        #m2ll, grad, hess = super()._inner_fun_and_grad(params)
         print('NonlinearObjective _inner_fun_and_grad ###')
-        return m2ll - self.m2ll_best - self.t_ppf(params), grad, hess
+        print('llhr = %.4f, best = %.4f, grad = %.4f, hess = %.4f' % (m2ll, self.m2ll_best, grad, hess))
+        #return m2ll - self.m2ll_best, grad, hess
+        return m2ll - self.m2ll_best - self.t_ppf(params), grad - self.t_ppf_grad(params), hess - self.t_ppf_hess(params)
 
     # TODO: could implement memoization similar to what was done for likelihood
     # in Objective.__call__
     def fun_constraint(self, x):
         print('@@@ fun_constraint @@@')
+        print('fun = %.4f' % self(x).fun)
         return self(x).fun
 
     def jac_constraint(self, x):
         print('@@@ jac_constraint @@@')
+        print('grad = %.4f' % self(x).grad)
         return self(x).grad
 
     def hess_constraint(self, x, v):
@@ -460,6 +466,7 @@ class NonlinearObjective(Objective):
         # does?
         #return v[0]*self._likelihood_ratio(self._array_to_dict(x))[2]
         print('@@@ hess_constraint @@@')
+        print('hess = %.4f' % self(x).hess)
         return np.dot(self(x).hess, v)
 
 ############### for debug
@@ -500,14 +507,24 @@ class NonlinearObjective(Objective):
         r = self.t_ppf(self.critical_quantile)
         lowBnd = r
         upBnd = r
-        '''
+        #'''
+        print('zomg 4:01')
 
+        #'''
         lowBnd = 0 #self.critical_value
         upBnd = 0 #self.critical_value
+        #'''
 
+        '''
         nonLinConstr = NonlinearConstraint(self.fun_constraint,
                                            lowBnd, upBnd,
                                            jac=self.jac_constraint,
+                                           hess=self.hess_constraint)
+        '''
+
+        nonLinConstr = NonlinearConstraint(self.fun,
+                                           lowBnd, upBnd,
+                                           jac=self.grad,
                                            hess=self.hess_constraint)
 
         ############### for debug
@@ -537,7 +554,7 @@ class NonlinearObjective(Objective):
             x0=self._dict_to_array(self.guess),
             constraints=nonLinConstr,
             #constraints=nonLinConstr1, # for testing
-            callback=self.fishPath,
+            #callback=self.fishPath,
             **kwargs)
         print('end black magic !!!!!!!!!!!!')
         print('stepping out of NonlinearObjective._minimize ***')
@@ -744,9 +761,128 @@ class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
 class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
 
-class NonlinearIntervalObjective(IntervalObjective, NonlinearObjective):
+class NonlinearIntervalObjective(NonlinearObjective):
     """IntervalObjective using Scipy trust-constr optimizer with non-linear
     constraints"""
+    def __init__(self, *,
+                         target_parameter,
+                         bestfit,
+                         direction: int,
+                         critical_quantile,
+                         tol_multiplier=1.,
+                         sigma_guess=None,
+                         t_ppf=None,
+                         t_ppf_grad=None,
+                         t_ppf_hess=None,
+                         tilt_overshoot=0.037,
+                         **kwargs):
+                print('<<<NonlinearObjective __init__')
+
+                super().__init__(**kwargs)
+                self.target_parameter = target_parameter
+                self.bestfit = bestfit
+                self.direction = direction
+                self.critical_quantile = critical_quantile
+                self.tol_multiplier = tol_multiplier
+
+                ## LOOK HERE
+                #self.critical_value = self.t_ppf(self.critical_quantile)
+                #self.critical_value = fd.wilks_crit(self.critical_quantile)
+
+                if sigma_guess is None:
+                    # Estimate one sigma interval using parabolic approx.
+                    sigma_guess = fd.cov_to_std(
+                        self.lf.inverse_hessian(bestfit)
+                    )[0][self.arg_names.index(self.target_parameter)]
+                self.sigma_guess = sigma_guess
+
+                if t_ppf:
+                    self.t_ppf = t_ppf
+                    assert self.t_ppf_grad is not None
+                    self.t_ppf_grad = t_ppf_grad
+                    if self.use_hessian:
+                        assert self.t_ppf_hess is not None
+                        self.t_ppf_hess = t_ppf_hess
+
+                # TODO: add reference to computation for this
+                # TODO: better first check if it was actually correct!
+                self.tilt = 4 * tilt_overshoot * self.critical_quantile
+
+                # Store bestfit target, maximum likelihood and slope
+                self.bestfit_tp = self.bestfit[self.target_parameter]
+                print('^^^^^ before bad karma')
+                #self.m2ll_best, _grad_at_bestfit = \
+                #                       super()._inner_fun_and_grad(bestfit)[:2]
+                self.m2ll_best, _grad_at_bestfit = self.lf.minus2_ll(
+                    **bestfit,
+                    second_order=self.use_hessian,
+                    omit_grads=tuple(self.fix.keys()))[:2]
+               #
+               # try:
+               #     # for nonlinear but clearly it gives wrong value
+               #     self.m2ll_best, _grad_at_bestfit = self.calc_m2ll_best(bestfit)[:2]
+               # except:
+               #     # for other methods
+               #     self.m2ll_best, _grad_at_bestfit = \
+               #                        super()._inner_fun_and_grad(bestfit)[:2]
+
+                print('after bad karma ^^^^^')
+                self.bestfit_tp_slope = _grad_at_bestfit[self.arg_names.index(self.target_parameter)]
+
+                # Incomplete guess support
+                if self.target_parameter not in self.guess:
+                    # Estimate crossing point from Wilks' theorem
+                    dy = fd.wilks_crit(self.critical_quantile)
+
+                    # Guess the distance to the crossing point
+                    # based on the Hessian
+                    dx_1 = (2 * dy) ** 0.5 * abs(self.sigma_guess)
+
+                    # ... or the slope (for boundary solutions)
+                    if self.bestfit_tp_slope == 0:
+                        dx_2 = float('inf')
+                    else:
+                        dx_2 = abs(dy / self.bestfit_tp_slope)
+
+                    # Take the smaller of the two and add it on the correct side
+                    # TODO: Is the best one always smallest? Don't know...
+                    dx = min(dx_1, dx_2)
+                    tp_guess = max(
+                        fd.LOWER_RATE_MULTIPLIER_BOUND,
+                        self.bestfit_tp + self.direction * dx)
+
+                    if self.target_parameter.endswith('rate_multiplier'):
+                        tp_guess = max(tp_guess, fd.LOWER_RATE_MULTIPLIER_BOUND)
+                else:
+                    tp_guess = self.guess[self.target_parameter]
+
+                # Check guess is in bounds
+                lb, rb = self.bounds.get(self.target_parameter, (None, None))
+                if lb is not None:
+                    assert lb <= tp_guess, f"Guess {tp_guess} below lower bound {lb}"
+                if rb is not None:
+                    assert tp_guess <= rb, f"Guess {tp_guess} above upper bound {rb}"
+
+                self.guess = {**bestfit,
+                              **{self.target_parameter: tp_guess},
+                              **self.guess}
+                print('IntervalObjective __init__>>>')
+
+    def t_ppf(self, target_param_value):
+        """Return critical value given parameter value and critical
+        quantile.
+        Asymptotic case using Wilk's theorem, does not depend
+        on the value of the target parameter."""
+        return fd.wilks_crit(self.critical_quantile)
+
+    def t_ppf_grad(self, target_param_value):
+        """Return derivative of t_ppf wrt target_param_value"""
+        return 0.
+
+    def t_ppf_hess(self, target_param_value):
+        """Return second derivative of t_ppf wrt target_param_value"""
+        return 0.
+
 
 SUPPORTED_INTERVAL_OPTIMIZERS = dict(tfp=TensorFlowIntervalObjective,
                                      minuit=MinuitIntervalObjective,
