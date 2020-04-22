@@ -181,7 +181,7 @@ class Objective:
             result = self.nan_result()
         else:
             result = ObjectiveResult(fun=y, grad=grad, hess=hess)
-        
+
         print('Objective __call__ >>>')
         if self.memoize:
             self._cache[memkey] = result
@@ -312,7 +312,7 @@ class ScipyObjective(Objective):
             **kwargs)
         print('end black magic !!!!!!!!!!!!')
         print('stepping out of ScipyObjective._minimize ***')
-        
+
         '''
         return scipy_optimize.minimize(
             fun=self.fun,
@@ -423,12 +423,14 @@ class NonlinearObjective(Objective):
     defined by likelihood ratio.
     """
 
+    '''
     def calc_m2ll_best(self, bestfit):
         print('<<< NonlinearObjective calc_m2ll_best >>>')
         return self.lf.minus2_ll(
             **bestfit,
             second_order=self.use_hessian,
             omit_grads=tuple(self.fix.keys()))
+    '''
 
     # Callback function to capture intermediate states of optimizer
     def fishPath(self, a, b):
@@ -578,7 +580,7 @@ class IntervalObjective(Objective):
                  tilt_overshoot=0.037,
                  **kwargs):
         print('<<<IntervalObjective __init__')
-        
+
         super().__init__(**kwargs)
         self.target_parameter = target_parameter
         self.bestfit = bestfit
@@ -614,8 +616,11 @@ class IntervalObjective(Objective):
         print('^^^^^ before bad karma')
         #self.m2ll_best, _grad_at_bestfit = \
         #                       super()._inner_fun_and_grad(bestfit)[:2]
-        self.m2ll_best, _grad_at_bestfit = self.calc_m2ll_best(bestfit)[:2]
-       # 
+        self.m2ll_best, _grad_at_bestfit = self.lf.minus2_ll(
+            **bestfit,
+            second_order=self.use_hessian,
+            omit_grads=tuple(self.fix.keys()))[:2]
+       #
        # try:
        #     # for nonlinear but clearly it gives wrong value
        #     self.m2ll_best, _grad_at_bestfit = self.calc_m2ll_best(bestfit)[:2]
