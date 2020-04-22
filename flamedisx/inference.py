@@ -75,6 +75,7 @@ class Objective:
                  return_errors=False,
                  optimizer_kwargs: dict = None,
                  allow_failure=False):
+        print('<<< Objective __init__')
         if guess is None:
             guess = dict()
         if fix is None:
@@ -113,6 +114,7 @@ class Objective:
             if p.endswith('_rate_multiplier'):
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
+        print('Objective __init__>>>')
 
     def _dict_to_array(self, x: dict) -> np.array:
         """Convert from {parameter: value} dictionary to numpy array"""
@@ -132,11 +134,13 @@ class Objective:
             hess=None)
 
     def __call__(self, x):
+        print('<<<Objective __call__')
         """Return (objective, gradient)"""
         memkey = None
         if self.memoize:
             memkey = tuple(x)
             if memkey in self._cache:
+                print('Objective __call__ memkey=%s >>>' % memkey)
                 return self._cache[memkey]
 
         # Check parameters are valid
@@ -145,6 +149,8 @@ class Objective:
             if np.isnan(v):
                 warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
                               OptimizerWarning)
+
+                print('Objective __call__ invalid params >>>')
                 return self.nan_result()
             if k in self.bounds:
                 b = self.bounds[k]
@@ -154,6 +160,7 @@ class Objective:
                         f"Optimizer requested likelihood at {k} = {v}, "
                         f"which is outside the bounds {b}.",
                         OptimizerWarning)
+                    print('Objective __call__ out of bounds >>>')
                     return self.nan_result()
 
         result = self._inner_fun_and_grad(params)
@@ -174,14 +181,15 @@ class Objective:
             result = self.nan_result()
         else:
             result = ObjectiveResult(fun=y, grad=grad, hess=hess)
-
+        
+        print('Objective __call__ >>>')
         if self.memoize:
             self._cache[memkey] = result
         return result
 
     def _inner_fun_and_grad(self, params):
         # Get -2lnL and its gradient
-        print('origin')
+        print('### Objective _inner_fun_and_grad (calling lf.minus2_ll) ###')
         return self.lf.minus2_ll(
             **params,
             second_order=self.use_hessian,
@@ -252,6 +260,7 @@ class Objective:
 
 class ScipyObjective(Objective):
     def _minimize(self):
+        print('*** inside ScipyObjective._minimize')
         if self.return_errors:
             raise NotImplementedError(
                 "Scipy minimizer does not yet support return errors")
@@ -295,11 +304,23 @@ class ScipyObjective(Objective):
                     f"method {kwargs['method']} does not support passing a "
                     "Hessian. Hessian information will not be used.",
                     UserWarning)
+        print('!!!!!!!!!!!! start black magic')
+        sigh =  scipy_optimize.minimize(
+            fun=self.fun,
+            x0=self._dict_to_array(self.guess),
+            jac=self.grad,
+            **kwargs)
+        print('end black magic !!!!!!!!!!!!')
+        print('stepping out of ScipyObjective._minimize ***')
+        
+        '''
         return scipy_optimize.minimize(
             fun=self.fun,
             x0=self._dict_to_array(self.guess),
             jac=self.grad,
             **kwargs)
+        '''
+        return sigh
 
     def parse_result(self, result: scipy_optimize.OptimizeResult):
         if not result.success:
@@ -403,27 +424,12 @@ class NonlinearObjective(Objective):
     """
 
     def calc_m2ll_best(self, bestfit):
+        print('<<< NonlinearObjective calc_m2ll_best >>>')
         return self.lf.minus2_ll(
             **bestfit,
             second_order=self.use_hessian,
             omit_grads=tuple(self.fix.keys()))
 
-    '''
-    # TODO: check that this function is correctly inherited in
-    # NonlinearIntervalObjective
-    # PL: it isn't. but nvm, defining tilt_fun instead.
-    def _inner_fun_and_grad(self, params):
-        # Return function, grad and hess for target parameter
-        # Direction switches between upper and lower limits
-        print('!!!hi i''m called here')
-        return (-1. * self.direction * params[self.target_parameter],
-                np.array([-1. * self.direction]),
-                np.array([[0.]]))
-
-        #return (-1. * self.direction * params[self.target_parameter],
-        #        np.array([-1. * self.direction]),
-        #        np.array([[0.]]))
-    #'''
     # Callback function to capture intermediate states of optimizer
     def fishPath(self, a, b):
         self._callbackbag.append(a)
@@ -432,22 +438,26 @@ class NonlinearObjective(Objective):
         return -1.*x
 
     def _inner_fun_and_grad(self, params):
+        print('### NonlinearObjective _inner_fun_and_grad')
         m2ll, grad, hess = super()._inner_fun_and_grad(params)
-        print('wowo')
+        print('NonlinearObjective _inner_fun_and_grad ###')
         return m2ll - self.m2ll_best - self.t_ppf(params), grad, hess
 
     # TODO: could implement memoization similar to what was done for likelihood
     # in Objective.__call__
     def fun_constraint(self, x):
+        print('@@@ fun_constraint @@@')
         return self(x).fun
 
     def jac_constraint(self, x):
+        print('@@@ jac_constraint @@@')
         return self(x).grad
 
     def hess_constraint(self, x, v):
         # TODO: Must return hessian matrix of dot(fun, v), is that what this
         # does?
         #return v[0]*self._likelihood_ratio(self._array_to_dict(x))[2]
+        print('@@@ hess_constraint @@@')
         return np.dot(self(x).hess, v)
 
 ############### for debug
@@ -468,6 +478,7 @@ class NonlinearObjective(Objective):
 ############### end debug
 
     def _minimize(self):
+        print('*** inside NonlinearObjective._minimize')
         print('Using scipy trust-constr with non-linear constraints')
         if not self.use_hessian:
             warnings.warn( "Non-linear constraint requires the Hessian:",
@@ -477,11 +488,6 @@ class NonlinearObjective(Objective):
         kwargs = self.optimizer_kwargs
         kwargs.setdefault('method', 'trust-constr')
         kwargs.setdefault('options', dict())
-
-        # TODO: Use ppf function from IntervalObjective here
-        # These are functions of target_param so must be moved to
-        # _likelihood_ratio. Maybe substract from ratio and put bounds at 0
-
 
         # elegant code way of doing things
         # TODO: doesn't having the same bounds give numerical instability?
@@ -497,8 +503,6 @@ class NonlinearObjective(Objective):
         lowBnd = 0 #self.critical_value
         upBnd = 0 #self.critical_value
 
-        print('zomg 2:35')
-
         nonLinConstr = NonlinearConstraint(self.fun_constraint,
                                            lowBnd, upBnd,
                                            jac=self.jac_constraint,
@@ -511,6 +515,7 @@ class NonlinearObjective(Objective):
                                            hess=self.giveHess)
         ############### end debug
 
+        '''
         return scipy_optimize.minimize(
             fun=self.tilt_fun, # -x
             #fun=self.fun, # whatever's calculated by _inner_fun_and_grad
@@ -520,6 +525,21 @@ class NonlinearObjective(Objective):
             #constraints=nonLinConstr1, # for testing
             callback=self.fishPath,
             **kwargs)
+            '''
+
+        print('!!!!!!!!!!!! start black magic')
+        sigh = scipy_optimize.minimize(
+            fun=self.tilt_fun, # -x
+            #fun=self.fun, # whatever's calculated by _inner_fun_and_grad
+            jac=self.grad,
+            x0=self._dict_to_array(self.guess),
+            constraints=nonLinConstr,
+            #constraints=nonLinConstr1, # for testing
+            callback=self.fishPath,
+            **kwargs)
+        print('end black magic !!!!!!!!!!!!')
+        print('stepping out of NonlinearObjective._minimize ***')
+        return sigh
 
     def parse_result(self, result: scipy_optimize.OptimizeResult):
         if not result.success:
@@ -557,6 +577,8 @@ class IntervalObjective(Objective):
                  t_ppf_hess=None,
                  tilt_overshoot=0.037,
                  **kwargs):
+        print('<<<IntervalObjective __init__')
+        
         super().__init__(**kwargs)
         self.target_parameter = target_parameter
         self.bestfit = bestfit
@@ -565,7 +587,7 @@ class IntervalObjective(Objective):
         self.tol_multiplier = tol_multiplier
 
         ## LOOK HERE
-        self.critical_value = self.t_ppf(self.critical_quantile)
+        #self.critical_value = self.t_ppf(self.critical_quantile)
         #self.critical_value = fd.wilks_crit(self.critical_quantile)
 
         if sigma_guess is None:
@@ -589,7 +611,20 @@ class IntervalObjective(Objective):
 
         # Store bestfit target, maximum likelihood and slope
         self.bestfit_tp = self.bestfit[self.target_parameter]
-        self.m2ll_best, _grad_at_bestfit = self.calc_m2ll_best(bestfit)
+        print('^^^^^ before bad karma')
+        #self.m2ll_best, _grad_at_bestfit = \
+        #                       super()._inner_fun_and_grad(bestfit)[:2]
+        self.m2ll_best, _grad_at_bestfit = self.calc_m2ll_best(bestfit)[:2]
+       # 
+       # try:
+       #     # for nonlinear but clearly it gives wrong value
+       #     self.m2ll_best, _grad_at_bestfit = self.calc_m2ll_best(bestfit)[:2]
+       # except:
+       #     # for other methods
+       #     self.m2ll_best, _grad_at_bestfit = \
+       #                        super()._inner_fun_and_grad(bestfit)[:2]
+
+        print('after bad karma ^^^^^')
         self.bestfit_tp_slope = _grad_at_bestfit[self.arg_names.index(self.target_parameter)]
 
         # Incomplete guess support
@@ -629,9 +664,13 @@ class IntervalObjective(Objective):
         self.guess = {**bestfit,
                       **{self.target_parameter: tp_guess},
                       **self.guess}
+        print('IntervalObjective __init__>>>')
 
+    '''
     def calc_m2ll_best(self, bestfit):
+        print('<<< IntervalObjective calc_m2ll_best >>>')
         return super()._inner_fun_and_grad(bestfit)[:2]
+    '''
 
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical
@@ -649,7 +688,7 @@ class IntervalObjective(Objective):
         return 0.
 
     def _inner_fun_and_grad(self, params):
-        print('bloody hell')
+        print('### IntervalObjective _inner_fun_and_grad')
         x = params[self.target_parameter]
         x_norm = (x - self.bestfit_tp) / self.sigma_guess
         tp_index = self.arg_names.index(self.target_parameter)
@@ -687,6 +726,7 @@ class IntervalObjective(Objective):
         grad_objective[tp_index] -= self.direction * self.tilt / self.sigma_guess
         # The tilt is linear, so the Hessian is unaffected
 
+        print('IntervalObjective _inner_fun_and_grad ###')
         return objective + self._offset, grad_objective, hess_objective
 
 

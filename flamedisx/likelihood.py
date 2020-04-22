@@ -529,6 +529,7 @@ class LogLikelihood:
         Returns a float (for upper or lower limits)
         or a 2-tuple of floats (for a central interval)
         """
+        print('*** inside limit')
         if optimizer_kwargs is None:
             optimizer_kwargs = dict()
 
@@ -573,6 +574,7 @@ class LogLikelihood:
         result = []
         for req in requested_limits:
             opt = fd.SUPPORTED_INTERVAL_OPTIMIZERS[optimizer]
+            print('*** right before calling optimizer')
             res = opt(
                 # To generic objective
                 lf=self,
@@ -597,11 +599,12 @@ class LogLikelihood:
                 t_ppf_grad=t_ppf_grad,
                 t_ppf_hess=t_ppf_hess,
             ).minimize()
-            #pdb.set_trace()
+            print('right after calling optimizer ***')
             if get_lowlevel_result or get_history:
                 result.append(res)
             else:
                 result.append(res[parameter])
+        print('stepping out of limit ***')
         if len(result) == 1:
             return result[0]
         return result
