@@ -8,7 +8,7 @@ from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-import pdb as pdb
+#import pdb as pdb
 from scipy.optimize import NonlinearConstraint
 
 export, __all__ = fd.exporter()
@@ -414,12 +414,14 @@ class NonlinearObjective(Objective):
         return m2ll - self.m2ll_best - self.t_ppf(params), grad - self.t_ppf_grad(params), hess - self.t_ppf_hess(params)
 
     def tilt_fun(self, x):
-        return -1.*x
+        return -self.direction*x
 
     def hess_constraint(self, x, v):
         # TODO: Must return hessian matrix of dot(fun, v), is that what this
         # does?
-        return np.dot(self(x).hess, v)
+        #pdb.set_trace()
+        #return np.dot(self(x).hess, v)
+        return v[0]*self(x).hess
 
     def _minimize(self):
         print('Using scipy trust-constr with non-linear constraints')
@@ -442,7 +444,7 @@ class NonlinearObjective(Objective):
                                            hess=self.hess_constraint)
 
         return scipy_optimize.minimize(
-            fun=self.tilt_fun, # -x
+            fun=self.tilt_fun,
             jac=self.grad,
             x0=self._dict_to_array(self.guess),
             constraints=nonLinConstr,
@@ -471,7 +473,7 @@ class IntervalObjective(Objective):
     # Add constant offset to objective, so objective is not 0 at the minimum
     # and relative tolerances mean something.
     _offset = 1
-    _callbackbag = []
+    #_callbackbag = []
 
     def __init__(self, *,
                  target_parameter,

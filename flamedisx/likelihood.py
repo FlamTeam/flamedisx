@@ -7,12 +7,6 @@ import pandas as pd
 import tensorflow as tf
 import typing as ty
 
-#### PL
-import pdb as pdb
-import scipy.optimize as spo
-from scipy.optimize import NonlinearConstraint
-#### end PL
-
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
