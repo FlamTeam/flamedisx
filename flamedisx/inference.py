@@ -400,7 +400,9 @@ class NonlinearObjective(Objective):
     """Compute limits on target parameter given nonlinear constraint
     defined by likelihood ratio.
     """
-    
+
+    require_complete_guess = False
+
     # TODO: Fix callback
     # Callback function to capture intermediate states of optimizer
     #def fishPath(self, a, b):
@@ -408,7 +410,7 @@ class NonlinearObjective(Objective):
 
     def _inner_fun_and_grad(self, params):
         # lol who exactly is this Objective._inner_fun_and_grad(self, params)?
-        m2ll, grad, hess = Objective._inner_fun_and_grad(self, params) 
+        m2ll, grad, hess = Objective._inner_fun_and_grad(self, params)
         return m2ll - self.m2ll_best - self.t_ppf(params), grad - self.t_ppf_grad(params), hess - self.t_ppf_hess(params)
 
     def tilt_fun(self, x):
@@ -431,7 +433,7 @@ class NonlinearObjective(Objective):
         kwargs.setdefault('options', dict())
 
         # TODO: doesn't having the same bounds give numerical instability?
-        lowBnd = 0 
+        lowBnd = 0
         upBnd = 0
 
         nonLinConstr = NonlinearConstraint(self.fun,
