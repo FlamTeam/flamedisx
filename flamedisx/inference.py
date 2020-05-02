@@ -8,7 +8,7 @@ from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-#import pdb as pdb
+import pdb as pdb
 from scipy.optimize import NonlinearConstraint
 
 export, __all__ = fd.exporter()
@@ -414,14 +414,16 @@ class NonlinearObjective(Objective):
         return m2ll - self.m2ll_best - self.t_ppf(params), grad - self.t_ppf_grad(params), hess - self.t_ppf_hess(params)
 
     def tilt_fun(self, x):
-        return -self.direction*x
+        # so that we get a scalar back regardless of what nuisance parameters we
+        # might have
+        return -self.direction*x[0]
 
     def hess_constraint(self, x, v):
         # TODO: Must return hessian matrix of dot(fun, v), is that what this
         # does?
         #pdb.set_trace()
         #return np.dot(self(x).hess, v)
-        return v[0]*self(x).hess
+        return v*self(x).hess
 
     def _minimize(self):
         print('Using scipy trust-constr with non-linear constraints')

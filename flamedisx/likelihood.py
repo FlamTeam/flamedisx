@@ -12,7 +12,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 DEFAULT_DSETNAME = 'the_dataset'
 
-
 @export
 class LogLikelihood:
     param_defaults: ty.Dict[str, float]
@@ -136,6 +135,7 @@ class LogLikelihood:
                                  **{p_name: par for p_name, par in common_param_specs.items()
                                  if p_name in defaults_in_sources[sname].keys()})
             for sname, s in self.sources.items()}
+        
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
