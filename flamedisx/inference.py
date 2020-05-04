@@ -8,7 +8,6 @@ from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-import pdb as pdb
 from scipy.optimize import NonlinearConstraint
 
 export, __all__ = fd.exporter()
@@ -416,13 +415,11 @@ class NonlinearObjective(Objective):
     def tilt_fun(self, x):
         # so that we get a scalar back regardless of what nuisance parameters we
         # might have
-        return -self.direction*x[0]
+        return -self.direction*self._array_to_dict(x)[self.target_parameter]
 
     def hess_constraint(self, x, v):
         # TODO: Must return hessian matrix of dot(fun, v), is that what this
         # does?
-        #pdb.set_trace()
-        #return np.dot(self(x).hess, v)
         return v*self(x).hess
 
     def _minimize(self):
