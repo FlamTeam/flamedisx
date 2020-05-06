@@ -8,6 +8,7 @@ from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+import pdb
 from scipy.optimize import NonlinearConstraint
 
 export, __all__ = fd.exporter()
@@ -155,7 +156,6 @@ class Objective:
                         f"which is outside the bounds {b}.",
                         OptimizerWarning)
                     return self.nan_result()
-
         result = self._inner_fun_and_grad(params)
         y = result[0]
         grad = result[1]

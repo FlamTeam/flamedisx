@@ -7,6 +7,7 @@ import pandas as pd
 import tensorflow as tf
 import typing as ty
 
+import pdb
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -67,6 +68,7 @@ class LogLikelihood:
         :param n_trials:
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
+        print('from __init__')
         param_defaults = dict()
 
         if isinstance(data, pd.DataFrame) or data is None:
@@ -238,6 +240,7 @@ class LogLikelihood:
 
     def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
+        print('hey ya from __call__!')
         return self.log_likelihood(second_order=False, **kwargs)[0]
 
     def log_likelihood(self, second_order=False,
@@ -262,7 +265,6 @@ class LogLikelihood:
                     omit_grads=omit_grads,
                     second_order=second_order,
                     **params)
-
                 ll += results[0].numpy().astype(np.float64)
 
                 if len(self.param_names):
@@ -338,7 +340,7 @@ class LogLikelihood:
         # Forward computation
         ll = self._log_likelihood_inner(
             i_batch, params_unstacked, dsetname, data_tensor, batch_info)
-
+        
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]
         if second_order:
@@ -362,6 +364,7 @@ class LogLikelihood:
         # Compute differential rates from all sources
         # drs = list[n_sources] of [n_events] tensors
         drs = tf.zeros((batch_size,), dtype=fd.float_type())
+        #pdb.set_trace()
         for source_i, sname in enumerate(self.sources_in_dset[dsetname]):
             s = self.sources[sname]
             rate_mult = self._get_rate_mult(sname, params)
