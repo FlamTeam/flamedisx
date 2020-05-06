@@ -187,8 +187,18 @@ class Source:
             self._annotate(_skip_bounds_computation=_skip_bounds_computation)
 
         if not _skip_tf_init:
+            self._check_data()
             self._populate_tensor_cache()
             self._calculate_dimsizes()
+
+    def _check_data(self):
+        """Do any final checks on the self.data dataframe,
+        before passing it on to the tensorflow layer.
+        """
+        for column in self.cols_to_cache:
+            if column not in self.data.columns:
+                raise ValueError(f"Data lacks required column {column}; "
+                                 f"did annotation happen correctly?")
 
     def _populate_tensor_cache(self):
 
@@ -210,7 +220,8 @@ class Source:
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
-        """Set data and/or defaults temporarily"""
+        """Set data and/or defaults temporarily, without affecting the
+        data tensor state"""
         if data is None:
             raise ValueError("No point in setting data = None temporarily")
         old_defaults = self.defaults
@@ -227,7 +238,10 @@ class Source:
         finally:
             self.defaults = old_defaults
             if old_data is not None:
-                self.set_data(old_data, _skip_tf_init=True)
+                self.set_data(
+                    old_data,
+                    data_is_annotated=True,
+                    _skip_tf_init=True)
 
     def annotate_data(self, data, _skip_bounds_computation=False, **params):
         """Add columns to data with inference information"""

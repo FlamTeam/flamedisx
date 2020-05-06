@@ -5,9 +5,14 @@ Fast likelihood analysis in more dimensions for xenon TPCs.
 
 [![Build Status](https://travis-ci.org/FlamTeam/flamedisx.svg?branch=master)](https://travis-ci.org/FlamTeam/flamedisx)
 [![DOI](https://zenodo.org/badge/176141558.svg)](https://zenodo.org/badge/latestdoi/176141558)
+[![ArXiv number](https://img.shields.io/badge/physics.ins--det-arXiv%3A2003.12483-%23B31B1B)](https://arxiv.org/abs/2003.12483)
 
 By Jelle Aalbers, Bart Pelssers, and Cristian Antochi
 
+Paper
+-----
+
+See the [paper](https://arxiv.org/abs/2003.12483) for a detailed description of Flamedisx as well as comparisons between Flamedisx and a template based method.
 
 Tutorial and documentation
 ---------------------------
@@ -27,7 +32,3 @@ This has several advantages:
   - Each event has its "private" detector model computation at the observed (x, y, z, time), so it is easy and cheap to add  time- and position dependences to the likelihood.
   - Since the likelihood for a dataset takes O(seconds) to compute, we can do this at each of optimizer's proposed points during inference. We thus remove a histogram precomputation step exponential in the number of parameters, and can thus fit a great deal more parameters.
   - By implementing the signal model in tensorflow, the likelihood becomes differentiable. Using the gradient during fitting drastically reducing the number of needed interactions for a fit or profile likelihood.
-  
-Note this is still under construction / development, so it probably has some bugs and little documentation.
-
-

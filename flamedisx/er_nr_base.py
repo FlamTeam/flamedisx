@@ -75,6 +75,12 @@ class LXeSource(fd.Source):
     spatial_rate_hist = None
     spatial_rate_bin_volumes = None
 
+    # Whether to check efficiencies and acceptances are positive at
+    # the observed events.
+    # This is recommended, but you'll have to turn it off if your
+    # likelihood includes regions where only anomalous sources make events.
+    check_efficiencies = True
+    check_acceptances = True
 
     def __init__(self, *args, **kwargs):
         # Deprecate tpc_radius and tpc_length
@@ -440,6 +446,18 @@ class LXeSource(fd.Source):
                 else self.min_s2_electrons_detected,
                 None)
 
+    def _check_data(self):
+        super()._check_data()
+        if not self.check_acceptances:
+            return
+        for sn in signal_name.values():
+            s_acc = self.gimme(sn + '_acceptance',
+                               data_tensor=None, ptensor=None, numpy_out=True)
+            if np.any(s_acc <= 0):
+                raise ValueError(f"Found event with non-positive {sn} "
+                                 f"acceptance: did you apply and configure "
+                                 "your cuts correctly?")
+
     def _annotate(self, _skip_bounds_computation=False):
         d = self.data
 
@@ -449,10 +467,17 @@ class LXeSource(fd.Source):
             for parname in hidden_vars_per_quanta:
                 fname = qn + '_' + parname
                 try:
-                    d[fname] = self.gimme(fname, data_tensor=None, ptensor=None, numpy_out=True)
+                    d[fname] = self.gimme(fname, data_tensor=None,
+                                          ptensor=None, numpy_out=True)
                 except Exception:
                     print(fname)
                     raise
+            if (self.check_efficiencies
+                    and np.any(d[qn + '_detection_eff'].values <= 0)):
+                raise ValueError(f"Found event with non-positive {qn} "
+                                 "detection efficiency: did you apply and "
+                                 "configure your cuts correctly?")
+
         d['double_pe_fraction'] = self.gimme('double_pe_fraction',
                                              data_tensor=None, ptensor=None,
                                              numpy_out=True)
@@ -535,10 +560,8 @@ class LXeSource(fd.Source):
                 # For detected quanta the MLE is quite accurate
                 # (since fluctuations are tiny)
                 # so let's just use the relative error on the MLE
-                d[qn + '_detected_' + bound] = stats.norm.ppf(
-                    stats.norm.cdf(sign * self.max_sigma),
-                    loc=n,
-                    scale=scale,
+                d[qn + '_detected_' + bound] = (
+                    n + sign * self.max_sigma * scale
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
 
                 # For produced quanta, it is trickier, since the number
@@ -546,10 +569,10 @@ class LXeSource(fd.Source):
                 # TODO: where did this derivation come from again?
                 # TODO: maybe do a second bound based on CES
                 q = 1 / eff
-                d[qn + '_produced_' + bound] = stats.norm.ppf(
-                    stats.norm.cdf(sign * self.max_sigma),
-                    loc=n_prod_mle,
-                    scale=(q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
+                _loc = n_prod_mle
+                _std = (q + (q**2 + 4 * n_prod_mle * q)**0.5)/2
+                d[qn + '_produced_' + bound] = (
+                    _loc + sign * self.max_sigma * _std
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
 
             # Finally, round the detected MLEs
@@ -576,9 +599,9 @@ class LXeSource(fd.Source):
 
         if self.do_pel_fluct:
             d['p_el_fluct'] = gimme('p_electron_fluctuation', d['nq'].values)
-            d['p_el_fluct'] = tf.clip_by_value(d['p_el_fluct'],
-                                               fd.MIN_FLUCTUATION_P,
-                                               1.)
+            d['p_el_fluct'] = np.clip(d['p_el_fluct'].values,
+                                      fd.MIN_FLUCTUATION_P,
+                                      1.)
             d['p_el_actual'] = 1. - stats.beta.rvs(
                 *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
         else:
