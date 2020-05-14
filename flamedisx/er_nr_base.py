@@ -13,6 +13,8 @@ import wimprates as wr
 from scipy import stats
 
 import flamedisx as fd
+
+import pdb
 export, __all__ = fd.exporter()
 
 o = tf.newaxis

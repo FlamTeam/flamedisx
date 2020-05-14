@@ -8,6 +8,7 @@ import tensorflow as tf
 import typing as ty
 
 import pdb
+from IPython import embed
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -340,6 +341,7 @@ class LogLikelihood:
         # Forward computation
         ll = self._log_likelihood_inner(
             i_batch, params_unstacked, dsetname, data_tensor, batch_info)
+        #pdb.set_trace()
         
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]
@@ -376,6 +378,13 @@ class LogLikelihood:
                 # it breaks the Hessian (it will give NaNs)
                 autograph=False,
                 **self._filter_source_kwargs(params, sname))
+
+            #####
+            # how to print values of rate_mult and dr?
+            
+            #tf.print(dr)
+            #print('blah')
+            #pdb.set_trace()
             drs += dr * rate_mult
 
         # Sum over events and remove padding
@@ -383,7 +392,7 @@ class LogLikelihood:
                      batch_size - n_padding,
                      batch_size)
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
-
+        
         # Add mu once (to the first batch)
         # and constraint really only once (to first batch of first dataset)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),

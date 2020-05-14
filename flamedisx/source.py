@@ -302,7 +302,6 @@ class Source:
                     "You must set_data first (and populate the tensor cache)")
 
         f = getattr(self, fname)
-
         if callable(f):
             args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
             if bonus_arg is not None:
@@ -318,7 +317,7 @@ class Source:
             else:
                 x = tf.ones_like(bonus_arg, dtype=fd.float_type())
             res = f * x
-
+            
         if numpy_out:
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
