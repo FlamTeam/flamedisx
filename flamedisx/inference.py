@@ -8,7 +8,6 @@ from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-import pdb
 from scipy.optimize import NonlinearConstraint
 
 export, __all__ = fd.exporter()
