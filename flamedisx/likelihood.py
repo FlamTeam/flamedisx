@@ -547,7 +547,10 @@ class LogLikelihood:
 
         if bestfit is None:
             # Determine global bestfit
-            bestfit = self.bestfit(fix=fix, optimizer=optimizer)
+            if optimizer=='nlin':
+                bestfit = self.bestfit(fix=fix, optimizer='scipy')
+            else:
+                bestfit = self.bestfit(fix=fix, optimizer=optimizer)
 
         lower_bound = None
         if parameter.endswith('rate_multiplier'):
