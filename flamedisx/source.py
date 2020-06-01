@@ -434,7 +434,6 @@ class Source:
         # Estimate mus under the specified variations
         pspaces = dict()    # parameter -> tf.linspace of anchors
         mus = dict()        # parameter -> tensor of mus
-        print('*** start estimate mu ***')
         for pname, pspace_spec in tqdm(param_specs.items(),
                                        desc="Estimating mus"):
             pspaces[pname] = tf.linspace(*pspace_spec)
@@ -442,10 +441,8 @@ class Source:
                  [self.estimate_mu(**{pname: x}, n_trials=n_trials)
                   for x in np.linspace(*pspace_spec)],
                 dtype=fd.float_type())
-            print('pname = %s' % pname)
             for x in np.linspace(*pspace_spec):
                 print(self.estimate_mu(**{pname: x}, n_trials=n_trials))
-        print('*** end estimate mu ***')
 
         def mu_itp(**kwargs):
             mu = base_mu
