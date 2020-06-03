@@ -114,14 +114,21 @@ class Objective:
         self.normed_bounds = dict()
 
         if self.require_complete_guess:
-            # We have the guess and bounds info, use them to define the scaled
-            # coordinates used internally by the optimizers
-            self._guess_vect = self._dict_to_array(self.guess)
-            # Convert bounds to normed space
-            for k, tup in bounds.items():
-                self.normed_bounds[k] = tuple([b / self.guess[k]
-                                               if b is not None else b
-                                               for b in tup])
+            self._process_guess()
+
+    def _process_guess(self):
+        """Part of initialization: perform ones self.guess and self.bounds
+        are set"""
+
+        # We have the guess and bounds info, use them to define the scaled
+        # coordinates used internally by the optimizers.
+        # We always scale with positive numbers, so we don't have to reverse
+        # any bounds.
+        self.scale_vector = np.abs(self._dict_to_array(self.guess))
+        self.scale_vector[self.scale_vector == 0] = 1
+
+        # Convert bounds to normed space
+        self.normed_bounds = self.normalize(self.bounds, 'bounds')
 
     def _dict_to_array(self, x: dict) -> np.array:
         """Convert from {parameter: value} dictionary to numpy array"""
@@ -134,7 +141,54 @@ class Objective:
         return {k: x[i]
                 for i, k in enumerate(self.arg_names)}
 
+    def normalize(self,
+                  x: ty.Union[dict, np.ndarray],
+                  input_kind='parameters',
+                  _reverse=True):
+        """Convert parameters or gradients to normalized space,
+        for use inside the optimizer.
+
+        :param x: Object to transform
+        :param input_kind: Kind of object. Choose:
+          - parameters (default),
+          - gradient
+          - hessian
+          - bounds
+        """
+        scale = self.scale_vector
+        if _reverse:
+            scale = 1 / scale
+
+        if x is None:
+            return x
+
+        if input_kind == 'parameters':
+            if isinstance(x, dict):
+                return self._array_to_dict(self._dict_to_array(x) / scale)
+            return x / scale
+
+        if input_kind == 'gradient':
+            # d / dx -> reversed scaling
+            return x * scale
+
+        if input_kind == 'hessian':
+            return x * np.outer(scale, scale)
+
+        if input_kind == 'bounds':
+            scale_dict = self._array_to_dict(scale)
+            return {
+                k: tuple([b / scale_dict[k]
+                          if b is not None else None
+                          for b in tuple_of_bounds])
+                for k, tuple_of_bounds in x.items()}
+
+        raise ValueError(f'Unknown input kind {input_kind}')
+
+    def restore_scale(self, x, input_kind='parameters'):
+        return self.normalize(x, input_kind, _reverse=True)
+
     def nan_result(self):
+        """Return ObjectiveResult with all values NaN"""
         n = len(self.arg_names)
         if self.use_hessian:
             return ObjectiveResult(
@@ -163,7 +217,7 @@ class Objective:
         """
 
         # Convert the normalized input back to physical values
-        x = x_norm * self._guess_vect
+        x = self.restore_scale(x_norm)
 
         memkey = None
         if self.memoize:
@@ -190,14 +244,14 @@ class Objective:
 
         result = self._inner_fun_and_grad(params)
 
-        # Convert result gradient and hessian back to normalized space
+        # Convert result gradient and hessian to normalized space
+        # for the optimizer
         y = result[0]
-        grad = result[1] * self._guess_vect
-        hess = None
+        grad = self.normalize(result[1], 'gradient')
         if self.use_hessian:
-            hess = result[2] * tf.linalg.tensordot(self._guess_vect,
-                                                   self._guess_vect,
-                                                   axes=0)
+            hess = self.normalize(result[2], 'hessian')
+        else:
+            hess = None
 
         if self.return_history:
             self._history.append(dict(params=params, y=y,
@@ -281,6 +335,9 @@ class Objective:
         # TODO: return ll_val, use it
         return result
 
+    def _minimize(self):
+        raise NotImplementedError
+
     def fail(self, message):
         if self.allow_failure:
             warnings.warn(message, OptimizerWarning)
@@ -343,8 +400,7 @@ class ScipyObjective(Objective):
         if not result.success:
             self.fail(f"Scipy optimizer failed: "
                       f"status = {result.status}: {result.message}")
-        return dict(zip(self.arg_names,
-                        result.x * self._guess_vect)), result.fun
+        return self._array_to_dict(self.restore_scale(result.x)), result.fun
 
 
 class TensorFlowObjective(Objective):
@@ -372,7 +428,7 @@ class TensorFlowObjective(Objective):
 
         kwargs = self.optimizer_kwargs
 
-        x_guess = fd.np_to_tf(np.ones(len(self._guess_vect)))
+        x_guess = fd.np_to_tf(self._dict_to_array(self.normalize(self.guess)))
 
         return tfp.optimizer.bfgs_minimize(
             self.fun_and_grad,
@@ -383,8 +439,8 @@ class TensorFlowObjective(Objective):
     def parse_result(self, result):
         if result.failed:
             self.fail(f"TFP optimizer failed! Result: {result}")
-        return (dict(zip(self.arg_names,
-                         fd.tf_to_np(result.position) * self._guess_vect)),
+        return (self._array_to_dict(self.restore_scale(fd.tf_to_np(
+                    result.position))),
                 result.objective_value)
 
     def fun_and_grad(self, x):
@@ -402,7 +458,7 @@ class MinuitObjective(Objective):
 
         kwargs = self.optimizer_kwargs
 
-        x_guess = np.ones(len(self._guess_vect))
+        x_guess = self._dict_to_array(self.normalize(self.guess))
         kwargs.setdefault('error',
                           np.maximum(x_guess * 0.1,
                                      1e-3 * np.ones_like(x_guess)))
@@ -435,8 +491,9 @@ class MinuitObjective(Objective):
                 message += " Estimated distance to minimum too large. "
             self.fail(message)
 
-        position = {k: result.fitarg[k] * self._guess_vect[i]
+        position = {k: result.fitarg[k]
                     for i, k in enumerate(self.arg_names)}
+        position = self.restore_scale(position)
         return position, result.fval
 
 
@@ -541,13 +598,7 @@ class IntervalObjective(Objective):
         self.guess = {**bestfit,
                       **{self.target_parameter: tp_guess},
                       **self.guess}
-        self._guess_vect = self._dict_to_array(self.guess)
-        # Convert bounds to normed space
-        self.normed_bounds = dict()
-        for k, tup in self.bounds.items():
-            self.normed_bounds[k] = tuple([b / self.guess[k]
-                                           if b is not None else b
-                                           for b in tup])
+        self._process_guess()
 
 
     def t_ppf(self, target_param_value):
