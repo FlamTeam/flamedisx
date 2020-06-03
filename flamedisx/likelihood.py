@@ -170,6 +170,7 @@ class LogLikelihood:
                 return
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=np.int)
+        adjusted_rate_for = {d: False for d in self.dsetnames}
 
         for sname, source in self.sources.items():
             dname = self.dset_for_source[sname]
@@ -180,9 +181,25 @@ class LogLikelihood:
             # Copy ensures annotations don't clobber
             source.set_data(deepcopy(data[dname]))
 
+            # Update batch info
             dset_index = self.dsetnames.index(dname)
             batch_info[dset_index, :] = [
                 source.n_batches, source.batch_size, source.n_padding]
+
+            # If the rate is free, update the rate multiplier default
+            # (i.e. the fallback guess) once per dataset.
+            # That is, our guess will be that the first free source produces
+            # enough events to explain the observed event count.
+            rmname = sname + '_rate_multiplier'
+            if rmname in self.param_names and not adjusted_rate_for[dname]:
+                mu_dset = self.mu(dsetname=dname)
+                mu_source = self.mu(source=sname)
+                mu_others = mu_dset - mu_source
+                n_observed = len(data[dname])
+                self.param_defaults[rmname] *= (
+                        (n_observed - mu_others) / mu_source)
+                adjusted_rate_for[dname] = True
+                print("Adjusted rate parameter guess to ", self.param_defaults[rmname])
 
         self.batch_info = tf.convert_to_tensor(batch_info, dtype=fd.int_type())
 
@@ -289,8 +306,8 @@ class LogLikelihood:
 
     def _get_rate_mult(self, sname, kwargs):
         rmname = sname + '_rate_multiplier'
-        if rmname in self.param_names and rmname in kwargs:
-            return kwargs[rmname]
+        if rmname in self.param_names:
+            return kwargs.get(rmname, self.param_defaults[rmname])
         return tf.constant(1., dtype=fd.float_type())
 
     def _source_kwargnames(self, source_name):
@@ -309,10 +326,21 @@ class LogLikelihood:
         """Return index of parameter pname"""
         return self.param_names.index(pname)
 
-    def mu(self, dsetname, **kwargs):
+    def mu(self, dsetname=None, source=None, **kwargs):
+        """Return expected number of events
+        :param dsetname: ... for just this dataset
+        :param source: ... for just this source.
+        You must provide either dsetname or source, since it makes no sense to
+        add events from multiple dataset
+        """
+        kwargs = {**self.param_defaults, **kwargs}
+        if dsetname is None and source is None:
+            raise ValueError("Provide either dsetname or source")
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
-            if self.dset_for_source[sname] != dsetname:
+            if dsetname is not None and self.dset_for_source[sname] != dsetname:
+                continue
+            if source is not None and sname != source:
                 continue
             mu += (self._get_rate_mult(sname, kwargs)
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
@@ -385,7 +413,7 @@ class LogLikelihood:
         # Add mu once (to the first batch)
         # and constraint really only once (to first batch of first dataset)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       -self.mu(dsetname, **params)
+                       -self.mu(dsetname=dsetname, **params)
                            + (self.log_constraint(**params)
                               if dsetname == self.dsetnames[0] else 0.),
                        0.)
