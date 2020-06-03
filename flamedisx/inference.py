@@ -190,16 +190,11 @@ class Objective:
     def nan_result(self):
         """Return ObjectiveResult with all values NaN"""
         n = len(self.arg_names)
-        if self.use_hessian:
-            return ObjectiveResult(
-                fun=self.nan_val,
-                grad=np.ones(n) * float('nan'),
-                hess=np.ones((n, n)) * float('nan'))
-        else:
-            return ObjectiveResult(
-                fun=self.nan_val,
-                grad=np.ones(n) * float('nan'),
-                hess=None)
+        return ObjectiveResult(
+            fun=self.nan_val,
+            grad=np.ones(n) * float('nan'),
+            hess=(np.ones((n, n)) * float('nan')
+                  if self.use_hessian else None))
 
     def __call__(self, x_norm):
         """Evaluate the objective function defined in _inner_fun_and_grad.
