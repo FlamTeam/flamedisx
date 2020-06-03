@@ -199,7 +199,6 @@ class LogLikelihood:
                 self.param_defaults[rmname] *= (
                         (n_observed - mu_others) / mu_source)
                 adjusted_rate_for[dname] = True
-                print("Adjusted rate parameter guess to ", self.param_defaults[rmname])
 
         self.batch_info = tf.convert_to_tensor(batch_info, dtype=fd.int_type())
 
