@@ -144,7 +144,7 @@ class Objective:
     def normalize(self,
                   x: ty.Union[dict, np.ndarray],
                   input_kind='parameters',
-                  _reverse=True):
+                  _reverse=False):
         """Convert parameters or gradients to normalized space,
         for use inside the optimizer.
 
@@ -599,7 +599,6 @@ class IntervalObjective(Objective):
                       **{self.target_parameter: tp_guess},
                       **self.guess}
         self._process_guess()
-
 
     def t_ppf(self, target_param_value):
         """Return critical value given parameter value and critical
