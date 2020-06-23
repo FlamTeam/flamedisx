@@ -7,7 +7,6 @@ from multihist import Hist1d
 import wimprates
 
 import flamedisx as fd
-import pdb
 
 export, __all__ = fd.exporter()
 
