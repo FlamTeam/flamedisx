@@ -7,6 +7,7 @@ from multihist import Hist1d
 import wimprates
 
 import flamedisx as fd
+import pdb
 
 export, __all__ = fd.exporter()
 
@@ -29,7 +30,7 @@ s1_map, s2_map = [
 
 
 class SR1Source:
-    drift_velocity = 1.335 * 1e-4   # cm/ns
+    drift_velocity = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -53,7 +54,7 @@ class SR1Source:
                           d['z'].values]))
 
     @staticmethod
-    def electron_detection_eff(drift_time, *, elife=650e3, extraction_eff=0.96):
+    def electron_detection_eff(drift_time, *, elife=641e3, extraction_eff=0.96):
         #TODO: include function for elife time dependency
         return extraction_eff * tf.exp(-drift_time / elife)
 
@@ -84,10 +85,9 @@ class SR1Source:
 class SR1ERSource(SR1Source,fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, W=13.8e-3, mean_nexni=0.135,  q0=1.13, q1=0.47,
+    def p_electron(nq, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
-
         F = tf.constant(81.,dtype=fd.float_type())
 
         e_kev = nq * W
@@ -110,6 +110,30 @@ class SR1ERSource(SR1Source,fd.ERSource):
         return tf.clip_by_value(q2 * (tf.constant(1.,dtype=fd.float_type()) - tf.exp(-nq / q3_nq)),
                                 tf.constant(1e-4,dtype=fd.float_type()),
                                 float('inf'))
+
+    @staticmethod
+    def s1_acceptance(s1, photon_detection_eff, photon_gain_mean,
+                      mean_eff=0.142 / (1 + 0.219), cs1_min=3, cs1_max=70):
+        print('s1_acceptance: cs1 min = %i, cs1 max = %f' % (cs1_min, cs1_max))
+        cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
+        return tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
+                        tf.ones_like(s1, dtype=fd.float_type()),
+                        tf.zeros_like(s1, dtype=fd.float_type()))
+
+    @staticmethod
+    def s2_acceptance(s2, electron_detection_eff, electron_gain_mean,
+        cs2b_min=50.1, cs2b_max=7940):
+        #cs2b_min=50.1, cs2b_max=2500):
+        #mean_eff=11.4/0.96, cs2b_min=50.1, cs2b_max=7940):
+        print('s2_acceptance: cs2b min = %i, cs2b max = %f' % (cs2b_min, cs2b_max))
+        print('3:15')
+        #cs2 = (11.4/(1-0.63)/0.96) * s2 / (electron_detection_eff*electron_gain_mean)
+        #cs2 = mean_eff * s2 / (electron_detection_eff*electron_gain_mean)
+        cs2 = (11.4/0.96) * s2 / (electron_detection_eff*electron_gain_mean)
+
+        return tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+                        tf.ones_like(s2, dtype=fd.float_type()),
+                        tf.zeros_like(s2, dtype=fd.float_type()))
 
 @export
 class SR1NRSource(SR1Source, fd.NRSource):
