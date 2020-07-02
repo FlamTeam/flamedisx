@@ -694,10 +694,13 @@ class ERSource(LXeSource):
     def _single_spectrum(self):
         """Return (energies in keV, rate at these energies),
         """
+        fac = 7.
+        print('lala fac %f' % fac)
+        nBins = int(fac*1000) # Keeping no. bins constant at 1000 bins per 10 keV
         return (tf.dtypes.cast(
-                    tf.linspace(0., 10., 1000),
+                    tf.linspace(0., fac*10., nBins),
                     dtype=fd.float_type()),
-                tf.ones(1000, dtype=fd.float_type()))
+                tf.ones(nBins, dtype=fd.float_type()))
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
