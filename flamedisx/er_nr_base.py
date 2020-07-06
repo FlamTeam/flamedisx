@@ -29,6 +29,7 @@ special_data_methods = [
     'penning_quenching_eff'
 ]
 
+#
 data_methods = (
     special_data_methods
     + ['energy_spectrum', 'work', 'double_pe_fraction',
@@ -695,7 +696,6 @@ class ERSource(LXeSource):
         """Return (energies in keV, rate at these energies),
         """
         fac = 7.
-        print('lala fac %f' % fac)
         nBins = int(fac*1000) # Keeping no. bins constant at 1000 bins per 10 keV
         return (tf.dtypes.cast(
                     tf.linspace(0., fac*10., nBins),
