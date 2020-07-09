@@ -354,7 +354,7 @@ class ScipyObjective(Objective):
         # TODO implement optimizer methods to use the Hessian,
         # see https://github.com/FlamTeam/flamedisx/pull/60#discussion_r354832569
 
-        kwargs: ty.Dict[str, ty.Any] = self.optimizer_kwargs
+        kwargs: ty.Dict[str, ty.Any] = self._scipy_minizer_options()
 
         if self.use_hessian:
             # Of all scipy-optimize methods, only trust-constr takes
@@ -362,10 +362,6 @@ class ScipyObjective(Objective):
             kwargs.setdefault('method', 'trust-constr')
         else:
             kwargs.setdefault('method', 'TNC')
-
-        kwargs['bounds'] = [self.normed_bounds.get(x, (None, None))
-                            for x in self.arg_names]
-        kwargs.setdefault('options', dict())
 
         # The underlying tensorflow computation has float32 precision,
         # so we have to adjust the precision options
@@ -393,6 +389,16 @@ class ScipyObjective(Objective):
             x0=np.ones(len(self.arg_names)),
             jac=self.grad,
             **kwargs)
+
+    def _scipy_minizer_options(self):
+        """Return dictionary with scipy minimizer options
+        """
+        # Also needed in NonlinearIntervalObjective
+        kwargs = self.optimizer_kwargs
+        kwargs.setdefault('options', dict())
+        kwargs['bounds'] = [self.normed_bounds.get(x, (None, None))
+                            for x in self.arg_names]
+        return kwargs
 
     def parse_result(self, result: scipy_optimize.OptimizeResult):
         if not result.success:
@@ -494,67 +500,6 @@ class MinuitObjective(Objective):
         position = self.restore_scale(position)
         return position, result.fval
 
-
-class NonlinearObjective(Objective):
-    """Compute limits on target parameter given nonlinear constraint
-    defined by likelihood ratio.
-    """
-
-    require_complete_guess = False
-
-    # TODO: Fix callback
-    # Callback function to capture intermediate states of optimizer
-    #def fishPath(self, a, b):
-    #    self._callbackbag.append(a)
-
-    def _inner_fun_and_grad(self, params):
-        # lol who exactly is this Objective._inner_fun_and_grad(self, params)?
-        m2ll, grad, hess = Objective._inner_fun_and_grad(self, params)
-        return m2ll - self.m2ll_best - self.t_ppf(params), grad - self.t_ppf_grad(params), hess - self.t_ppf_hess(params)
-
-    def tilt_fun(self, x):
-        # so that we get a scalar back regardless of what nuisance parameters we
-        # might have
-        return -self.direction*self._array_to_dict(x)[self.target_parameter]
-
-    def hess_constraint(self, x, v):
-        # TODO: Must return hessian matrix of dot(fun, v), is that what this
-        # does?
-        return v*self(x).hess
-
-    def _minimize(self):
-        print('Using scipy trust-constr with non-linear constraints')
-        if not self.use_hessian:
-            warnings.warn( "Non-linear constraint requires the Hessian:",
-                UserWarning)
-            self.use_hessian = True
-
-        kwargs = self.optimizer_kwargs
-        kwargs.setdefault('method', 'trust-constr')
-        kwargs.setdefault('options', dict())
-
-        # TODO: doesn't having the same bounds give numerical instability?
-        lowBnd = 0
-        upBnd = 0
-
-        nonLinConstr = NonlinearConstraint(self.fun,
-                                           lowBnd, upBnd,
-                                           jac=self.grad,
-                                           hess=self.hess_constraint)
-
-        return scipy_optimize.minimize(
-            fun=self.tilt_fun,
-            jac=self.grad,
-            x0=self._dict_to_array(self.guess),
-            constraints=nonLinConstr,
-            #callback=self.fishPath,
-            **kwargs)
-
-    def parse_result(self, result: scipy_optimize.OptimizeResult):
-        if not result.success:
-            self.fail('Scipy trust-constr failed booo, status: %s, message:%s' % \
-                    (result.status, result.message))
-        return dict(zip(self.arg_names, result.x)), result.fun
 
 SUPPORTED_OPTIMIZERS = dict(tfp=TensorFlowObjective,
                             minuit=MinuitObjective,
@@ -723,104 +668,51 @@ class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
 class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
 
-class NonlinearIntervalObjective(NonlinearObjective):
+class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy trust-constr optimizer with non-linear
     constraints"""
-    def __init__(self, *,
-                         target_parameter,
-                         bestfit,
-                         direction: int,
-                         critical_quantile,
-                         tol_multiplier=1.,
-                         sigma_guess=None,
-                         t_ppf=None,
-                         t_ppf_grad=None,
-                         t_ppf_hess=None,
-                         tilt_overshoot=0.037,
-                         **kwargs):
 
-                super().__init__(**kwargs)
-                self.target_parameter = target_parameter
-                self.bestfit = bestfit
-                self.direction = direction
-                self.critical_quantile = critical_quantile
-                self.tol_multiplier = tol_multiplier
+    def _inner_fun_and_grad(self, params):
+        # Bypass the parbolic tilt function in IntervalObjective
+        m2ll, grad, hess = Objective._inner_fun_and_grad(self, params)
+        return (m2ll - self.m2ll_best - self.t_ppf(params),
+                grad - self.t_ppf_grad(params), hess - self.t_ppf_hess(params))
 
-                if sigma_guess is None:
-                    # Estimate one sigma interval using parabolic approx.
-                    sigma_guess = fd.cov_to_std(
-                        self.lf.inverse_hessian(bestfit)
-                    )[0][self.arg_names.index(self.target_parameter)]
-                self.sigma_guess = sigma_guess
+    def tilt_fun(self, x):
+        # Ensure we get a scalar back regardless of what nuisance parameters we
+        # might have
+        return -self.direction * self._array_to_dict(x)[self.target_parameter]
 
-                if t_ppf:
-                    self.t_ppf = t_ppf
-                    assert self.t_ppf_grad is not None
-                    self.t_ppf_grad = t_ppf_grad
-                    if self.use_hessian:
-                        assert self.t_ppf_hess is not None
-                        self.t_ppf_hess = t_ppf_hess
+    def hess_constraint(self, x, v):
+        return v * self(x).hess
 
-                # Store bestfit target, maximum likelihood and slope
-                self.bestfit_tp = self.bestfit[self.target_parameter]
-                self.m2ll_best, _grad_at_bestfit = self.lf.minus2_ll(
-                    **bestfit,
-                    second_order=self.use_hessian,
-                    omit_grads=tuple(self.fix.keys()))[:2]
-                self.bestfit_tp_slope = _grad_at_bestfit[self.arg_names.index(self.target_parameter)]
+    def _minimize(self):
+        if not self.use_hessian:
+            warnings.warn(
+                "Non-linear constraint requires the Hessian:",
+                UserWarning)
+            self.use_hessian = True
 
-                # Incomplete guess support
-                if self.target_parameter not in self.guess:
-                    # Estimate crossing point from Wilks' theorem
-                    dy = fd.wilks_crit(self.critical_quantile)
+        kwargs = self._scipy_minizer_options()
+        kwargs['method'] = 'trust-constr'
 
-                    # Guess the distance to the crossing point
-                    # based on the Hessian
-                    dx_1 = (2 * dy) ** 0.5 * abs(self.sigma_guess)
+        constraint = NonlinearConstraint(
+            fun=self.fun,
+            # The constraint is self.fun == 0
+            # TODO: does having the same bounds give numerical instability?
+            lb=0,
+            ub=0,
+            jac=self.grad,
+            hess=self.hess_constraint)
 
-                    # ... or the slope (for boundary solutions)
-                    if self.bestfit_tp_slope == 0:
-                        dx_2 = float('inf')
-                    else:
-                        dx_2 = abs(dy / self.bestfit_tp_slope)
+        return scipy_optimize.minimize(
+            fun=self.tilt_fun,
+            jac=self.grad,
+            # The minimizer operates in scaled coordinates
+            x0=np.ones(len(self.arg_names)),
+            constraints=constraint,
+            **kwargs)
 
-                    # Take the smaller of the two and add it on the correct side
-                    # TODO: Is the best one always smallest? Don't know...
-                    dx = min(dx_1, dx_2)
-                    tp_guess = max(
-                        fd.LOWER_RATE_MULTIPLIER_BOUND,
-                        self.bestfit_tp + self.direction * dx)
-
-                    if self.target_parameter.endswith('rate_multiplier'):
-                        tp_guess = max(tp_guess, fd.LOWER_RATE_MULTIPLIER_BOUND)
-                else:
-                    tp_guess = self.guess[self.target_parameter]
-
-                # Check guess is in bounds
-                lb, rb = self.bounds.get(self.target_parameter, (None, None))
-                if lb is not None:
-                    assert lb <= tp_guess, f"Guess {tp_guess} below lower bound {lb}"
-                if rb is not None:
-                    assert tp_guess <= rb, f"Guess {tp_guess} above upper bound {rb}"
-
-                self.guess = {**bestfit,
-                              **{self.target_parameter: tp_guess},
-                              **self.guess}
-
-    def t_ppf(self, target_param_value):
-        """Return critical value given parameter value and critical
-        quantile.
-        Asymptotic case using Wilk's theorem, does not depend
-        on the value of the target parameter."""
-        return fd.wilks_crit(self.critical_quantile)
-
-    def t_ppf_grad(self, target_param_value):
-        """Return derivative of t_ppf wrt target_param_value"""
-        return 0.
-
-    def t_ppf_hess(self, target_param_value):
-        """Return second derivative of t_ppf wrt target_param_value"""
-        return 0.
 
 
 SUPPORTED_INTERVAL_OPTIMIZERS = dict(tfp=TensorFlowIntervalObjective,

@@ -14,41 +14,29 @@ def test_one_parameter_interval_nonlincontr(xes):
         free_rates='er',
         data=xes.data)
 
-    guess = lf.guess()
-    # Set reasonable rate
-    # Evaluate the likelihood curve around the minimum
-    xs_er = np.linspace(0.001, 0.004, 20)  # ER source range
-    xs_nr = np.linspace(0.04, 0.1, 20)  # NR source range
-    xs = list(xs_er) + list(xs_nr)
-    ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
-    guess['er_rate_multiplier'] = xs[np.argmin(ys)]
-    assert len(guess) == 2
-
     # First find global best so we can check intervals
-    bestfit = lf.bestfit(guess,
-                         optimizer='scipy')
+    bestfit = lf.bestfit(optimizer='scipy',
+                         optimizer_kwargs=dict(options=dict(verbose=3)))
 
-    ul = lf.limit('er_rate_multiplier', bestfit,
+    kwargs = dict(parameter='er_rate_multiplier',
+                  bestfit=bestfit,
                   optimizer='nlin',
-                  confidence_level=0.9, kind='upper')
+                  optimizer_kwargs=dict(options=dict(verbose=3)),
+                  confidence_level=0.9)
+
+    ul = lf.limit(**kwargs, kind='upper')
     assert ul > bestfit['er_rate_multiplier']
 
-    ll = lf.limit('er_rate_multiplier', bestfit,
-                  optimizer='nlin',
-                  confidence_level=0.9, kind='lower')
+    ll = lf.limit(**kwargs, kind='lower')
     assert ll < bestfit['er_rate_multiplier']
 
-    ll, ul = lf.limit('er_rate_multiplier', bestfit,
-                      optimizer='nlin',
-                      confidence_level=0.9, kind='central')
+    ll, ul = lf.limit(**kwargs, kind='central')
     assert ll < bestfit['er_rate_multiplier'] < ul
 
     # Test fixed parameter
     fix = dict(elife=bestfit['elife'])
 
-    ul = lf.limit('er_rate_multiplier', bestfit, fix=fix,
-                  optimizer='nlin',
-                  confidence_level=0.9, kind='upper')
+    ul = lf.limit(**kwargs, fix=fix, kind='upper')
     assert bestfit['er_rate_multiplier'] < ul
 
 
