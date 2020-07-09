@@ -261,6 +261,10 @@ class Objective:
             warnings.warn(f"Objective at {x} has NaN gradient {grad}",
                           OptimizerWarning)
             result = self.nan_result()
+        elif hess is not None and np.any(np.isnan(hess)):
+            warnings.warn(f"Objective at {x} has NaN Hessian {hess}",
+                          OptimizerWarning)
+            result = self.nan_result()
         else:
             result = ObjectiveResult(fun=y, grad=grad, hess=hess)
 
@@ -673,10 +677,11 @@ class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
     constraints"""
 
     def _inner_fun_and_grad(self, params):
-        # Bypass the parbolic tilt function in IntervalObjective
+        # Bypass the parabolic tilt function in IntervalObjective
         m2ll, grad, hess = Objective._inner_fun_and_grad(self, params)
         return (m2ll - self.m2ll_best - self.t_ppf(params),
-                grad - self.t_ppf_grad(params), hess - self.t_ppf_hess(params))
+                grad - self.t_ppf_grad(params),
+                hess - self.t_ppf_hess(params))
 
     def tilt_fun(self, x):
         # Ensure we get a scalar back regardless of what nuisance parameters we
@@ -687,14 +692,12 @@ class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
         return v * self(x).hess
 
     def _minimize(self):
-        if not self.use_hessian:
-            warnings.warn(
-                "Non-linear constraint requires the Hessian:",
-                UserWarning)
-            self.use_hessian = True
-
         kwargs = self._scipy_minizer_options()
         kwargs['method'] = 'trust-constr'
+        # The default trust radius of 1 seems too large for some problems,
+        # it immediately jumps to values giving NaN results in the constraint,
+        # which this optimizer cannot handle
+        kwargs['options'].setdefault('initial_tr_radius', 0.1)
 
         constraint = NonlinearConstraint(
             fun=self.fun,
@@ -703,7 +706,7 @@ class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
             lb=0,
             ub=0,
             jac=self.grad,
-            hess=self.hess_constraint)
+            hess=self.hess_constraint if self.use_hessian else None)
 
         return scipy_optimize.minimize(
             fun=self.tilt_fun,
