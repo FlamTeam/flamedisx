@@ -113,8 +113,7 @@ def test_bestfit_minuit(xes):
 
     bestfit = lf.bestfit(guess, optimizer='minuit',
                          return_errors=True,
-                         use_hessian=False,
-                         optimizer_kwargs=dict(error=(0.0001, 1000)))
+                         use_hessian=False)
     assert isinstance(bestfit[0], dict)
     assert len(bestfit[0]) == 2
 
