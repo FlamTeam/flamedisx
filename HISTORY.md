@@ -1,7 +1,15 @@
+1.1.0 / 2020-07-09
+------------------
+- Nonlinear constraint limit setting (experimental) (#70)
+- Dimension scaling inside optimizers (#72)
+- Auto-guess rate multipliers (#74)
+- Python 3.8 builds (#73)
+- Add sanity checks on input and guess (#69)
+
 1.0.0 / 2020-03-26
 ------------------
 - Fiducial volume specification (#64)
-- added default cS1 cut (#63)
+- Added default cS1 cut (#63)
 - Cleanup and optimizations (#63, #64, #65)
 
 0.5.0 / 2020-01-31
