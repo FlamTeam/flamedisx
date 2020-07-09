@@ -435,13 +435,17 @@ class Source:
         # Estimate mus under the specified variations
         pspaces = dict()    # parameter -> tf.linspace of anchors
         mus = dict()        # parameter -> tensor of mus
-        for pname, pspace_spec in tqdm(param_specs.items(),
+        for pname, (start, stop, n) in tqdm(param_specs.items(),
                                        desc="Estimating mus"):
-            pspaces[pname] = tf.linspace(*pspace_spec)
+            # Parameters are floats, but users might input ints as anchors
+            # accidentally, triggering a confusing tensorflow device placement
+            # message
+            start, stop = float(start), float(stop)
+            pspaces[pname] = tf.linspace(start, stop, n)
             mus[pname] = tf.convert_to_tensor(
                  [self.estimate_mu(**{pname: x}, n_trials=n_trials)
-                  for x in np.linspace(*pspace_spec)],
-                dtype=fd.float_type())
+                  for x in np.linspace(start, stop, n)],
+                 dtype=fd.float_type())
 
         def mu_itp(**kwargs):
             mu = base_mu
