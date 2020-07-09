@@ -666,11 +666,14 @@ class IntervalObjective(Objective):
 class TensorFlowIntervalObjective(IntervalObjective, TensorFlowObjective):
     """IntervalObjective using TensorFlow optimizer"""
 
+
 class MinuitIntervalObjective(IntervalObjective, MinuitObjective):
     """IntervalObjective using Minuit optimizer"""
 
+
 class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
+
 
 class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy trust-constr optimizer with non-linear
@@ -717,7 +720,6 @@ class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
             x0=np.ones(n),
             constraints=constraint,
             **kwargs)
-
 
 
 SUPPORTED_INTERVAL_OPTIMIZERS = dict(tfp=TensorFlowIntervalObjective,
