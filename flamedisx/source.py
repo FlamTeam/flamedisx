@@ -13,7 +13,7 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-import pdb
+
 @export
 class Source:
     n_batches = None
@@ -302,6 +302,7 @@ class Source:
                     "You must set_data first (and populate the tensor cache)")
 
         f = getattr(self, fname)
+
         if callable(f):
             args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
             if bonus_arg is not None:
@@ -317,7 +318,7 @@ class Source:
             else:
                 x = tf.ones_like(bonus_arg, dtype=fd.float_type())
             res = f * x
-            
+
         if numpy_out:
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
@@ -441,8 +442,6 @@ class Source:
                  [self.estimate_mu(**{pname: x}, n_trials=n_trials)
                   for x in np.linspace(*pspace_spec)],
                 dtype=fd.float_type())
-            for x in np.linspace(*pspace_spec):
-                print(self.estimate_mu(**{pname: x}, n_trials=n_trials))
 
         def mu_itp(**kwargs):
             mu = base_mu

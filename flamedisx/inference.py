@@ -144,7 +144,6 @@ class Objective:
             if np.isnan(v):
                 warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
                               OptimizerWarning)
-
                 return self.nan_result()
             if k in self.bounds:
                 b = self.bounds[k]
@@ -155,6 +154,7 @@ class Objective:
                         f"which is outside the bounds {b}.",
                         OptimizerWarning)
                     return self.nan_result()
+
         result = self._inner_fun_and_grad(params)
         y = result[0]
         grad = result[1]
@@ -249,6 +249,7 @@ class Objective:
 
 
 class ScipyObjective(Objective):
+
     def _minimize(self):
         if self.return_errors:
             raise NotImplementedError(
@@ -263,10 +264,8 @@ class ScipyObjective(Objective):
             # Of all scipy-optimize methods, only trust-constr takes
             # both a Hessian and bounds argument.
             kwargs.setdefault('method', 'trust-constr')
-            print('Using scipy trust-constr')
         else:
             kwargs.setdefault('method', 'TNC')
-            print('Using scipy TNC')
 
         kwargs['bounds'] = [self.bounds.get(x, (None, None))
                             for x in self.arg_names]
@@ -292,6 +291,7 @@ class ScipyObjective(Objective):
                     f"method {kwargs['method']} does not support passing a "
                     "Hessian. Hessian information will not be used.",
                     UserWarning)
+
         return scipy_optimize.minimize(
             fun=self.fun,
             x0=self._dict_to_array(self.guess),
@@ -394,6 +394,7 @@ class MinuitObjective(Objective):
         position = {k: result.fitarg[k] for k in self.arg_names}
         return position, result.fval
 
+
 class NonlinearObjective(Objective):
     """Compute limits on target parameter given nonlinear constraint
     defined by likelihood ratio.
@@ -459,6 +460,7 @@ SUPPORTED_OPTIMIZERS = dict(tfp=TensorFlowObjective,
                             minuit=MinuitObjective,
                             scipy=ScipyObjective)
 
+
 ##
 # Interval estimation
 ##
@@ -471,7 +473,6 @@ class IntervalObjective(Objective):
     # Add constant offset to objective, so objective is not 0 at the minimum
     # and relative tolerances mean something.
     _offset = 1
-    #_callbackbag = []
 
     def __init__(self, *,
                  target_parameter,
@@ -595,7 +596,6 @@ class IntervalObjective(Objective):
 
         if self.use_hessian:
             hess_of_diff = hess
-
             hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
             hess_objective = 2 * (
                     diff * hess_of_diff

@@ -7,10 +7,12 @@ import pandas as pd
 import tensorflow as tf
 import typing as ty
 
+
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
 DEFAULT_DSETNAME = 'the_dataset'
+
 
 @export
 class LogLikelihood:
@@ -135,7 +137,6 @@ class LogLikelihood:
                                  **{p_name: par for p_name, par in common_param_specs.items()
                                  if p_name in defaults_in_sources[sname].keys()})
             for sname, s in self.sources.items()}
-        
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
@@ -337,7 +338,7 @@ class LogLikelihood:
         # Forward computation
         ll = self._log_likelihood_inner(
             i_batch, params_unstacked, dsetname, data_tensor, batch_info)
-        
+
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]
         if second_order:
@@ -372,7 +373,6 @@ class LogLikelihood:
                 # it breaks the Hessian (it will give NaNs)
                 autograph=False,
                 **self._filter_source_kwargs(params, sname))
-
             drs += dr * rate_mult
 
         # Sum over events and remove padding
@@ -380,7 +380,7 @@ class LogLikelihood:
                      batch_size - n_padding,
                      batch_size)
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
-        
+
         # Add mu once (to the first batch)
         # and constraint really only once (to first batch of first dataset)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
@@ -480,6 +480,7 @@ class LogLikelihood:
         if return_errors:
             # Filter out errors and return separately
             return result, errors
+
         return result
 
     def interval(self, parameter, **kwargs):
@@ -548,6 +549,8 @@ class LogLikelihood:
         if bestfit is None:
             # Determine global bestfit
             if optimizer=='nlin':
+                # This optimizer is only for interval setting.
+                # Use scipy to get best-fit first
                 bestfit = self.bestfit(fix=fix, optimizer='scipy')
             else:
                 bestfit = self.bestfit(fix=fix, optimizer=optimizer)
@@ -589,6 +592,7 @@ class LogLikelihood:
         result = []
         for req in requested_limits:
             opt = fd.SUPPORTED_INTERVAL_OPTIMIZERS[optimizer]
+
             res = opt(
                 # To generic objective
                 lf=self,
@@ -617,6 +621,7 @@ class LogLikelihood:
                 result.append(res)
             else:
                 result.append(res[parameter])
+
         if len(result) == 1:
             return result[0]
         return result
