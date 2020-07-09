@@ -8,9 +8,8 @@ n_events = 2
 
 
 def test_one_parameter_interval_nonlincontr(xes):
-    # Only test ERSource, the test takes very long
-    # and parameters likely have to be fine-tuned
-    if not isinstance(xes, fd.ERSource):
+    # Only test ERSource, it takes long enough
+    if not xes.__class__.__name__ == 'ERSource':
         return
 
     lf = fd.LogLikelihood(
@@ -31,6 +30,7 @@ def test_one_parameter_interval_nonlincontr(xes):
                   optimizer='nlin',
                   optimizer_kwargs=dict(options=dict(
                       verbose=3,
+                      # Just make it a bit faster:
                       xtol=1e-5)),
                   confidence_level=0.9)
 
@@ -58,7 +58,7 @@ def test_one_parameter_interval_nonlincontr(xes):
 
 
 def test_one_parameter_interval(xes):
-    if not isinstance(xes, fd.ERSource):
+    if not xes.__class__.__name__ == 'ERSource':
         return
 
     lf = fd.LogLikelihood(
@@ -102,7 +102,7 @@ def test_one_parameter_interval(xes):
 
 
 def test_bestfit_minuit(xes):
-    if not isinstance(xes, fd.ERSource):
+    if not xes.__class__.__name__ == 'ERSource':
         return
 
     # Test bestfit (including hessian)
@@ -130,7 +130,7 @@ def test_bestfit_minuit(xes):
 
 
 def test_bestfit_scipy(xes):
-    if not isinstance(xes, fd.ERSource):
+    if not xes.__class__.__name__ == 'ERSource':
         return
 
     # Test bestfit (including hessian)

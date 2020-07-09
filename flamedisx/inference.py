@@ -694,25 +694,27 @@ class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
     def _minimize(self):
         kwargs = self._scipy_minizer_options()
         kwargs['method'] = 'trust-constr'
-        # The default trust radius of 1 seems too large for some problems,
-        # it immediately jumps to values giving NaN results in the constraint,
-        # which this optimizer cannot handle
-        kwargs['options'].setdefault('initial_tr_radius', 0.1)
 
         constraint = NonlinearConstraint(
             fun=self.fun,
-            # The constraint is self.fun == 0
-            # TODO: does having the same bounds give numerical instability?
+            # The constraint is self.fun == 0, so we should set these equal
+            # (NonlinearConstraint docstring confirms)
             lb=0,
             ub=0,
             jac=self.grad,
             hess=self.hess_constraint if self.use_hessian else None)
 
+        n = len(self.arg_names)
+        tilt_grad = np.zeros(n)
+        tilt_grad[self.arg_names.index(self.target_parameter)] = -self.direction
+
         return scipy_optimize.minimize(
             fun=self.tilt_fun,
-            jac=self.grad,
+            # Objective is linear
+            jac=lambda x: tilt_grad,
+            hess=lambda x: np.zeros((n, n)),
             # The minimizer operates in scaled coordinates
-            x0=np.ones(len(self.arg_names)),
+            x0=np.ones(n),
             constraints=constraint,
             **kwargs)
 
