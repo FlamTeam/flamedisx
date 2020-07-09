@@ -7,7 +7,60 @@ from test_source import xes   # Yes, it is used through pytest magic
 n_events = 2
 
 
+def test_one_parameter_interval_nonlincontr(xes):
+    # Only test ERSource, it takes long enough
+    if not xes.__class__.__name__ == 'ERSource':
+        return
+
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__),
+        elife=(300e3, 500e3, 2),
+        free_rates='er',
+        data=xes.data)
+
+    print(f"Guess will be {lf.guess()}")
+
+    # First find global best so we can check intervals
+    bestfit = lf.bestfit(optimizer='scipy',
+                         optimizer_kwargs=dict(options=dict(verbose=3)))
+    print(f"Global best-fit {bestfit}")
+
+    kwargs = dict(parameter='er_rate_multiplier',
+                  bestfit=bestfit,
+                  optimizer='nlin',
+                  optimizer_kwargs=dict(options=dict(
+                      verbose=3,
+                      # Just make it a bit faster:
+                      xtol=1e-5)),
+                  confidence_level=0.9)
+
+    ul = lf.limit(**kwargs, kind='upper')
+    assert ul > bestfit['er_rate_multiplier']
+
+    ll = lf.limit(**kwargs,
+                  # For some reason, guess for lower limit is pretty bad
+                  # and messes up this not-super-robust optimizer
+                  guess=dict(er_rate_multiplier=0.001),
+                  kind='lower')
+    assert ll < bestfit['er_rate_multiplier']
+
+    ll, ul = lf.limit(**kwargs,
+                      guess=(dict(er_rate_multiplier=0.001),
+                             dict(er_rate_multiplier=0.005)),
+                      kind='central')
+    assert ll < bestfit['er_rate_multiplier'] < ul
+
+    # Test fixed parameter
+    fix = dict(elife=bestfit['elife'])
+
+    ul = lf.limit(**kwargs, fix=fix, kind='upper')
+    assert bestfit['er_rate_multiplier'] < ul
+
+
 def test_one_parameter_interval(xes):
+    if not xes.__class__.__name__ == 'ERSource':
+        return
+
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
         elife=(100e3, 500e3, 5),
@@ -49,6 +102,9 @@ def test_one_parameter_interval(xes):
 
 
 def test_bestfit_minuit(xes):
+    if not xes.__class__.__name__ == 'ERSource':
+        return
+
     # Test bestfit (including hessian)
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
@@ -74,6 +130,9 @@ def test_bestfit_minuit(xes):
 
 
 def test_bestfit_scipy(xes):
+    if not xes.__class__.__name__ == 'ERSource':
+        return
+
     # Test bestfit (including hessian)
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),

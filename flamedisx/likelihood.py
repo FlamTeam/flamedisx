@@ -279,7 +279,6 @@ class LogLikelihood:
                     omit_grads=omit_grads,
                     second_order=second_order,
                     **params)
-
                 ll += results[0].numpy().astype(np.float64)
 
                 if len(self.param_names):
@@ -429,6 +428,7 @@ class LogLikelihood:
     def bestfit(self,
                 guess=None,
                 fix=None,
+                bounds=None,
                 optimizer='scipy',
                 get_lowlevel_result=False,
                 get_history=False,
@@ -457,6 +457,8 @@ class LogLikelihood:
         :param allow_failure: If True, raise a warning instead of an exception
         if there is an optimizer failure.
         """
+        if bounds is None:
+            bounds = dict()
         if guess is None:
             guess = dict()
         if not isinstance(guess, dict):
@@ -487,7 +489,7 @@ class LogLikelihood:
             lf=self,
             guess={**self.guess(), **guess},
             fix=fix,
-            # TODO: bounds overrides? Defaults set in inference.py
+            bounds=bounds,
             nan_val=nan_val,
             get_lowlevel_result=get_lowlevel_result,
             get_history=get_history,
@@ -523,6 +525,7 @@ class LogLikelihood:
             bestfit=None,
             guess=None,
             fix=None,
+            bounds=None,
             confidence_level=0.9,
             kind='upper',
             sigma_guess=None,
@@ -573,10 +576,17 @@ class LogLikelihood:
         """
         if optimizer_kwargs is None:
             optimizer_kwargs = dict()
+        if bounds is None:
+            bounds = dict()
 
         if bestfit is None:
             # Determine global bestfit
-            bestfit = self.bestfit(fix=fix, optimizer=optimizer)
+            if optimizer=='nlin':
+                # This optimizer is only for interval setting.
+                # Use scipy to get best-fit first
+                bestfit = self.bestfit(fix=fix, optimizer='scipy')
+            else:
+                bestfit = self.bestfit(fix=fix, optimizer=optimizer)
 
         lower_bound = None
         if parameter.endswith('rate_multiplier'):
@@ -621,7 +631,7 @@ class LogLikelihood:
                 lf=self,
                 guess=req['guess'],
                 fix=fix,
-                bounds={parameter: req['bound']},
+                bounds={parameter: req['bound'], **bounds},
                 # TODO: nan_val
                 get_lowlevel_result=get_lowlevel_result,
                 get_history=get_history,

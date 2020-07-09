@@ -8,6 +8,7 @@ from scipy import optimize as scipy_optimize
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from scipy.optimize import NonlinearConstraint
 
 export, __all__ = fd.exporter()
 __all__ += ['LOWER_RATE_MULTIPLIER_BOUND',
@@ -260,6 +261,10 @@ class Objective:
             warnings.warn(f"Objective at {x} has NaN gradient {grad}",
                           OptimizerWarning)
             result = self.nan_result()
+        elif hess is not None and np.any(np.isnan(hess)):
+            warnings.warn(f"Objective at {x} has NaN Hessian {hess}",
+                          OptimizerWarning)
+            result = self.nan_result()
         else:
             result = ObjectiveResult(fun=y, grad=grad, hess=hess)
 
@@ -353,7 +358,7 @@ class ScipyObjective(Objective):
         # TODO implement optimizer methods to use the Hessian,
         # see https://github.com/FlamTeam/flamedisx/pull/60#discussion_r354832569
 
-        kwargs: ty.Dict[str, ty.Any] = self.optimizer_kwargs
+        kwargs: ty.Dict[str, ty.Any] = self._scipy_minizer_options()
 
         if self.use_hessian:
             # Of all scipy-optimize methods, only trust-constr takes
@@ -362,15 +367,13 @@ class ScipyObjective(Objective):
         else:
             kwargs.setdefault('method', 'TNC')
 
-        kwargs['bounds'] = [self.normed_bounds.get(x, (None, None))
-                            for x in self.arg_names]
-        kwargs.setdefault('options', dict())
-
         # The underlying tensorflow computation has float32 precision,
         # so we have to adjust the precision options
         if kwargs['method'].upper() == 'TNC':
             kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
 
+        # Achtung! setdefault will not kick in if user specified 'xtol' in the
+        # options.
         kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
         kwargs['options'].setdefault('gtol', 1e-2 * FLOAT32_EPS**0.25)
 
@@ -390,6 +393,16 @@ class ScipyObjective(Objective):
             x0=np.ones(len(self.arg_names)),
             jac=self.grad,
             **kwargs)
+
+    def _scipy_minizer_options(self):
+        """Return dictionary with scipy minimizer options
+        """
+        # Also needed in NonlinearIntervalObjective
+        kwargs = self.optimizer_kwargs
+        kwargs.setdefault('options', dict())
+        kwargs['bounds'] = [self.normed_bounds.get(x, (None, None))
+                            for x in self.arg_names]
+        return kwargs
 
     def parse_result(self, result: scipy_optimize.OptimizeResult):
         if not result.success:
@@ -523,7 +536,6 @@ class IntervalObjective(Objective):
                  tilt_overshoot=0.037,
                  **kwargs):
         super().__init__(**kwargs)
-
         self.target_parameter = target_parameter
         self.bestfit = bestfit
         self.direction = direction
@@ -551,10 +563,11 @@ class IntervalObjective(Objective):
 
         # Store bestfit target, maximum likelihood and slope
         self.bestfit_tp = self.bestfit[self.target_parameter]
-        self.m2ll_best, _grad_at_bestfit = \
-            super()._inner_fun_and_grad(bestfit)[:2]
-        self.bestfit_tp_slope = _grad_at_bestfit[
-            self.arg_names.index(self.target_parameter)]
+        self.m2ll_best, _grad_at_bestfit = self.lf.minus2_ll(
+            **bestfit,
+            second_order=self.use_hessian,
+            omit_grads=tuple(self.fix.keys()))[:2]
+        self.bestfit_tp_slope = _grad_at_bestfit[self.arg_names.index(self.target_parameter)]
 
         # Incomplete guess support
         if self.target_parameter not in self.guess:
@@ -634,7 +647,6 @@ class IntervalObjective(Objective):
         if self.use_hessian:
             hess_of_diff = hess
             hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
-
             hess_objective = 2 * (
                     diff * hess_of_diff
                     + np.outer(grad_diff, grad_diff))
@@ -663,6 +675,54 @@ class ScipyIntervalObjective(IntervalObjective, ScipyObjective):
     """IntervalObjective using Scipy optimizer"""
 
 
+class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
+    """IntervalObjective using Scipy trust-constr optimizer with non-linear
+    constraints"""
+
+    def _inner_fun_and_grad(self, params):
+        # Bypass the parabolic tilt function in IntervalObjective
+        m2ll, grad, hess = Objective._inner_fun_and_grad(self, params)
+        return (m2ll - self.m2ll_best - self.t_ppf(params),
+                grad - self.t_ppf_grad(params),
+                hess - self.t_ppf_hess(params))
+
+    def tilt_fun(self, x):
+        # Ensure we get a scalar back regardless of what nuisance parameters we
+        # might have
+        return -self.direction * self._array_to_dict(x)[self.target_parameter]
+
+    def hess_constraint(self, x, v):
+        return v * self(x).hess
+
+    def _minimize(self):
+        kwargs = self._scipy_minizer_options()
+        kwargs['method'] = 'trust-constr'
+
+        constraint = NonlinearConstraint(
+            fun=self.fun,
+            # The constraint is self.fun == 0, so we should set these equal
+            # (NonlinearConstraint docstring confirms)
+            lb=0,
+            ub=0,
+            jac=self.grad,
+            hess=self.hess_constraint if self.use_hessian else None)
+
+        n = len(self.arg_names)
+        tilt_grad = np.zeros(n)
+        tilt_grad[self.arg_names.index(self.target_parameter)] = -self.direction
+
+        return scipy_optimize.minimize(
+            fun=self.tilt_fun,
+            # Objective is linear
+            jac=lambda x: tilt_grad,
+            hess=lambda x: np.zeros((n, n)),
+            # The minimizer operates in scaled coordinates
+            x0=np.ones(n),
+            constraints=constraint,
+            **kwargs)
+
+
 SUPPORTED_INTERVAL_OPTIMIZERS = dict(tfp=TensorFlowIntervalObjective,
                                      minuit=MinuitIntervalObjective,
-                                     scipy=ScipyIntervalObjective)
+                                     scipy=ScipyIntervalObjective,
+                                     nlin=NonlinearIntervalObjective)
