@@ -253,16 +253,17 @@ class Objective:
             self._history.append(dict(params=params, y=y,
                                       scaled_grad=grad, grad=result[1]))
 
+        x_desc = dict(zip(self.arg_names, x))
         if np.isnan(y):
-            warnings.warn(f"Objective at {x} is Nan!",
+            warnings.warn(f"Objective at {x_desc} is Nan!",
                           OptimizerWarning)
             result = self.nan_result()
         elif np.any(np.isnan(grad)):
-            warnings.warn(f"Objective at {x} has NaN gradient {grad}",
+            warnings.warn(f"Objective at {x_desc} has NaN gradient {grad}",
                           OptimizerWarning)
             result = self.nan_result()
         elif hess is not None and np.any(np.isnan(hess)):
-            warnings.warn(f"Objective at {x} has NaN Hessian {hess}",
+            warnings.warn(f"Objective at {x_desc} has NaN Hessian {hess}",
                           OptimizerWarning)
             result = self.nan_result()
         else:
