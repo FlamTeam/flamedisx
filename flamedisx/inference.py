@@ -231,7 +231,7 @@ class Objective:
             if k in self.bounds:
                 b = self.bounds[k]
                 if not ((b[0] is None or b[0] <= v)
-                        and (b[1] is None or v < b[1])):
+                        and (b[1] is None or v <= b[1])):
                     warnings.warn(
                         f"Optimizer requested likelihood at {k} = {v}, "
                         f"which is outside the bounds {b}.",
