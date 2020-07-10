@@ -137,7 +137,7 @@ class Objective:
         # We always scale with positive numbers, so we don't have to reverse
         # any bounds.
         self.scale_vector = np.abs(self._dict_to_array(self.guess))
-        self.scale_vector[self.scale_vector == 0] = 1
+        self.scale_vector[self.scale_vector == 0.] = 1.
 
         # Convert bounds to normed space
         self.normed_bounds = self.normalize(self.bounds, 'bounds')
@@ -730,8 +730,8 @@ class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
             # Objective is linear
             jac=lambda x: tilt_grad,
             hess=lambda x: np.zeros((n, n)),
-            # The minimizer operates in scaled coordinates
-            x0=np.ones(n),
+            # This is NOT an array of ones! 0 and -1 can also appear.
+            x0=self._dict_to_array(self.normalize(self.guess)),
             constraints=constraint,
             **kwargs)
 
