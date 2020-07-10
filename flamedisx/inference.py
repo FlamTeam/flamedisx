@@ -391,7 +391,8 @@ class ScipyObjective(Objective):
 
         return scipy_optimize.minimize(
             fun=self.fun,
-            x0=np.ones(len(self.arg_names)),
+            # This is NOT an array of ones! 0 and -1 can also appear.
+            x0=self._dict_to_array(self.normalize(self.guess)),
             jac=self.grad,
             **kwargs)
 
