@@ -503,7 +503,8 @@ class MinuitObjective(Objective):
 
     def parse_result(self, result: Minuit):
         if not result.migrad_ok():
-            # Borrowed from https://github.com/scikit-hep/iminuit/blob/2ff3cd79b84bf3b25b83f78523312a7c48e26b73/iminuit/_minimize.py#L107
+            # Borrowed from https://github.com/scikit-hep/iminuit/blob/
+            # 2ff3cd79b84bf3b25b83f78523312a7c48e26b73/iminuit/_minimize.py#L107
             message = "Migrad failed! "
             fmin = result.get_fmin()
             if fmin.has_reached_call_limit:
