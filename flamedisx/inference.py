@@ -106,13 +106,24 @@ class Objective:
                 if k not in self.guess:
                     raise ValueError("Incomplete guess: {k} missing")
 
+        # Process bounds
         if bounds is None:
             bounds = dict()
+        # Remove bounds on fixed parameters
+        for k in fix:
+            if k in bounds:
+                del bounds[k]
+        # Check bounds validity
+        for k in bounds:
+            if k not in self.arg_names:
+                raise ValueError(
+                    f"Bound on {k} was passed, but this is not among "
+                    f"the parameters of the fit ({self.arg_names})")
         for p in self.arg_names:
             if p.endswith('_rate_multiplier'):
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
-        self.normed_bounds = dict()
+        self.normed_bounds = dict()    # Set in process_guess
 
         if self.require_complete_guess:
             self._process_guess()
