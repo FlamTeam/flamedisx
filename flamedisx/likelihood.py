@@ -132,6 +132,10 @@ class LogLikelihood:
         self.param_defaults = fd.values_to_constants(param_defaults)
         self.param_names = list(param_defaults.keys())
 
+        self.default_bounds = {
+            p_name: (start, stop)
+            for p_name, (start, stop, n) in common_param_specs.items()}
+
         self.mu_itps = {
             sname: s.mu_function(
                 n_trials=n_trials,
@@ -491,7 +495,7 @@ class LogLikelihood:
             lf=self,
             guess={**self.guess(), **guess},
             fix=fix,
-            bounds=bounds,
+            bounds={**self.default_bounds, **bounds},
             nan_val=nan_val,
             get_lowlevel_result=get_lowlevel_result,
             get_history=get_history,
@@ -633,7 +637,10 @@ class LogLikelihood:
                 lf=self,
                 guess=req['guess'],
                 fix=fix,
-                bounds={parameter: req['bound'], **bounds},
+                bounds={
+                    **self.default_bounds,
+                    parameter: req['bound'],
+                    **bounds},
                 # TODO: nan_val
                 get_lowlevel_result=get_lowlevel_result,
                 get_history=get_history,
