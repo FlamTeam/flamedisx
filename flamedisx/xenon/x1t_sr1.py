@@ -68,9 +68,8 @@ def itp_bias(pathBag):
 
     return f, min(xx), max(xx)
 ####################
+def cal_bias(aa, fmap, fmap_min, fmap_max):
 
-def cal_bias(s, fmap, fmap_min, fmap_max):
-    aa = s.numpy()
     bb = np.argsort(aa)
     aa_sorted = aa[bb]
 
@@ -90,17 +89,28 @@ def cal_bias(s, fmap, fmap_min, fmap_max):
 
     return tf.convert_to_tensor(np.squeeze(ff), dtype=fd.float_type())
 
-#####################
 recon_map_s1, recon_min_s1, recon_max_s1 = itp_bias(pathBagS1)
 recon_map_s2, recon_min_s2, recon_max_s2 = itp_bias(pathBagS2)
 
 ##
 # Flamedisx sources
 ##
-
-
 class SR1Source:
     drift_velocity = def_drift_vel
+
+    def recon_bias_s1(self, sig):
+        #fmap, fmap_min, fmap_max = itp_bias(pathBagS1)
+        #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
+        recon_bias = cal_bias(sig, recon_map_s1, recon_min_s1, recon_max_s1)
+        return recon_bias 
+
+    def recon_bias_s2(self, sig):
+        #fmap, fmap_min, fmap_max = itp_bias(pathBagS2)
+        #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
+        print('sigh. go eat ramen later la. maybe. 4:44')
+        recon_bias = cal_bias(sig, recon_map_s2, recon_min_s2, recon_max_s2)
+        return recon_bias 
+
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -130,6 +140,7 @@ class SR1Source:
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly, *, g2=def_g2/(1.-0.63)/def_extract_eff):
+        print('electron_gain_mean from x1t_sr1')
         return g2 * s2_relative_ly
 
     @staticmethod
@@ -187,9 +198,7 @@ class SR1ERSource(SR1Source,fd.ERSource):
         #cs1_min=0., cs1_max=np.inf):
         print('s1_acceptance: cs1 min = %i, cs1 max = %f' % (cs1_min, cs1_max))
         
-        recon_bias_s1 = cal_bias(s1, recon_map_s1, recon_min_s1, recon_max_s1)
-        cs1 = mean_eff * recon_bias_s1  * s1 / (photon_detection_eff * photon_gain_mean)
-        #cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
+        cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
         return tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                         tf.ones_like(s1, dtype=fd.float_type()),
                         tf.zeros_like(s1, dtype=fd.float_type()))
@@ -201,12 +210,8 @@ class SR1ERSource(SR1Source,fd.ERSource):
         print('s2_acceptance: cs2b min = %i, cs2b max = %f' % (cs2b_min, cs2b_max))
         #cs2 = (11.4/(1-0.63)/0.96) * s2 / (electron_detection_eff*electron_gain_mean)
         #cs2 = mean_eff * s2 / (electron_detection_eff*electron_gain_mean)
-        print('5:03')
 
-        #cs2 = (def_g2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
-
-        recon_bias_s2 = cal_bias(s2, recon_map_s2, recon_min_s2, recon_max_s2)
-        cs2 = (def_g2*recon_bias_s2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
+        cs2 = (def_g2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
 
         return tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
                         tf.ones_like(s2, dtype=fd.float_type()),

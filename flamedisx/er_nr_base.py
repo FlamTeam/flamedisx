@@ -17,6 +17,8 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
+import pdb
+
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
 
@@ -26,7 +28,9 @@ special_data_methods = [
     'p_electron_fluctuation',
     'electron_acceptance',
     'photon_acceptance',
-    'penning_quenching_eff'
+    'penning_quenching_eff',
+    'recon_bias_s1',
+    'recon_bias_s2'
 ]
 
 #
@@ -190,6 +194,7 @@ class LXeSource(fd.Source):
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):
+        print('electron_gain_mean from er_nr_base')
         return g2 * tf.ones_like(z)
 
     electron_gain_std = 5.
@@ -665,6 +670,9 @@ class LXeSource(fd.Source):
         d['s1'] = stats.norm.rvs(
             loc=d['photoelectron_detected'] * gimme('photon_gain_mean'),
             scale=d['photoelectron_detected'] ** 0.5 * gimme('photon_gain_std'))
+
+        d['s2'] = d['s2'] * gimme('recon_bias_s2', bonus_arg=d['s2'].values)
+        d['s1'] = d['s1'] * gimme('recon_bias_s1', bonus_arg=d['s1'].values)
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
