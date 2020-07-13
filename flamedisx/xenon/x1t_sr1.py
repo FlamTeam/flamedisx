@@ -2,6 +2,7 @@
 """
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 from multihist import Hist1d
 import wimprates
@@ -48,49 +49,81 @@ pathBagS1 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanLowe
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanUppers_SR1_v2.json']
 pathBagS2 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanLowers_SR1_v2.json',
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanUppers_SR1_v2.json']
-def read_bias(path):
-    with open(path) as fid:
-        data = json.load(fid)
-        y = np.asarray(data['map'])
-        x = np.asarray(np.linspace(*data['coordinate_system'][0][1]))
-    return x, y
 
-def itp_bias(pathBag):
-    xx, yy = read_bias(pathBag[0])
-    xx1, yy1 = read_bias(pathBag[1])
-
-    if sum(xx-xx1)!=0 :
-        print('FATAL: Bias maps evaluated at different S1 or S2 areas.')
-        raise
-
-    yy_avg = (yy+yy1)/2.
-    f = itp.interp1d(xx, yy_avg, kind='linear')
-
-    return f, min(xx), max(xx)
 ####################
-def cal_bias(aa, fmap, fmap_min, fmap_max):
+#def read_bias(path):
+#    with open(path) as fid:
+#        data = json.load(fid)
+#        y = np.asarray(data['map'])
+#        x = np.asarray(np.linspace(*data['coordinate_system'][0][1]))
+#    return x, y
+#
+#def itp_bias(pathBag):
+#    xx, yy = read_bias(pathBag[0])
+#    xx1, yy1 = read_bias(pathBag[1])
+#
+#    if sum(xx-xx1)!=0 :
+#        print('FATAL: Bias maps evaluated at different S1 or S2 areas.')
+#        raise
+#
+#    yy_avg = (yy+yy1)/2.
+#    f = itp.interp1d(xx, yy_avg, kind='linear')
+#
+#    return f, min(xx), max(xx)
+#
+#def cal_bias(aa, fmap, fmap_min, fmap_max):
+#
+#    bb = np.argsort(aa)
+#    aa_sorted = aa[bb]
+#
+#    cc = np.argwhere((aa_sorted>fmap_min) &
+#            (aa_sorted<fmap_max))
+#    n_low = np.size(np.argwhere(aa_sorted<=fmap_min))
+#    n_high = np.size(np.argwhere(aa_sorted>=fmap_max))
+#
+#    aa_sel = aa_sorted[cc]
+#
+#    dd = fmap(aa_sel)
+#    ee = np.concatenate((np.ones((n_low,1))*dd[0], dd,
+#        np.ones((n_high,1))*dd[-1]))
+#
+#    ff = np.ones((len(aa), 1))
+#    ff[bb] = ee + 1.
+#
+#    return tf.convert_to_tensor(np.squeeze(ff), dtype=fd.float_type())
+#
+#recon_map_s1, recon_min_s1, recon_max_s1 = itp_bias(pathBagS1)
+#recon_map_s2, recon_min_s2, recon_max_s2 = itp_bias(pathBagS2)
+####################
 
-    bb = np.argsort(aa)
-    aa_sorted = aa[bb]
+def read_bias_tf(path_bag):
+    # Achtung: 
+    # Fundamentally assumes upper and lower bounds have exactly the same support definition
+    data_bag = []
+    yy_ref_bag = []
+    for loc_path in path_bag:
+        with open(loc_path) as json_file:
+            tmp = json.load(json_file)
+            yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
+            data_bag.append(tmp)
+    support_def = tmp['coordinate_system'][0][1] 
+    return yy_ref_bag, support_def
 
-    cc = np.argwhere((aa_sorted>fmap_min) &
-            (aa_sorted<fmap_max))
-    n_low = np.size(np.argwhere(aa_sorted<=fmap_min))
-    n_high = np.size(np.argwhere(aa_sorted>=fmap_max))
+def cal_bias_tf(sig, fmap, support_def):
+    tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
+    bias_low = tfp.math.interp_regular_1d_grid(x=tmp, 
+            x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[0],
+            fill_value='constant_extension')
+    bias_high = tfp.math.interp_regular_1d_grid(x=tmp, 
+            x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[1],
+            fill_value='constant_extension')
+    bias_out = tf.math.add(bias_low, bias_high)
+    bias_out = tf.math.scalar_mul(0.5, bias_out)
+    bias_out = tf.math.add(bias_out, tf.ones_like(bias_out))
+    return bias_out
 
-    aa_sel = aa_sorted[cc]
-
-    dd = fmap(aa_sel)
-    ee = np.concatenate((np.ones((n_low,1))*dd[0], dd,
-        np.ones((n_high,1))*dd[-1]))
-
-    ff = np.ones((len(aa), 1))
-    ff[bb] = ee + 1.
-
-    return tf.convert_to_tensor(np.squeeze(ff), dtype=fd.float_type())
-
-recon_map_s1, recon_min_s1, recon_max_s1 = itp_bias(pathBagS1)
-recon_map_s2, recon_min_s2, recon_max_s2 = itp_bias(pathBagS2)
+recon_map_s1_tf, support_def_s1 = read_bias_tf(pathBagS1)
+recon_map_s2_tf, support_def_s2 = read_bias_tf(pathBagS2)
 
 ##
 # Flamedisx sources
@@ -101,16 +134,19 @@ class SR1Source:
     def recon_bias_s1(self, sig):
         #fmap, fmap_min, fmap_max = itp_bias(pathBagS1)
         #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
-        recon_bias = cal_bias(sig, recon_map_s1, recon_min_s1, recon_max_s1)
+        #recon_bias = cal_bias(sig, recon_map_s1, recon_min_s1, recon_max_s1)
+        
+        recon_bias = cal_bias_tf(sig, recon_map_s1_tf, support_def_s1)
         return recon_bias 
 
     def recon_bias_s2(self, sig):
         #fmap, fmap_min, fmap_max = itp_bias(pathBagS2)
         #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
-        print('sigh. go eat ramen later la. maybe. 4:44')
-        recon_bias = cal_bias(sig, recon_map_s2, recon_min_s2, recon_max_s2)
+        #recon_bias = cal_bias(sig, recon_map_s2, recon_min_s2, recon_max_s2)
+        
+        print('really?!?! 6:53')
+        recon_bias = cal_bias_tf(sig, recon_map_s2_tf, support_def_s2)
         return recon_bias 
-
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
