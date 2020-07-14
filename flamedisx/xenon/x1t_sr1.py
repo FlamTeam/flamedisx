@@ -12,7 +12,6 @@ import json
 import scipy.interpolate as itp
 
 import matplotlib.pyplot as plt
-import pdb
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -43,6 +42,7 @@ def_drift_vel = 1.34 * 1e-4   # cm/ns, from analysis paper II
 def_field = 81.
 
 def_recon_pivot = 0.49
+
 ##
 # Loading Pax reconstruction bias
 ##
@@ -50,53 +50,6 @@ pathBagS1 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanLowe
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanUppers_SR1_v2.json']
 pathBagS2 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanLowers_SR1_v2.json',
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanUppers_SR1_v2.json']
-
-####################
-#def read_bias(path):
-#    with open(path) as fid:
-#        data = json.load(fid)
-#        y = np.asarray(data['map'])
-#        x = np.asarray(np.linspace(*data['coordinate_system'][0][1]))
-#    return x, y
-#
-#def itp_bias(pathBag):
-#    xx, yy = read_bias(pathBag[0])
-#    xx1, yy1 = read_bias(pathBag[1])
-#
-#    if sum(xx-xx1)!=0 :
-#        print('FATAL: Bias maps evaluated at different S1 or S2 areas.')
-#        raise
-#
-#    yy_avg = (yy+yy1)/2.
-#    f = itp.interp1d(xx, yy_avg, kind='linear')
-#
-#    return f, min(xx), max(xx)
-#
-#def cal_bias(aa, fmap, fmap_min, fmap_max):
-#
-#    bb = np.argsort(aa)
-#    aa_sorted = aa[bb]
-#
-#    cc = np.argwhere((aa_sorted>fmap_min) &
-#            (aa_sorted<fmap_max))
-#    n_low = np.size(np.argwhere(aa_sorted<=fmap_min))
-#    n_high = np.size(np.argwhere(aa_sorted>=fmap_max))
-#
-#    aa_sel = aa_sorted[cc]
-#
-#    dd = fmap(aa_sel)
-#    ee = np.concatenate((np.ones((n_low,1))*dd[0], dd,
-#        np.ones((n_high,1))*dd[-1]))
-#
-#    ff = np.ones((len(aa), 1))
-#    ff[bb] = ee + 1.
-#
-#    return tf.convert_to_tensor(np.squeeze(ff), dtype=fd.float_type())
-#
-#recon_map_s1, recon_min_s1, recon_max_s1 = itp_bias(pathBagS1)
-#recon_map_s2, recon_min_s2, recon_max_s2 = itp_bias(pathBagS2)
-####################
-
 def read_bias_tf(path_bag):
     # Achtung: 
     # Fundamentally assumes upper and lower bounds have exactly the same support definition
@@ -108,6 +61,7 @@ def read_bias_tf(path_bag):
             yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
             data_bag.append(tmp)
     support_def = tmp['coordinate_system'][0][1] 
+    
     return yy_ref_bag, support_def
 
 def cal_bias_tf(sig, fmap, support_def, pivot_pt):
@@ -118,9 +72,6 @@ def cal_bias_tf(sig, fmap, support_def, pivot_pt):
     bias_high = tfp.math.interp_regular_1d_grid(x=tmp, 
             x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[1],
             fill_value='constant_extension')
-    #bias_out = tf.math.add(bias_low, bias_high)
-    #bias_out = tf.math.scalar_mul(0.5, bias_out)
-    #bias_out = tf.math.add(bias_out, tf.ones_like(bias_out))
 
     tmp = tf.math.subtract(bias_high, bias_low)
     tmp1 = tf.math.scalar_mul(pivot_pt, tmp)
@@ -139,20 +90,11 @@ class SR1Source:
     drift_velocity = def_drift_vel
 
     def recon_bias_s1(self, sig, bias_pivot_pt=def_recon_pivot):
-        #fmap, fmap_min, fmap_max = itp_bias(pathBagS1)
-        #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
-        #recon_bias = cal_bias(sig, recon_map_s1, recon_min_s1, recon_max_s1)
-        
         recon_bias = cal_bias_tf(sig, recon_map_s1_tf, support_def_s1,
                 pivot_pt=bias_pivot_pt)
         return recon_bias 
 
     def recon_bias_s2(self, sig, bias_pivot_pt=def_recon_pivot):
-        #fmap, fmap_min, fmap_max = itp_bias(pathBagS2)
-        #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
-        #recon_bias = cal_bias(sig, recon_map_s2, recon_min_s2, recon_max_s2)
-        
-        print('recon_pivot = %.2f at 11:34' % def_recon_pivot)
         recon_bias = cal_bias_tf(sig, recon_map_s2_tf, support_def_s2,
                 pivot_pt=bias_pivot_pt)
         return recon_bias 
@@ -185,7 +127,6 @@ class SR1Source:
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly, *, g2=def_g2/(1.-0.63)/def_extract_eff):
-        print('electron_gain_mean from x1t_sr1')
         return g2 * s2_relative_ly
 
     @staticmethod

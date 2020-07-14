@@ -17,8 +17,6 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-import pdb
-
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
 
@@ -194,7 +192,6 @@ class LXeSource(fd.Source):
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):
-        print('electron_gain_mean from er_nr_base')
         return g2 * tf.ones_like(z)
 
     electron_gain_std = 5.
