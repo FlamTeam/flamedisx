@@ -42,6 +42,7 @@ def_drift_vel = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
 def_field = 81.
 
+def_recon_pivot = 0.49
 ##
 # Loading Pax reconstruction bias
 ##
@@ -109,7 +110,7 @@ def read_bias_tf(path_bag):
     support_def = tmp['coordinate_system'][0][1] 
     return yy_ref_bag, support_def
 
-def cal_bias_tf(sig, fmap, support_def):
+def cal_bias_tf(sig, fmap, support_def, pivot_pt):
     tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
     bias_low = tfp.math.interp_regular_1d_grid(x=tmp, 
             x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[0],
@@ -117,9 +118,15 @@ def cal_bias_tf(sig, fmap, support_def):
     bias_high = tfp.math.interp_regular_1d_grid(x=tmp, 
             x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[1],
             fill_value='constant_extension')
-    bias_out = tf.math.add(bias_low, bias_high)
-    bias_out = tf.math.scalar_mul(0.5, bias_out)
+    #bias_out = tf.math.add(bias_low, bias_high)
+    #bias_out = tf.math.scalar_mul(0.5, bias_out)
+    #bias_out = tf.math.add(bias_out, tf.ones_like(bias_out))
+
+    tmp = tf.math.subtract(bias_high, bias_low)
+    tmp1 = tf.math.scalar_mul(pivot_pt, tmp)
+    bias_out = tf.math.add(tmp1, bias_low)
     bias_out = tf.math.add(bias_out, tf.ones_like(bias_out))
+
     return bias_out
 
 recon_map_s1_tf, support_def_s1 = read_bias_tf(pathBagS1)
@@ -131,21 +138,23 @@ recon_map_s2_tf, support_def_s2 = read_bias_tf(pathBagS2)
 class SR1Source:
     drift_velocity = def_drift_vel
 
-    def recon_bias_s1(self, sig):
+    def recon_bias_s1(self, sig, bias_pivot_pt=def_recon_pivot):
         #fmap, fmap_min, fmap_max = itp_bias(pathBagS1)
         #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
         #recon_bias = cal_bias(sig, recon_map_s1, recon_min_s1, recon_max_s1)
         
-        recon_bias = cal_bias_tf(sig, recon_map_s1_tf, support_def_s1)
+        recon_bias = cal_bias_tf(sig, recon_map_s1_tf, support_def_s1,
+                pivot_pt=bias_pivot_pt)
         return recon_bias 
 
-    def recon_bias_s2(self, sig):
+    def recon_bias_s2(self, sig, bias_pivot_pt=def_recon_pivot):
         #fmap, fmap_min, fmap_max = itp_bias(pathBagS2)
         #recon_bias = cal_bias(sig, fmap, fmap_min, fmap_max)
         #recon_bias = cal_bias(sig, recon_map_s2, recon_min_s2, recon_max_s2)
         
-        print('really?!?! 6:53')
-        recon_bias = cal_bias_tf(sig, recon_map_s2_tf, support_def_s2)
+        print('recon_pivot = %.2f at 11:34' % def_recon_pivot)
+        recon_bias = cal_bias_tf(sig, recon_map_s2_tf, support_def_s2,
+                pivot_pt=bias_pivot_pt)
         return recon_bias 
 
     def random_truth(self, n_events, fix_truth=None, **params):

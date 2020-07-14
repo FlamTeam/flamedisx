@@ -207,6 +207,16 @@ class LXeSource(fd.Source):
     photon_gain_mean = 1.
     photon_gain_std = 0.5
 
+    # Dummy method for pax reconstruction bias mean.
+    # Implement it in source specific class. See x1t_sr1.py till exempel
+    def recon_bias_s1(self, sig, bias_pivot_pt=1.):
+        recon_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return recon_bias
+
+    def recon_bias_s2(self, sig, bias_pivot_pt=1.):
+        recon_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return recon_bias
+
     ##
     # Simulation
     ##
@@ -767,6 +777,7 @@ class ERSource(LXeSource):
         # OK to use None, simulator has set defaults
         work = self.gimme('work', numpy_out=True, data_tensor=None, ptensor=None)
         return np.floor(energies / work).astype(np.int)
+
 
 
 @export
