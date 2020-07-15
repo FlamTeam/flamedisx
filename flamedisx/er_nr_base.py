@@ -160,6 +160,7 @@ class LXeSource(fd.Source):
     # The min_xxx attributes are also used in the bound computations
     min_s1_photons_detected = 3.
     min_s2_electrons_detected = 3.
+    min_photoelectrons_detected = 0.
 
     def electron_acceptance(self, electrons_detected):
         return tf.where(
@@ -319,8 +320,10 @@ class LXeSource(fd.Source):
 
         # Rearrange dimensions so we can do a single matrix mult
         p_el = tf.transpose(p_el, (0, 2, 1))
+        p_pe = tf.transpose(p_pe, (0, 2, 1))
         d_pe = d_pe[:, o, :]
         d_el = d_el[:, :, o]
+
         r = d_pe @ p_pe @ p_ph @ y @ p_el @ d_el
         return tf.reshape(r, [-1])
 
@@ -407,12 +410,24 @@ class LXeSource(fd.Source):
         #p = self.gimme('photoelectron_detection_eff',
         #               data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
+
+        # TODO test if tfp doesnt crash when n_pe < n_photons
+        # This requirement is stated in the tfp docs
+        # TODO test if this is needed or if we can use bounds
+        pe_minus_photons = tf.where((n_pe - n_photon) < 0,
+                                    tf.zeros_like(n_pe),
+                                    n_pe - n_photon)
+
         # (N_pe - N_photons) distributed as Binom(N_photons, p=pdpe)
         result = tfp.distributions.Binomial(
                 total_count=n_photon,
                 probs=tf.cast(p_dpe, dtype=fd.float_type())
-            ).prob(n_pe - n_photon)
-        return result
+            ).prob(pe_minus_photons)
+
+        # Set probability of n_pe < n_photon cases to 0
+        return tf.where(tf.math.is_nan(result),
+                        tf.zeros_like(n_pe),
+                        result)
     # TODO, add photoelectron_acceptance model function, needed?V
     #* self.gimme(quanta_type + '_acceptance', bonus_arg=n_det,
     #                                   data_tensor=data_tensor, ptensor=ptensor)
@@ -468,9 +483,13 @@ class LXeSource(fd.Source):
     ##
 
     def _q_det_clip_range(self, qn):
-        return (self.min_s1_photons_detected if qn == 'photon'
-                else self.min_s2_electrons_detected,
-                None)
+        if qn == 'photon':
+            l = self.min_s1_photons_detected
+        elif qn == 'photoelectron':
+            l = self.min_photoelectrons_detected
+        else:
+            l = self.min_s2_electrons_detected
+        return (l, None)
 
     def _check_data(self):
         super()._check_data()
@@ -518,6 +537,7 @@ class LXeSource(fd.Source):
         for qn in quanta_types:
             n_det_mle = (obs[qn] / d[qn + '_gain_mean'])
             if qn == 'photon':
+                d['photoelectron_detected_mle'] = n_det_mle
                 n_det_mle /= (1 + d['double_pe_fraction'])
             d[qn + '_detected_mle'] = \
                 n_det_mle.clip(*self._q_det_clip_range(qn))
@@ -575,12 +595,12 @@ class LXeSource(fd.Source):
             n = d[qn + '_detected_mle'].values
             m = d[qn + '_gain_mean'].values
             s = d[qn + '_gain_std'].values
-            pdpe = d['double_pe_fraction']
-            if qn == 'photon':
-                _, scale = self.dpe_mean_std(n, pdpe, m, s)
-                scale = scale.values
-            else:
-                scale = n ** 0.5 * s / m
+            pdpe = d['double_pe_fraction'].values
+            #if qn == 'photon':
+            #    _, scale = self.dpe_mean_std(n, pdpe, m, s)
+            #    scale = scale.values
+            #else:
+            scale = n ** 0.5 * s / m
 
             for bound, sign in (('min', -1), ('max', +1)):
                 # For detected quanta the MLE is quite accurate
@@ -589,6 +609,12 @@ class LXeSource(fd.Source):
                 d[qn + '_detected_' + bound] = (
                     n + sign * self.max_sigma * scale
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
+
+                if qn == "photon":
+                    # Add photoelectron bounds as well
+                    d['photoelectron_detected_' + bound] = (
+                        n + sign * self.max_sigma * scale * (1 + pdpe)
+                    ).round().clip(*self._q_det_clip_range('photoelectron')).astype(np.int)
 
                 # For produced quanta, it is trickier, since the number
                 # of detected quanta is also uncertain.
@@ -601,15 +627,11 @@ class LXeSource(fd.Source):
                     _loc + sign * self.max_sigma * _std
                 ).round().clip(*self._q_det_clip_range(qn)).astype(np.int)
 
-                if qn == "photon":
-                    # TODO, correct scaling
-                    d['photoelectron_detected_' + bound] = (
-                        d[qn + '_detected_' + bound] * (1 + pdpe)
-                    ).values.round().astype(np.int)
-
             # Finally, round the detected MLEs
             d[qn + '_detected_mle'] = \
                 d[qn + '_detected_mle'].values.round().astype(np.int)
+        d['photoelectron_detected_mle'] = \
+            d['photoelectron_detected_mle'].values.round().astype(np.int)
 
         # Bounds on total visible quanta
         d['nq_min'] = d['photon_produced_min'] + d['electron_produced_min']
