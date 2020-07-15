@@ -17,8 +17,7 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-# TODO, add photoelectron as quantum ?
-quanta_types = 'photon', 'electron',  # 'photoelectron'
+quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2', photoelectron='s1')
 
 # Data methods that take an additional positional argument
@@ -407,14 +406,6 @@ class LXeSource(fd.Source):
         p_dpe=self.gimme('double_pe_fraction',
                          data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
-        # Photoelectron detection efficiency, need this ?
-        #p = self.gimme('photoelectron_detection_eff',
-        #               data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-
-
-        # TODO test if tfp doesnt crash when n_pe < n_photons
-        # This requirement is stated in the tfp docs
-        # TODO test if this is needed or if we can use bounds
         pe_minus_photons = tf.where((n_pe - n_photon) < 0,
                                     tf.zeros_like(n_pe),
                                     n_pe - n_photon)
@@ -426,12 +417,9 @@ class LXeSource(fd.Source):
             ).prob(pe_minus_photons)
 
         # Set probability of n_pe < n_photon cases to 0
-        return tf.where(tf.math.is_nan(result),
+        return tf.where((n_pe - n_photon) < 0,
                         tf.zeros_like(n_pe),
                         result)
-    # TODO, add photoelectron_acceptance model function, needed?V
-    #* self.gimme(quanta_type + '_acceptance', bonus_arg=n_det,
-    #                                   data_tensor=data_tensor, ptensor=ptensor)
 
     def detector_response(self, quanta_type, data_tensor, ptensor):
         """Return (n_events, |n_detected|) probability of observing the S[1|2]
@@ -460,24 +448,6 @@ class LXeSource(fd.Source):
         result *= self.gimme(signal_name[quanta_type] + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o]
         return result
-
-    @staticmethod
-    def dpe_mean_std(ndet, p_dpe, mean_per_q, std_per_q):
-        """Return (mean, std) of S1 signals
-        :param ndet: photons detected
-        :param p_dpe: double pe emission probability
-        :param mean_per_q: gain mean per PE
-        :param std_per_q: gain std per PE
-        """
-        npe_mean = ndet * (1 + p_dpe)
-        mean = npe_mean * mean_per_q
-
-        # Variance due to PMT resolution
-        var = (npe_mean ** 0.5 * std_per_q)**2
-        # Variance due to binomial variation in double-PE emission
-        var += ndet * p_dpe * (1 - p_dpe)
-
-        return mean, var**0.5
 
     ##
     # Hidden variable bounds estimation
@@ -597,10 +567,6 @@ class LXeSource(fd.Source):
             m = d[qn + '_gain_mean'].values
             s = d[qn + '_gain_std'].values
             pdpe = d['double_pe_fraction'].values
-            #if qn == 'photon':
-            #    _, scale = self.dpe_mean_std(n, pdpe, m, s)
-            #    scale = scale.values
-            #else:
             scale = n ** 0.5 * s / m
 
             for bound, sign in (('min', -1), ('max', +1)):
