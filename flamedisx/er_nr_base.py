@@ -614,7 +614,7 @@ class LXeSource(fd.Source):
                 if qn == "photon":
                     # Add photoelectron bounds as well
                     d['photoelectron_detected_' + bound] = (
-                        n + sign * self.max_sigma * scale * (1 + pdpe)
+                        n * (1 + pdpe) + sign * self.max_sigma * scale * (1 + pdpe)
                     ).round().clip(*self._q_det_clip_range('photoelectron')).astype(np.int)
 
                 # For produced quanta, it is trickier, since the number
