@@ -196,6 +196,7 @@ class LXeSource(fd.Source):
 
     photon_gain_mean = 1.
     photon_gain_std = 0.5
+    # TODO, Used in detector_response('photoelectron'), avoid duplication or replace?
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
     double_pe_fraction = 0.219
@@ -674,15 +675,17 @@ class LXeSource(fd.Source):
             p=(gimme('photon_detection_eff')
                * gimme('penning_quenching_eff', d['photon_produced'].values)))
 
+        d['photoelectron_detected'] = stats.binom.rvs(
+            n=d['photon_detected'],
+            p=gimme('double_pe_fraction')) + d['photon_detected']
+
         d['s2'] = stats.norm.rvs(
             loc=d['electron_detected'] * gimme('electron_gain_mean'),
             scale=d['electron_detected'] ** 0.5 * gimme('electron_gain_std'))
 
-        d['s1'] = stats.norm.rvs(*self.dpe_mean_std(
-            ndet=d['photon_detected'],
-            p_dpe=gimme('double_pe_fraction'),
-            mean_per_q=gimme('photon_gain_mean'),
-            std_per_q=gimme('photon_gain_std')))
+        d['s1'] = stats.norm.rvs(
+            loc=d['photoelectron_detected'] * gimme('photon_gain_mean'),
+            scale=d['photoelectron_detected'] ** 0.5 * gimme('photon_gain_std'))
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
