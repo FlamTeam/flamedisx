@@ -11,6 +11,8 @@ import flamedisx as fd
 import json
 import scipy.interpolate as itp
 
+import pdb
+
 import matplotlib.pyplot as plt
 export, __all__ = fd.exporter()
 
@@ -82,6 +84,22 @@ def cal_bias_tf(sig, fmap, support_def, pivot_pt):
 
 recon_map_s1_tf, support_def_s1 = read_bias_tf(pathBagS1)
 recon_map_s2_tf, support_def_s2 = read_bias_tf(pathBagS2)
+
+##
+# Loading combined cuts acceptances
+##
+def itp_cut_accept_tf(sig, fmap, support_def):
+    accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig, 
+            x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap,
+            fill_value='constant_extension'))
+    return accept_out
+
+# Defining paths
+path_cut_accept_s1 = ['/home/peaelle42/software/bbf/bbf/data/S1AcceptanceSR1_v7_Median.json']
+path_cut_accept_s2 = ['/home/peaelle42/software/bbf/bbf/data/S2AcceptanceSR1_v7_Median.json']
+# can recycle map reader since format same
+cut_accept_map_s1, cut_accept_support_s1 = read_bias_tf(path_cut_accept_s1)
+cut_accept_map_s2, cut_accept_support_s2 = read_bias_tf(path_cut_accept_s2)
 
 ##
 # Flamedisx sources
@@ -183,11 +201,29 @@ class SR1ERSource(SR1Source,fd.ERSource):
             cs1_min=3, cs1_max=70):
         #cs1_min=0., cs1_max=np.inf):
         print('s1_acceptance: cs1 min = %i, cs1 max = %f' % (cs1_min, cs1_max))
-        
         cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
-        return tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
+
+        # multiplying by combined cut acceptance
+        cut_accept_wgt = itp_cut_accept_tf(s1, cut_accept_map_s1, cut_accept_support_s1)
+
+        #return tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
+        #                tf.ones_like(s1, dtype=fd.float_type()),
+        #                tf.zeros_like(s1, dtype=fd.float_type()))
+        
+        print('Applying s1 combined cut acceptances...')
+        mask = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                         tf.ones_like(s1, dtype=fd.float_type()),
                         tf.zeros_like(s1, dtype=fd.float_type()))
+        mask_out = tf.math.multiply(mask, cut_accept_wgt)
+
+        f1 = plt.figure(1)
+        f1.add_subplot(121)
+        plt.plot(cut_accept_wgt)
+        f1.add_subplot(122)
+        plt.hist(cut_accept_wgt, bins=50)
+        plt.show()
+
+        return mask_out
 
     @staticmethod
     def s2_acceptance(s2, electron_detection_eff, electron_gain_mean,
@@ -199,9 +235,20 @@ class SR1ERSource(SR1Source,fd.ERSource):
 
         cs2 = (def_g2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
 
-        return tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+        #return tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+        #                tf.ones_like(s2, dtype=fd.float_type()),
+        #                tf.zeros_like(s2, dtype=fd.float_type()))
+        print('Applying s2 combined cut acceptances...')
+        cut_accept_wgt = itp_cut_accept_tf(s2, cut_accept_map_s2, cut_accept_support_s2)
+        mask = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
                         tf.ones_like(s2, dtype=fd.float_type()),
                         tf.zeros_like(s2, dtype=fd.float_type()))
+        mask_out = tf.math.multiply(mask, cut_accept_wgt)
+
+        plt.figure(2)
+        plt.plot(cut_accept_wgt)
+        plt.show()
+        return mask_out
 
 @export
 class SR1NRSource(SR1Source, fd.NRSource):
