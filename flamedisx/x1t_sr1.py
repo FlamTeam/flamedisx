@@ -72,6 +72,11 @@ class SR1Source:
         mean_eff= g1 / (1. + 0.219)
         return mean_eff * s1_relative_ly
 
+    @staticmethod
+    def s2_acceptance(s2):
+        return tf.where((s2 < 100) | (s2 > 6000),
+                        tf.zeros_like(s2, dtype=fd.float_type()),
+                        tf.ones_like(s2, dtype=fd.float_type()))
 
 
 # ER Source for SR1
@@ -105,11 +110,6 @@ class SR1ERSource(SR1Source,fd.ERSource):
         return tf.clip_by_value(q2 * (tf.constant(1.,dtype=fd.float_type()) - tf.exp(-nq / q3_nq)),
                                 tf.constant(1e-4,dtype=fd.float_type()),
                                 float('inf'))
-    @staticmethod
-    def s2_acceptance(s2):
-        return tf.where((s2 < 100) | (s2 > 6000),
-                        tf.zeros_like(s2, dtype=fd.float_type()),
-                        tf.ones_like(s2, dtype=fd.float_type()))
 
 @export
 class SR1NRSource(SR1Source, fd.NRSource):
