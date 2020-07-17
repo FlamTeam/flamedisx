@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import typing as ty
+import zfit
 
 
 export, __all__ = fd.exporter()
@@ -264,8 +265,8 @@ class LogLikelihood:
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
         ll = 0.
-        llgrad = np.zeros(n_grads, dtype=np.float64)
-        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
+        llgrad = np.zeros(n_grads)  #, dtype=np.float64)
+        llgrad2 = np.zeros((n_grads, n_grads))  #, dtype=np.float64)
 
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
@@ -281,12 +282,12 @@ class LogLikelihood:
                     omit_grads=omit_grads,
                     second_order=second_order,
                     **params)
-                ll += results[0].numpy().astype(np.float64)
+                ll += results[0]  # .numpy().astype(np.float64)
 
                 if len(self.param_names):
-                    llgrad += results[1].numpy().astype(np.float64)
+                    llgrad += results[1]  # .numpy().astype(np.float64)
                     if second_order:
-                        llgrad2 += results[2].numpy().astype(np.float64)
+                        llgrad2 += results[2]  #.numpy().astype(np.float64)
 
         if second_order:
             return ll, llgrad, llgrad2
@@ -486,6 +487,35 @@ class LogLikelihood:
                                  "Are you starting at an unusual point? "
                                  "You could also try use_hessian=False.")
 
+        ###
+        # First attempt at zfit support for minimizing the likelihood
+        ###
+        if optimizer == "zfit":
+            params = {name: zfit.Parameter(name, value, dtype=fd.float_type())
+                      for name, value in {**self.guess(), **guess}.items()}
+
+            def nll_builder():
+                return -2 * self.log_likelihood(second_order=False,
+                                                **params)[0]
+
+            nll = zfit.loss.SimpleLoss(nll_builder,
+                                       deps=params.values(),
+                                       errordef=0.5)
+            minimizer = zfit.minimize.Minuit()
+            result = minimizer.minimize(nll)
+
+            param_vals = {k: result.params[v] for k, v in params.items()}
+            param_errors = result.errors()
+            #param_hesse = result.hesse()
+            if get_lowlevel_result or get_history:
+                return result
+            if return_errors:
+                return param_vals, param_errors
+            return param_vals
+
+        ###
+        # Existing bestfit implementation
+        ###
         opt = fd.SUPPORTED_OPTIMIZERS[optimizer]
         res = opt(
             lf=self,
@@ -673,7 +703,7 @@ class LogLikelihood:
                                              omit_grads=omit_grads,
                                              second_order=True)
 
-        return np.linalg.inv(-2 * grad2_ll)
+        return np.linalg.inv(-2 * tf.cast(grad2_ll, dtype=tf.float64))
 
     def summary(self, bestfit=None, fix=None, guess=None,
                 inverse_hessian=None, precision=3):

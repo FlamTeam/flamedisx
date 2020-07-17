@@ -632,12 +632,17 @@ class IntervalObjective(Objective):
         result = super()._inner_fun_and_grad(params)
         if self.use_hessian:
             fun, grad, hess = result
+            # Temp fix while testing ll calc in graph mode for zfit
+            hess = hess.numpy()
         else:
             fun, grad = result[:2]
             hess = None
+        # Temp fix while testing ll calc in graph mode for zfit
+        fun = fun.numpy()
+        grad = grad.numpy()
 
         # Compute Mexican hat objective
-        diff = fun - (self.m2ll_best + self.t_ppf(x))
+        diff = (fun - (self.m2ll_best + self.t_ppf(x))).numpy()
         objective = diff ** 2
 
         grad_diff = grad

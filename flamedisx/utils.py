@@ -196,6 +196,8 @@ def values_to_constants(kwargs):
     for k, v in kwargs.items():
         if isinstance(v, (float, int)) or is_numpy_number(v):
             kwargs[k] = tf.constant(v, dtype=float_type())
+        elif tf.is_tensor(v):
+            kwargs[k] = tf.cast(v, dtype=float_type())
     return kwargs
 
 

@@ -7,6 +7,32 @@ from test_source import xes   # Yes, it is used through pytest magic
 n_events = 2
 
 
+def test_bestfit_zfit(xes):
+    if not xes.__class__.__name__ == 'ERSource':
+        return
+
+    # Test bestfit (including hessian)
+    lf = fd.LogLikelihood(
+        sources=dict(er=xes.__class__),
+        elife=(100e3, 500e3, 5),
+        free_rates='er',
+        data=xes.data)
+
+    guess = lf.guess()
+    # Set reasonable rate
+    # Evaluate the likelihood curve around the minimum
+    xs_er = np.linspace(0.001, 0.004, 20)  # ER source range
+    xs_nr = np.linspace(0.04, 0.1, 20)  # NR source range
+    xs = list(xs_er) + list(xs_nr)
+    ys = np.array([-lf(er_rate_multiplier=x) for x in xs])
+    guess['er_rate_multiplier'] = xs[np.argmin(ys)]
+    assert len(guess) == 2
+
+    bestfit = lf.bestfit(guess, optimizer='zfit')
+    assert isinstance(bestfit, dict)
+    assert len(bestfit) == 2
+
+
 def test_one_parameter_interval_nonlincontr(xes):
     # Only test ERSource, it takes long enough
     if not xes.__class__.__name__ == 'ERSource':
