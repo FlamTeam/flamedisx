@@ -18,7 +18,7 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 quanta_types = 'photon', 'electron'
-signal_name = dict(photon='s1', electron='s2', photoelectron='s1')
+signal_name = dict(photon='s1', electron='s2')
 
 # Data methods that take an additional positional argument
 special_data_methods = [
@@ -193,12 +193,13 @@ class LXeSource(fd.Source):
 
     electron_gain_std = 5.
 
+    double_pe_fraction = 0.219
+
+    # TODO: Since #78, this is the gain per photo-electron, not per photon.
+    # We should refactor this, probably when revisiting annotate / introduce
+    # a block model structure
     photon_gain_mean = 1.
     photon_gain_std = 0.5
-    # TODO, Used in detector_response('photoelectron'), avoid duplication or replace?
-    photoelectron_gain_mean = 1.
-    photoelectron_gain_std = 0.5
-    double_pe_fraction = 0.219
 
     ##
     # Simulation
@@ -426,6 +427,11 @@ class LXeSource(fd.Source):
         for different number of detected quanta (photoelectrons and electrons).
         """
         ndet = self.domain(quanta_type + '_detected', data_tensor)
+
+        assert quanta_type != 'photon', "Direct photon response removed in #78"
+        if quanta_type == 'photoelectron':
+            # TODO See note above: the model functions are currently misnamed
+            quanta_type = 'photon'
 
         observed = self._fetch(
             signal_name[quanta_type], data_tensor=data_tensor)
