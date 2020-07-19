@@ -11,9 +11,6 @@ import flamedisx as fd
 import json
 import scipy.interpolate as itp
 
-import pdb
-
-import matplotlib.pyplot as plt
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -28,6 +25,8 @@ s1_map, s2_map = [
     for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
               'XENON1T_s2_xy_ly_SR1_v2.2.json')]
 
+#cut_rm_after = False
+cut_rm_after = True
 
 ##
 # Parameters
@@ -202,26 +201,18 @@ class SR1ERSource(SR1Source,fd.ERSource):
         #cs1_min=0., cs1_max=np.inf):
         print('s1_acceptance: cs1 min = %i, cs1 max = %f' % (cs1_min, cs1_max))
         cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
-
-        # multiplying by combined cut acceptance
-        cut_accept_wgt = itp_cut_accept_tf(s1, cut_accept_map_s1, cut_accept_support_s1)
-
-        #return tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
-        #                tf.ones_like(s1, dtype=fd.float_type()),
-        #                tf.zeros_like(s1, dtype=fd.float_type()))
-        
-        print('Applying s1 combined cut acceptances...')
         mask = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                         tf.ones_like(s1, dtype=fd.float_type()),
                         tf.zeros_like(s1, dtype=fd.float_type()))
-        mask_out = tf.math.multiply(mask, cut_accept_wgt)
 
-        f1 = plt.figure(1)
-        f1.add_subplot(121)
-        plt.plot(cut_accept_wgt)
-        f1.add_subplot(122)
-        plt.hist(cut_accept_wgt, bins=50)
-        plt.show()
+        # multiplying by combined cut acceptance
+        if cut_rm_after:
+            print('Applying s1 combined cut acceptances...')
+            cut_accept_wgt = itp_cut_accept_tf(s1, cut_accept_map_s1, cut_accept_support_s1)
+            mask_out = tf.math.multiply(mask, cut_accept_wgt)
+        else:
+            print('NOT applying s1 combined cut acceptances.')
+            mask_out = mask
 
         return mask_out
 
@@ -229,25 +220,23 @@ class SR1ERSource(SR1Source,fd.ERSource):
     def s2_acceptance(s2, electron_detection_eff, electron_gain_mean,
         cs2b_min=50.1, cs2b_max=7940):
             #cs2b_min=0., cs2b_max=np.inf):
-        print('s2_acceptance: cs2b min = %i, cs2b max = %f' % (cs2b_min, cs2b_max))
         #cs2 = (11.4/(1-0.63)/0.96) * s2 / (electron_detection_eff*electron_gain_mean)
         #cs2 = mean_eff * s2 / (electron_detection_eff*electron_gain_mean)
-
+        print('s2_acceptance: cs2b min = %i, cs2b max = %f' % (cs2b_min, cs2b_max))
         cs2 = (def_g2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
-
-        #return tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
-        #                tf.ones_like(s2, dtype=fd.float_type()),
-        #                tf.zeros_like(s2, dtype=fd.float_type()))
-        print('Applying s2 combined cut acceptances...')
-        cut_accept_wgt = itp_cut_accept_tf(s2, cut_accept_map_s2, cut_accept_support_s2)
         mask = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
                         tf.ones_like(s2, dtype=fd.float_type()),
                         tf.zeros_like(s2, dtype=fd.float_type()))
-        mask_out = tf.math.multiply(mask, cut_accept_wgt)
 
-        plt.figure(2)
-        plt.plot(cut_accept_wgt)
-        plt.show()
+        # multiplying by combined cut acceptance
+        if cut_rm_after:
+            print('Applying s2 combined cut acceptances...')
+            cut_accept_wgt = itp_cut_accept_tf(s2, cut_accept_map_s2, cut_accept_support_s2)
+            mask_out = tf.math.multiply(mask, cut_accept_wgt)
+        else:
+            print('NOT applying s2 combined cut acceptances.')
+            mask_out = mask
+
         return mask_out
 
 @export
