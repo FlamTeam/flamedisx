@@ -407,18 +407,24 @@ class LXeSource(fd.Source):
         p_dpe=self.gimme('double_pe_fraction',
                          data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
-        pe_minus_photons = tf.where((n_pe - n_photon) < 0,
-                                    tf.zeros_like(n_pe),
-                                    n_pe - n_photon)
+        # Double-pe emission only creates additional photoelectrons.
+        # Invalid values will get assigned p=0 later.
+        extra_pe = n_pe - n_photon
+        invalid = extra_pe < 0
+
+        # Negative arguments would mess up tfp's Binomial
+        extra_pe = tf.where(invalid,
+                            tf.zeros_like(extra_pe),
+                            extra_pe)
 
         # (N_pe - N_photons) distributed as Binom(N_photons, p=pdpe)
         result = tfp.distributions.Binomial(
                 total_count=n_photon,
                 probs=tf.cast(p_dpe, dtype=fd.float_type())
-            ).prob(pe_minus_photons)
+            ).prob(extra_pe)
 
-        # Set probability of n_pe < n_photon cases to 0
-        return tf.where((n_pe - n_photon) < 0,
+        # Set probability of extra_pe < 0 cases to 0
+        return tf.where(invalid,
                         tf.zeros_like(n_pe),
                         result)
 
