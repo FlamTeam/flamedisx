@@ -187,19 +187,23 @@ def test_domain_detected(xes: fd.ERSource):
 
 
 def test_detector_response(xes: fd.ERSource):
-    r = xes.detector_response('photon', xes.data_tensor[0], xes.ptensor_from_kwargs()).numpy()
-    assert r.shape == (n_events, xes.dimsizes['photon_detected'])
+    for quanta_name in ['electron', 'photoelectron']:
+        # Works on either photoelectrons or electrons
+        r = xes.detector_response(quanta_name,
+                                  xes.data_tensor[0],
+                                  xes.ptensor_from_kwargs()).numpy()
+        assert r.shape == (n_events, xes.dimsizes[quanta_name + '_detected'])
 
-    # r is p(S1 | detected quanta) as a function of detected quanta
-    # so the sum over r isn't meaningful (as long as we're frequentists)
+        # r is p(S1 | detected electrons) as a function of detected electrons
+        # so the sum over r isn't meaningful (as long as we're frequentists)
 
-    # Maximum likelihood est. of detected quanta is correct
-    max_is = r.argmax(axis=1)
-    domain = xes.domain('photon_detected').numpy()
-    found_mle = np_lookup_axis1(domain, max_is)
-    np.testing.assert_array_less(
-        np.abs(xes.data['photon_detected_mle'] - found_mle),
-        0.5)
+        # Maximum likelihood est. of detected quanta is correct
+        max_is = r.argmax(axis=1)
+        domain = xes.domain(quanta_name + '_detected').numpy()
+        found_mle = np_lookup_axis1(domain, max_is)
+        np.testing.assert_array_less(
+            np.abs(xes.data[quanta_name + '_detected_mle'] - found_mle),
+            0.5)
 
 
 def test_detection_prob(xes: fd.ERSource):
