@@ -1,3 +1,5 @@
+import subprocess
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -191,6 +193,7 @@ def index_lookup_dict(names):
         [tf.constant(i, dtype=int_type())
          for i in range(len(names))]))
 
+
 @export
 def values_to_constants(kwargs):
     for k, v in kwargs.items():
@@ -203,3 +206,17 @@ def values_to_constants(kwargs):
 def wilks_crit(confidence_level):
     """Return critical value from Wilks' theorem for upper limits"""
     return stats.norm.ppf(confidence_level) ** 2
+
+
+@export
+def run_command(command):
+    """Run command and show its output in STDOUT"""
+    # Is there no easier way??
+    with subprocess.Popen(
+            command.split(),
+            bufsize=1,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT) as p:
+        for line in iter(p.stdout.readline, ''):
+            print(line.rstrip())
