@@ -1,3 +1,11 @@
+1.2.0 / 2020-07-21
+------------------
+- Access BBF data and XENON-utilities (#80)
+- Double photoelectron emission modeling (#78)
+- Optimization improvements (#76)
+- Bugfix (#79)
+
+
 1.1.0 / 2020-07-09
 ------------------
 - Nonlinear constraint limit setting (experimental) (#70)
