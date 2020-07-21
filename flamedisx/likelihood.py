@@ -54,19 +54,34 @@ class LogLikelihood:
             max_sigma=3,
             n_trials=int(1e5),
             log_constraint=None,
+            bounds_specified=True,
             **common_param_specs):
         """
 
         :param sources: Dictionary {datasetname : {sourcename: class,, ...}, ...}
         or just {sourcename: class} in case you have one dataset
         Every source name must be unique.
+
         :param data: Dictionary {datasetname: pd.DataFrame}
         or just pd.DataFrame if you have one dataset or None if you
         set data later.
+
         :param free_rates: names of sources whose rates are floating
-        :param batch_size:
-        :param max_sigma:
-        :param n_trials:
+
+        :param batch_size: Number of events to use for a computation batch.
+            Higher numbers give better performance, especially for GPUs,
+            at the cost of more memory
+
+        :param max_sigma: Maximum sigma to use in bounds estimation.
+            Higher numbers give better accuracy, at the cost of performance.
+
+        :param n_trials: Number of Monte-Carlo trials for mu estimation.
+
+        :param bounds_specified: If True (default), optimizers will be
+            constrained within the specified parameter ranges.
+
+        :param log_constraint: Logarithm of constraint to include in likelihood
+
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
         param_defaults = dict()
@@ -131,6 +146,13 @@ class LogLikelihood:
 
         self.param_defaults = fd.values_to_constants(param_defaults)
         self.param_names = list(param_defaults.keys())
+
+        if bounds_specified:
+            self.default_bounds = {
+                p_name: (start, stop)
+                for p_name, (start, stop, n) in common_param_specs.items()}
+        else:
+            self.default_bounds = dict()
 
         self.mu_itps = {
             sname: s.mu_function(
@@ -491,7 +513,7 @@ class LogLikelihood:
             lf=self,
             guess={**self.guess(), **guess},
             fix=fix,
-            bounds=bounds,
+            bounds={**self.default_bounds, **bounds},
             nan_val=nan_val,
             get_lowlevel_result=get_lowlevel_result,
             get_history=get_history,
@@ -633,7 +655,10 @@ class LogLikelihood:
                 lf=self,
                 guess=req['guess'],
                 fix=fix,
-                bounds={parameter: req['bound'], **bounds},
+                bounds={
+                    **self.default_bounds,
+                    parameter: req['bound'],
+                    **bounds},
                 # TODO: nan_val
                 get_lowlevel_result=get_lowlevel_result,
                 get_history=get_history,

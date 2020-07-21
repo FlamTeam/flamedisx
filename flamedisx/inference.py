@@ -106,13 +106,24 @@ class Objective:
                 if k not in self.guess:
                     raise ValueError("Incomplete guess: {k} missing")
 
+        # Process bounds
         if bounds is None:
             bounds = dict()
+        # Remove bounds on fixed parameters
+        for k in fix:
+            if k in bounds:
+                del bounds[k]
+        # Check bounds validity
+        for k in bounds:
+            if k not in self.arg_names:
+                raise ValueError(
+                    f"Bound on {k} was passed, but this is not among "
+                    f"the parameters of the fit ({self.arg_names})")
         for p in self.arg_names:
             if p.endswith('_rate_multiplier'):
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
-        self.normed_bounds = dict()
+        self.normed_bounds = dict()    # Set in process_guess
 
         if self.require_complete_guess:
             self._process_guess()
@@ -126,7 +137,7 @@ class Objective:
         # We always scale with positive numbers, so we don't have to reverse
         # any bounds.
         self.scale_vector = np.abs(self._dict_to_array(self.guess))
-        self.scale_vector[self.scale_vector == 0] = 1
+        self.scale_vector[self.scale_vector == 0.] = 1.
 
         # Convert bounds to normed space
         self.normed_bounds = self.normalize(self.bounds, 'bounds')
@@ -231,7 +242,7 @@ class Objective:
             if k in self.bounds:
                 b = self.bounds[k]
                 if not ((b[0] is None or b[0] <= v)
-                        and (b[1] is None or v < b[1])):
+                        and (b[1] is None or v <= b[1])):
                     warnings.warn(
                         f"Optimizer requested likelihood at {k} = {v}, "
                         f"which is outside the bounds {b}.",
@@ -253,16 +264,17 @@ class Objective:
             self._history.append(dict(params=params, y=y,
                                       scaled_grad=grad, grad=result[1]))
 
+        x_desc = dict(zip(self.arg_names, x))
         if np.isnan(y):
-            warnings.warn(f"Objective at {x} is Nan!",
+            warnings.warn(f"Objective at {x_desc} is Nan!",
                           OptimizerWarning)
             result = self.nan_result()
         elif np.any(np.isnan(grad)):
-            warnings.warn(f"Objective at {x} has NaN gradient {grad}",
+            warnings.warn(f"Objective at {x_desc} has NaN gradient {grad}",
                           OptimizerWarning)
             result = self.nan_result()
         elif hess is not None and np.any(np.isnan(hess)):
-            warnings.warn(f"Objective at {x} has NaN Hessian {hess}",
+            warnings.warn(f"Objective at {x_desc} has NaN Hessian {hess}",
                           OptimizerWarning)
             result = self.nan_result()
         else:
@@ -390,7 +402,8 @@ class ScipyObjective(Objective):
 
         return scipy_optimize.minimize(
             fun=self.fun,
-            x0=np.ones(len(self.arg_names)),
+            # This is NOT an array of ones! 0 and -1 can also appear.
+            x0=self._dict_to_array(self.normalize(self.guess)),
             jac=self.grad,
             **kwargs)
 
@@ -490,7 +503,8 @@ class MinuitObjective(Objective):
 
     def parse_result(self, result: Minuit):
         if not result.migrad_ok():
-            # Borrowed from https://github.com/scikit-hep/iminuit/blob/2ff3cd79b84bf3b25b83f78523312a7c48e26b73/iminuit/_minimize.py#L107
+            # Borrowed from https://github.com/scikit-hep/iminuit/blob/
+            # 2ff3cd79b84bf3b25b83f78523312a7c48e26b73/iminuit/_minimize.py#L107
             message = "Migrad failed! "
             fmin = result.get_fmin()
             if fmin.has_reached_call_limit:
@@ -716,8 +730,8 @@ class NonlinearIntervalObjective(IntervalObjective, ScipyObjective):
             # Objective is linear
             jac=lambda x: tilt_grad,
             hess=lambda x: np.zeros((n, n)),
-            # The minimizer operates in scaled coordinates
-            x0=np.ones(n),
+            # This is NOT an array of ones! 0 and -1 can also appear.
+            x0=self._dict_to_array(self.normalize(self.guess)),
             constraints=constraint,
             **kwargs)
 
