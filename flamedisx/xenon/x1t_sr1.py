@@ -11,9 +11,6 @@ import flamedisx as fd
 import json
 import scipy.interpolate as itp
 
-import matplotlib.pyplot as plt
-import pdb 
-
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
