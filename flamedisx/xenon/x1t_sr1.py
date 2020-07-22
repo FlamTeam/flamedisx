@@ -11,6 +11,8 @@ import flamedisx as fd
 import json
 import scipy.interpolate as itp
 
+import matplotlib.pyplot as plt
+
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -25,8 +27,8 @@ s1_map, s2_map = [
     for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
               'XENON1T_s2_xy_ly_SR1_v2.2.json')]
 
-#cut_rm_after = False
-cut_rm_after = True
+#apply_cut_accept = True
+apply_cut_accept = False
 
 ##
 # Parameters
@@ -34,6 +36,7 @@ cut_rm_after = True
 def_g1 = 0.142
 def_g2 = 11.4 # don't divide by weird shits. will explode downstream.
 
+def_frac_top = 0.63 # fraction of light from top array
 def_p_dpe = 0.219
 def_extract_eff = 0.96
 
@@ -143,11 +146,11 @@ class SR1Source:
         return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
-    def electron_gain_mean(s2_relative_ly, *, g2=def_g2/(1.-0.63)/def_extract_eff):
+    def electron_gain_mean(s2_relative_ly, *, g2=def_g2/(1.-def_frac_top)/def_extract_eff):
         return g2 * s2_relative_ly
 
     @staticmethod
-    def electron_gain_std(s2_relative_ly, *, g2=def_g2/(1.-0.63)/def_extract_eff):
+    def electron_gain_std(s2_relative_ly, *, g2=def_g2/(1.-def_frac_top)/def_extract_eff):
         return g2*def_extract_eff*0.25+0.*s2_relative_ly
 
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
@@ -187,7 +190,7 @@ class SR1ERSource(SR1Source,fd.ERSource):
         return fd.safe_p(p_el)
 
     @staticmethod
-    def p_electron_fluctuation(nq, q2=0.034, q3_nq=123. ):
+    def p_electron_fluctuation(nq, q2=0.034, q3_nq=123.):
         # From SR0, BBF model, right?
         # q3 = 1.7 keV ~= 123 quanta
         # For SR1:
@@ -200,13 +203,24 @@ class SR1ERSource(SR1Source,fd.ERSource):
             cs1_min=3, cs1_max=70):
         #cs1_min=0., cs1_max=np.inf):
         print('s1_acceptance: cs1 min = %i, cs1 max = %f' % (cs1_min, cs1_max))
+
+        nbins_tmp = 200
+        f_tmp = plt.figure()
+        f_tmp.add_subplot(121)
+        plt.hist(s1, bins=nbins_tmp)
+
+        f_tmp.add_subplot(122)
+        plt.hist(s1, bins=nbins_tmp)
+        plt.xlim(3.,50.)
+        plt.show()
+
         cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
         mask = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                         tf.ones_like(s1, dtype=fd.float_type()),
                         tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        if cut_rm_after:
+        if apply_cut_accept:
             print('Applying s1 combined cut acceptances...')
             cut_accept_wgt = itp_cut_accept_tf(s1, cut_accept_map_s1, cut_accept_support_s1)
             mask_out = tf.math.multiply(mask, cut_accept_wgt)
@@ -229,7 +243,7 @@ class SR1ERSource(SR1Source,fd.ERSource):
                         tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        if cut_rm_after:
+        if apply_cut_accept:
             print('Applying s2 combined cut acceptances...')
             cut_accept_wgt = itp_cut_accept_tf(s2, cut_accept_map_s2, cut_accept_support_s2)
             mask_out = tf.math.multiply(mask, cut_accept_wgt)
