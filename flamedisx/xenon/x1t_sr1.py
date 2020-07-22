@@ -25,8 +25,8 @@ s1_map, s2_map = [
     for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
               'XENON1T_s2_xy_ly_SR1_v2.2.json')]
 
-apply_cut_accept = True
-#apply_cut_accept = False
+#apply_cut_accept = True
+apply_cut_accept = False
 
 ##
 # Parameters
