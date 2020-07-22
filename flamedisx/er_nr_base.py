@@ -17,8 +17,8 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-apply_recon_bias = True
-#apply_recon_bias = False
+#apply_recon_bias = True
+apply_recon_bias = False
 
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
