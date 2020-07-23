@@ -2,6 +2,7 @@ __version__ = '1.2.0'
 
 from .utils import *
 from .source import *
+from .block_source import *
 from .likelihood import *
 from .inference import *
 
