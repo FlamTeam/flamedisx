@@ -16,8 +16,6 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-import pdb
-
 ##
 # Yield maps
 ##
@@ -61,10 +59,6 @@ path_dummy_zeros_s1 = [dummy_base+x for x in path_dummy_zeros_s1]
 path_dummy_zeros_s2 = ['dummy_zeros_s2.json', 'dummy_zeros_s2.json']
 path_dummy_zeros_s2 = [dummy_base+x for x in path_dummy_zeros_s2]
 
-#print('Setting path that will die...')
-#path_recon_bias_mean_s1 = ['lala']
-#path_recon_bias_mean_s2 = ['lala']
-
 def read_bias_tf(path_bag):
     # Achtung:
     # Fundamentally assumes upper and lower bounds have exactly the same support definition
@@ -95,9 +89,6 @@ def cal_bias_tf(sig, fmap, support_def, pivot_pt):
 
     return bias_out
 
-#recon_map_s1_tf, support_def_s1 = read_bias_tf(path_recon_bias_mean_s1)
-#recon_map_s2_tf, support_def_s2 = read_bias_tf(path_recon_bias_mean_s2)
-
 ##
 # Loading combined cuts acceptances
 ##
@@ -110,15 +101,9 @@ def itp_cut_accept_tf(sig, fmap, support_def):
 # Defining paths
 path_cut_accept_s1 = ['/home/peaelle42/software/bbf/bbf/data/S1AcceptanceSR1_v7_Median.json']
 path_cut_accept_s2 = ['/home/peaelle42/software/bbf/bbf/data/S2AcceptanceSR1_v7_Median.json']
-# can recycle map reader since format same
-#cut_accept_map_s1, cut_accept_support_s1 = read_bias_tf(path_cut_accept_s1)
-#cut_accept_map_s2, cut_accept_support_s2 = read_bias_tf(path_cut_accept_s2)
+
 path_dummy_ones_s1 = [dummy_base+'dummy_ones_s1.json']
 path_dummy_ones_s2 = [dummy_base+'dummy_ones_s2.json']
-
-#print('Setting path that will die...')
-#path_cut_accept_s1 = ['lala']
-#path_cut_accept_s2 = ['lala']
 
 ##
 # Flamedisx sources
