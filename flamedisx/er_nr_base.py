@@ -206,18 +206,8 @@ class LXeSource(fd.Source):
     ##
 
     def random_truth(self, n_events, fix_truth=None, **params):
-        assert isinstance(n_events, (int, float)), \
-            f"n_events must be an int or float, not {type(n_events)}"
-
         data = self.random_truth_observables(n_events)
         data = self._add_random_energies(data, n_events)
-
-        if fix_truth is not None:
-            # Override any keys with fixed values defined in fix_truth
-            fix_truth = self.validate_fix_truth(fix_truth)
-            for k, v in fix_truth.items():
-                data[k] = v
-
         return pd.DataFrame(data)
 
     def _add_random_energies(self, data, n_events):

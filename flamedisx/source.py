@@ -403,10 +403,18 @@ class Source:
     def simulate(self, n_events, fix_truth=None, **params):
         """Simulate n events.
 
-        Will not return events lost due to selection/detection efficiencies
+        Will omit events lost due to selection/detection efficiencies
         """
+        assert isinstance(n_events, (int, float)), \
+            f"n_events must be an int or float, not {type(n_events)}"
+
         # Draw random "deep truth" variables (energy, position)
-        sim_data = self.random_truth(n_events, fix_truth=fix_truth, **params)
+        sim_data = self.random_truth(n_events, **params)
+        if fix_truth is not None:
+            # Override any keys with fixed values defined in fix_truth
+            fix_truth = self.validate_fix_truth(fix_truth)
+            for k, v in fix_truth.items():
+                sim_data[k] = v
 
         with self._set_temporarily(sim_data, _skip_bounds_computation=True,
                                    **params):
@@ -417,6 +425,10 @@ class Source:
             # Set the data, annotate, compute bounds, skip TF
             self.set_data(d, _skip_tf_init=True)
             return self.data
+
+    def validate_fix_truth(self, fix_truth):
+        """Check fix_truth is correct, adding derived variables if needed"""
+        pass
 
     ##
     # Mu estimation
