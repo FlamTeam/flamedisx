@@ -8,6 +8,7 @@ from multihist import Hist1d
 import wimprates
 
 import flamedisx as fd
+import os
 import json
 import scipy.interpolate as itp
 
@@ -15,18 +16,18 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
+import pdb
+
 ##
 # Yield maps
 ##
-
-
 s1_map, s2_map = [
     fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
     for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
               'XENON1T_s2_xy_ly_SR1_v2.2.json')]
 
-#apply_cut_accept = True
-apply_cut_accept = False
+apply_cut_accept = True
+#apply_cut_accept = False
 
 ##
 # Parameters
@@ -48,12 +49,24 @@ def_recon_pivot = 0.49
 ##
 # Loading Pax reconstruction bias
 ##
-pathBagS1 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanLowers_SR1_v2.json',
+dummy_base = os.path.dirname(os.path.realpath(__file__)) + '/dummy_maps/'
+
+path_recon_bias_mean_s1 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanLowers_SR1_v2.json',
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanUppers_SR1_v2.json']
-pathBagS2 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanLowers_SR1_v2.json',
+path_recon_bias_mean_s2 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanLowers_SR1_v2.json',
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanUppers_SR1_v2.json']
+
+path_dummy_zeros_s1 = ['dummy_zeros_s1.json', 'dummy_zeros_s1.json']
+path_dummy_zeros_s1 = [dummy_base+x for x in path_dummy_zeros_s1]
+path_dummy_zeros_s2 = ['dummy_zeros_s2.json', 'dummy_zeros_s2.json']
+path_dummy_zeros_s2 = [dummy_base+x for x in path_dummy_zeros_s2]
+
+#print('Setting path that will die...')
+#path_recon_bias_mean_s1 = ['lala']
+#path_recon_bias_mean_s2 = ['lala']
+
 def read_bias_tf(path_bag):
-    # Achtung: 
+    # Achtung:
     # Fundamentally assumes upper and lower bounds have exactly the same support definition
     data_bag = []
     yy_ref_bag = []
@@ -62,16 +75,16 @@ def read_bias_tf(path_bag):
             tmp = json.load(json_file)
             yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
             data_bag.append(tmp)
-    support_def = tmp['coordinate_system'][0][1] 
-    
+    support_def = tmp['coordinate_system'][0][1]
+
     return yy_ref_bag, support_def
 
 def cal_bias_tf(sig, fmap, support_def, pivot_pt):
     tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
-    bias_low = tfp.math.interp_regular_1d_grid(x=tmp, 
+    bias_low = tfp.math.interp_regular_1d_grid(x=tmp,
             x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[0],
             fill_value='constant_extension')
-    bias_high = tfp.math.interp_regular_1d_grid(x=tmp, 
+    bias_high = tfp.math.interp_regular_1d_grid(x=tmp,
             x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[1],
             fill_value='constant_extension')
 
@@ -82,14 +95,14 @@ def cal_bias_tf(sig, fmap, support_def, pivot_pt):
 
     return bias_out
 
-#recon_map_s1_tf, support_def_s1 = read_bias_tf(pathBagS1)
-#recon_map_s2_tf, support_def_s2 = read_bias_tf(pathBagS2)
+#recon_map_s1_tf, support_def_s1 = read_bias_tf(path_recon_bias_mean_s1)
+#recon_map_s2_tf, support_def_s2 = read_bias_tf(path_recon_bias_mean_s2)
 
 ##
 # Loading combined cuts acceptances
 ##
 def itp_cut_accept_tf(sig, fmap, support_def):
-    accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig, 
+    accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
             x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap,
             fill_value='constant_extension'))
     return accept_out
@@ -100,6 +113,12 @@ path_cut_accept_s2 = ['/home/peaelle42/software/bbf/bbf/data/S2AcceptanceSR1_v7_
 # can recycle map reader since format same
 #cut_accept_map_s1, cut_accept_support_s1 = read_bias_tf(path_cut_accept_s1)
 #cut_accept_map_s2, cut_accept_support_s2 = read_bias_tf(path_cut_accept_s2)
+path_dummy_ones_s1 = [dummy_base+'dummy_ones_s1.json']
+path_dummy_ones_s2 = [dummy_base+'dummy_ones_s2.json']
+
+#print('Setting path that will die...')
+#path_cut_accept_s1 = ['lala']
+#path_cut_accept_s2 = ['lala']
 
 ##
 # Flamedisx sources
@@ -110,22 +129,34 @@ class SR1Source:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Loading combined cut acceptances
-        self.cut_accept_map_s1, self.cut_accept_support_s1 = read_bias_tf(path_cut_accept_s1)
-        self.cut_accept_map_s2, self.cut_accept_support_s2 = read_bias_tf(path_cut_accept_s2)
-        # Loading reconstruction bias map
-        self.recon_map_s1_tf, self.support_def_s1 = read_bias_tf(pathBagS1)
-        self.recon_map_s2_tf, self.support_def_s2 = read_bias_tf(pathBagS2)
+        try:
+            # Loading combined cut acceptances
+            self.cut_accept_map_s1, self.cut_accept_support_s1 = read_bias_tf(path_cut_accept_s1)
+            self.cut_accept_map_s2, self.cut_accept_support_s2 = read_bias_tf(path_cut_accept_s2)
+            print('BBF combined cut acceptances maps loaded')
+            # Loading reconstruction bias map
+            self.recon_map_s1_tf, self.support_def_s1 = read_bias_tf(path_recon_bias_mean_s1)
+            self.recon_map_s2_tf, self.support_def_s2 = read_bias_tf(path_recon_bias_mean_s2)
+            print('BBF reconstruction bias mean maps loaded')
+        except:
+            # Loading combined cut acceptances
+            self.cut_accept_map_s1, self.cut_accept_support_s1 = read_bias_tf(path_dummy_ones_s1)
+            self.cut_accept_map_s2, self.cut_accept_support_s2 = read_bias_tf(path_dummy_ones_s2)
+            print('Dummy combined cut acceptances maps loaded')
+            # Loading reconstruction bias map
+            self.recon_map_s1_tf, self.support_def_s1 = read_bias_tf(path_dummy_zeros_s1)
+            self.recon_map_s2_tf, self.support_def_s2 = read_bias_tf(path_dummy_zeros_s2)
+            print('Dummy reconstruction bias mean maps loaded')
 
     def recon_bias_s1(self, sig, bias_pivot_pt=def_recon_pivot):
         recon_bias = cal_bias_tf(sig, self.recon_map_s1_tf, self.support_def_s1,
                 pivot_pt=bias_pivot_pt)
-        return recon_bias 
+        return recon_bias
 
     def recon_bias_s2(self, sig, bias_pivot_pt=def_recon_pivot):
         recon_bias = cal_bias_tf(sig, self.recon_map_s2_tf, self.support_def_s2,
                 pivot_pt=bias_pivot_pt)
-        return recon_bias 
+        return recon_bias
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -167,11 +198,46 @@ class SR1Source:
         mean_eff= g1 / (1. + def_p_dpe)
         return mean_eff * s1_relative_ly
 
-    @staticmethod
-    def s2_acceptance(s2):
-        return tf.where((s2 < 100) | (s2 > 6000),
-                        tf.zeros_like(s2, dtype=fd.float_type()),
-                        tf.ones_like(s2, dtype=fd.float_type()))
+    def s1_acceptance(self, s1, photon_detection_eff, photon_gain_mean, mean_eff=def_g1 / (1 + def_p_dpe),
+            cs1_min=3, cs1_max=70):
+        print('s1_acceptance: cs1 min = %i, cs1 max = %f' % (cs1_min, cs1_max))
+        cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
+        mask = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
+                        tf.ones_like(s1, dtype=fd.float_type()),
+                        tf.zeros_like(s1, dtype=fd.float_type()))
+
+        # multiplying by combined cut acceptance
+        if apply_cut_accept:
+            print('Applying s1 combined cut acceptances...')
+            cut_accept_wgt = itp_cut_accept_tf(s1, self.cut_accept_map_s1, self.cut_accept_support_s1)
+            mask_out = tf.math.multiply(mask, cut_accept_wgt)
+        else:
+            print('NOT applying s1 combined cut acceptances.')
+            mask_out = mask
+
+        return mask_out
+
+    def s2_acceptance(self, s2, electron_detection_eff, electron_gain_mean,
+        cs2b_min=50.1, cs2b_max=7940):
+        #cs2 = (11.4/(1-0.63)/0.96) * s2 / (electron_detection_eff*electron_gain_mean)
+        #cs2 = mean_eff * s2 / (electron_detection_eff*electron_gain_mean)
+        print('s2_acceptance: cs2b min = %i, cs2b max = %f' % (cs2b_min, cs2b_max))
+
+        cs2 = (def_g2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
+        mask = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+                        tf.ones_like(s2, dtype=fd.float_type()),
+                        tf.zeros_like(s2, dtype=fd.float_type()))
+
+        # multiplying by combined cut acceptance
+        if apply_cut_accept:
+            print('Applying s2 combined cut acceptances...')
+            cut_accept_wgt = itp_cut_accept_tf(s2, self.cut_accept_map_s2, self.cut_accept_support_s2)
+            mask_out = tf.math.multiply(mask, cut_accept_wgt)
+        else:
+            print('NOT applying s2 combined cut acceptances.')
+            mask_out = mask
+
+        return mask_out
 
 
 # ER Source for SR1
@@ -205,49 +271,6 @@ class SR1ERSource(SR1Source,fd.ERSource):
                                 tf.constant(1e-4,dtype=fd.float_type()),
                                 float('inf'))
 
-    @staticmethod
-    def s1_acceptance(s1, photon_detection_eff, photon_gain_mean, mean_eff=def_g1 / (1 + def_p_dpe), 
-            cs1_min=3, cs1_max=70):
-        print('s1_acceptance: cs1 min = %i, cs1 max = %f' % (cs1_min, cs1_max))
-
-        cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
-        mask = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
-                        tf.ones_like(s1, dtype=fd.float_type()),
-                        tf.zeros_like(s1, dtype=fd.float_type()))
-
-        # multiplying by combined cut acceptance
-        if apply_cut_accept:
-            print('Applying s1 combined cut acceptances...')
-            cut_accept_wgt = itp_cut_accept_tf(s1, self.cut_accept_map_s1, self.cut_accept_support_s1)
-            mask_out = tf.math.multiply(mask, cut_accept_wgt)
-        else:
-            print('NOT applying s1 combined cut acceptances.')
-            mask_out = mask
-
-        return mask_out
-
-    @staticmethod
-    def s2_acceptance(s2, electron_detection_eff, electron_gain_mean,
-        cs2b_min=50.1, cs2b_max=7940):
-        #cs2 = (11.4/(1-0.63)/0.96) * s2 / (electron_detection_eff*electron_gain_mean)
-        #cs2 = mean_eff * s2 / (electron_detection_eff*electron_gain_mean)
-        print('s2_acceptance: cs2b min = %i, cs2b max = %f' % (cs2b_min, cs2b_max))
-        
-        cs2 = (def_g2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
-        mask = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
-                        tf.ones_like(s2, dtype=fd.float_type()),
-                        tf.zeros_like(s2, dtype=fd.float_type()))
-
-        # multiplying by combined cut acceptance
-        if apply_cut_accept:
-            print('Applying s2 combined cut acceptances...')
-            cut_accept_wgt = itp_cut_accept_tf(s2, self.cut_accept_map_s2, self.cut_accept_support_s2)
-            mask_out = tf.math.multiply(mask, cut_accept_wgt)
-        else:
-            print('NOT applying s2 combined cut acceptances.')
-            mask_out = mask
-
-        return mask_out
 
 @export
 class SR1NRSource(SR1Source, fd.NRSource):
