@@ -323,6 +323,12 @@ class Source:
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
 
+    def gimme_numpy(self, *args, **kwargs):
+        kwargs['numpy_out'] = True
+        return self.gimme(*args, **kwargs)
+
+    gimme_numpy.__doc__ = gimme.__doc__
+
     ##
     # Differential rate computation
     ##
