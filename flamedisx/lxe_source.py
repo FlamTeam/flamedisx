@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+from scipy import stats
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -14,8 +15,10 @@ DEFAULT_WORK_PER_QUANTUM = 13.7e-3
 @export
 class UniformConstantEnergy(fd.Block):
 
-    # TODO: how to make this easily overridable?
-    # Maybe energy should come directly from the source, not from a block?
+    dimensions = ('deposited_energy',)
+    static_attributes = (
+        'energies', 'rates_vs_energy',
+        'fv_radius', 'fv_high' 'fv_low' 'drift_velocity' 't_start' 't_stop')
 
     # The fiducial volume bounds for a cylindrical volume
     # default to full (2t) XENON1T dimensions
@@ -31,20 +34,19 @@ class UniformConstantEnergy(fd.Block):
     t_start = pd.to_datetime('2019-09-01T08:28:00')
     t_stop = pd.to_datetime('2020-09-01T08:28:00')
 
-    dimensions = ('deposited_energy',)
-
+    # Just a dummy 0-10 keV spectrum
     energies: tf.linspace(0., 10., 1000)
-    rates: tf.ones(1000, dtype=fd.float_type())
+    rates_vs_energy: tf.ones(1000, dtype=fd.float_type())
 
     def _compute(self,
                  data_tensor, ptensor,
                  energy):
-        return fd.repeat(self.rates[o, :], self.batch_size, axis=0)
+        return fd.repeat(self.rates_vs_energy[o, :], self.batch_size, axis=0)
 
     def domain(self, data_tensor, ptensor):
         return fd.repeat(self.energies[o, :], self.batch_size, axis=0)
 
-    def random_truth_observables(self, n_events):
+    def random_truth(self, n_events):
         """Return dictionary with x, y, z, r, theta, drift_time
         and event_time randomly drawn.
         """
@@ -72,7 +74,7 @@ class UniformConstantEnergy(fd.Block):
 @export
 class MakeERQuanta(fd.Block):
 
-    dimensions = ('produced_quanta', 'energy')
+    dimensions = ('quanta_produced', 'energy')
     depends_on = ((('deposited_energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
@@ -96,11 +98,16 @@ class MakeERQuanta(fd.Block):
                                 produced_quanta_real[:, o, :]),
                        dtype=fd.float_type())
 
+    def _simulate(self, d):
+        # OK to use None, simulator has set defaults
+        work = self.gimme_numpy('work', data_tensor=None, ptensor=None)
+        d['quanta_produced'] = np.floor(d['energy'].values / work).astype(np.int)
+
 
 @export
 class MakeNRQuanta(fd.Block):
 
-    dimensions = ('produced_quanta', 'energy')
+    dimensions = ('quanta_produced', 'energy')
     depends_on = ((('deposited_energy',), 'rate_vs_energy'),)
 
     data_methods = ('work',)
@@ -141,13 +148,24 @@ class MakeNRQuanta(fd.Block):
         return tfp.distributions.Poisson(
             mean_q_produced[:, o, :]).prob(produced_quanta[:, :, o])
 
+    def _simulate(self, d):
+        # If you forget the .values here, you may get a Python core dump...
+        energies = d['energy'].values
+        # OK to use None, simulator has set defaults
+        work = self.gimme_numpy('work', data_tensor=None, ptensor=None)
+        lindhard_l = self.gimme_numpy('lindhard_l',
+                                      bonus_arg=energies,
+                                      data_tensor=None, ptensor=None)
+        d['quanta_produced'] = stats.poisson.rvs(energies * lindhard_l / work)
+        return d
+
 
 @export
 class MakePhotonsElectronsBinomial(fd.Block):
 
     do_pel_fluct = False
 
-    depends_on = ((('produced_quanta',), 'rate_vs_quanta'),)
+    depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)
     dimensions = ('electrons_produced', 'photons_produced')
 
     special_model_functions = ('p_electron')
@@ -199,7 +217,31 @@ class MakePhotonsElectronsBinomial(fd.Block):
             return rate_nq * tfp.distributions.Binomial(
                 total_count=nq, probs=pel).prob(electrons_produced)
 
+    def _simulate(self, d):
+        d['p_el_mean'] = self.gimme_numpy('p_electron',
+                                          d['quanta_produced'].values)
 
+        if self.do_pel_fluct:
+            d['p_el_fluct'] = self.gimme_numpy(
+                'p_electron_fluctuation', d['quanta_produced'].values)
+            d['p_el_fluct'] = np.clip(d['p_el_fluct'].values,
+                                      fd.MIN_FLUCTUATION_P,
+                                      1.)
+            d['p_el_actual'] = 1. - stats.beta.rvs(
+                *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
+        else:
+            d['p_el_fluct'] = 0.
+            d['p_el_actual'] = d['p_el_mean']
+
+        d['p_el_actual'] = np.nan_to_num(d['p_el_actual']).clip(0, 1)
+        d['electrons_produced'] = stats.binom.rvs(
+            n=d['quanta_produced'],
+            p=d['p_el_actual'])
+        d['photons_produced'] = d['quanta_produced'] - d['electrons_produced']
+        return d
+
+
+@export
 class MakePhotonsElectronsBetaBinomial(MakePhotonsElectronsBinomial):
     do_pel_fluct = True
 
@@ -216,6 +258,7 @@ class MakePhotonsElectronsBetaBinomial(MakePhotonsElectronsBinomial):
                                 1.)
 
 
+@export
 class DetectPhotons(fd.Block):
     dimensions = ('photons_produced', 'photons_detected')
 
@@ -246,8 +289,18 @@ class DetectPhotons(fd.Block):
                                    bonus_arg=photons_detected,
                                    data_tensor=data_tensor, ptensor=ptensor)
 
+    def _simulate(self, d):
+        d['photon_detected'] = stats.binom.rvs(
+            n=d['photon_produced'],
+            p=(self.gimme_numpy('photon_detection_eff')
+               * self.gimme_numpy('penning_quenching_eff',
+                                  d['photon_produced'].values)))
+        d['p_accepted'] *= self.gimme_numpy('photon_acceptance',
+                                            d['photons_detected'].values)
+
 
 # TODO: Can we avoid duplication in a nice way?
+@export
 class DetectElectrons(fd.Block):
     dimensions = ('electrons_produced', 'electrons_detected')
 
@@ -270,7 +323,17 @@ class DetectElectrons(fd.Block):
                                    bonus_arg=electrons_detected,
                                    data_tensor=data_tensor, ptensor=ptensor)
 
+    def _simulate(self, d):
+        d['electrons_detected'] = stats.binom.rvs(
+            n=d['electrons_produced'],
+            p=(self.gimme_numpy('photon_detection_eff')
+               * self.gimme_numpy('penning_quenching_eff',
+                                  d['electrons_produced'].values)))
+        d['p_accepted'] *= self.gimme_numpy('electron_acceptance',
+                                            d['electrons_detected'].values)
 
+
+@export
 class MakeS1Photoelectrons(fd.Block):
     dimensions = ('photons_detected', 'photoelectrons_detected')
 
@@ -300,32 +363,94 @@ class MakeS1Photoelectrons(fd.Block):
                         tf.zeros_like(photoelectrons_detected),
                         result)
 
+    def _simulate(self, d):
+        d['photoelectron_detected'] = stats.binom.rvs(
+            n=d['photons_detected'],
+            p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
 
-class MakeS1(fd.Block):
+    def _annotate(self, d):
+        d['double_pe_fraction'] = self.gimme_numpy('double_pe_fraction')
+        # TODO
+
+
+class MakeFinalSignals:
+    """Common code for MakeS1 and MakeS2"""
+    quanta_name: str
+    s_name: str
+
+    def _simulate(self, d):
+        d[self.s_name] = stats.norm.rvs(
+            loc=d[self.quanta_name + 's_detected']
+                * self.gimme_numpy(self.quanta_name + '_gain_mean'),
+            scale=d[self.quanta_name + 's_detected']**0.5
+                  * self.gimme_numpy(self.quanta_name + '_gain_std'))
+        d['p_accepted'] *= self.gimme_numpy(self.s_name + '_acceptance')
+
+    def _annotate(self, d):
+        m = self.gimme_numpy(self.quanta_name + '_gain_mean').values
+        s = self.gimme_numpy(self.quanta_name + '_gain_std').values
+
+        mle = d[self.quanta_name + 's_detected_mle'] = \
+            (d[self.s_name] / d[self.quanta_name + '_gain_mean']).clip(
+                *self._q_det_clip_range(self.quanta_name))
+        scale = mle**0.5 * s / m
+
+        for bound, sign in (('min', -1), ('max', +1)):
+            # For detected quanta the MLE is quite accurate
+            # (since fluctuations are tiny)
+            # so let's just use the relative error on the MLE
+            d[self.quanta_name + 's_detected_' + bound] = (
+                    mle + sign * self.source.max_sigma * scale
+            ).round().clip(*self._q_det_clip_range(self.quanta_name)).astype(np.int)
+
+    def __compute(self,
+                  quanta_detected, s_observed,
+                  data_tensor, ptensor):
+        # Lookup signal gain mean and std per detected quanta
+        mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
+                                data_tensor=data_tensor, ptensor=ptensor)[:, o]
+        std_per_q = self.gimme(self.quanta_name + '_gain_std',
+                               data_tensor=data_tensor, ptensor=ptensor)[:, o]
+
+        mean = quanta_detected * mean_per_q
+        std = quanta_detected ** 0.5 * std_per_q
+
+        # add offset to std to avoid NaNs from norm.pdf if std = 0
+        result = tfp.distributions.Normal(
+            loc=mean, scale=std + 1e-10
+        ).prob(s_observed[:, o])
+
+        # Add detection/selection efficiency
+        result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o]
+        return result
+
+
+@export
+class MakeS1(fd.Block, MakeFinalSignals):
 
     dimensions = ('photoelectrons_detected', 's1')
-    model_functions = ('photon_gain_mean', 'photon_gain_std',
+    model_functions = ('photelectron_gain_mean', 'photelectron_gain_std',
                        's1_acceptance')
 
-    # TODO: Since #78, this is the gain per photo-electron, not per photon.
-    # We should refactor this, probably when revisiting annotate / introduce
-    # a block model structure
-    photon_gain_mean = 1.
-    photon_gain_std = 0.5
+    photoelectron_gain_mean = 1.
+    photoelectron_gain_std = 0.5
 
     s1_acceptance = 1.
 
+    quanta_name = 'photoelectron'
+    s_name = 's1'
+
     def _compute(self, data_tensor, ptensor,
                  photoelectrons_detected, s1):
-        return gaussian_smearing(self,
-                                 quanta_type='photon',
-                                 data_tensor=data_tensor,
-                                 quanta_detected=photoelectrons_detected,
-                                 s_observed=s1,
-                                 ptensor=ptensor)
+        return self.__compute(
+            quanta_detected=photoelectrons_detected,
+            s_observed=s1,
+            data_tensor=data_tensor, ptensor=ptensor)
 
 
-class MakeS2(fd.Block):
+@export
+class MakeS2(fd.Block, MakeFinalSignals):
 
     dimensions = ('electrons_detected', 's2')
     model_functions = ('electron_gain_mean', 'electron_gain_std',
@@ -339,43 +464,21 @@ class MakeS2(fd.Block):
 
     s2_acceptance = 1.
 
+    quanta_name = 'electron'
+    s_name = 's2'
+
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2):
-        return gaussian_smearing(self,
-                                 quanta_type='electrons',
-                                 data_tensor=data_tensor,
-                                 quanta_detected=electrons_detected,
-                                 s_observed=s2,
-                                 ptensor=ptensor)
+        return self.__compute(
+            quanta_detected=electrons_detected,
+            s_observed=s2,
+            data_tensor=data_tensor, ptensor=ptensor)
 
 
-def gaussian_smearing(self,
-                      quanta_type,
-                      quanta_detected, s_observed,
-                      data_tensor, ptensor):
-    # Lookup signal gain mean and std per detected quanta
-    mean_per_q = self.gimme(quanta_type + '_gain_mean',
-                            data_tensor=data_tensor, ptensor=ptensor)[:, o]
-    std_per_q = self.gimme(quanta_type + '_gain_std',
-                           data_tensor=data_tensor, ptensor=ptensor)[:, o]
-
-    mean = quanta_detected * mean_per_q
-    std = quanta_detected**0.5 * std_per_q
-
-    # add offset to std to avoid NaNs from norm.pdf if std = 0
-    result = tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).prob(s_observed[:, o])
-
-    # Add detection/selection efficiency
-    result *= self.gimme(SIGNAL_NAMES[quanta_type] + '_acceptance',
-                         data_tensor=data_tensor, ptensor=ptensor)[:, o]
-    return result
-
-
+@export
 class ERSource(fd.BlockModelSource):
     model_blocks = (
-        SimpleEnergySpectrum,
+        UniformConstantEnergy,
         MakeERQuanta,
         MakePhotonsElectronsBetaBinomial,
         DetectPhotons,
@@ -387,9 +490,10 @@ class ERSource(fd.BlockModelSource):
     observables = tuple(SIGNAL_NAMES.values())
 
 
+@export
 class NRSource(fd.BlockModelSource):
     model_blocks = (
-        SimpleEnergySpectrum,
+        UniformConstantEnergy,
         MakeNRQuanta,
         MakePhotonsElectronsBinomial,
         DetectPhotons,

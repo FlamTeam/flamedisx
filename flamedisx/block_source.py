@@ -1,7 +1,8 @@
 import typing as ty
 
-import tensorflow as tf
+import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -49,22 +50,33 @@ class Block:
         return self._compute(data_tensor, ptensor, **kwargs)
 
     def simulate(self, d):
-        return self._simulate(d)
+        # TODO: check necessary columns are present?
+        return_value = self._simulate(d)
+        assert return_value is None, f"_simulate of {self} should return None"
+        # TODO: check necessary columns were actually added
 
-    def estimate_bounds(self, d):
-        self._estimate_bounds(d)
+    def annotate(self, d):
+        """Add _min and _max for each dimension to d in-place"""
+        # TODO: check necessary columns are present?
+        return_value = self._annotate(d)
+        assert return_value is None, f"_annotate of {self} should return None"
+        # TODO: check necessary columns were actually added
 
     def _compute(self, data_tensor, ptensor, **kwargs):
         """Return (n_batch_events, ...dimensions...) tensor"""
         raise NotImplementedError
 
     def _simulate(self, d):
-        """Return simulated data"""
-        raise NotImplementedError
+        """Simulate extra columns in place.
 
-    def _estimate_bounds(self, d):
+        Use the p_accepted column to modify acceptances; do not remove
+        events here.
+        """
+        pass
+
+    def _annotate(self, d):
         """Add _min and _max for each dimension to d in-place"""
-        raise NotImplementedError
+        pass
 
 
 @export
@@ -76,7 +88,8 @@ class BlockModelSource(fd.Source):
     observables: tuple
 
     def __init__(self, *args, **kwargs):
-        # TODO: Collect model functions from the different blocks
+        # TODO: Collect model functions from the different block
+        # TODO: set/override static attributes for each block
         super().__init__(*args, **kwargs)
 
     @staticmethod
@@ -135,21 +148,31 @@ class BlockModelSource(fd.Source):
             del blocks[b2_dims]
             blocks[dims] = b
 
-        # Get the last remaining block; return scalar foreach event.
+        # Get the last remaining block; return scalar differential rate
+        # for each event in the batch.
         result = next(iter(blocks.values()))
         result = tf.squeeze(result).reshape((self.batch_size,))
         return result
 
+    def random_truth(self, n_events, **params):
+        # First block provides the 'deep' truth (energies, positions, time)
+        return self.model_blocks[0].random_truth(n_events, **params)
+
     def _simulate_response(self):
+        # All blocks after the first help to simulate the response
         d = self.data
-        for b in self.model_blocks:
-            d = b.simulate(d)
-        return d
+        d['p_accepted'] = 1.
+        for b in self.model_blocks[1:]:
+            b.simulate(d)
+        return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
     def _annotate(self, _skip_bounds_computation=False):
         d = self.data
-        for b in self.model_blocks:
-            d = b.estimate_bounds(d)
+        # By going in reverse order through the blocks, we can use the bounds
+        # on hidden variables closer to the final signals (easy to compute)
+        # for estimating the bounds on deeper hidden variables.
+        for b in self.model_blocks[::-1]:
+            d = b.annotate(d)
 
     def mu_before_efficiencies(self, **params):
         raise NotImplementedError
