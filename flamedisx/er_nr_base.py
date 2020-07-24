@@ -17,9 +17,6 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-apply_recon_bias = True
-#apply_recon_bias = False
-
 quanta_types = 'photon', 'electron'
 signal_name = dict(photon='s1', electron='s2')
 
@@ -681,8 +678,8 @@ class LXeSource(fd.Source):
             loc=d['photoelectron_detected'] * gimme('photon_gain_mean'),
             scale=d['photoelectron_detected'] ** 0.5 * gimme('photon_gain_std'))
 
-        d['s2'] = d['s2'] * gimme('recon_bias_s2', bonus_arg=d['s2'].values)
         d['s1'] = d['s1'] * gimme('recon_bias_s1', bonus_arg=d['s1'].values)
+        d['s2'] = d['s2'] * gimme('recon_bias_s2', bonus_arg=d['s2'].values)
 
         acceptance = np.ones(len(d))
         for q in quanta_types:

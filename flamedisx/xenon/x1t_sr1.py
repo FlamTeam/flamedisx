@@ -24,9 +24,6 @@ s1_map, s2_map = [
     for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
               'XENON1T_s2_xy_ly_SR1_v2.2.json')]
 
-apply_cut_accept = True
-#apply_cut_accept = False
-
 ##
 # Parameters
 ##
@@ -192,35 +189,22 @@ class SR1Source:
                         tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        if apply_cut_accept:
-            print('Applying s1 combined cut acceptances...')
-            cut_accept_wgt = itp_cut_accept_tf(s1, self.cut_accept_map_s1, self.cut_accept_support_s1)
-            mask_out = tf.math.multiply(mask, cut_accept_wgt)
-        else:
-            print('NOT applying s1 combined cut acceptances.')
-            mask_out = mask
+        cut_accept_wgt = itp_cut_accept_tf(s1, self.cut_accept_map_s1, self.cut_accept_support_s1)
+        mask_out = tf.math.multiply(mask, cut_accept_wgt)
 
         return mask_out
 
     def s2_acceptance(self, s2, electron_detection_eff, electron_gain_mean,
         cs2b_min=50.1, cs2b_max=7940):
-        #cs2 = (11.4/(1-0.63)/0.96) * s2 / (electron_detection_eff*electron_gain_mean)
-        #cs2 = mean_eff * s2 / (electron_detection_eff*electron_gain_mean)
         print('s2_acceptance: cs2b min = %i, cs2b max = %f' % (cs2b_min, cs2b_max))
-
         cs2 = (def_g2/def_extract_eff) * s2 / (electron_detection_eff*electron_gain_mean)
         mask = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
                         tf.ones_like(s2, dtype=fd.float_type()),
                         tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        if apply_cut_accept:
-            print('Applying s2 combined cut acceptances...')
-            cut_accept_wgt = itp_cut_accept_tf(s2, self.cut_accept_map_s2, self.cut_accept_support_s2)
-            mask_out = tf.math.multiply(mask, cut_accept_wgt)
-        else:
-            print('NOT applying s2 combined cut acceptances.')
-            mask_out = mask
+        cut_accept_wgt = itp_cut_accept_tf(s2, self.cut_accept_map_s2, self.cut_accept_support_s2)
+        mask_out = tf.math.multiply(mask, cut_accept_wgt)
 
         return mask_out
 
