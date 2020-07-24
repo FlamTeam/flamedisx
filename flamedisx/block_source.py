@@ -1,7 +1,6 @@
 import typing as ty
 
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 import flamedisx as fd
@@ -16,7 +15,7 @@ class Block:
     """
     dimensions: ty.Tuple[str]
 
-    depends_on: ty.Typle[str] = tuple()
+    depends_on: ty.Tuple[str] = tuple()
     model_functions: ty.Tuple[str] = tuple()
 
     def __init__(self, source):
@@ -28,11 +27,15 @@ class Block:
         """Shorthand for self.source.gimme, see docs there"""
         return self.source.gimme(*args, **kwargs)
 
+    def gimme_numpy(self, *args, **kwargs):
+        """Shorthand for self.source.gimme, see docs there"""
+        return self.source.gimme_numpy(*args, **kwargs)
+
     def domain(self, data_tensor):
         """Return dictionary mapping dimension -> domain"""
         if len(self.dimensions) == 1:
             return {self.dimensions[0]:
-                        self.source.domain(self.dimensions[0], data_tensor)}
+                    self.source.domain(self.dimensions[0], data_tensor)}
         return dict(zip(self.dimensions,
                         self.source.cross_domains(*self.dimensions,
                                                   data_tensor=data_tensor)))
@@ -61,6 +64,9 @@ class Block:
         return_value = self._annotate(d)
         assert return_value is None, f"_annotate of {self} should return None"
         # TODO: check necessary columns were actually added
+
+    def check_data(self):
+        pass
 
     def _compute(self, data_tensor, ptensor, **kwargs):
         """Return (n_batch_events, ...dimensions...) tensor"""
@@ -158,6 +164,11 @@ class BlockModelSource(fd.Source):
         # First block provides the 'deep' truth (energies, positions, time)
         return self.model_blocks[0].random_truth(n_events, **params)
 
+    def _check_data(self):
+        super()._check_data()
+        for b in self.model_blocks:
+            b.check_data()
+
     def _simulate_response(self):
         # All blocks after the first help to simulate the response
         d = self.data
@@ -176,18 +187,3 @@ class BlockModelSource(fd.Source):
 
     def mu_before_efficiencies(self, **params):
         raise NotImplementedError
-
-    def random_truth(self, n_events, fix_truth=None, **params):
-        assert isinstance(n_events, (int, float)), \
-            f"n_events must be an int or float, not {type(n_events)}"
-
-        data = self.random_truth_observables(n_events)
-        data = self._add_random_energies(data, n_events)
-
-        if fix_truth is not None:
-            # Override any keys with fixed values defined in fix_truth
-            fix_truth = self.validate_fix_truth(fix_truth)
-            for k, v in fix_truth.items():
-                data[k] = v
-
-        return pd.DataFrame(data)

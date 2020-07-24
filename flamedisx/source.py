@@ -323,9 +323,12 @@ class Source:
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
 
-    def gimme_numpy(self, *args, **kwargs):
-        kwargs['numpy_out'] = True
-        return self.gimme(*args, **kwargs)
+    def gimme_numpy(self, fname, bonus_arg=None):
+        """Gimme for use in simulation / annotate"""
+        return self.gimme(fname,
+                          data_tensor=None, ptensor=None,
+                          bonus_arg=bonus_arg,
+                          numpy_out=True)
 
     gimme_numpy.__doc__ = gimme.__doc__
 
