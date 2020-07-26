@@ -27,11 +27,10 @@ special_data_methods = [
     'electron_acceptance',
     'photon_acceptance',
     'penning_quenching_eff',
-    'recon_bias_s1',
-    'recon_bias_s2'
+    'reconstruction_bias_s1',
+    'reconstruction_bias_s2'
 ]
 
-#
 data_methods = (
     special_data_methods
     + ['energy_spectrum', 'work', 'double_pe_fraction',
@@ -204,15 +203,21 @@ class LXeSource(fd.Source):
     photon_gain_mean = 1.
     photon_gain_std = 0.5
 
-    # Dummy method for pax reconstruction bias mean.
-    # Implement it in source specific class. See x1t_sr1.py till exempel
-    def recon_bias_s1(self, sig, bias_pivot_pt=1.):
-        recon_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return recon_bias
+    def reconstruction_bias_s1(self, sig, bias_pivot_pt=1.):
+        """ Dummy method for pax s1 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
 
-    def recon_bias_s2(self, sig, bias_pivot_pt=1.):
-        recon_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return recon_bias
+        """
+        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return reconstruction_bias
+
+    def reconstruction_bias_s2(self, sig, bias_pivot_pt=1.):
+        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+
+        """
+        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return reconstruction_bias
 
     ##
     # Simulation
@@ -678,8 +683,8 @@ class LXeSource(fd.Source):
             loc=d['photoelectron_detected'] * gimme('photon_gain_mean'),
             scale=d['photoelectron_detected'] ** 0.5 * gimme('photon_gain_std'))
 
-        d['s1'] = d['s1'] * gimme('recon_bias_s1', bonus_arg=d['s1'].values)
-        d['s2'] = d['s2'] * gimme('recon_bias_s2', bonus_arg=d['s2'].values)
+        d['s1'] = d['s1'] * gimme('reconstruction_bias_s1', bonus_arg=d['s1'].values)
+        d['s2'] = d['s2'] * gimme('reconstruction_bias_s2', bonus_arg=d['s2'].values)
 
         acceptance = np.ones(len(d))
         for q in quanta_types:
@@ -710,12 +715,12 @@ class ERSource(LXeSource):
     def _single_spectrum(self):
         """Return (energies in keV, rate at these energies),
         """
-        fac = 7.
-        nBins = int(fac*1000) # Keeping no. bins constant at 1000 bins per 10 keV
+        max_e = 70.
+        nbins = int(max_e*100) # Keeping no. bins constant at 1000 bins per 10 keV
         return (tf.dtypes.cast(
-                    tf.linspace(0., fac*10., nBins),
+                    tf.linspace(0., max_e, nbins),
                     dtype=fd.float_type()),
-                tf.ones(nBins, dtype=fd.float_type()))
+                tf.ones(nbins, dtype=fd.float_type()))
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -774,7 +779,6 @@ class ERSource(LXeSource):
         # OK to use None, simulator has set defaults
         work = self.gimme('work', numpy_out=True, data_tensor=None, ptensor=None)
         return np.floor(energies / work).astype(np.int)
-
 
 
 @export
