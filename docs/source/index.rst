@@ -14,6 +14,7 @@ You can find more details in our arXiv preprint, at https://arxiv.org/abs/2003.1
    :caption: Contents:
 
    tutorial.ipynb
+   blocks.md
 
 
 Indices and tables

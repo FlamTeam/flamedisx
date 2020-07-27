@@ -1,0 +1,102 @@
+# Customizing the flamedisx model
+
+This page describes how to change the core structure of the flamedisx model. Most customizations can be done _without_ touching this: see the flamedisx tutorial. 
+
+For example, if you want to change a source's energy spectrum, yield functions, detector response functions, etc., __stop reading this, you do not need to know this.__ Just go to the modelling sections of the tutorial.
+
+Sometimes, however, you want to apply customizations that go beyond overriding a source's model functions. For example, suppose you want to change the distribution of S2 areas to a skewed Gaussian, or add an additional smearing at some stage in the process.
+
+Adding blocks makes flamedisx slower. You can often simply change the functions in existing blocks instead. For example:
+  * Two binomial efficiencies following each other are mathematically identical to using binomial with `p = p1 * p2`;
+  * A binomial efficiency following a Poisson smearing is equivalent to changing the Poisson mean to `mu = mu_orig * p`;
+  * Two Gaussian smearings following each other are equivalent to one, with  the variance added in quadrature`s^2 = s1^2 + s2^2`. 
+
+If you are looking to add a non-parametric/non-physical background source -- e.g. for accidental coincidences, anomalous backgrounds, etc -- look at the `ColumnSource` instead. This is a simple model that does not use the `Block` structure.
+
+
+## Blocks 
+Flamedisx's model is made of units called blocks. Each block takes care of one step in the computation, such as converting energies to generated quanta, or converting electrons to S2. 
+
+A `Block` class has three main methods:
+  * `_compute` is a block's main method. This returns a factor in the deterministic differential rate computation; for example, the probability of seeing the observed S2 for a range of possible number of detected electrons. 
+  * The `_simulate` method performs a Monte Carlo simulation of the block's process. For example, drawing one possible S2 integral value, given a simulated event of a certain number of detected electrons.
+  * The `_annotate` estimates bounds for hidden variables used in the `_compute`. For example, it determines a plausible range of detected electrons given the observed S2.   
+
+Think of `_simulate` as going in the physical/causal direction, `_annotate` as going backwards, and `_compute` as a pure direction-independent description of the process.
+
+Most blocks can be `_compute`d independently of the other blocks. The results of different blocks are matrix-multiplied together, representing convolution over hidden variables (such as number of produced electrons). 
+ 
+A few blocks instead directly take the result of another block and turn it into something else. For example, `MakeNRQuanta` takes in an energy spectrum and converts it into a spectrum vs. number of produced quanta in the nuclear recoil process.
+
+
+## Sources that use blocks
+
+This is the easy part: inherit from `fd.BlockModelSource` and specify the blocks you use in the `model_blocks` tuple. Flamedisx' `ERSource` and `NRSource` are both examples of this. [TODO: link]
+
+The source will operate as follows:
+ * When **computing** differential rates, we run a tensorflow graph that includes the `_compute` of all the blocks. If a block has dependencies, it's compute will of course be later in the graph than that of its dependents.
+  * During **simulation**, we run `_simulate` of the blocks in the order you specified in `model_blocks`, starting with the first block. This is usually the block that creates the energy spectrum.
+  * When **setting data** (e.g. when you create the source), we run `_annotate` of the blocks in reverse order. This way, you can first estimate hidden variables close to observables, then use those estimates for guessing deeper hidden variables. For example, you can use the estimated number of detected electrons to estimate the number of produced electrons.
+
+
+
+## Block setup
+
+Besides the main three methods, blocks usually specify additional attributes that describe their behavior to the source.
+
+### Static attributes
+`static_attributes` is a tuple of strings of Block attributes that should be exposed in the source. Setting one of these attributes in the Source will override their value.
+
+For example, the `UniformConstantEnergy` block [TODO: LINK!] has the `energies` and `rates_vs_energy` attributes to specify the x and y values of the source's discretized energy spectrum. Users can then write:
+    
+```python
+import flamedisx as fd
+import tensorflow as tf
+
+class MySource(fd.ERSource):
+    """Flat ER spectrum from 0 to 5 keV"""
+    energies = tf.linspace(0., 5., 100, dtype=fd.float_type())
+    rate_vs_energy = tf.ones(100, dtype=fd.float_type())
+```
+
+and the new energy spectrum will be used.
+
+TODO: how to list all static attributes of a source?
+
+### Model functions
+
+Just like `static_attributes` exposes attributes, `model_functions` and `special_model_functions` expose methods to the source. Each are a tuple of strings of method names.
+
+In your block, you call model functions in different ways:
+  * In `_compute`, call `self.gimme('your_model_function', data_tensor=data_tensor, ptensor=ptensor)`.
+  * In `_simulate` and `_annotate`, call `self.gimme_numpy('your_model_function')`.
+
+This takes care of several things:
+  * Positional arguments are filled in with columns from the data;
+  * Keyword arguments are filled in with inference parameters.
+  * For `gimme_numpy`, you will get back a numpy array (rather than a TensorFlow tensor).
+Never call a model function directly from your code!
+
+`special_model_functions` take an extra positional argument when they are called. It's up to you what this represents; usually this is used to pass variables. The extra argument (called `bonus_arg` in flamedisx code) is passed as the first argument after `self`.
+
+As an example, the `MakeNRQuanta` block exposes a `lindhard_l` model function [TODO: LINK!] that parametrizes the Lindhard process (nuclear recoil energy losses as heat) as a function of energy. Sources using this block can define a `lindhard_l` method to override this. The modelling sections of the tutorial illustrate model function overriding in detail. 
+
+### Dimensions
+
+The `dimensions` tuple names the dimensions of the `_compute` output. Without this we wouldn't know how to combine the results of blocks. The batch/event dimension is not named.
+
+For example [TODO: LINKS]:
+  * For `UniformConstantEnergy`, this is `('deposited_energy',)`, since `_compute` outputs a one-dimensional array per event, the differential rate as a function of deposited energy.
+  * For `MakePhotonsElectronsBinomial`, this is `('electrons_produced', 'photons_produced')`, since it outputs a two-dimensional array per event, the differential rate as a function of the produced number of photons and electrons.
+
+### Dependencies
+
+Sometimes you can only compute a block once you know the result of another block. If so, specify this block in the `depends_on` tuple.
+
+For example, `depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)` means the block needs the result of some block with `dimensions = ('quanta_produced',)`. Depending on the source, this could be provided by `MakeNRQuanta` or `MakeERQuanta`. 
+
+The dependency result and its domain (i.e. the x-values corresponding to the y-values the block returned) will be passed to `_compute` as extra arguments. In the above example, `_compute` will get `quanta_produced` and `rate_vs_quanta` as extra arguments. The former is the domain, the latter the result.
+
+
+## The `_compute` method
+
