@@ -187,11 +187,29 @@ def j2000_to_event_time(dates):
 
 
 @export
-def index_lookup_dict(names):
-    return dict(zip(
-        names,
-        [tf.constant(i, dtype=int_type())
-         for i in range(len(names))]))
+def index_lookup_dict(names, column_widths=None):
+    """Return dictionary mapping names to successive tensor indices
+     (tf.constant integers.)
+
+    :param column_widths: dictionary mapping names to column width.
+    For columns with width > 1, the result contains a tensor slice.
+    """
+    if column_widths is None:
+        column_widths = dict()
+
+    result = dict()
+    i = 0
+    while len(names):
+        name = names.pop()
+        width = column_widths.get(name, 1)
+        if width == 1:
+            result[name] = tf.constant(i, dtype=int_type())
+        else:
+            result[name] = slice(tf.constant(i, dtype=int_type()),
+                                 tf.constant(i + width, dtype=int_type()))
+        i += width
+
+    return result
 
 
 @export

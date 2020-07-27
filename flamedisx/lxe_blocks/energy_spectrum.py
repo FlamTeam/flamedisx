@@ -9,6 +9,10 @@ o = tf.newaxis
 
 @export
 class UniformConstantEnergy(fd.Block):
+    """For a source with a constant, homogeneous energy spectrum.
+
+    By default, a flat 0 - 10 keV spectrum, sampled at 1000 points.
+    """
 
     dimensions = ('deposited_energy',)
     static_attributes = (
@@ -33,13 +37,12 @@ class UniformConstantEnergy(fd.Block):
     energies: tf.linspace(0., 10., 1000)
     rates_vs_energy: tf.ones(1000, dtype=fd.float_type())
 
-    def _compute(self,
-                 data_tensor, ptensor,
-                 energy):
+    def _compute(self, data_tensor, ptensor):
         return fd.repeat(self.rates_vs_energy[o, :], self.batch_size, axis=0)
 
     def domain(self, data_tensor, ptensor):
-        return fd.repeat(self.energies[o, :], self.batch_size, axis=0)
+        return {self.dimensions[0]:
+                    fd.repeat(self.energies[o, :], self.batch_size, axis=0)}
 
     def random_truth(self, n_events):
         """Return dictionary with x, y, z, r, theta, drift_time
@@ -64,3 +67,41 @@ class UniformConstantEnergy(fd.Block):
 
         data['drift_time'] = - data['z'] / self.drift_velocity
         return data
+
+
+class VariableRateSpectrum(UniformConstantEnergy):
+    """For a source whose rate, but not energy spectrum shape,
+    depends on observables (e.g. reconstructed position or time)
+    """
+
+    model_functions = ('energy_spectrum_rate_multiplier',)
+
+    energy_spectrum_rate_multiplier = 1
+
+    def _compute(self, data_tensor, ptensor):
+        return (
+            UniformConstantEnergy._compute(
+                self,
+                data_tensor=data_tensor, ptensor=ptensor)
+            * self.gimme('energy_spectrum_rate_multiplier',
+                         data_tensor=data_tensor, ptensor=ptensor))
+
+
+class VariableSpectrum(UniformConstantEnergy):
+    """For a source for which the entire energy spectrum (not just the rate)
+    depends on observables (e.g. reconstruction position or time)
+    """
+
+    model_functions = ('energy_spectrum',)
+    array_columns = (('energy_spectrum', 1000),)
+
+    def _annotate(self, d):
+        # Note this sets an array of values!
+        d['energy_spectrum'] = d.gimme_numpy('energy_spectrum')
+
+    def energy_spectrum(self, x):
+        # Note this returns a 2d tensor!
+        return tf.ones(len(x), len(self.energies))
+
+    def _compute(self, data_tensor, ptensor):
+        return self.gimme('energy_spectrum', data_tensor, ptensor)

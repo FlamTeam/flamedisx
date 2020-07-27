@@ -968,7 +968,7 @@ class WIMPSource(NRSource):
 
     def _fetch(self, x, data_tensor=None):
         if x == 'wimp_energies':
-            return data_tensor[:, len(self.name_id):]
+            return data_tensor[:, len(self.column_index):]
         return super()._fetch(x, data_tensor=data_tensor)
 
     def add_extra_columns(self, d):

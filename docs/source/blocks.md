@@ -100,3 +100,26 @@ The dependency result and its domain (i.e. the x-values corresponding to the y-v
 
 ## The `_compute` method
 
+## The `_simulate` method
+
+All simulated events have a special `p_accepted` column, starting out at 1.0 for each event. Blocks can multiply this with probabilities for passing various selections. At the end of the simulation, a random number will be drawn to determine whether each event actually passes the selections. 
+
+
+## The `_annotate` method
+
+
+## The first block of a source
+
+This is usually the block specifying the energy spectrum. It is special in several ways. 
+
+Some restrictions are relaxed:
+  * The `_compute` method simply returns the entire energy spectrum for each event. It does not get any domain argument.
+  * It does not have a `_simulate` method.
+  * `_annotate` can (but does not have to) be omitted. There is no need to estimate bounds for its dimension (deposited energy), as the block returns the full energy spectrum for each event.
+
+Other restrictions are added: 
+  * It must specify a `domain` method, returning a dictionary mapping its dimension (e.g. deposited_energy) to the range of values for which `_compute` returns results.
+  * It must implement a `random_truth` method, taking `n_events` and a parameter dictionary, returning a dataframe with a number of simulated events.
+  * It must implement a `mu_before_efficiencies` method, taking a parameter dictionary and returning the number of expected events directly from the spectrum (i.e. before any efficiencies) given these parameters.
+
+See `UniformConstantEnergy` for an example. 

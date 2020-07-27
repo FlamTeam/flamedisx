@@ -24,6 +24,12 @@ class Source:
     special_data_methods = tuple()
     inner_dimensions = tuple()
 
+    frozen_data_methods = tuple()
+    array_columns = tuple()
+
+    # Final observable dimensions; for use in domain / cross-domain
+    final_dimensions = tuple()
+
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
@@ -97,26 +103,34 @@ class Source:
         """
         self.max_sigma = max_sigma
 
+        # Check for duplicated model functions
+        for attrname in ['data_methods', 'special_data_methods']:
+            l_ = getattr(self, attrname)
+            if len(set(l_)) != len(l_):
+                raise ValueError(f"{attrname} contains duplicates: {l_}")
+
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
         self.f_dims, self.f_params, self.defaults = self.find_defaults()
 
+        # Change from (column, length) tuple to dict
+        self.array_columns = dict(self.array_columns)
+
         # Which columns are needed from data?
-        ctc = list(set(sum(self.f_dims.values(), [])))
-        ctc += self.extra_needed_columns()
-        ctc += [x + '_min' for x in self.inner_dimensions]  # Needed in domain
+        ctc = list(set(sum(self.f_dims.values(), [])))      # Used in model functions.
+        ctc += list(self.final_dimensions)                  # Final observables (e.g. S1, S2)
+        ctc += self.extra_needed_columns()                  # Manually fetched columns
+        ctc += self.frozen_data_methods                     # Frozen methods (e.g. not tf-compatible)
+        ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
         ctc = [x for x in ctc if x not in self.ignore_columns()]
+        ctc = list(set(ctc))
         self.cols_to_cache = ctc
 
-        # Check for duplicate columns and give error
-        _seen = set()
-        for x in self.cols_to_cache:
-            if x in _seen:
-                raise RuntimeError(
-                    f"Column {x} requested twice for data_tensor!")
-            _seen.add(x)
-
-        self.name_id = fd.index_lookup_dict(ctc)
+        self.column_index = fd.index_lookup_dict(ctc,
+                                                 array_columns=self.array_columns)
+        self.n_columns_in_data_tensor = (
+                len(self.column_index)
+                + sum(self.array_columns.values()) - len(self.array_columns))
 
         self.set_defaults(**params)
 
@@ -125,10 +139,10 @@ class Source:
         self.fit_params = [x for x in fit_params
                            if x in self.defaults]
 
-        self.param_id = fd.index_lookup_dict(self.defaults.keys())
+        self.parameter_index = fd.index_lookup_dict(self.defaults.keys())
         # Indices of params we actually want to fit; we have to differentiate wrt these
         self.fit_param_indices = tuple([
-            self.param_id[param_name]
+            self.parameter_index[param_name]
             for param_name in self.fit_params])
 
         if data is None:
@@ -201,15 +215,34 @@ class Source:
                                  f"did annotation happen correctly?")
 
     def _populate_tensor_cache(self):
+        """Set self.data_tensor to a big tensor of shape:
+          (n_batches, events_per_batch, n_columns_in_data_tensor)
+        """
+        # First, build a list of (n_events, 1 or column_width) tensors
+        result = []
+        for column in self.cols_to_cache:
 
-        # Create one big data tensor (n_batches, events_per_batch, n_cols)
-        # TODO: make a list
-        ctc = self.cols_to_cache
-        self.data_tensor = tf.constant(self.data[ctc].values,
-                                       dtype=fd.float_type())
-        self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
-                                                         -1,
-                                                         len(ctc)])
+            if column in self.frozen_data_methods:
+                # Calculate the column
+                y = self.gimme(column)
+            else:
+                # Just fetch it from the dataframe
+                y = self._fetch(column)
+
+            y = tf.cast(y, dtype=fd.float_type())
+
+            # For non-array columns, add size-1 axis for concatenation
+            if len(y.shape) == 1:
+                assert column not in self.array_columns
+                y = tf.reshape(y, (len(y), 1))
+
+            result.append(y)
+
+        # Concat these and shape them to the batch size
+        result = tf.concat(self.data, axis=1)
+        self.data_tensor = tf.reshape(
+            result,
+            [self.n_batches, -1, self.n_columns_in_data_tensor])
 
     def _calculate_dimsizes(self):
         self.dimsizes = dict()
@@ -263,14 +296,18 @@ class Source:
                 "Attempt to fetch %s, which is in ignore_columns" % x)
         if data_tensor is None:
             # We're inside annotate, just return the column
-            return fd.np_to_tf(self.data[x].values)
+            x = self.data[x].values
+            if x.dtype == np.object:
+                # This will only work on homogeneous array fields
+                x = np.stack(x)
+            return fd.np_to_tf(x)
 
-        return data_tensor[:, self.name_id[x]]
+        return data_tensor[:, self.column_index[x]]
 
     def _fetch_param(self, param, ptensor):
         if ptensor is None:
             return self.defaults[param]
-        id = tf.dtypes.cast(self.param_id[param],
+        id = tf.dtypes.cast(self.parameter_index[param],
                             dtype=fd.int_type())
         return ptensor[id]
 
@@ -336,8 +373,9 @@ class Source:
     # Differential rate computation
     ##
 
-    # TODO: remove duplication for batch loop? Also in inference
     def batched_differential_rate(self, progress=True, **params):
+        """Return numpy array with differential rate for all events.
+        """
         progress = (lambda x: x) if not progress else tqdm
         y = []
         for i_batch in progress(range(self.n_batches)):
@@ -348,19 +386,18 @@ class Source:
         return np.concatenate(y)[:self.n_events]
 
     def _batch_data_tensor_shape(self):
-        return [self.batch_size, len(self.name_id)]
+        return [self.batch_size, self.n_columns_in_data_tensor]
 
     def trace_differential_rate(self):
         input_signature = (
             tf.TensorSpec(shape=self._batch_data_tensor_shape(),
                           dtype=fd.float_type()),
-            tf.TensorSpec(shape=[len(self.param_id)],
+            tf.TensorSpec(shape=[len(self.parameter_index)],
                           dtype=fd.float_type()))
         self._differential_rate_tf = tf.function(
             self._differential_rate,
             input_signature=input_signature)
 
-    # TODO: remove duplication?
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
@@ -379,12 +416,19 @@ class Source:
     ##
 
     def domain(self, x, data_tensor=None):
-        """Return (n_events, |possible x values|) matrix containing all possible integer
-        values of x for each event"""
-        result1 = tf.cast(tf.range(self.dimsizes[x]),
+        """Return (n_events, |possible x values|) matrix containing all
+        possible integer values of x for each event.
+
+        If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
+        tensor with observed values -- NOT a (n_events,) array!
+        """
+        if x in self.final_dimensions:
+            return self._fetch(x, data_tensor=data_tensor)[:, o]
+
+        x_range = tf.cast(tf.range(self.dimsizes[x]),
                           dtype=fd.float_type())[o, :]
-        result2 = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
-        return result1 + result2
+        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors

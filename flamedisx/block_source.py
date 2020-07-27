@@ -2,6 +2,7 @@ import typing as ty
 
 import numpy as np
 import tensorflow as tf
+import pandas as pd
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -36,34 +37,37 @@ class Block:
         if len(self.dimensions) == 1:
             return {self.dimensions[0]:
                     self.source.domain(self.dimensions[0], data_tensor)}
+        assert len(self.dimensions) == 2
         return dict(zip(self.dimensions,
                         self.source.cross_domains(*self.dimensions,
                                                   data_tensor=data_tensor)))
 
-    def compute(self, data_tensor, ptensor):
-        kwargs = dict()
-        # TODO: pass observable dim
-        # observed = self._fetch(signal_name[quanta_type], data_tensor=data_tensor)
-        # Pass domains
-        kwargs.update(self.domain(data_tensor))
-        # TODO: Pass results of dependencies and their domains
-        # for block_name, block in self.dependencies.items():
-        #     kwargs[block_name] = block.compute(data_tensor, ptensor)
-        #     kwargs[block_name + '_domain'] = block.domain()
+    def compute(self, data_tensor, ptensor, _pass_domain=True, **kwargs):
+        if _pass_domain:
+            kwargs.update(self.domain(data_tensor))
         return self._compute(data_tensor, ptensor, **kwargs)
 
-    def simulate(self, d):
-        # TODO: check necessary columns are present?
+    def simulate(self, d: pd.DataFrame):
         return_value = self._simulate(d)
         assert return_value is None, f"_simulate of {self} should return None"
-        # TODO: check necessary columns were actually added
+        # Check necessary columns were actually added
+        for dim in self.dimensions:
+            assert dim in d.columns, f"_simulate of {self} must set {dim}"
 
-    def annotate(self, d):
+    def annotate(self, d: pd.DataFrame, _do_checks=False):
         """Add _min and _max for each dimension to d in-place"""
-        # TODO: check necessary columns are present?
         return_value = self._annotate(d)
         assert return_value is None, f"_annotate of {self} should return None"
-        # TODO: check necessary columns were actually added
+
+        if not _do_checks:
+            return
+        for dim in self.dimensions:
+            if dim in self.source.final_dimensions:
+                continue
+            for bound in ('min', 'max'):
+                colname = f'{dim}_{bound}'
+                assert colname in d.columns, \
+                    f"_annotate of {self} must set {colname}"
 
     def check_data(self):
         pass
@@ -91,11 +95,47 @@ class BlockModelSource(fd.Source):
     """
 
     model_blocks: tuple
-    observables: tuple
+    final_dimensions: tuple
 
     def __init__(self, *args, **kwargs):
-        # TODO: Collect model functions from the different block
-        # TODO: set/override static attributes for each block
+        # Collect attributes from the different blocks in this dictionary:
+        collected = {k: [] for k in (
+            'model_functions',
+            'special_model_functions',
+            'static_attributes',
+            'frozen_data_methods',
+            'array_columns')}
+
+        for b in self.model_blocks:
+            _this_block = {}
+            for k in collected:
+                _this_block[k] = list(getattr(b, k))
+                collected[k] += _this_block[k]
+
+            for x in (_this_block['model_functions']
+                      + _this_block['special_model_functions']
+                      + _this_block['static_attributes']):
+                # If a source attribute was specified,
+                # override the block's attribute.
+                if hasattr(self, x):
+                    setattr(b, x, self.x)
+
+                # Create a source attribute with a getter pointing to the
+                # block attribute.
+                # We do not add a setter; overriding a model function with a new
+                # one would necessitate a rescan of self.f_dims.
+                # You should just make a new source in this case.
+                setattr(self,
+                        x,
+                        property(fget=lambda: getattr(b, x)))
+
+        # TODO: Ugly since source's conventions / naming is a bit divergent
+        self.data_methods = tuple(collected['model_functions']
+                                  + collected['special_model_functions'])
+        self.special_data_methods = tuple(collected['special_model_functions'])
+        self.frozen_data_methods = tuple(collected['frozen_data_methods'])
+        self.frozen_data_methods = tuple(collected['frozen_data_methods'])
+        self.array_columns = tuple(collected['array_columns'])
         super().__init__(*args, **kwargs)
 
     @staticmethod
@@ -114,21 +154,62 @@ class BlockModelSource(fd.Source):
         raise ValueError(f"No block with {has_dim} found!")
 
     def _differential_rate(self, data_tensor, ptensor):
-        # Calculate individual blocks
-        blocks = {b.dimensions(): b.compute(data_tensor, ptensor)
-                  for b in self.model_blocks}
+        # Calculate blocks that have no dependencies
+        results = {b.dimensions(): b.compute(
+                        data_tensor, ptensor,
+                        _pass_domain=(b != self.model_blocks[0]))
+                   for b in self.model_blocks}
+        waiting_blocks = {b.dimensions(): b
+                          for b in self.model_blocks
+                          if b.dimensions() not in results}
 
-        # Matrix multiply until a scalar remains for each event.
-        while len(blocks) > 1:
+        while True:
+            # Can we compute a block waiting on dependencies?
+            available = set(results.keys())
+            for b_dims, b in waiting_blocks.items():
+                required = set([x[0] for x in b.depends_on])
+                if required - available:
+                    # Don't have results of all dependencies yet
+                    continue
 
-            # Find a block with an observable dimension (S1 or S2)
+                # Gather extra compute arguments.
+                kwargs = dict()
+                for dependency_dims, dependency_name in b.depends_on.items():
+                    kwargs[dependency_name] = results[dependency_dims]
+
+                    # We must also pass the dependency domain.
+                    # But to call .domain(), we need to find the original Block
+                    # that produced the result :-(
+                    for _b in self.model_blocks:
+                        if _b.dimensions == dependency_dims:
+                            break
+                    else:
+                        raise RuntimeError("Can't happen")
+                    kwargs.update(_b.domain(data_tensor))
+
+                results[b_dims] = b.compute(data_tensor, ptensor, **kwargs)
+                del waiting_blocks[b_dims]
+
+                # 'continue' on the outer while loop.
+                break
+            if len(results) > len(available):
+                continue
+
+            # Find two blocks to matrix multiply.
+
+            # Find a block with a final dimension (S1 or S2)
             (b1, b1_dims), observable_dim = self._find_block(
-                blocks,
-                has_dim=self.observables)
+                results,
+                has_dim=self.final_dimensions)
+
+            # Does the block have all final dimensions? Then we are done!
+            if all([obs in b1_dims for obs in self.final_dimensions]):
+                result = tf.squeeze(b1).reshape((self.batch_size,))
+                return result
 
             # Find a block containing one of the non-observable dimensions in b1
             (b2, b2_dims), inner_dim = self._find_block(
-                blocks,
+                results,
                 has_dim=set(b1_dims) - {observable_dim},
                 exclude=b1)
             other_b2_dim = (set(b2_dims) - {inner_dim}).pop()
@@ -150,15 +231,9 @@ class BlockModelSource(fd.Source):
             dims = (observable_dim, other_b2_dim)
 
             # Update the block dict
-            del blocks[b1_dims]
-            del blocks[b2_dims]
-            blocks[dims] = b
-
-        # Get the last remaining block; return scalar differential rate
-        # for each event in the batch.
-        result = next(iter(blocks.values()))
-        result = tf.squeeze(result).reshape((self.batch_size,))
-        return result
+            del results[b1_dims]
+            del results[b2_dims]
+            results[dims] = b
 
     def random_truth(self, n_events, **params):
         # First block provides the 'deep' truth (energies, positions, time)
@@ -183,7 +258,8 @@ class BlockModelSource(fd.Source):
         # on hidden variables closer to the final signals (easy to compute)
         # for estimating the bounds on deeper hidden variables.
         for b in self.model_blocks[::-1]:
-            d = b.annotate(d)
+            d = b.annotate(d,
+                           _do_checks=(b != self.model_blocks[0]))
 
     def mu_before_efficiencies(self, **params):
-        raise NotImplementedError
+        return self.model_blocks[0].mu_before_efficiencies(**params)

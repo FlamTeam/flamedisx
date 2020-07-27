@@ -1,9 +1,5 @@
-import tensorflow as tf
-
 import flamedisx as fd
 export, __all__ = fd.exporter()
-
-o = tf.newaxis
 
 
 @export
@@ -18,6 +14,8 @@ class ERSource(fd.BlockModelSource):
         fd.DetectElectrons,
         fd.MakeS2)
 
+    final_dimensions = ('s1', 's2')
+
 
 @export
 class NRSource(fd.BlockModelSource):
@@ -31,4 +29,4 @@ class NRSource(fd.BlockModelSource):
         fd.DetectElectrons,
         fd.MakeS2)
 
-    observables = ('s1', 's2')
+    final_dimensions = ('s1', 's2')
