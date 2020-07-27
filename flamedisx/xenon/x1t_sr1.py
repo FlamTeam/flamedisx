@@ -40,7 +40,8 @@ DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
 DEFAULT_FIELD = 81.
 
-DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49
+DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
+DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 
 ##
 # Loading Pax reconstruction bias
@@ -134,16 +135,14 @@ class SR1Source:
             self.recon_map_s2_tf, self.domain_def_s2 = read_bias_tf(path_dummy_zeros_s2)
             print('Dummy reconstruction bias mean maps loaded')
 
-    def reconstruction_bias_s1(self, sig, bias_pivot_pt=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        # to do: use DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT instead
-        # you mean i can't use cal_bias_tf but with another bias_pivot_pt value?
+    def reconstruction_bias_s1(self, sig, bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
         reconstruction_bias = cal_bias_tf(sig, self.recon_map_s1_tf, self.domain_def_s1,
-                pivot_pt=bias_pivot_pt)
+                pivot_pt=bias_pivot_pt1)
         return reconstruction_bias
 
-    def reconstruction_bias_s2(self, sig, bias_pivot_pt=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
+    def reconstruction_bias_s2(self, sig, bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
         reconstruction_bias = cal_bias_tf(sig, self.recon_map_s2_tf, self.domain_def_s2,
-                pivot_pt=bias_pivot_pt)
+                pivot_pt=bias_pivot_pt2)
         return reconstruction_bias
 
     def random_truth(self, n_events, fix_truth=None, **params):
