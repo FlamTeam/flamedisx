@@ -1,3 +1,4 @@
+import numpy as np
 from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -10,6 +11,10 @@ o = tf.newaxis
 @export
 class MakeS1Photoelectrons(fd.Block):
     dimensions = ('photons_detected', 'photoelectrons_detected')
+
+    model_functions = ('double_pe_fraction',)
+
+    double_pe_fraction = 0.219
 
     def _compute(self, data_tensor, ptensor,
                  photons_detected, photoelectrons_detected):
@@ -38,13 +43,16 @@ class MakeS1Photoelectrons(fd.Block):
                         result)
 
     def _simulate(self, d):
-        d['photoelectron_detected'] = stats.binom.rvs(
+        d['photoelectrons_detected'] = stats.binom.rvs(
             n=d['photons_detected'],
             p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
 
     def _annotate(self, d):
         # TODO: this assumes the spread from the double PE effect is subdominant
         dpe_fraction = self.gimme_numpy('double_pe_fraction')
-        for suffix in ('min', 'max', 'mle'):
+        for suffix, intify in (('min', np.floor),
+                               ('max', np.ceil),
+                               ('mle', np.round)):
             d['photons_detected_' + suffix] = \
-                d['photoelectrons_detected_' + suffix] / dpe_fraction
+                intify(d['photoelectrons_detected_' + suffix].values
+                       / dpe_fraction)

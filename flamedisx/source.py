@@ -48,17 +48,16 @@ class Source:
     # Initialization and helpers
     ##
 
-    @classmethod
-    def find_defaults(cls):
+    def find_defaults(self):
         """Discover which functions need which arguments / dimensions
         Discover possible parameters.
         Returns f_dims, f_params and defaults.
         """
-        f_dims = {x: [] for x in cls.data_methods}
-        f_params = {x: [] for x in cls.data_methods}
+        f_dims = {x: [] for x in self.data_methods}
+        f_params = {x: [] for x in self.data_methods}
         defaults = dict()
-        for fname in cls.data_methods:
-            f = getattr(cls, fname)
+        for fname in self.data_methods:
+            f = getattr(self, fname)
             if not callable(f):
                 # Constant
                 continue
@@ -67,7 +66,7 @@ class Source:
                 if pname == 'self':
                     continue
                 if p.default is inspect.Parameter.empty:
-                    if fname in cls.special_data_methods and not seen_special:
+                    if fname in self.special_data_methods and not seen_special:
                         seen_special = True
                     else:
                         # It's an observable dimension
@@ -129,8 +128,8 @@ class Source:
         self.column_index = fd.index_lookup_dict(ctc,
                                                  column_widths=self.array_columns)
         self.n_columns_in_data_tensor = (
-                len(self.column_index)
-                + sum(self.array_columns.values()) - len(self.array_columns))
+                len(self.column_index) + sum(self.array_columns.values())
+                - len(self.array_columns))
 
         self.set_defaults(**params)
 
@@ -198,7 +197,8 @@ class Source:
 
         if not data_is_annotated:
             self.add_extra_columns(self.data)
-            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+            if not _skip_bounds_computation:
+                self._annotate()
 
         if not _skip_tf_init:
             self._check_data()
@@ -220,7 +220,7 @@ class Source:
         """
         # First, build a list of (n_events, 1 or column_width) tensors
         result = []
-        for column in self.cols_to_cache:
+        for column in self.column_index:
 
             if column in self.frozen_data_methods:
                 # Calculate the column
@@ -239,7 +239,7 @@ class Source:
             result.append(y)
 
         # Concat these and shape them to the batch size
-        result = tf.concat(self.data, axis=1)
+        result = tf.concat(result, axis=1)
         self.data_tensor = tf.reshape(
             result,
             [self.n_batches, -1, self.n_columns_in_data_tensor])
@@ -276,10 +276,10 @@ class Source:
                     data_is_annotated=True,
                     _skip_tf_init=True)
 
-    def annotate_data(self, data, _skip_bounds_computation=False, **params):
+    def annotate_data(self, data, **params):
         """Add columns to data with inference information"""
         with self._set_temporarily(data, **params):
-            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+            self._annotate()
             return self.data
 
     ##
@@ -289,7 +289,7 @@ class Source:
     def _fetch(self, x, data_tensor=None):
         """Return a tensor column from the original dataframe (self.data)
         :param x: column name
-        :param data_tensor: Data tensor, columns as in self.name_id
+        :param data_tensor: Data tensor, columns as in self.column_index
         """
         if x in self.ignore_columns():
             raise RuntimeError(
@@ -320,7 +320,7 @@ class Source:
         :param bonus_arg: If fname takes a bonus argument, the data for it
         :param numpy_out: If True, return (tuple of) numpy arrays,
         otherwise (tuple of) tensors.
-        :param data_tensor: Data tensor, columns as self.name_id
+        :param data_tensor: Data tensor, columns as self.column_index
         If not given, use self.data (used in annotate)
         :param ptensor: Parameter tensor, columns as self.param_id
         If not give, use defaults dictionary (used in annotate)
@@ -328,13 +328,15 @@ class Source:
         populate the internal caches.
         """
         assert (bonus_arg is not None) == (fname in self.special_data_methods)
+        assert isinstance(fname, str), \
+            f"gimme needs fname to be a string, not {type(fname)}"
 
         if data_tensor is None:
             # We're in an annotate
             assert hasattr(self, 'data'), "You must set data first"
         else:
             # We're computing
-            if not hasattr(self, 'name_id'):
+            if not hasattr(self, 'data_tensor'):
                 raise ValueError(
                     "You must set_data first (and populate the tensor cache)")
 
@@ -362,7 +364,7 @@ class Source:
 
     def gimme_numpy(self, fname, bonus_arg=None):
         """Gimme for use in simulation / annotate"""
-        return self.gimme(fname,
+        return self.gimme(fname=fname,
                           data_tensor=None, ptensor=None,
                           bonus_arg=bonus_arg,
                           numpy_out=True)
@@ -442,7 +444,6 @@ class Source:
         result_y = fd.repeat(self.domain(y, data_tensor)[:, o, :], x_size, axis=1)
         return result_x, result_y
 
-
     ##
     # Simulation methods and helpers
     ##
@@ -456,12 +457,9 @@ class Source:
             f"n_events must be an int or float, not {type(n_events)}"
 
         # Draw random "deep truth" variables (energy, position)
-        sim_data = self.random_truth(n_events, **params)
-        if fix_truth is not None:
-            # Override any keys with fixed values defined in fix_truth
-            fix_truth = self.validate_fix_truth(fix_truth)
-            for k, v in fix_truth.items():
-                sim_data[k] = v
+        fix_truth = self.validate_fix_truth(fix_truth)
+        sim_data = self.random_truth(n_events, fix_truth=fix_truth, **params)
+        assert isinstance(sim_data, pd.DataFrame)
 
         with self._set_temporarily(sim_data, _skip_bounds_computation=True,
                                    **params):
@@ -474,8 +472,20 @@ class Source:
             return self.data
 
     def validate_fix_truth(self, fix_truth):
-        """Check fix_truth is correct, adding derived variables if needed"""
-        pass
+        """Return checked fix truth, with extra derived variables if needed"""
+        return fix_truth
+
+    @staticmethod
+    def _overwrite_fixed_truths(data, fix_truth, n_events):
+        """Replaces all columns in data with fix_truth.
+
+        Careful: ensure mutual constraints are accounted for first!
+        (e.g. fixing energy for a modulating WIMP has consequences for the
+         time distribution.)
+        """
+        if fix_truth is not None:
+            for k, v in fix_truth.items():
+                data[k] = np.ones(n_events, dtype=np.float) * v
 
     ##
     # Mu estimation
@@ -549,10 +559,8 @@ class Source:
     # Functions you probably should override
     ##
 
-    def _annotate(self, _skip_bounds_computation=False):
+    def _annotate(self):
         """Add columns needed in inference to self.data
-        :param _skip_bounds_computation: Do not compute min/max bounds
-        TODO: explain why useful, see simulator
         """
         pass
 
@@ -567,7 +575,7 @@ class Source:
         """Draw random "deep truth" variables (energy, position) """
         assert isinstance(n_events, int), \
             f"n_events must be an int, not {type(n_events)}"
-        return pd.DataFrame({'energy': np.ones(n_events)})
+        return pd.DataFrame({'energy': np.ones(n_events) * 5.})
 
     def _simulate_response(self):
         """Do a forward simulation of the detector response, using self.data"""

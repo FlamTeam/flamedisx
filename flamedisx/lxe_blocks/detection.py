@@ -10,7 +10,7 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-class DetectPhotonsOrElectrons:
+class DetectPhotonsOrElectrons(fd.Block):
     """Common code for DetectPhotons and DetectElectrons"""
 
     static_attributes = ('check_efficiencies',)
@@ -50,47 +50,52 @@ class DetectPhotonsOrElectrons:
         p = self.gimme_numpy(self.quanta_name + '_detection_eff')
 
         if self.quanta_name == 'photon':
-            d['penning_quenching_eff_mle'] = self.gimme_numpy(
-                'penning_quenching_eff', d['photon_produced'].values)
-            p *= d['penning_quenching_eff_mle'].values
+            p *= self.gimme_numpy(
+                'penning_quenching_eff', d['photons_produced'].values)
 
         d[self.quanta_name + 's_detected'] = stats.binom.rvs(
-            n=d['photon_produced'],
+            n=d['photons_produced'],
             p=p)
         d['p_accepted'] *= self.gimme_numpy(
             self.quanta_name + '_acceptance',
             d[self.quanta_name + 's_detected'].values)
 
     def _annotate(self, d):
-        eff = d[self.quanta_name + '_detection_eff_mle'] = \
-            self.gimme_numpy(d, self.quanta_name + '_detection_eff')
+        # Get efficiency
+        eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
+        if self.quanta_name == 'photon':
+            eff *= self.gimme_numpy('penning_quenching_eff',
+                                    d['photons_detected_mle'].values / eff)
 
+        # Check for bad efficiencies
         if self.check_efficiencies and np.any(eff <= 0):
             raise ValueError(f"Found event with nonpositive {self.quanta_name} "
                              "detection efficiency: did you apply and "
                              "configure your cuts correctly?")
 
-        n_prod_mle = d[self.quanta_name + 's_detected_mle'] / eff
+        # Estimate produced quanta
+        n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
+            d[self.quanta_name + 's_detected_mle'] / eff
 
         # Estimating the spread in number of produced quanta is tricky since
         # the number of detected quanta is itself uncertain.
         # TODO: where did this derivation come from again?
-        # TODO: maybe do a second bound based on CES?
         q = 1 / eff
         _std = (q + (q ** 2 + 4 * n_prod_mle * q) ** 0.5) / 2
 
-        for bound, sign in (('min', -1), ('max', +1)):
-            d[self.quanta_name + 's_produced_' + bound] = (
-                    n_prod_mle + sign * self.source.max_sigma * _std
-            ).round().clip(0, None).astype(np.int)
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            d[self.quanta_name + 's_produced_' + bound] = intify(
+                n_prod_mle + sign * self.source.max_sigma * _std
+            ).clip(0, None).astype(np.int)
 
 
 @export
-class DetectPhotons(fd.Block, DetectPhotonsOrElectrons):
+class DetectPhotons(DetectPhotonsOrElectrons):
     dimensions = ('photons_produced', 'photons_detected')
 
-    model_functions = ('photon_detection_eff', 'penning_quenching_eff')
-    special_model_functions = ('photon_acceptance',)
+    model_functions = ('photon_detection_eff',)
+    special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
 
     photon_detection_eff = 0.1
     photon_acceptance = 1.
@@ -109,7 +114,7 @@ class DetectPhotons(fd.Block, DetectPhotonsOrElectrons):
 
 
 @export
-class DetectElectrons(fd.Block):
+class DetectElectrons(DetectPhotonsOrElectrons):
     dimensions = ('electrons_produced', 'electrons_detected')
 
     model_functions = ('electron_detection_eff',)

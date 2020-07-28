@@ -86,13 +86,12 @@ class MakePhotonsElectronsBinomial(fd.Block):
             n=d['quanta_produced'],
             p=d['p_el_actual'])
         d['photons_produced'] = d['quanta_produced'] - d['electrons_produced']
-        return d
 
     def _annotate(self, d):
-        d['quanta_produced_min'] = \
-            d['photon_produced_min'] + d['electron_produced_min']
-        d['quanta_produced_max'] = \
-            d['photon_produced_max'] + d['electron_produced_max']
+        for suffix in ('min', 'max', 'mle'):
+            d['quanta_produced_' + suffix] = (
+                d['photons_produced_' + suffix]
+                + d['electrons_produced_' + suffix])
 
 
 @export

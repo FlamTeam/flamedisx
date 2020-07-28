@@ -90,19 +90,26 @@ def tf_to_np(x):
 @export
 def np_to_tf(x):
     """Convert (list/tuple of) arrays x to tensorflow"""
-    if isinstance(x, (list, tuple)):
+    if isinstance(x, pd.Series):
+        x = x.values
+    elif isinstance(x, pd.DataFrame):
+        raise ValueError("Cannot convert pd.DataFrame's to tensors!")
+    elif isinstance(x, (list, tuple)):
         return tuple([np_to_tf(y) for y in x])
-    if isinstance(x, tf.Tensor):
+    elif isinstance(x, tf.Tensor):
         return x
     return tf.convert_to_tensor(x, dtype=float_type())
+
 
 @export
 def cart_to_pol(x, y):
     return (x**2 + y**2)**0.5, np.arctan2(y, x)
 
+
 @export
 def pol_to_cart(r, theta):
     return r * np.cos(theta), r * np.sin(theta)
+
 
 @export
 def tf_log10(x):
@@ -194,6 +201,7 @@ def index_lookup_dict(names, column_widths=None):
     :param column_widths: dictionary mapping names to column width.
     For columns with width > 1, the result contains a tensor slice.
     """
+    names = list(names)
     if column_widths is None:
         column_widths = dict()
 
@@ -238,3 +246,11 @@ def run_command(command):
             stderr=subprocess.STDOUT) as p:
         for line in iter(p.stdout.readline, ''):
             print(line.rstrip())
+
+
+@export
+def pandafy_twod_array(x):
+    """Convert x from a two-d array to a list of one-dimensional arrays
+    so you can stick it in a dataframe...
+    """
+    return [y for y in x]

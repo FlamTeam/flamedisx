@@ -119,19 +119,20 @@ class LogLikelihood:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
             param_defaults[sn + '_rate_multiplier'] = 1.
 
-        # Determine default parameters for each source
-        defaults_in_sources = {
-            sname: sclass.find_defaults()[2]
-            for sname, sclass in self.sources.items()}
-
         # Create sources
         self.sources = {
             sname: sclass(data=None,
                           max_sigma=max_sigma,
-                          fit_params=list(k for k in common_param_specs.keys()
-                                          if k in defaults_in_sources[sname].keys()),
+                          # The source will filter out parameters it does not
+                          # take
+                          fit_params=list(k for k in common_param_specs.keys()),
                           batch_size=batch_size)
             for sname, sclass in self.sources.items()}
+
+        # Determine default parameters for each source
+        defaults_in_sources = {
+            sname: s.find_defaults()[2]
+            for sname, s in self.sources.items()}
 
         for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
@@ -139,6 +140,9 @@ class LogLikelihood:
             defs = [s.defaults[pname]
                     for s in self.sources.values()
                     if pname in s.defaults]
+            if not defs:
+                raise ValueError(f"Invalid fit parameter {pname}: "
+                                 f"no source takes it?")
             if len(set([x.numpy() for x in defs])) > 1:
                 raise ValueError(
                     f"Inconsistent defaults {defs} for common parameters")

@@ -34,7 +34,7 @@ class Block:
         return self.source.gimme(*args, **kwargs)
 
     def gimme_numpy(self, *args, **kwargs):
-        """Shorthand for self.source.gimme, see docs there"""
+        """Shorthand for self.source.gimme_numpy"""
         return self.source.gimme_numpy(*args, **kwargs)
 
     def domain(self, data_tensor):
@@ -58,6 +58,8 @@ class Block:
         # Check necessary columns were actually added
         for dim in self.dimensions:
             assert dim in d.columns, f"_simulate of {self} must set {dim}"
+            assert np.all(np.isfinite(d[dim].values)),\
+                f"_simulate of {self} returned non-finite values of {dim}"
 
     def annotate(self, d: pd.DataFrame, _do_checks=False):
         """Add _min and _max for each dimension to d in-place"""
@@ -103,8 +105,17 @@ class BlockModelSource(fd.Source):
     final_dimensions: tuple
 
     def __init__(self, *args, **kwargs):
+        self.build_source_from_blocks()
+        super().__init__(*args, **kwargs)
+
+    def build_source_from_blocks(self):
+        if isinstance(self.model_blocks[0], Block):
+            # Blocks have already been instantiated
+            return
+
         # Collect attributes from the different blocks in this dictionary:
         collected = {k: [] for k in (
+            'dimensions',
             'model_functions',
             'special_model_functions',
             'static_attributes',
@@ -117,12 +128,16 @@ class BlockModelSource(fd.Source):
         for b in self.model_blocks:
             _this_block = {}
             for k in collected:
+                if not isinstance(getattr(b, k), tuple):
+                    raise ValueError(
+                        f"{k} in {b} should be a tuple, not a {type(k)}")
                 _this_block[k] = list(getattr(b, k))
                 collected[k] += _this_block[k]
 
             for x in (_this_block['model_functions']
                       + _this_block['special_model_functions']
                       + _this_block['static_attributes']):
+
                 # If a source attribute was specified,
                 # override the block's attribute.
                 if hasattr(self, x):
@@ -136,14 +151,32 @@ class BlockModelSource(fd.Source):
                 # Sorry. I can't use properties to prevent writing, since
                 # those are class-bound.
 
+        # The source may declare additional frozen data methods
+        collected['frozen_data_methods'] += self.frozen_data_methods
+
+        # For array columns, the source may declare new columns
+        # or override the length of the old columns
+        for column, length in self.array_columns:
+            for i, (_old_column, _) in enumerate(collected['array_columns']):
+                if _old_column == column:
+                    # Change length of existing column
+                    collected['array_columns'][i] = (column, length)
+                    break
+            else:
+                # New column
+                collected['array_columns'] += [(column, length)]
+
         # TODO: Ugly since source's conventions / naming is a bit divergent
         self.data_methods = tuple(collected['model_functions']
                                   + collected['special_model_functions'])
         self.special_data_methods = tuple(collected['special_model_functions'])
         self.frozen_data_methods = tuple(collected['frozen_data_methods'])
-        self.frozen_data_methods = tuple(collected['frozen_data_methods'])
         self.array_columns = tuple(collected['array_columns'])
-        super().__init__(*args, **kwargs)
+
+        self.inner_dimensions = tuple([
+            d for d in collected['dimensions']
+            if ((d not in self.final_dimensions)
+                and (d not in self.model_blocks[0].dimensions))])
 
     @staticmethod
     def _find_block(blocks,
@@ -242,9 +275,13 @@ class BlockModelSource(fd.Source):
             del results[b2_dims]
             results[dims] = b
 
-    def random_truth(self, n_events, **params):
+    def random_truth(self, n_events, fix_truth=None, **params):
         # First block provides the 'deep' truth (energies, positions, time)
-        return self.model_blocks[0].random_truth(n_events, **params)
+        return self.model_blocks[0].random_truth(
+            n_events, fix_truth=fix_truth, *params)
+
+    def validate_fix_truth(self, fix_truth):
+        return self.model_blocks[0].validate_fix_truth(fix_truth)
 
     def _check_data(self):
         super()._check_data()
@@ -265,8 +302,12 @@ class BlockModelSource(fd.Source):
         # on hidden variables closer to the final signals (easy to compute)
         # for estimating the bounds on deeper hidden variables.
         for b in self.model_blocks[::-1]:
-            d = b.annotate(d,
-                           _do_checks=(b != self.model_blocks[0]))
+            b.annotate(d, _do_checks=(b != self.model_blocks[0]))
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)
+
+    def draw_positions(self, *args, **kwargs):
+        # TODO: This is a kludge; allows one to reuse draw_positions
+        # from the first block in a source-overriden random_truth function.
+        return self.model_blocks[0].draw_positions(*args, **kwargs)

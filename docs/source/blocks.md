@@ -38,6 +38,7 @@ The source will operate as follows:
   * During **simulation**, we run `_simulate` of the blocks in the order you specified in `model_blocks`, starting with the first block. This is usually the block that creates the energy spectrum.
   * When **setting data** (e.g. when you create the source), we run `_annotate` of the blocks in reverse order. This way, you can first estimate hidden variables close to observables, then use those estimates for guessing deeper hidden variables. For example, you can use the estimated number of detected electrons to estimate the number of produced electrons.
 
+If your source needs an `__init__`, you may want to start by calling `self.build_source_from_blocks()`, so all the correct attributes, methods, etc. get copied over from blocks. The function is harmless if called more than once.  Likely you'll call `super().__init__(*args, **kwargs)` only after doing whatever it is you want to do, since `Source.__init__` will set the data.
 
 
 ## Block setup
@@ -107,7 +108,6 @@ All simulated events have a special `p_accepted` column, starting out at 1.0 for
 
 ## The `_annotate` method
 
-
 ## The first block of a source
 
 This is usually the block specifying the energy spectrum. It is special in several ways. 
@@ -121,5 +121,10 @@ Other restrictions are added:
   * It must specify a `domain` method, returning a dictionary mapping its dimension (e.g. deposited_energy) to the range of values for which `_compute` returns results.
   * It must implement a `random_truth` method, taking `n_events` and a parameter dictionary, returning a dataframe with a number of simulated events.
   * It must implement a `mu_before_efficiencies` method, taking a parameter dictionary and returning the number of expected events directly from the spectrum (i.e. before any efficiencies) given these parameters.
+  * It must specify a `validate_fix_truth` method, taking and returning a fixed truth specification.
 
-See `FixedShapeEnergySpectrum` for an example. 
+See `FixedShapeEnergySpectrum` for an example and more details. 
+
+## Frozen functions and array columns
+
+To be written -- see `WIMPSource` for an example in the meantime.

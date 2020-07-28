@@ -14,7 +14,7 @@ DEFAULT_WORK_PER_QUANTUM = 13.7e-3
 @export
 class MakeERQuanta(fd.Block):
 
-    dimensions = ('produced_quanta',)
+    dimensions = ('quanta_produced',)
     depends_on = ((('deposited_energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
@@ -40,32 +40,21 @@ class MakeERQuanta(fd.Block):
 
     def _simulate(self, d):
         work = self.gimme_numpy('work')
-        d['quanta_produced_mle'] = np.floor(d['energy'].values
-                                            / work).astype(np.int)
+        d['quanta_produced'] = np.floor(d['energy'].values
+                                        / work).astype(np.int)
 
     def _annotate(self, d):
-        # No bounds need to be estimated; we will consider the entire
-        # energy spectrum for each event.
-
-        # Nonetheless, it's useful to reconstruct the 'visible' energy
-        # via the combined energy scale (CES
-        work = self.gimme_numpy('work')
-        d['e_charge_vis'] = work * (
-            d['electron_detected_mle'] / d['electron_detection_eff_mle'])
-        d['e_light_vis'] = work * (
-            d['photon_detected_mle'] / (
-                d['photon_detection_eff'] / d['penning_quenching_eff_mle']))
-        d['e_vis'] = d['e_charge_vis'] + d['e_light_vis']
+        annotate_ces(self, d)
 
 
 @export
 class MakeNRQuanta(fd.Block):
 
-    dimensions = ('produced_quanta',)
+    dimensions = ('quanta_produced',)
     depends_on = ((('deposited_energy',), 'rate_vs_energy'),)
 
-    data_methods = ('work',)
-    special_data_methods = ('lindhard_l',)
+    model_functions = ('work',)
+    special_model_functions = ('lindhard_l',)
 
     work = DEFAULT_WORK_PER_QUANTUM
 
@@ -105,10 +94,26 @@ class MakeNRQuanta(fd.Block):
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
         energies = d['energy'].values
-        # OK to use None, simulator has set defaults
-        work = self.gimme_numpy('work', data_tensor=None, ptensor=None)
-        lindhard_l = self.gimme_numpy('lindhard_l',
-                                      bonus_arg=energies,
-                                      data_tensor=None, ptensor=None)
+        work = self.gimme_numpy('work')
+        lindhard_l = self.gimme_numpy('lindhard_l', bonus_arg=energies)
         d['quanta_produced'] = stats.poisson.rvs(energies * lindhard_l / work)
-        return d
+
+    def _annotate(self, d):
+        annotate_ces(self, d)
+
+
+def annotate_ces(self, d):
+    # No bounds need to be estimated; we will consider the entire
+    # energy spectrum for each event.
+
+    # Nonetheless, it's useful to reconstruct the 'visible' energy
+    # via the combined energy scale (CES
+    work = self.gimme_numpy('work')
+    d['e_charge_vis'] = work * d['electrons_produced_mle']
+    d['e_light_vis'] = work * d['photons_produced_mle']
+    d['e_vis'] = d['e_charge_vis'] + d['e_light_vis']
+
+    for bound in ('min', 'max'):
+        d['quanta_produced_' + bound] = (
+                d['electrons_produced_' + bound]
+                + d['photons_produced_' + bound])

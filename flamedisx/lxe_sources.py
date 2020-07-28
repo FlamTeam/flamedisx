@@ -1,5 +1,6 @@
 import numpy as np
 from multihist import Histdd
+import pandas as pd
 import wimprates as wr
 
 import flamedisx as fd
@@ -50,12 +51,21 @@ class WIMPSource(NRSource):
         + list(NRSource.model_blocks[1:]))
     frozen_data_methods = ('energy_spectrum',)
 
+    # If set to True, the energy spectrum at each time will be set to its
+    # average over the data taking period.
+    pretend_wimps_dont_modulate = False
+
     mw = 1e3  # GeV
     sigma_nucleon = 1e-45  # cm^2
-    energies = np.geomspace(0.7, 50, 100)
     n_time_bins = 24
 
+    # For this source, energies specifies the bin *edges* of energy!
+    energies = np.geomspace(0.7, 50, 100)
+
     def __init__(self, *args, wimp_kwargs=None, **kwargs):
+        self.array_columns = (('energy_spectrum', len(self.energies) - 1),)
+        self.build_source_from_blocks()
+
         times = np.linspace(wr.j2000(self.t_start.value),
                             wr.j2000(self.t_stop.value),
                             self.n_time_bins + 1)
@@ -67,7 +77,7 @@ class WIMPSource(NRSource):
             # use default mass, xsec and energy range
             wimp_kwargs = dict(mw=self.mw,
                                sigma_nucleon=self.sigma_nucleon,
-                               es=self.energies)
+                               energies=self.energies)
         else:
             # 'es' was renamed to energies
             if 'es' in wimp_kwargs:
@@ -94,17 +104,51 @@ class WIMPSource(NRSource):
         self.energy_hist = Histdd.from_histogram(spectra,
                                                  bin_edges=(times, energies))
 
+        if self.pretend_wimps_dont_modulate:
+            self.energy_hist.histogram = (
+                np.ones_like(self.energy_hist.histogram)
+                * self.energy_hist.sum(axis=0).histogram.reshape(1, -1)
+                / self.n_time_bins)
+
         super().__init__(*args, **kwargs)
 
-    def random_truth(self, n_events, **params):
+    def random_truth(self, n_events, fix_truth=None, **params):
         """Draw n_events random energies and times from the energy/
         time spectrum and add them to the data dict.
         """
         data = self.draw_positions(n_events)
-        events = self.energy_hist.get_random(n_events)
-        data['energy'] = events[:, 1]
-        data['event_time'] = fd.j2000_to_event_time(events[:, 0])
-        return data
+
+        if 'event_time' in fix_truth:
+            # Time is fixed, so the energy spectrum differs.
+            # (if energy is also fixed, it will just be overridden later
+            #  and we're doing a bit of unnecessary work here)
+            t = wr.j2000(fix_truth['event_time'])
+            t_edges = self.energy_hist.bin_edges[0]
+            assert t_edges[0] <= t < t_edges[-1], "fix_truth time out of bounds"
+            data['energy'] = \
+                self.energy_hist \
+                    .slicesum(t, axis=0) \
+                    .get_random(n_events)
+
+        elif 'energy' in fix_truth:
+            # Energy is fixed, so the time distribution differs.
+            e_edges = self.energy_hist.bin_edges[1]
+            assert e_edges[0] <= fix_truth['energy'] < e_edges[-1], \
+                "fix_truth energy out of bounds"
+            times = \
+                self.energy_hist \
+                    .slicesum(fix_truth['energy'], axis=1) \
+                    .get_random(n_events)
+            data['event_time'] = fd.j2000_to_event_time(times)
+
+        else:
+            times, data['energy'] = self.energy_hist.get_random(n_events).T
+            data['event_time'] = fd.j2000_to_event_time(times)
+
+        # Overwrite all fixed truth keys
+        self._overwrite_fixed_truths(data, fix_truth, n_events)
+
+        return pd.DataFrame(data)
 
     def energy_spectrum(self, event_time):
         t_j2000 = wr.j2000(event_time)
@@ -119,6 +163,7 @@ class WIMPSource(NRSource):
         return 0.5 * (x[1:] + x[:-1])
 
 
+@export
 class SpatialRateHistogramSource:
     """Source whose rate multiplier is specified by a spatial histogram.
 
@@ -132,6 +177,8 @@ class SpatialRateHistogramSource:
     spatial_rate_bin_volumes: Histdd
 
     def __init__(self, *args, **kwargs):
+        self.build_source_from_blocks()
+
         # Check we actually have the histograms
         for attribute in ['spatial_rate_hist', 'spatial_rate_bin_volumes']:
             assert hasattr(self, attribute), f"{attribute} missing"
@@ -158,6 +205,13 @@ class SpatialRateHistogramSource:
 
         self.spatial_rate_pdf = self.spatial_rate_hist.similar_blank_hist()
         self.spatial_rate_pdf.histogram = R_norm
+
+        # Check the spatial rate histogram was properly normalized.
+        # It's easy to mis-normalize by accident, don't cause any surprises:
+        assert 0.9999 < np.average(E, weights=bv) < 1.0001, \
+            "Spatial rate histogram is not normalized correctly"
+
+        super().__init__(*args, **kwargs)
 
     def energy_spectrum_rate_multiplier(self, x, y, z):
         if self.polar:

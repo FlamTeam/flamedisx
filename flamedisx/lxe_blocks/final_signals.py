@@ -40,20 +40,21 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.s_name + '_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy(self.quanta_name + '_gain_mean').values
-        s = self.gimme_numpy(self.quanta_name + '_gain_std').values
+        m = self.gimme_numpy(self.quanta_name + '_gain_mean')
+        s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.s_name] / d[self.quanta_name + '_gain_mean']).clip(0, None)
+            (d[self.s_name] / m).clip(0, None)
         scale = mle**0.5 * s / m
 
-        for bound, sign in (('min', -1), ('max', +1)):
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d[self.quanta_name + 's_detected_' + bound] = (
-                    mle + sign * self.source.max_sigma * scale
-            ).round().clip(0, None).astype(np.int)
+            d[self.quanta_name + 's_detected_' + bound] = intify(
+                mle + sign * self.source.max_sigma * scale
+            ).clip(0, None).astype(np.int)
 
     def __compute(self,
                   quanta_detected, s_observed,
