@@ -15,8 +15,7 @@ from .lxe_blocks.detection import *
 from .lxe_blocks.double_pe import *
 from .lxe_blocks.final_signals import *
 
-from .lxe_source import *
-from .er_nr_base import *
+from .lxe_sources import *
 
 
 # XENON specifics

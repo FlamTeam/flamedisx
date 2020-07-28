@@ -127,7 +127,7 @@ class Source:
         self.cols_to_cache = ctc
 
         self.column_index = fd.index_lookup_dict(ctc,
-                                                 array_columns=self.array_columns)
+                                                 column_widths=self.array_columns)
         self.n_columns_in_data_tensor = (
                 len(self.column_index)
                 + sum(self.array_columns.values()) - len(self.array_columns))

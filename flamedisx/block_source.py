@@ -17,7 +17,12 @@ class Block:
     dimensions: ty.Tuple[str]
 
     depends_on: ty.Tuple[str] = tuple()
+
     model_functions: ty.Tuple[str] = tuple()
+    special_model_functions: ty.Tuple[str] = tuple()
+    array_columns: ty.Tuple[str] = tuple()
+    frozen_data_methods: ty.Tuple[str] = tuple()
+    static_attributes: ty.Tuple[str] = tuple()
 
     def __init__(self, source):
         self.source = source
@@ -106,6 +111,9 @@ class BlockModelSource(fd.Source):
             'frozen_data_methods',
             'array_columns')}
 
+        # Instantiate the blocks
+        self.model_blocks = tuple([b(self) for b in self.model_blocks])
+
         for b in self.model_blocks:
             _this_block = {}
             for k in collected:
@@ -118,16 +126,15 @@ class BlockModelSource(fd.Source):
                 # If a source attribute was specified,
                 # override the block's attribute.
                 if hasattr(self, x):
-                    setattr(b, x, self.x)
+                    setattr(b, x, getattr(self, x))
 
-                # Create a source attribute with a getter pointing to the
-                # block attribute.
-                # We do not add a setter; overriding a model function with a new
-                # one would necessitate a rescan of self.f_dims.
-                # You should just make a new source in this case.
-                setattr(self,
-                        x,
-                        property(fget=lambda: getattr(b, x)))
+                # Set the source attribute from the block's attribute
+                setattr(self, x, getattr(b, x))
+
+                # Someone might try to modify the source attribute after
+                # instantiation, then be really surprised when nothing happens.
+                # Sorry. I can't use properties to prevent writing, since
+                # those are class-bound.
 
         # TODO: Ugly since source's conventions / naming is a bit divergent
         self.data_methods = tuple(collected['model_functions']

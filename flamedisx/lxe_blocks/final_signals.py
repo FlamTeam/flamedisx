@@ -13,10 +13,10 @@ o = tf.newaxis
 SIGNAL_NAMES = dict(photon='s1', electron='s2')
 
 
-class MakeFinalSignals:
+class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
 
-    static_attributes = ('check_efficiencies',)
+    static_attributes = ('check_acceptances',)
 
     # Whether to check acceptances are positive at the observed events.
     # This is recommended, but you'll have to turn it off if your
@@ -50,7 +50,7 @@ class MakeFinalSignals:
         for bound, sign in (('min', -1), ('max', +1)):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
-            # so let's just use the relative error on the MLE
+            # so let's just use the relative error on the MLE)
             d[self.quanta_name + 's_detected_' + bound] = (
                     mle + sign * self.source.max_sigma * scale
             ).round().clip(0, None).astype(np.int)
@@ -88,10 +88,10 @@ class MakeFinalSignals:
 
 
 @export
-class MakeS1(fd.Block, MakeFinalSignals):
+class MakeS1(MakeFinalSignals):
 
     dimensions = ('photoelectrons_detected', 's1')
-    model_functions = ('photelectron_gain_mean', 'photelectron_gain_std',
+    model_functions = ('photoelectron_gain_mean', 'photoelectron_gain_std',
                        's1_acceptance')
 
     photoelectron_gain_mean = 1.
@@ -111,7 +111,7 @@ class MakeS1(fd.Block, MakeFinalSignals):
 
 
 @export
-class MakeS2(fd.Block, MakeFinalSignals):
+class MakeS2(MakeFinalSignals):
 
     dimensions = ('electrons_detected', 's2')
     model_functions = ('electron_gain_mean', 'electron_gain_std',

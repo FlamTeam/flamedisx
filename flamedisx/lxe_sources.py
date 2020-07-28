@@ -36,6 +36,7 @@ class NRSource(fd.BlockModelSource):
     final_dimensions = ('s1', 's2')
 
 
+@export
 class WIMPSource(NRSource):
     """Spin-independent dark matter source.
 

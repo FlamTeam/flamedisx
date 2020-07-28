@@ -19,7 +19,9 @@ class FixedShapeEnergySpectrum(fd.Block):
     dimensions = ('deposited_energy',)
     static_attributes = (
         'energies', 'rates_vs_energy',
-        'fv_radius', 'fv_high' 'fv_low' 'drift_velocity' 't_start' 't_stop')
+        'fv_radius', 'fv_high', 'fv_low',
+        'drift_velocity',
+        't_start', 't_stop')
 
     # The fiducial volume bounds for a cylindrical volume
     # default to full (2t) XENON1T dimensions
@@ -36,8 +38,8 @@ class FixedShapeEnergySpectrum(fd.Block):
     t_stop = pd.to_datetime('2020-09-01T08:28:00')
 
     # Just a dummy 0-10 keV spectrum
-    energies: tf.linspace(0., 10., 1000)
-    rates_vs_energy: tf.ones(1000, dtype=fd.float_type())
+    energies = tf.linspace(0., 10., 1000)
+    rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
 
     energy_spectrum_rate_multiplier = 1
 
@@ -76,6 +78,7 @@ class FixedShapeEnergySpectrum(fd.Block):
         return data
 
 
+@export
 class VariableEnergySpectrum(FixedShapeEnergySpectrum):
     """For a source for which the entire energy spectrum (not just the rate)
     depends on observables (e.g. reconstruction position or time)
