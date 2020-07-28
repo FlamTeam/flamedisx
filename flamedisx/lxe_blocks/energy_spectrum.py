@@ -8,12 +8,14 @@ o = tf.newaxis
 
 
 @export
-class UniformConstantEnergy(fd.Block):
-    """For a source with a constant, homogeneous energy spectrum.
+class FixedShapeEnergySpectrum(fd.Block):
+    """For a source whose energy spectrum has the same shape
+    throughout space and time. The total rate could vary.
 
     By default, a flat 0 - 10 keV spectrum, sampled at 1000 points.
     """
 
+    model_functions = ('energy_spectrum_rate_multiplier',)
     dimensions = ('deposited_energy',)
     static_attributes = (
         'energies', 'rates_vs_energy',
@@ -37,14 +39,19 @@ class UniformConstantEnergy(fd.Block):
     energies: tf.linspace(0., 10., 1000)
     rates_vs_energy: tf.ones(1000, dtype=fd.float_type())
 
+    energy_spectrum_rate_multiplier = 1
+
     def _compute(self, data_tensor, ptensor):
-        return fd.repeat(self.rates_vs_energy[o, :], self.batch_size, axis=0)
+        spectrum = fd.repeat(self.rates_vs_energy[o, :], self.batch_size, axis=0)
+        rate_multiplier = self.gimme('energy_spectrum_rate_multiplier',
+                                     data_tensor=data_tensor, ptensor=ptensor)
+        return spectrum * rate_multiplier
 
     def domain(self, data_tensor, ptensor):
         return {self.dimensions[0]:
                     fd.repeat(self.energies[o, :], self.batch_size, axis=0)}
 
-    def random_truth(self, n_events):
+    def random_truth(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
         and event_time randomly drawn.
         """
@@ -69,25 +76,7 @@ class UniformConstantEnergy(fd.Block):
         return data
 
 
-class VariableRateSpectrum(UniformConstantEnergy):
-    """For a source whose rate, but not energy spectrum shape,
-    depends on observables (e.g. reconstructed position or time)
-    """
-
-    model_functions = ('energy_spectrum_rate_multiplier',)
-
-    energy_spectrum_rate_multiplier = 1
-
-    def _compute(self, data_tensor, ptensor):
-        return (
-            UniformConstantEnergy._compute(
-                self,
-                data_tensor=data_tensor, ptensor=ptensor)
-            * self.gimme('energy_spectrum_rate_multiplier',
-                         data_tensor=data_tensor, ptensor=ptensor))
-
-
-class VariableSpectrum(UniformConstantEnergy):
+class VariableEnergySpectrum(FixedShapeEnergySpectrum):
     """For a source for which the entire energy spectrum (not just the rate)
     depends on observables (e.g. reconstruction position or time)
     """
@@ -99,9 +88,9 @@ class VariableSpectrum(UniformConstantEnergy):
         # Note this sets an array of values!
         d['energy_spectrum'] = d.gimme_numpy('energy_spectrum')
 
-    def energy_spectrum(self, x):
-        # Note this returns a 2d tensor!
-        return tf.ones(len(x), len(self.energies))
-
     def _compute(self, data_tensor, ptensor):
         return self.gimme('energy_spectrum', data_tensor, ptensor)
+
+    def energy_spectrum(self, event_time):
+        # Note this returns a 2d tensor!
+        return tf.ones(len(x), len(self.energies), dtype=fd.float_type())

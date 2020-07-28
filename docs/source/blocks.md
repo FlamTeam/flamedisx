@@ -47,7 +47,7 @@ Besides the main three methods, blocks usually specify additional attributes tha
 ### Static attributes
 `static_attributes` is a tuple of strings of Block attributes that should be exposed in the source. Setting one of these attributes in the Source will override their value.
 
-For example, the `UniformConstantEnergy` block [TODO: LINK!] has the `energies` and `rates_vs_energy` attributes to specify the x and y values of the source's discretized energy spectrum. Users can then write:
+For example, the `FixedShapeEnergySpectrum` block [TODO: LINK!] has the `energies` and `rates_vs_energy` attributes to specify the x and y values of the source's discretized energy spectrum. Users can then write:
     
 ```python
 import flamedisx as fd
@@ -86,7 +86,7 @@ As an example, the `MakeNRQuanta` block exposes a `lindhard_l` model function [T
 The `dimensions` tuple names the dimensions of the `_compute` output. Without this we wouldn't know how to combine the results of blocks. The batch/event dimension is not named.
 
 For example [TODO: LINKS]:
-  * For `UniformConstantEnergy`, this is `('deposited_energy',)`, since `_compute` outputs a one-dimensional array per event, the differential rate as a function of deposited energy.
+  * For `FixedShapeEnergySpectrum`, this is `('deposited_energy',)`, since `_compute` outputs a one-dimensional array per event, the differential rate as a function of deposited energy.
   * For `MakePhotonsElectronsBinomial`, this is `('electrons_produced', 'photons_produced')`, since it outputs a two-dimensional array per event, the differential rate as a function of the produced number of photons and electrons.
 
 ### Dependencies
@@ -122,4 +122,4 @@ Other restrictions are added:
   * It must implement a `random_truth` method, taking `n_events` and a parameter dictionary, returning a dataframe with a number of simulated events.
   * It must implement a `mu_before_efficiencies` method, taking a parameter dictionary and returning the number of expected events directly from the spectrum (i.e. before any efficiencies) given these parameters.
 
-See `UniformConstantEnergy` for an example. 
+See `FixedShapeEnergySpectrum` for an example. 
