@@ -13,6 +13,7 @@ import flamedisx as fd
 import json
 import scipy.interpolate as itp
 
+import pdb
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -46,12 +47,16 @@ DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 ##
 # Loading Pax reconstruction bias
 ##
-dummy_base = os.path.abspath(os.path.join(__file__, os.pardir)) + '/dummy_maps/' 
-
+dummy_base = os.path.abspath(os.path.join(os.path.join(__file__, os.pardir),
+    os.pardir)) + '/dummy_maps/' 
+'''
 path_reconstruction_bias_mean_s1 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanLowers_SR1_v2.json',
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanUppers_SR1_v2.json']
 path_reconstruction_bias_mean_s2 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanLowers_SR1_v2.json',
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS2BiasMeanUppers_SR1_v2.json']
+'''
+path_reconstruction_bias_mean_s1 = ['lala']
+path_reconstruction_bias_mean_s2 = ['lala']
 
 path_dummy_zeros_s1 = ['dummy_zeros_s1.json', 'dummy_zeros_s1.json']
 path_dummy_zeros_s1 = [dummy_base+x for x in path_dummy_zeros_s1]
@@ -101,8 +106,10 @@ def itp_cut_accept_tf(sig, fmap, domain_def):
     return accept_out
 
 # Defining paths
-path_cut_accept_s1 = ['/home/peaelle42/software/bbf/bbf/data/S1AcceptanceSR1_v7_Median.json']
-path_cut_accept_s2 = ['/home/peaelle42/software/bbf/bbf/data/S2AcceptanceSR1_v7_Median.json']
+#path_cut_accept_s1 = ['/home/peaelle42/software/bbf/bbf/data/S1AcceptanceSR1_v7_Median.json']
+#path_cut_accept_s2 = ['/home/peaelle42/software/bbf/bbf/data/S2AcceptanceSR1_v7_Median.json']
+path_cut_accept_s1 = ['lala']
+path_cut_accept_s2 = ['lala']
 
 path_dummy_ones_s1 = [dummy_base+'dummy_ones_s1.json']
 path_dummy_ones_s2 = [dummy_base+'dummy_ones_s2.json']
@@ -115,22 +122,23 @@ class SR1Source:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
+        
+        # Loading combined cut acceptances
         try:
-            # Loading combined cut acceptances
             self.cut_accept_map_s1, self.cut_accept_domain_s1 = read_bias_tf(path_cut_accept_s1)
             self.cut_accept_map_s2, self.cut_accept_domain_s2 = read_bias_tf(path_cut_accept_s2)
             print('BBF combined cut acceptances maps loaded')
-            # Loading reconstruction bias map
+        except:
+            self.cut_accept_map_s1, self.cut_accept_domain_s1 = read_bias_tf(path_dummy_ones_s1)
+            self.cut_accept_map_s2, self.cut_accept_domain_s2 = read_bias_tf(path_dummy_ones_s2)
+            print('Dummy combined cut acceptances maps loaded')
+            
+        # Loading reconstruction bias map
+        try:
             self.recon_map_s1_tf, self.domain_def_s1 = read_bias_tf(path_reconstruction_bias_mean_s1)
             self.recon_map_s2_tf, self.domain_def_s2 = read_bias_tf(path_reconstruction_bias_mean_s2)
             print('BBF reconstruction bias mean maps loaded')
         except:
-            # Loading combined cut acceptances
-            self.cut_accept_map_s1, self.cut_accept_domain_s1 = read_bias_tf(path_dummy_ones_s1)
-            self.cut_accept_map_s2, self.cut_accept_domain_s2 = read_bias_tf(path_dummy_ones_s2)
-            print('Dummy combined cut acceptances maps loaded')
-            # Loading reconstruction bias map
             self.recon_map_s1_tf, self.domain_def_s1 = read_bias_tf(path_dummy_zeros_s1)
             self.recon_map_s2_tf, self.domain_def_s2 = read_bias_tf(path_dummy_zeros_s2)
             print('Dummy reconstruction bias mean maps loaded')
