@@ -44,23 +44,26 @@ DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 
 ##
-# Loading Pax reconstruction bias
+# Paths to dummy maps
 ##
 dummy_base = os.path.abspath(os.path.join(os.path.join(__file__, os.pardir),
     os.pardir)) + '/dummy_maps/' 
-
-path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS1BiasMeanUppers_SR1_v2.json']
-path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS2BiasMeanUppers_SR1_v2.json']
-
-path_reconstruction_bias_mean_s1 = ['lala']
-path_reconstruction_bias_mean_s2 = ['lala']
 
 path_dummy_zeros_s1 = ['dummy_zeros_s1.json', 'dummy_zeros_s1.json']
 path_dummy_zeros_s1 = [dummy_base+x for x in path_dummy_zeros_s1]
 path_dummy_zeros_s2 = ['dummy_zeros_s2.json', 'dummy_zeros_s2.json']
 path_dummy_zeros_s2 = [dummy_base+x for x in path_dummy_zeros_s2]
+
+path_dummy_ones_s1 = [dummy_base+'dummy_ones_s1.json']
+path_dummy_ones_s2 = [dummy_base+'dummy_ones_s2.json']
+
+##
+# Loading Pax reconstruction bias
+##
+path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
+        'ReconstructionS1BiasMeanUppers_SR1_v2.json']
+path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
+        'ReconstructionS2BiasMeanUppers_SR1_v2.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps. 
@@ -101,21 +104,14 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
 ##
 # Loading combined cuts acceptances
 ##
+path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
+path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
+
 def itp_cut_accept_tf(sig, fmap, domain_def):
     accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
             x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap,
             fill_value='constant_extension'))
     return accept_out
-
-# Defining paths
-path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
-path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
-
-path_cut_accept_s1 = ['lala']
-path_cut_accept_s2 = ['lala']
-
-path_dummy_ones_s1 = [dummy_base+'dummy_ones_s1.json']
-path_dummy_ones_s2 = [dummy_base+'dummy_ones_s2.json']
 
 ##
 # Flamedisx sources
