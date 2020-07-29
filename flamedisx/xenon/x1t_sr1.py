@@ -46,7 +46,7 @@ DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 ##
 # Loading Pax reconstruction bias
 ##
-dummy_base = os.path.dirname(os.path.realpath(__file__)) + '/dummy_maps/'
+dummy_base = os.path.abspath(os.path.join(__file__, os.pardir)) + '/dummy_maps/' 
 
 path_reconstruction_bias_mean_s1 = ['/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanLowers_SR1_v2.json',
          '/home/peaelle42/software/bbf/bbf/data/ReconstructionS1BiasMeanUppers_SR1_v2.json']
@@ -78,10 +78,10 @@ def read_bias_tf(path_bag):
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
     tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
     bias_low = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[0],
+            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
             fill_value='constant_extension')
     bias_high = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap[1],
+            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[1],
             fill_value='constant_extension')
 
     tmp = tf.math.subtract(bias_high, bias_low)
@@ -94,9 +94,9 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
 ##
 # Loading combined cuts acceptances
 ##
-def itp_cut_accept_tf(sig, fmap, support_def):
+def itp_cut_accept_tf(sig, fmap, domain_def):
     accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
-            x_ref_min=support_def[0], x_ref_max=support_def[1], y_ref=fmap,
+            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap,
             fill_value='constant_extension'))
     return accept_out
 
