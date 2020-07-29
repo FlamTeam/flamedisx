@@ -246,10 +246,12 @@ class Source:
 
     def _calculate_dimsizes(self):
         self.dimsizes = dict()
-        for var in self.inner_dimensions:
-            ma = self._fetch(var + '_max')
-            mi = self._fetch(var + '_min')
-            self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
+        for dim in self.inner_dimensions:
+            ma = self._fetch(dim + '_max')
+            mi = self._fetch(dim + '_min')
+            self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
+        for dim in self.final_dimensions:
+            self.dimsizes[dim] = 1
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
@@ -341,6 +343,12 @@ class Source:
                     "You must set_data first (and populate the tensor cache)")
 
         f = getattr(self, fname)
+
+        # Frozen data methods should not be called again,
+        # just fetch them from the data tensor (if we have one)
+        if fname in self.frozen_data_methods:
+            if data_tensor is not None:
+                return self._fetch(fname, data_tensor)
 
         if callable(f):
             args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
@@ -437,11 +445,11 @@ class Source:
         containing possible integer values of x and y, respectively.
         """
         # TODO: somehow mask unnecessary elements and save computation time
-        x_size = self.dimsizes[x]
-        y_size = self.dimsizes[y]
+        x_domain = self.domain(x, data_tensor)
+        y_domain = self.domain(y, data_tensor)
         # Change to tf.repeat once it's in the api
-        result_x = fd.repeat(self.domain(x, data_tensor)[:, :, o], y_size, axis=2)
-        result_y = fd.repeat(self.domain(y, data_tensor)[:, o, :], x_size, axis=1)
+        result_x = fd.repeat(x_domain[:, :, o], y_domain.shape[1], axis=2)
+        result_y = fd.repeat(y_domain[:, o, :], x_domain.shape[1], axis=1)
         return result_x, result_y
 
     ##
@@ -566,6 +574,7 @@ class Source:
 
     def add_extra_columns(self, data):
         """Add additional columns to data
+        If the final signals are required to be present, use
 
         :param data: pandas DataFrame
         """

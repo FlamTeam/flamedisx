@@ -25,8 +25,8 @@ class MakePhotonsElectronsBinomial(fd.Block):
                  # Domain
                  electrons_produced, photons_produced,
                  # Dependency domain and value
-                 produced_quanta, rate_vs_quanta):
-        pel = self.source.gimme('p_electron', bonus_arg=produced_quanta,
+                 quanta_produced, rate_vs_quanta):
+        pel = self.source.gimme('p_electron', bonus_arg=quanta_produced,
                                 data_tensor=data_tensor, ptensor=ptensor)
 
         # Create tensors with the dimensions of our final result
@@ -36,7 +36,7 @@ class MakePhotonsElectronsBinomial(fd.Block):
         nq = electrons_produced + photons_produced
         # ... indices in nq arrays
         _nq_ind = nq - self.source._fetch(
-            'nq_min', data_tensor=data_tensor)[:, o, o]
+            'quanta_produced_min', data_tensor=data_tensor)[:, o, o]
         # ... differential rate
         rate_nq = fd.lookup_axis1(rate_vs_quanta, _nq_ind)
         # ... probability of a quantum to become an electron
@@ -49,7 +49,7 @@ class MakePhotonsElectronsBinomial(fd.Block):
 
         if self.do_pel_fluct:
             pel_fluct = self.gimme('p_electron_fluctuation',
-                                   bonus_arg=produced_quanta,
+                                   bonus_arg=quanta_produced,
                                    data_tensor=data_tensor,
                                    ptensor=ptensor)
             pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)

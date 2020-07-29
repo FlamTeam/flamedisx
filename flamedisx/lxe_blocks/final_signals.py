@@ -10,7 +10,7 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-SIGNAL_NAMES = dict(photon='s1', electron='s2')
+SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
 
 class MakeFinalSignals(fd.Block):
@@ -37,6 +37,11 @@ class MakeFinalSignals(fd.Block):
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
+
+        # Call add_extra_columns now, since s1 and s2 are known and derived
+        # observables from it (cs1, cs2) might be used in the acceptance.
+        # TODO: This is a bit of a kludge
+        self.source.add_extra_columns(d)
         d['p_accepted'] *= self.gimme_numpy(self.s_name + '_acceptance')
 
     def _annotate(self, d):
@@ -56,14 +61,16 @@ class MakeFinalSignals(fd.Block):
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(np.int)
 
-    def __compute(self,
-                  quanta_detected, s_observed,
-                  data_tensor, ptensor):
+    def _compute(self,
+                 quanta_detected, s_observed,
+                 data_tensor, ptensor):
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
-                                data_tensor=data_tensor, ptensor=ptensor)[:, o]
+                                data_tensor=data_tensor,
+                                ptensor=ptensor)[:, o, o]
         std_per_q = self.gimme(self.quanta_name + '_gain_std',
-                               data_tensor=data_tensor, ptensor=ptensor)[:, o]
+                               data_tensor=data_tensor,
+                               ptensor=ptensor)[:, o, o]
 
         mean = quanta_detected * mean_per_q
         std = quanta_detected ** 0.5 * std_per_q
@@ -71,11 +78,11 @@ class MakeFinalSignals(fd.Block):
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s_observed[:, o])
+        ).prob(s_observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o]
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
         return result
 
     def check_data(self):
@@ -98,14 +105,18 @@ class MakeS1(MakeFinalSignals):
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
 
-    s1_acceptance = 1.
+    @staticmethod
+    def s1_acceptance(s1):
+        return tf.where((s1 < 2) | (s1 > 70),
+                        tf.zeros_like(s1, dtype=fd.float_type()),
+                        tf.ones_like(s1, dtype=fd.float_type()))
 
     quanta_name = 'photoelectron'
     s_name = 's1'
 
     def _compute(self, data_tensor, ptensor,
                  photoelectrons_detected, s1):
-        return self.__compute(
+        return super()._compute(
             quanta_detected=photoelectrons_detected,
             s_observed=s1,
             data_tensor=data_tensor, ptensor=ptensor)
@@ -124,14 +135,18 @@ class MakeS2(MakeFinalSignals):
 
     electron_gain_std = 5.
 
-    s2_acceptance = 1.
+    @staticmethod
+    def s2_acceptance(s2):
+        return tf.where((s2 < 200) | (s2 > 6000),
+                        tf.zeros_like(s2, dtype=fd.float_type()),
+                        tf.ones_like(s2, dtype=fd.float_type()))
 
     quanta_name = 'electron'
     s_name = 's2'
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2):
-        return self.__compute(
+        return super()._compute(
             quanta_detected=electrons_detected,
             s_observed=s2,
             data_tensor=data_tensor, ptensor=ptensor)

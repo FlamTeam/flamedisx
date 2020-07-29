@@ -27,7 +27,7 @@ class DetectPhotonsOrElectrons(fd.Block):
     gimme: ty.Callable
     gimme_numpy: ty.Callable
 
-    def __compute(self, data_tensor, ptensor,
+    def _compute(self, data_tensor, ptensor,
                   quanta_produced, quanta_detected):
         p = self.gimme(self.quanta_name + '_detection_eff',
                        data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
@@ -39,12 +39,13 @@ class DetectPhotonsOrElectrons(fd.Block):
                                data_tensor=data_tensor, ptensor=ptensor)
 
         result = tfp.distributions.Binomial(
-            total_count=quanta_produced,
-            probs=tf.cast(p, dtype=fd.float_type())
-        ).prob(quanta_detected)
-        return result * self.gimme(self.quanta_name + '_acceptance',
-                                   bonus_arg=quanta_detected,
-                                   data_tensor=data_tensor, ptensor=ptensor)
+                total_count=quanta_produced,
+                probs=tf.cast(p, dtype=fd.float_type())
+            ).prob(quanta_detected)
+        acceptance = self.gimme(self.quanta_name + '_acceptance',
+                                bonus_arg=quanta_detected,
+                                data_tensor=data_tensor, ptensor=ptensor)
+        return result * acceptance
 
     def _simulate(self, d):
         p = self.gimme_numpy(self.quanta_name + '_detection_eff')
@@ -108,9 +109,9 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 
     def _compute(self, data_tensor, ptensor,
                  photons_produced, photons_detected):
-        return self.__compute(quanta_produced=photons_produced,
-                              quanta_detected=photons_detected,
-                              data_tensor=data_tensor, ptensor=ptensor)
+        return super()._compute(quanta_produced=photons_produced,
+                                quanta_detected=photons_detected,
+                                data_tensor=data_tensor, ptensor=ptensor)
 
 
 @export
@@ -120,13 +121,17 @@ class DetectElectrons(DetectPhotonsOrElectrons):
     model_functions = ('electron_detection_eff',)
     special_model_functions = ('electron_acceptance',)
 
-    electron_detection_eff = 1.
+    @staticmethod
+    def electron_detection_eff(drift_time, *,
+                               elife=452e3, extraction_eff=0.96):
+        return extraction_eff * tf.exp(-drift_time / elife)
+
     electron_acceptance = 1.
 
     quanta_name = 'electron'
 
     def _compute(self, data_tensor, ptensor,
                  electrons_produced, electrons_detected):
-        return self.__compute(quanta_produced=electrons_produced,
-                              quanta_detected=electrons_detected,
-                              data_tensor=data_tensor, ptensor=ptensor)
+        return super()._compute(quanta_produced=electrons_produced,
+                                quanta_detected=electrons_detected,
+                                data_tensor=data_tensor, ptensor=ptensor)

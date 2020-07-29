@@ -113,7 +113,6 @@ All simulated events have a special `p_accepted` column, starting out at 1.0 for
 This is usually the block specifying the energy spectrum. It is special in several ways. 
 
 Some restrictions are relaxed:
-  * The `_compute` method simply returns the entire energy spectrum for each event. It does not get any domain argument.
   * It does not have a `_simulate` method.
   * `_annotate` can (but does not have to) be omitted. There is no need to estimate bounds for its dimension (deposited energy), as the block returns the full energy spectrum for each event.
 

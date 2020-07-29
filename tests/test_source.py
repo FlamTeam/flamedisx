@@ -155,15 +155,6 @@ def test_bounds(xes: fd.ERSource):
                 data['%ss_%s_max' % (qn, p)].values + 1e-5)
 
 
-# def test_nphnel(xes: fd.ERSource):
-#     """Test (nph, nel) rate matrix"""
-#     r = xes.rate_nphnel(xes.data_tensor[0],
-#                         xes.ptensor_from_kwargs()).numpy()
-#     assert r.shape == (n_events,
-#                        xes.dimsizes['photon_produced'],
-#                        xes.dimsizes['electron_produced'])
-
-
 def test_domains(xes: fd.ERSource):
     n_det, n_prod = xes.cross_domains('electrons_detected', 'electrons_produced',
                                       xes.data_tensor[0])
@@ -191,51 +182,66 @@ def test_domain_detected(xes: fd.ERSource):
         np.floor(xes.data['photons_detected_min']).values)
 
 
-# def test_detector_response(xes: fd.ERSource):
-#     for quanta_name in ['electron', 'photoelectron']:
-#         # Works on either photoelectrons or electrons
-#         r = xes.detector_response(quanta_name,
-#                                   xes.data_tensor[0],
-#                                   xes.ptensor_from_kwargs()).numpy()
-#         assert r.shape == (n_events, xes.dimsizes[quanta_name + '_detected'])
-#
-#         # r is p(S1 | detected electrons) as a function of detected electrons
-#         # so the sum over r isn't meaningful (as long as we're frequentists)
-#
-#         # Maximum likelihood est. of detected quanta is correct
-#         max_is = r.argmax(axis=1)
-#         domain = xes.domain(quanta_name + '_detected').numpy()
-#         found_mle = np_lookup_axis1(domain, max_is)
-#         np.testing.assert_array_less(
-#             np.abs(xes.data[quanta_name + '_detected_mle'] - found_mle),
-#             0.5)
+def test_detector_response(xes: fd.ERSource):
+    data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
 
-#
-# def test_detection_prob(xes: fd.ERSource):
-#     r = xes.detection_p('electron', xes.data_tensor[0], xes.ptensor_from_kwargs()).numpy()
-#     assert r.shape == (n_events,
-#                        xes.dimsizes['electron_detected'],
-#                        xes.dimsizes['electron_produced'])
-#
-#     # Sum of probability over detected electrons must be
-#     #  A) in [0, 1] for any value of electrons_produced
-#     #     (it would be 1 everywhere if we considered
-#     #      infinitely many electrons_detected values)
-#     # TODO: this holds to 1e-4... is that enough?
-#     rs = r.sum(axis=1)
-#     np.testing.assert_array_less(rs, 1 + 1e-4)
-#     np.testing.assert_array_less(1 - rs, 1 + 1e-4)
-#
-#     # B) 1 at the MLE of electrons_produced,
-#     #    where all reasonably probable electrons_detected values
-#     #    should be probed
-#     mle_is = np.round(
-#         xes.data['electron_produced_mle']
-#         - xes.data['electron_produced_min']).values.astype(np.int)
-#     np.testing.assert_almost_equal(
-#         np_lookup_axis1(rs, mle_is),
-#         np.ones(n_events),
-#         decimal=2)
+    for block in fd.MakeS1, fd.MakeS2:
+
+        r = block(xes).compute(
+            data_tensor, ptensor,
+            **xes._domain_dict(block.dimensions, data_tensor))
+        r = r.numpy()
+
+        quanta_name = block.quanta_name
+        assert r.shape == \
+               (n_events, xes.dimsizes[quanta_name + 's_detected'], 1)
+        r = r[:, :, 0]
+
+        # r is p(S1 | detected electrons) as a function of detected electrons
+        # so the sum over r isn't meaningful (as long as we're frequentists)
+
+        # Maximum likelihood est. of detected quanta is correct
+        max_is = r.argmax(axis=1)
+        domain = xes.domain(quanta_name + 's_detected').numpy()
+        found_mle = np_lookup_axis1(domain, max_is)
+        np.testing.assert_array_less(
+            np.abs(xes.data[quanta_name + 's_detected_mle'] - found_mle),
+            0.5)
+
+
+def test_detection_prob(xes: fd.ERSource):
+    data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
+    block = fd.DetectElectrons
+    r = block(xes).compute(
+            data_tensor, ptensor,
+            **xes._domain_dict(block.dimensions, data_tensor)).numpy()
+
+    assert r.shape == (n_events,
+                       xes.dimsizes['electrons_produced'],
+                       xes.dimsizes['electrons_detected'])
+
+    # Test below was written assuming a (batch, detected, produced) tensor
+    r = np.transpose(r, [0, 2, 1])
+
+    # Sum of probability over detected electrons must be
+    #  A) in [0, 1] for any value of electrons_produced
+    #     (it would be 1 everywhere if we considered
+    #      infinitely many electrons_detected values)
+    # TODO: this holds to 1e-4... is that enough?
+    rs = r.sum(axis=1)
+    np.testing.assert_array_less(rs, 1 + 1e-4)
+    np.testing.assert_array_less(1 - rs, 1 + 1e-4)
+
+    # B) 1 at the MLE of electrons_produced,
+    #    where all reasonably probable electrons_detected values
+    #    should be probed
+    mle_is = np.round(
+        xes.data['electrons_produced_mle']
+        - xes.data['electrons_produced_min']).values.astype(np.int)
+    np.testing.assert_almost_equal(
+        np_lookup_axis1(rs, mle_is),
+        np.ones(n_events),
+        decimal=2)
 
 
 def test_estimate_mu(xes: fd.ERSource):
@@ -244,11 +250,13 @@ def test_estimate_mu(xes: fd.ERSource):
 
 def test_underscore_diff_rate(xes: fd.ERSource):
 
-    x = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs())
+    x = xes._differential_rate(data_tensor=xes.data_tensor[0],
+                               ptensor=xes.ptensor_from_kwargs())
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
 
-    y = xes._differential_rate(data_tensor=xes.data_tensor[0], ptensor=xes.ptensor_from_kwargs(elife=100e3))
+    y = xes._differential_rate(data_tensor=xes.data_tensor[0],
+                               ptensor=xes.ptensor_from_kwargs(elife=100e3))
     np.testing.assert_array_less(-fd.tf_to_np(tf.abs(x - y)), 0)
 
 
@@ -310,4 +318,3 @@ def test_set_data(xes: fd.ERSource):
 
     x = xes.batched_differential_rate()
     assert x.shape == (3,)
-

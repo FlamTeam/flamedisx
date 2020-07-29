@@ -208,7 +208,7 @@ def index_lookup_dict(names, column_widths=None):
     result = dict()
     i = 0
     while len(names):
-        name = names.pop()
+        name = names.pop(0)
         width = column_widths.get(name, 1)
         if width == 1:
             result[name] = tf.constant(i, dtype=int_type())

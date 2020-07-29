@@ -7,6 +7,8 @@ import pandas as pd
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
+o = tf.newaxis
+
 
 @export
 class Block:
@@ -39,18 +41,16 @@ class Block:
 
     def domain(self, data_tensor):
         """Return dictionary mapping dimension -> domain"""
-        if len(self.dimensions) == 1:
-            return {self.dimensions[0]:
-                    self.source.domain(self.dimensions[0], data_tensor)}
-        assert len(self.dimensions) == 2
-        return dict(zip(self.dimensions,
-                        self.source.cross_domains(*self.dimensions,
-                                                  data_tensor=data_tensor)))
+        return self.source.domain_for(self.dimensions)
 
-    def compute(self, data_tensor, ptensor, _pass_domain=True, **kwargs):
-        if _pass_domain:
-            kwargs.update(self.domain(data_tensor))
-        return self._compute(data_tensor, ptensor, **kwargs)
+    def compute(self, data_tensor, ptensor, **kwargs):
+        kwargs.update(self.source._domain_dict(self.dimensions, data_tensor))
+        result = self._compute(data_tensor, ptensor, **kwargs)
+        assert result.dtype == fd.float_type(), \
+            f"{self}._compute returned tensor of wrong dtype!"
+        assert len(result.shape) == len(self.dimensions) + 1, \
+            f"{self}._compute returned tensor of wrong rank!"
+        return result
 
     def simulate(self, d: pd.DataFrame):
         return_value = self._simulate(d)
@@ -61,20 +61,22 @@ class Block:
             assert np.all(np.isfinite(d[dim].values)),\
                 f"_simulate of {self} returned non-finite values of {dim}"
 
-    def annotate(self, d: pd.DataFrame, _do_checks=False):
+    def annotate(self, d: pd.DataFrame):
         """Add _min and _max for each dimension to d in-place"""
         return_value = self._annotate(d)
         assert return_value is None, f"_annotate of {self} should return None"
 
-        if not _do_checks:
-            return
         for dim in self.dimensions:
-            if dim in self.source.final_dimensions:
+            if dim in self.source.final_dimensions \
+                    or dim in self.source.initial_dimensions:
                 continue
             for bound in ('min', 'max'):
                 colname = f'{dim}_{bound}'
                 assert colname in d.columns, \
-                    f"_annotate of {self} must set {colname}"
+                    f" must set {colname}"
+            assert np.all(d[f'{dim}_min'].values
+                          <= d[f'{dim}_max'].values), \
+                f"_annotate of {self} set misordered bounds"
 
     def check_data(self):
         pass
@@ -103,6 +105,7 @@ class BlockModelSource(fd.Source):
 
     model_blocks: tuple
     final_dimensions: tuple
+    initial_dimensions: tuple
 
     def __init__(self, *args, **kwargs):
         self.build_source_from_blocks()
@@ -177,103 +180,102 @@ class BlockModelSource(fd.Source):
             d for d in collected['dimensions']
             if ((d not in self.final_dimensions)
                 and (d not in self.model_blocks[0].dimensions))])
+        self.initial_dimensions = self.model_blocks[0].dimensions
 
     @staticmethod
     def _find_block(blocks,
                     has_dim: ty.Union[list, tuple, set],
                     exclude: Block = None):
-        """Find a block with a dimension in allowed.
-        Return ((dimensions, b), dimension found), or raises ValueError
+        """Find a block with a dimension in allowed
+        Return ((dimensions, b), dimension found), or
+         raises BlockNotFoundError if no such block found.
         """
         for dims, b in blocks.items():
             if b is exclude:
                 continue
             for d in dims:
-                if d is has_dim:
+                if d in has_dim:
                     return (dims, b), d
-        raise ValueError(f"No block with {has_dim} found!")
+        raise BlockNotFoundError(f"No block with {has_dim} found!")
 
     def _differential_rate(self, data_tensor, ptensor):
-        # Calculate blocks that have no dependencies
-        results = {b.dimensions(): b.compute(
-                        data_tensor, ptensor,
-                        _pass_domain=(b != self.model_blocks[0]))
-                   for b in self.model_blocks}
-        waiting_blocks = {b.dimensions(): b
-                          for b in self.model_blocks
-                          if b.dimensions() not in results}
+        results = {}
 
-        while True:
-            # Can we compute a block waiting on dependencies?
-            available = set(results.keys())
-            for b_dims, b in waiting_blocks.items():
-                required = set([x[0] for x in b.depends_on])
-                if required - available:
-                    # Don't have results of all dependencies yet
-                    continue
+        for b in self.model_blocks:
+            b_dims = b.dimensions
 
-                # Gather extra compute arguments.
-                kwargs = dict()
-                for dependency_dims, dependency_name in b.depends_on.items():
-                    kwargs[dependency_name] = results[dependency_dims]
+            # Gather extra compute arguments.
+            kwargs = dict()
+            for dependency_dims, dependency_name in b.depends_on:
+                if dependency_dims not in results:
+                    raise ValueError(
+                        f"Block {b} depends on {dependency_dims}, but that has "
+                        f"not yet been computed")
+                kwargs[dependency_name] = results[dependency_dims]
+                kwargs.update(self._domain_dict(dependency_dims, data_tensor))
 
-                    # We must also pass the dependency domain.
-                    # But to call .domain(), we need to find the original Block
-                    # that produced the result :-(
-                    for _b in self.model_blocks:
-                        if _b.dimensions == dependency_dims:
-                            break
+            # Compute the block
+            results[b_dims] = r = b.compute(data_tensor, ptensor, **kwargs)
+
+            # Try to matrix multiply with earlier blocks, until we cannot
+            # do so anymore.
+            try:
+                while True:
+                    (b2_dims, r2), shared_dim = self._find_block(
+                        results, has_dim=b_dims, exclude=r)
+
+                    # Figure out dimensions of result
+                    new_dims = tuple([d for d in b_dims if d != shared_dim]
+                                     + [d for d in b2_dims if d != shared_dim])
+
+                    # TODO: can we generalize to rank > 2?
+                    assert len(b_dims) in [1, 2]
+                    assert len(b2_dims) in [1, 2]
+
+                    # Due to the batch dimension, tf.matmul requires that the
+                    # ranks of arguments to tf.matmul match exactly.
+                    dummy_axis = None
+                    if len(b_dims) == 1 and len(b2_dims) == 2:
+                        dummy_axis = 1
+                        r = r[:, o, :]
+                    elif len(b_dims) == 2 and len(b2_dims) == 1:
+                        dummy_axis = 2
+                        r2 = r2[:, :, o]
+                    elif len(b_dims) == 2 and len(b2_dims) == 2:
+                        # Ensure the shared dimension is in the right position
+                        # for matrix multiplication
+                        if b_dims.index(shared_dim) != 1:
+                            assert len(b_dims) == 2
+                            r = tf.transpose(r, [0, 2, 1])
+                        if b2_dims.index(shared_dim) != 0:
+                            assert len(b2_dims) == 2
+                            r2 = tf.transpose(r2, [0, 2, 1])
                     else:
-                        raise RuntimeError("Can't happen")
-                    kwargs.update(_b.domain(data_tensor))
+                        raise ValueError(
+                            "Unsupported ranks {len(b_dims)}, {len(b2_dims)}")
 
-                results[b_dims] = b.compute(data_tensor, ptensor, **kwargs)
-                del waiting_blocks[b_dims]
+                    # Multiply the matching index to get a new block
+                    r = r @ r2
+                    if dummy_axis:
+                        r = tf.squeeze(r, dummy_axis)
+                    assert len(r.shape) == len(new_dims) + 1
 
-                # 'continue' on the outer while loop.
-                break
-            if len(results) > len(available):
+                    # Update the block dict
+                    del results[b_dims]
+                    del results[b2_dims]
+                    results[new_dims] = r
+
+            except BlockNotFoundError:
                 continue
 
-            # Find two blocks to matrix multiply.
-
-            # Find a block with a final dimension (S1 or S2)
-            (b1, b1_dims), observable_dim = self._find_block(
-                results,
-                has_dim=self.final_dimensions)
-
-            # Does the block have all final dimensions? Then we are done!
-            if all([obs in b1_dims for obs in self.final_dimensions]):
-                result = tf.squeeze(b1).reshape((self.batch_size,))
-                return result
-
-            # Find a block containing one of the non-observable dimensions in b1
-            (b2, b2_dims), inner_dim = self._find_block(
-                results,
-                has_dim=set(b1_dims) - {observable_dim},
-                exclude=b1)
-            other_b2_dim = (set(b2_dims) - {inner_dim}).pop()
-            assert other_b2_dim != observable_dim
-
-            # Blocks must be rank-3 tensors
-            # TODO: if we relax this, what models would we be able to support?
-            for b, dims in [(b1, b1_dims), (b2, b2_dims)]:
-                assert len(dims) + 1 == len(b.shape) == 3, "Need rank-3 blocks"
-
-            # Reorder dimensions for matmul
-            if b1_dims.index(inner_dim) != 1:
-                b1 = tf.transpose(b1, [0, 2, 1])
-            if b2_dims.index(inner_dim) != 0:
-                b2 = tf.transpose(b1, [0, 2, 1])
-
-            # Multiply the matching index to get a new block
-            b = b1 @ b2
-            dims = (observable_dim, other_b2_dim)
-
-            # Update the block dict
-            del results[b1_dims]
-            del results[b2_dims]
-            results[dims] = b
+        # The result should have a tensor with only final dimensions
+        result = None
+        for dims, result in results.items():
+            if all([d in self.final_dimensions for d in dims]):
+                break
+        if result is None:
+            raise ValueError("Result was not computed!")
+        return tf.reshape(tf.squeeze(result), (self.batch_size,))
 
     def random_truth(self, n_events, fix_truth=None, **params):
         # First block provides the 'deep' truth (energies, positions, time)
@@ -302,7 +304,7 @@ class BlockModelSource(fd.Source):
         # on hidden variables closer to the final signals (easy to compute)
         # for estimating the bounds on deeper hidden variables.
         for b in self.model_blocks[::-1]:
-            b.annotate(d, _do_checks=(b != self.model_blocks[0]))
+            b.annotate(d)
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)
@@ -311,3 +313,27 @@ class BlockModelSource(fd.Source):
         # TODO: This is a kludge; allows one to reuse draw_positions
         # from the first block in a source-overriden random_truth function.
         return self.model_blocks[0].draw_positions(*args, **kwargs)
+
+    def domain(self, x, data_tensor=None):
+        if x in self.initial_dimensions:
+            # Domain computation of the inner dimension is passed to the
+            # first block
+            return self.model_blocks[0].domain(data_tensor=data_tensor)[x]
+        else:
+            return super().domain(x, data_tensor=data_tensor)
+
+    def _domain_dict(self, dimensions, data_tensor):
+        if len(dimensions) == 1:
+            return {dimensions[0]:
+                    self.domain(dimensions[0], data_tensor)}
+        assert len(dimensions) == 2
+        return dict(zip(dimensions,
+                        self.cross_domains(*dimensions,
+                                           data_tensor=data_tensor)))
+
+    def add_derived_observables(self, d):
+        pass
+
+
+class BlockNotFoundError(Exception):
+    pass

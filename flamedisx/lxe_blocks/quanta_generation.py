@@ -14,8 +14,8 @@ DEFAULT_WORK_PER_QUANTUM = 13.7e-3
 @export
 class MakeERQuanta(fd.Block):
 
-    dimensions = ('quanta_produced',)
-    depends_on = ((('deposited_energy',), 'rate_vs_energy'),)
+    dimensions = ('quanta_produced', 'energy')
+    depends_on = ((('energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
     work = DEFAULT_WORK_PER_QUANTUM
@@ -23,20 +23,21 @@ class MakeERQuanta(fd.Block):
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain
-                 produced_quanta,
+                 quanta_produced,
                  # Dependency domain and value
-                 deposited_energy, rate_vs_energy):
+                 energy, rate_vs_energy):
 
         # Assume the intial number of quanta is always the same for each energy
         work = self.gimme('work', data_tensor=data_tensor, ptensor=ptensor)
-        produced_quanta_real = tf.cast(
-            tf.floor(deposited_energy / work[:, o]),
+        quanta_produced_real = tf.cast(
+            tf.floor(energy / work[:, o, o]),
             dtype=fd.float_type())
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        return tf.cast(tf.equal(produced_quanta[:, :, o],
-                                produced_quanta_real[:, o, :]),
-                       dtype=fd.float_type())
+        result = tf.cast(tf.equal(quanta_produced, quanta_produced_real),
+                         dtype=fd.float_type())
+
+        return result
 
     def _simulate(self, d):
         work = self.gimme_numpy('work')
@@ -50,8 +51,8 @@ class MakeERQuanta(fd.Block):
 @export
 class MakeNRQuanta(fd.Block):
 
-    dimensions = ('quanta_produced',)
-    depends_on = ((('deposited_energy',), 'rate_vs_energy'),)
+    dimensions = ('quanta_produced', 'energy')
+    depends_on = ((('energy',), 'rate_vs_energy'),)
 
     model_functions = ('work',)
     special_model_functions = ('lindhard_l',)
@@ -76,20 +77,19 @@ class MakeNRQuanta(fd.Block):
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain
-                 produced_quanta,
+                 quanta_produced,
                  # Dependency domain and value
-                 deposited_energy, rate_vs_energy):
+                 energy, rate_vs_energy):
 
         work = self.gimme('work', data_tensor=data_tensor, ptensor=ptensor)
         mean_q_produced = (
-                deposited_energy
-                * self.gimme('lindhard_l', bonus_arg=deposited_energy,
+                energy
+                * self.gimme('lindhard_l', bonus_arg=energy,
                              data_tensor=data_tensor, ptensor=ptensor)
-                / work[:, o])
+                / work[:, o, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        return tfp.distributions.Poisson(
-            mean_q_produced[:, o, :]).prob(produced_quanta[:, :, o])
+        return tfp.distributions.Poisson(mean_q_produced).prob(quanta_produced)
 
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...

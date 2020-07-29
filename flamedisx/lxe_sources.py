@@ -1,6 +1,7 @@
 import numpy as np
 from multihist import Histdd
 import pandas as pd
+import tensorflow as tf
 import wimprates as wr
 
 import flamedisx as fd
@@ -19,6 +20,22 @@ class ERSource(fd.BlockModelSource):
         fd.DetectElectrons,
         fd.MakeS2)
 
+    @staticmethod
+    def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
+                   er_pel_e0=5.):
+        """Fraction of ER quanta that become electrons
+        Simplified form from Jelle's thesis
+        """
+        # The original model depended on energy, but in flamedisx
+        # it has to be a direct function of nq.
+        e_kev_sortof = nq * 13.7e-3
+        eps = fd.tf_log10(e_kev_sortof / er_pel_e0 + 1e-9)
+        qy = (
+            er_pel_a * eps ** 2
+            + er_pel_b * eps
+            + er_pel_c)
+        return fd.safe_p(qy * 13.7e-3)
+
     final_dimensions = ('s1', 's2')
 
 
@@ -35,6 +52,41 @@ class NRSource(fd.BlockModelSource):
         fd.MakeS2)
 
     final_dimensions = ('s1', 's2')
+
+    # Use a larger default energy range, since most energy is lost
+    # to heat.
+    energies = tf.cast(tf.linspace(0.7, 150., 100),
+                       fd.float_type())
+
+    @staticmethod
+    def p_electron(nq, *,
+                   alpha=1.280, zeta=0.045, beta=273 * .9e-4,
+                   gamma=0.0141, delta=0.062,
+                   drift_field=120):
+        """Fraction of detectable NR quanta that become electrons,
+        slightly adjusted from Lenardo et al.'s global fit
+        (https://arxiv.org/abs/1412.4417).
+        Penning quenching is accounted in the photon detection efficiency.
+        """
+        # TODO: so to make field pos-dependent, override this entire f?
+        # could be made easier...
+
+        # prevent /0  # TODO can do better than this
+        nq = nq + 1e-9
+
+        # Note: final term depends on nq now, not energy
+        # this means beta is different from lenardo et al
+        nexni = alpha * drift_field ** -zeta * (1 - tf.exp(-beta * nq))
+        ni = nq * 1 / (1 + nexni)
+
+        # Fraction of ions NOT participating in recombination
+        squiggle = gamma * drift_field ** -delta
+        fnotr = tf.math.log(1 + ni * squiggle) / (ni * squiggle)
+
+        # Finally, number of electrons produced..
+        n_el = ni * fnotr
+
+        return fd.safe_p(n_el / nq)
 
 
 @export
@@ -59,11 +111,35 @@ class WIMPSource(NRSource):
     sigma_nucleon = 1e-45  # cm^2
     n_time_bins = 24
 
-    # For this source, energies specifies the bin *edges* of energy!
-    energies = np.geomspace(0.7, 50, 100)
+    # Do not use energies, it has a special meaning (see energy_spectrum.py)
+    energy_edges = np.geomspace(0.7, 50, 100)
 
     def __init__(self, *args, wimp_kwargs=None, **kwargs):
-        self.array_columns = (('energy_spectrum', len(self.energies) - 1),)
+        # Set defaults for wimp_kwargs
+        if wimp_kwargs is None:
+            # No arguments given at all;
+            # use default mass, xsec and energy range
+            wimp_kwargs = dict(mw=self.mw,
+                               sigma_nucleon=self.sigma_nucleon,
+                               energy_edges=self.energy_edges)
+        else:
+            # 'es' was renamed to energy_edges
+            if 'es' in wimp_kwargs:
+                wimp_kwargs['energy_edges'] = wimp_kwargs['es']
+                del wimp_kwargs['es']
+            assert 'mw' in wimp_kwargs and 'sigma_nucleon' in wimp_kwargs, \
+                "Pass at least 'mw' and 'sigma_nucleon' in wimp_kwargs"
+            if 'energy_edges' not in wimp_kwargs:
+                # Energies not given, use default energy bin edges
+                wimp_kwargs['energy_edges'] = self.energy_edges
+
+        e_centers = self.bin_centers(wimp_kwargs['energy_edges'])
+        self.energies = fd.np_to_tf(e_centers)
+
+        self.array_columns = (('energy_spectrum', len(self.energy_edges) - 1),)
+
+        # Now that array_columns and energies are set, we can build the source
+        # properly
         self.build_source_from_blocks()
 
         times = np.linspace(wr.j2000(self.t_start.value),
@@ -71,38 +147,19 @@ class WIMPSource(NRSource):
                             self.n_time_bins + 1)
         time_centers = self.bin_centers(times)
 
-        # Set defaults for wimp_kwargs
-        if wimp_kwargs is None:
-            # No arguments given at all;
-            # use default mass, xsec and energy range
-            wimp_kwargs = dict(mw=self.mw,
-                               sigma_nucleon=self.sigma_nucleon,
-                               energies=self.energies)
-        else:
-            # 'es' was renamed to energies
-            if 'es' in wimp_kwargs:
-                wimp_kwargs['energies'] = wimp_kwargs['es']
-                del wimp_kwargs['es']
-            assert 'mw' in wimp_kwargs and 'sigma_nucleon' in wimp_kwargs, \
-                "Pass at least 'mw' and 'sigma_nucleon' in wimp_kwargs"
-            if 'energies' not in wimp_kwargs:
-                # Energies not given, use default energy bin edges
-                wimp_kwargs['energies'] = self.energies
-
         # Transform wimp_kwargs to arguments that can be passed to wimprates
         # which means transforming es from edges to centers
-        energies = self.energies = wimp_kwargs['energies']
-        e_centers = self.bin_centers(energies)
-        del wimp_kwargs['energies']
+        del wimp_kwargs['energy_edges']
         spectra = np.array([wr.rate_wimp_std(t=t,
                                              es=e_centers,
                                              **wimp_kwargs)
-                            * np.diff(energies)
+                            * np.diff(self.energy_edges)
                             for t in time_centers])
         assert spectra.shape == (len(time_centers), len(e_centers))
 
-        self.energy_hist = Histdd.from_histogram(spectra,
-                                                 bin_edges=(times, energies))
+        self.energy_hist = Histdd.from_histogram(
+            spectra,
+            bin_edges=(times, self.energy_edges))
 
         if self.pretend_wimps_dont_modulate:
             self.energy_hist.histogram = (
@@ -111,6 +168,15 @@ class WIMPSource(NRSource):
                 / self.n_time_bins)
 
         super().__init__(*args, **kwargs)
+
+    def energy_spectrum(self, event_time):
+        t_j2000 = wr.j2000(fd.tf_to_np(event_time))
+        result = np.stack([self.energy_hist.slicesum(t).histogram
+                           for t in t_j2000])
+        return fd.np_to_tf(result)
+
+    def mu_before_efficiencies(self, **params):
+        return self.energy_hist.n / self.n_time_bins
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw n_events random energies and times from the energy/
@@ -149,14 +215,6 @@ class WIMPSource(NRSource):
         self._overwrite_fixed_truths(data, fix_truth, n_events)
 
         return pd.DataFrame(data)
-
-    def energy_spectrum(self, event_time):
-        t_j2000 = wr.j2000(event_time)
-        return np.stack([self.energy_hist.slicesum(t).histogram
-                         for t in t_j2000])
-
-    def mu_before_efficiencies(self, **params):
-        return self.energy_hist.n / self.n_time_bins
 
     @staticmethod
     def bin_centers(x):

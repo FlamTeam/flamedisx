@@ -55,4 +55,4 @@ class MakeS1Photoelectrons(fd.Block):
                                ('mle', np.round)):
             d['photons_detected_' + suffix] = \
                 intify(d['photoelectrons_detected_' + suffix].values
-                       / dpe_fraction)
+                       / (1 + dpe_fraction))
