@@ -28,7 +28,7 @@ def xes(request):
 def test_wimp_source(xes):
     # test KeyError 't' issue, because of add_extra_columns bug
     lf = fd.LogLikelihood(sources=dict(er=fd.ERSource,
-                                       wimp=fd.SR1WIMPSource),
+                                       wimp=fd.WIMPSource),
                           free_rates=('er', 'wimp'))
 
     d = lf.simulate(er_rate_multiplier=1.0,
