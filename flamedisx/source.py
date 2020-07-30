@@ -270,9 +270,9 @@ class Source:
     def _fetch_param(self, param, ptensor):
         if ptensor is None:
             return self.defaults[param]
-        id = tf.dtypes.cast(self.param_id[param],
-                            dtype=fd.int_type())
-        return ptensor[id]
+        idx = tf.dtypes.cast(self.param_id[param],
+                             dtype=fd.int_type())
+        return ptensor[idx]
 
     # TODO: make data_tensor and ptensor keyword-only arguments
     # after https://github.com/tensorflow/tensorflow/issues/28725
@@ -357,9 +357,9 @@ class Source:
         if autograph and self.trace_difrate:
             return self._differential_rate_tf(
                 data_tensor=data_tensor, ptensor=ptensor)
-        else:
-            return self._differential_rate(
-                data_tensor=data_tensor, ptensor=ptensor)
+
+        return self._differential_rate(
+            data_tensor=data_tensor, ptensor=ptensor)
 
     def ptensor_from_kwargs(self, **kwargs):
         return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
@@ -489,14 +489,12 @@ class Source:
         :param _skip_bounds_computation: Do not compute min/max bounds
         TODO: explain why useful, see simulator
         """
-        pass
 
     def add_extra_columns(self, data):
         """Add additional columns to data
 
         :param data: pandas DataFrame
         """
-        pass
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """

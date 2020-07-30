@@ -263,9 +263,9 @@ class LXeSource(fd.Source):
             # Assume fix_truth is a one-line dataframe with at least
             # cols columns
             return d[cols].iloc[0].to_dict()
-        else:
-            assert isinstance(d, dict), \
-                "fix_truth needs to be a DataFrame or dict"
+
+        assert isinstance(d, dict), \
+            "fix_truth needs to be a DataFrame or dict"
 
         if 'z' in d:
             # Position is fixed. Ensure both Cartesian and polar coordinates
@@ -390,9 +390,8 @@ class LXeSource(fd.Source):
                 p_mean=1. - pel,
                 p_sigma=pel_fluct)
 
-        else:
-            return rate_nq * tfp.distributions.Binomial(
-                total_count=nq, probs=pel).prob(nel)
+        return rate_nq * tfp.distributions.Binomial(
+            total_count=nq, probs=pel).prob(nel)
 
     def detection_p(self, quanta_type, data_tensor, ptensor):
         """Return (n_events, |detected|, |produced|) tensor

@@ -305,4 +305,3 @@ def test_set_data(xes: fd.ERSource):
 
     x = xes.batched_differential_rate()
     assert x.shape == (3,)
-
