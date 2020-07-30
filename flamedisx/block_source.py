@@ -280,7 +280,7 @@ class BlockModelSource(fd.Source):
     def random_truth(self, n_events, fix_truth=None, **params):
         # First block provides the 'deep' truth (energies, positions, time)
         return self.model_blocks[0].random_truth(
-            n_events, fix_truth=fix_truth, *params)
+            n_events, fix_truth=fix_truth, **params)
 
     def validate_fix_truth(self, fix_truth):
         return self.model_blocks[0].validate_fix_truth(fix_truth)

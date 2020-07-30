@@ -28,7 +28,7 @@ class DetectPhotonsOrElectrons(fd.Block):
     gimme_numpy: ty.Callable
 
     def _compute(self, data_tensor, ptensor,
-                  quanta_produced, quanta_detected):
+                 quanta_produced, quanta_detected):
         p = self.gimme(self.quanta_name + '_detection_eff',
                        data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
@@ -55,7 +55,7 @@ class DetectPhotonsOrElectrons(fd.Block):
                 'penning_quenching_eff', d['photons_produced'].values)
 
         d[self.quanta_name + 's_detected'] = stats.binom.rvs(
-            n=d['photons_produced'],
+            n=d[self.quanta_name + 's_produced'],
             p=p)
         d['p_accepted'] *= self.gimme_numpy(
             self.quanta_name + '_acceptance',
@@ -99,7 +99,13 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
 
     photon_detection_eff = 0.1
-    photon_acceptance = 1.
+
+    @staticmethod
+    def photon_acceptance(photons_detected):
+        return tf.where(
+            photons_detected < 3,
+            tf.zeros_like(photons_detected, dtype=fd.float_type()),
+            tf.ones_like(photons_detected, dtype=fd.float_type()))
 
     quanta_name = 'photon'
 

@@ -70,8 +70,8 @@ s1_map, s2_map = [
 class SR0Source:
     # TODO: add p_el_sr0
 
-    def random_truth(self, energies, fix_truth=None, **params):
-        d = super().random_truth(energies, fix_truth=fix_truth, **params)
+    def random_truth(self, n_events, fix_truth=None, **params):
+        d = super().random_truth(n_events, fix_truth=fix_truth, **params)
         # TODO: Add field distortion maps
         d['x_observed'] = d['x']
         d['y_observed'] = d['y']

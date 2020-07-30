@@ -57,6 +57,7 @@ class NRSource(fd.BlockModelSource):
     # to heat.
     energies = tf.cast(tf.linspace(0.7, 150., 100),
                        fd.float_type())
+    rates_vs_energy = tf.ones(100, fd.float_type())
 
     @staticmethod
     def p_electron(nq, *,
@@ -225,6 +226,10 @@ class WIMPSource(NRSource):
 class SpatialRateHistogramSource:
     """Source whose rate multiplier is specified by a spatial histogram.
 
+    NB: you must inherit from SpatialRateHistgramSource *before* inheriting
+    from ERSource / NRSource, the latters's __init__ doesn't yet pass super...
+    TODO FIX!
+
     The histogram can be in polar (r, theta, z) or Cartesian (x, y, z)
     coordinates. The coordinates are reconstructed positions.
     """
@@ -238,10 +243,11 @@ class SpatialRateHistogramSource:
         self.build_source_from_blocks()
 
         # Check we actually have the histograms
-        for attribute in ['spatial_rate_hist', 'spatial_rate_bin_volumes']:
+        for attribute, kind in [('spatial_rate_hist', Histdd),
+                                ('spatial_rate_bin_volumes', np.ndarray)]:
             assert hasattr(self, attribute), f"{attribute} missing"
-            assert isinstance(getattr(self, attribute), Histdd), \
-                    f"{attribute} should be a multihist Histdd"
+            assert isinstance(getattr(self, attribute), kind), \
+                f"{attribute} should be a {kind}"
 
         # Are we Cartesian, polar, or in trouble?
         axes = tuple(self.spatial_rate_hist.axis_names)
@@ -257,7 +263,7 @@ class SpatialRateHistogramSource:
         # R = E / bv
         # R_norm = (E / sum E) / (bv / sum bv)
         # R_norm = (E / bv) * (sum bv / sum E)
-        bv = self.spatial_rate_bin_volumes.histogram
+        bv = self.spatial_rate_bin_volumes
         E = self.spatial_rate_hist.histogram
         R_norm = (E / bv) * (bv.sum() / E.sum())
 
@@ -266,7 +272,7 @@ class SpatialRateHistogramSource:
 
         # Check the spatial rate histogram was properly normalized.
         # It's easy to mis-normalize by accident, don't cause any surprises:
-        assert 0.9999 < np.average(E, weights=bv) < 1.0001, \
+        assert 0.9999 < np.mean(E / bv) < 1.0001, \
             "Spatial rate histogram is not normalized correctly"
 
         super().__init__(*args, **kwargs)

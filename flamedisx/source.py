@@ -210,7 +210,8 @@ class Source:
         before passing it on to the tensorflow layer.
         """
         for column in self.cols_to_cache:
-            if column not in self.data.columns:
+            if (column not in self.data.columns
+                    and not column in self.frozen_data_methods):
                 raise ValueError(f"Data lacks required column {column}; "
                                  f"did annotation happen correctly?")
 
@@ -228,7 +229,6 @@ class Source:
             else:
                 # Just fetch it from the dataframe
                 y = self._fetch(column)
-
             y = tf.cast(y, dtype=fd.float_type())
 
             # For non-array columns, add size-1 axis for concatenation

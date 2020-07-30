@@ -76,6 +76,9 @@ class FixedShapeEnergySpectrum(fd.Block):
         # we have to do the same thing here.
         # TODO: can we fix both to be better?
         spectrum_numpy = fd.tf_to_np(self.rates_vs_energy)
+        assert len(spectrum_numpy) == len(self.energies), \
+            "Energies and spectrum have different length"
+
         data['energy'] = np.random.choice(
             fd.tf_to_np(self.energies),
             size=n_events,
