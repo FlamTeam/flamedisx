@@ -26,7 +26,9 @@ special_data_methods = [
     'p_electron_fluctuation',
     'electron_acceptance',
     'photon_acceptance',
-    'penning_quenching_eff'
+    'penning_quenching_eff',
+    'reconstruction_bias_s1',
+    'reconstruction_bias_s2'
 ]
 
 data_methods = (
@@ -200,6 +202,24 @@ class LXeSource(fd.Source):
     # a block model structure
     photon_gain_mean = 1.
     photon_gain_std = 0.5
+
+    @staticmethod
+    def reconstruction_bias_s1(sig):
+        """ Dummy method for pax s1 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+
+        """
+        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return reconstruction_bias
+
+    @staticmethod
+    def reconstruction_bias_s2(sig):
+        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+
+        """
+        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return reconstruction_bias
 
     ##
     # Simulation
@@ -665,6 +685,9 @@ class LXeSource(fd.Source):
             loc=d['photoelectron_detected'] * gimme('photon_gain_mean'),
             scale=d['photoelectron_detected'] ** 0.5 * gimme('photon_gain_std'))
 
+        d['s1'] = d['s1'] * gimme('reconstruction_bias_s1', bonus_arg=d['s1'].values)
+        d['s2'] = d['s2'] * gimme('reconstruction_bias_s2', bonus_arg=d['s2'].values)
+
         acceptance = np.ones(len(d))
         for q in quanta_types:
             acceptance *= gimme(q + '_acceptance', d[q + '_detected'].values)
@@ -694,10 +717,13 @@ class ERSource(LXeSource):
     def _single_spectrum(self):
         """Return (energies in keV, rate at these energies),
         """
+        # By default, we use a 0 - 15 keV ER spectrum. (Since ER
+        # events > 12 keV cannot contribute to the XENON1T region of interest)
+        nbins = 1000  # Probably more than large enough for most purposes?
         return (tf.dtypes.cast(
-                    tf.linspace(0., 10., 1000),
+                    tf.linspace(0., 15., nbins),
                     dtype=fd.float_type()),
-                tf.ones(1000, dtype=fd.float_type()))
+                tf.ones(nbins, dtype=fd.float_type()))
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
