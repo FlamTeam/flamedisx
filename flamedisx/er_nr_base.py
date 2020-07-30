@@ -203,7 +203,8 @@ class LXeSource(fd.Source):
     photon_gain_mean = 1.
     photon_gain_std = 0.5
 
-    def reconstruction_bias_s1(self, sig, bias_pivot_pt=1.):
+    @staticmethod
+    def reconstruction_bias_s1(sig):
         """ Dummy method for pax s1 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
@@ -211,7 +212,8 @@ class LXeSource(fd.Source):
         reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
         return reconstruction_bias
 
-    def reconstruction_bias_s2(self, sig, bias_pivot_pt=1.):
+    @staticmethod
+    def reconstruction_bias_s2(sig):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
@@ -715,10 +717,11 @@ class ERSource(LXeSource):
     def _single_spectrum(self):
         """Return (energies in keV, rate at these energies),
         """
-        max_e = 70.
-        nbins = int(max_e*100) # Keeping no. bins constant at 1000 bins per 10 keV
+        # By default, we use a 0 - 15 keV ER spectrum. (Since ER
+        # events > 12 keV cannot contribute to the XENON1T region of interest)
+        nbins = 1000  # Probably more than large enough for most purposes?
         return (tf.dtypes.cast(
-                    tf.linspace(0., max_e, nbins),
+                    tf.linspace(0., 15., nbins),
                     dtype=fd.float_type()),
                 tf.ones(nbins, dtype=fd.float_type()))
 

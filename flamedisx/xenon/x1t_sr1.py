@@ -1,17 +1,11 @@
 """XENON1T SR1 implementation
 """
-import os
-
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from multihist import Hist1d
-import wimprates
-
 import flamedisx as fd
 import json
-import scipy.interpolate as itp
 
 export, __all__ = fd.exporter()
 
@@ -29,33 +23,24 @@ s1_map, s2_map = [
 # Parameters
 ##
 DEFAULT_G1 = 0.142
-DEFAULT_G2 = 11.4 # g2 bottom
+DEFAULT_G2 = 11.4  # g2 bottom
 
-DEFAULT_AREA_FRACTION_TOP = 0.63 # fraction of light from top array
+DEFAULT_AREA_FRACTION_TOP = 0.63  # fraction of light from top array
 DEFAULT_P_DPE = 0.219
 DEFAULT_EXTRACTION_EFFICIENCY = 0.96
 
 DEFAULT_ELECTRON_LIFETIME = 641e3
 DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
-DEFAULT_FIELD = 81.
+DEFAULT_DRIFT_FIELD = 81.
 
+DEFAULT_G2_TOTAL = DEFAULT_G2 / (1.-DEFAULT_AREA_FRACTION_TOP)
+DEFAULT_SINGLE_ELECTRON_GAIN = DEFAULT_G2_TOTAL / DEFAULT_EXTRACTION_EFFICIENCY
+DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
+
+# Official numbers from BBF, do not question them ;-)
 DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
-
-##
-# Paths to dummy maps
-##
-dummy_base = os.path.abspath(os.path.join(os.path.join(__file__, os.pardir),
-    os.pardir)) + '/dummy_maps/' 
-
-path_dummy_zeros_s1 = ['dummy_zeros_s1.json', 'dummy_zeros_s1.json']
-path_dummy_zeros_s1 = [dummy_base+x for x in path_dummy_zeros_s1]
-path_dummy_zeros_s2 = ['dummy_zeros_s2.json', 'dummy_zeros_s2.json']
-path_dummy_zeros_s2 = [dummy_base+x for x in path_dummy_zeros_s2]
-
-path_dummy_ones_s1 = [dummy_base+'dummy_ones_s1.json']
-path_dummy_ones_s2 = [dummy_base+'dummy_ones_s2.json']
 
 ##
 # Loading Pax reconstruction bias
@@ -64,6 +49,7 @@ path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json'
         'ReconstructionS1BiasMeanUppers_SR1_v2.json']
 path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
         'ReconstructionS2BiasMeanUppers_SR1_v2.json']
+
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps. 
@@ -85,7 +71,15 @@ def read_maps_tf(path_bag, is_bbf=False):
 
     return yy_ref_bag, domain_def
 
+
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
+    """ Computes the reconstruction bias mean given the pivot point
+    :param sig: S1 or S2 values
+    :param fmap: map returned by read_maps_tf
+    :param domain_def: domain returned by read_maps_tf
+    :param pivot_pt: Pivot point value (scalar)
+    :return: Tensor of bias values (same shape as sig)
+    """
     tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
     bias_low = tfp.math.interp_regular_1d_grid(x=tmp,
             x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
@@ -101,17 +95,20 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
 
     return bias_out
 
+
 ##
 # Loading combined cuts acceptances
 ##
 path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
 path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
+
 def itp_cut_accept_tf(sig, fmap, domain_def):
     accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
             x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap,
             fill_value='constant_extension'))
     return accept_out
+
 
 ##
 # Flamedisx sources
@@ -123,33 +120,35 @@ class SR1Source:
         super().__init__(*args, **kwargs)
         
         # Loading combined cut acceptances
-        try:
-            self.cut_accept_map_s1, self.cut_accept_domain_s1 = read_maps_tf(path_cut_accept_s1, is_bbf=True)
-            self.cut_accept_map_s2, self.cut_accept_domain_s2 = read_maps_tf(path_cut_accept_s2, is_bbf=True)
-            print('BBF combined cut acceptances maps loaded')
-        except:
-            self.cut_accept_map_s1, self.cut_accept_domain_s1 = read_maps_tf(path_dummy_ones_s1, is_bbf=False)
-            self.cut_accept_map_s2, self.cut_accept_domain_s2 = read_maps_tf(path_dummy_ones_s2, is_bbf=False)
-            print('Dummy combined cut acceptances maps loaded')
+        self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
+            read_maps_tf(path_cut_accept_s1, is_bbf=True)
+        self.cut_accept_map_s2, self.cut_accept_domain_s2 = \
+            read_maps_tf(path_cut_accept_s2, is_bbf=True)
             
         # Loading reconstruction bias map
-        try:
-            self.recon_map_s1_tf, self.domain_def_s1 = read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
-            self.recon_map_s2_tf, self.domain_def_s2 = read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
-            print('BBF reconstruction bias mean maps loaded')
-        except:
-            self.recon_map_s1_tf, self.domain_def_s1 = read_maps_tf(path_dummy_zeros_s1, is_bbf=False)
-            self.recon_map_s2_tf, self.domain_def_s2 = read_maps_tf(path_dummy_zeros_s2, is_bbf=False)
-            print('Dummy reconstruction bias mean maps loaded')
+        self.recon_map_s1_tf, self.domain_def_s1 = \
+            read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
+        self.recon_map_s2_tf, self.domain_def_s2 = \
+            read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
 
-    def reconstruction_bias_s1(self, sig, bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(sig, self.recon_map_s1_tf, self.domain_def_s1,
-                pivot_pt=bias_pivot_pt1)
+    def reconstruction_bias_s1(self,
+                               sig,
+                               bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
+        reconstruction_bias = cal_bias_tf(sig,
+                                          self.recon_map_s1_tf,
+                                          self.domain_def_s1,
+                                          pivot_pt=bias_pivot_pt1)
         return reconstruction_bias
 
-    def reconstruction_bias_s2(self, sig, bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(sig, self.recon_map_s2_tf, self.domain_def_s2,
-                pivot_pt=bias_pivot_pt2)
+    def reconstruction_bias_s2(self,
+                               sig,
+                               # Need to change the name; the pivot points
+                               # for S2 and S2 are independent
+                               bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
+        reconstruction_bias = cal_bias_tf(sig,
+                                          self.recon_map_s2_tf,
+                                          self.domain_def_s2,
+                                          pivot_pt=bias_pivot_pt2)
         return reconstruction_bias
 
     def random_truth(self, n_events, fix_truth=None, **params):
@@ -174,17 +173,25 @@ class SR1Source:
                           d['z'].values]))
 
     @staticmethod
-    def electron_detection_eff(drift_time, *, elife=DEFAULT_ELECTRON_LIFETIME, extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
+    def electron_detection_eff(drift_time,
+                               *,
+                               elife=DEFAULT_ELECTRON_LIFETIME,
+                               extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         #TODO: include function for elife time dependency
         return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
-    def electron_gain_mean(s2_relative_ly, *, g2=DEFAULT_G2/(1.-DEFAULT_AREA_FRACTION_TOP)/DEFAULT_EXTRACTION_EFFICIENCY):
-        return g2 * s2_relative_ly
+    def electron_gain_mean(s2_relative_ly,
+                           *,
+                           single_electron_gain=DEFAULT_SINGLE_ELECTRON_GAIN):
+        return single_electron_gain * s2_relative_ly
 
     @staticmethod
-    def electron_gain_std(s2_relative_ly, *, g2=DEFAULT_G2/(1.-DEFAULT_AREA_FRACTION_TOP)/DEFAULT_EXTRACTION_EFFICIENCY):
-        return g2*DEFAULT_EXTRACTION_EFFICIENCY*0.25+0.*s2_relative_ly
+    def electron_gain_std(s2_relative_ly,
+                          *,
+                          single_electron_width=DEFAULT_SINGLE_ELECTRON_WIDTH):
+        # 0 * light yield is to fix the shape
+        return single_electron_width + 0. * s2_relative_ly
 
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
@@ -192,35 +199,43 @@ class SR1Source:
         mean_eff= g1 / (1. + DEFAULT_P_DPE)
         return mean_eff * s1_relative_ly
 
-    def s1_acceptance(self, s1, photon_detection_eff, photon_gain_mean, mean_eff=DEFAULT_G1 / (1 + DEFAULT_P_DPE),
-                      cs1_min=3., cs1_max=70.):
-        print('s1_acceptance: cs1 min = %f, cs1 max = %f' % (cs1_min, cs1_max))
+    def s1_acceptance(self,
+                      s1,
+                      photon_detection_eff,
+                      photon_gain_mean,
+                      mean_eff=DEFAULT_G1 / (1 + DEFAULT_P_DPE),
+                      # Only used here, DEFAULT_.. would be super verbose
+                      cs1_min=3.,
+                      cs1_max=70.):
         cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
-        mask = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
-                        tf.ones_like(s1, dtype=fd.float_type()),
-                        tf.zeros_like(s1, dtype=fd.float_type()))
+        acceptance = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
+                              tf.ones_like(s1, dtype=fd.float_type()),
+                              tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        cut_accept_wgt = itp_cut_accept_tf(s1, self.cut_accept_map_s1, self.cut_accept_domain_s1)
-       
-        mask_out = tf.math.multiply(mask, cut_accept_wgt)
+        acceptance *= itp_cut_accept_tf(s1,
+                                        self.cut_accept_map_s1,
+                                        self.cut_accept_domain_s1)
+        return acceptance
 
-        return mask_out
-
-    def s2_acceptance(self, s2, electron_detection_eff, electron_gain_mean,
-        cs2b_min=50.1, cs2b_max=7940.):
-        print('s2_acceptance: cs2b min = %f, cs2b max = %f' % (cs2b_min, cs2b_max))
-        cs2 = (DEFAULT_G2/DEFAULT_EXTRACTION_EFFICIENCY) * s2 / (electron_detection_eff*electron_gain_mean)
-        mask = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
-                        tf.ones_like(s2, dtype=fd.float_type()),
-                        tf.zeros_like(s2, dtype=fd.float_type()))
+    def s2_acceptance(self,
+                      s2,
+                      electron_detection_eff,
+                      electron_gain_mean,
+                      cs2b_min=50.1,
+                      cs2b_max=7940.):
+        cs2 = ((DEFAULT_G2/DEFAULT_EXTRACTION_EFFICIENCY) * s2
+               / (electron_detection_eff * electron_gain_mean))
+        acceptance = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+                              tf.ones_like(s2, dtype=fd.float_type()),
+                              tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        cut_accept_wgt = itp_cut_accept_tf(s2, self.cut_accept_map_s2, self.cut_accept_domain_s2)
+        acceptance *= itp_cut_accept_tf(s2,
+                                        self.cut_accept_map_s2,
+                                        self.cut_accept_domain_s2)
 
-        mask_out = tf.math.multiply(mask, cut_accept_wgt)
-
-        return mask_out
+        return acceptance
 
 
 # ER Source for SR1
@@ -231,7 +246,7 @@ class SR1ERSource(SR1Source,fd.ERSource):
     def p_electron(nq, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
-        F = tf.constant(DEFAULT_FIELD,dtype=fd.float_type())
+        F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
@@ -250,9 +265,10 @@ class SR1ERSource(SR1Source,fd.ERSource):
         # From SR0, BBF model, right?
         # q3 = 1.7 keV ~= 123 quanta
         # For SR1:
-        return tf.clip_by_value(q2 * (tf.constant(1.,dtype=fd.float_type()) - tf.exp(-nq / q3_nq)),
-                                tf.constant(1e-4,dtype=fd.float_type()),
-                                float('inf'))
+        return tf.clip_by_value(
+            q2 * (tf.constant(1., dtype=fd.float_type()) - tf.exp(-nq / q3_nq)),
+            tf.constant(1e-4, dtype=fd.float_type()),
+            float('inf'))
 
 
 @export
@@ -261,9 +277,9 @@ class SR1NRSource(SR1Source, fd.NRSource):
     # TODO: Modify the SR1NRSource to fit AmBe data better
 
     def p_electron(self, nq, *,
-            alpha=1.280, zeta=0.045, beta=273 * .9e-4,
-            gamma=0.0141, delta=0.062,
-            drift_field=DEFAULT_FIELD):
+                   alpha=1.280, zeta=0.045, beta=273 * .9e-4,
+                   gamma=0.0141, delta=0.062,
+                   drift_field=DEFAULT_DRIFT_FIELD):
         """Fraction of detectable NR quanta that become electrons,
         slightly adjusted from Lenardo et al.'s global fit
         (https://arxiv.org/abs/1412.4417).
