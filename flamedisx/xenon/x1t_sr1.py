@@ -7,6 +7,9 @@ import tensorflow_probability as tfp
 import flamedisx as fd
 import json
 
+import matplotlib.pyplot as plt
+import pdb
+
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -38,13 +41,21 @@ DEFAULT_G2_TOTAL = DEFAULT_G2 / (1.-DEFAULT_AREA_FRACTION_TOP)
 DEFAULT_SINGLE_ELECTRON_GAIN = DEFAULT_G2_TOTAL / DEFAULT_EXTRACTION_EFFICIENCY
 DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
 
-# Official numbers from BBF, do not question them ;-)
+# Official numbers from BBF
 DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
+DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 
+
+##
+# Loading Pax reconstruction efficiencies (do not reorder)
+##
+path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
+       'RecEfficiencyMedians_SR1_70phd_v1.json',
+       'RecEfficiencyUppers_SR1_70phd_v1.json']
 
 ##
 # Loading Pax reconstruction bias
-##
+## bins=nbins,
 path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
         'ReconstructionS1BiasMeanUppers_SR1_v2.json']
 path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
@@ -70,6 +81,33 @@ def read_maps_tf(path_bag, is_bbf=False):
     domain_def = tmp['coordinate_system'][0][1]
 
     return yy_ref_bag, domain_def
+
+def cal_test(sig, fmap, domain_def, pivot_pt):
+    """ Computes the reconstruction efficiency given the pivot point
+    :param sig: photon detected
+    :param fmap: map returned by read_maps_tf
+    :param domain_def: domain returned by read_maps_tf
+    :param pivot_pt: Pivot point value (scalar)
+    :return: Tensor of bias values (same shape as sig)
+    """
+    tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
+
+    bias_median = tfp.math.interp_regular_1d_grid(x=tmp,
+            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[1],
+            fill_value='constant_extension')
+
+    if pivot_pt<0:
+        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
+                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
+                fill_value='constant_extension')
+        bias_out = pivot_pt*(bias_median-bias_other)+bias_median
+    else:
+        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
+                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[2],
+                fill_value='constant_extension')
+        bias_out = pivot_pt*(bias_other-bias_median)+bias_median
+    
+    return bias_out
 
 
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
@@ -124,7 +162,11 @@ class SR1Source:
             read_maps_tf(path_cut_accept_s1, is_bbf=True)
         self.cut_accept_map_s2, self.cut_accept_domain_s2 = \
             read_maps_tf(path_cut_accept_s2, is_bbf=True)
-            
+        
+        # Loading reconstruction efficiencies map
+        self.recon_eff_map_s1, self.domain_def_ph = \
+            read_maps_tf(path_reconstruction_efficiencies_s1, is_bbf=True)
+
         # Loading reconstruction bias map
         self.recon_map_s1_tf, self.domain_def_s1 = \
             read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
@@ -198,6 +240,28 @@ class SR1Source:
     def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1):
         mean_eff= g1 / (1. + DEFAULT_P_DPE)
         return mean_eff * s1_relative_ly
+
+    def photon_acceptance(self,
+                          photons_detected,
+                          scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
+        print('photon_acceptance: x1t. nyan')
+        acceptance = cal_test(photons_detected, self.recon_eff_map_s1,
+                self.domain_def_ph, scalar)
+
+        '''
+        ## casting it to float even though it's conceptually an int
+        lala0 = tf.convert_to_tensor(photons_detected, dtype=fd.float_type()) 
+        lala1 = itp_cut_accept_tf(lala0, self.recon_eff_map_s1, self.domain_def_ph)
+
+        nbins=50
+        plt.hist(lala, histtype='step', bins=nbins, label='got scalar')
+        plt.hist(lala1, histtype='step', bins=nbins, label='no scalar')
+        plt.show()
+
+        pdb.set_trace()
+        '''
+
+        return acceptance
 
     def s1_acceptance(self,
                       s1,
