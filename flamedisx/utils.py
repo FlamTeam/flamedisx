@@ -241,7 +241,7 @@ def run_command(command):
     with subprocess.Popen(
             command.split(),
             bufsize=1,
-            text=True,
+            universal_newlines=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT) as p:
         for line in iter(p.stdout.readline, ''):
