@@ -223,12 +223,8 @@ class WIMPSource(NRSource):
 
 
 @export
-class SpatialRateHistogramSource:
+class SpatialRateHistogramSource(fd.BlockModelSource):
     """Source whose rate multiplier is specified by a spatial histogram.
-
-    NB: you must inherit from SpatialRateHistgramSource *before* inheriting
-    from ERSource / NRSource, the latters's __init__ doesn't yet pass super...
-    TODO FIX!
 
     The histogram can be in polar (r, theta, z) or Cartesian (x, y, z)
     coordinates. The coordinates are reconstructed positions.
@@ -238,6 +234,8 @@ class SpatialRateHistogramSource:
 
     spatial_rate_hist: Histdd
     spatial_rate_bin_volumes: Histdd
+
+    final_dimensions = ('s1', 's2')
 
     def __init__(self, *args, **kwargs):
         self.build_source_from_blocks()
