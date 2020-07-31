@@ -7,9 +7,6 @@ import tensorflow_probability as tfp
 import flamedisx as fd
 import json
 
-import matplotlib.pyplot as plt
-import pdb
-
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
