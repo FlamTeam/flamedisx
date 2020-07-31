@@ -285,9 +285,6 @@ class Source:
         :param x: column name
         :param data_tensor: Data tensor, columns as in self.column_index
         """
-        if x in self.ignore_columns():
-            raise RuntimeError(
-                "Attempt to fetch %s, which is in ignore_columns" % x)
         if data_tensor is None:
             # We're inside annotate, just return the column
             x = self.data[x].values

@@ -98,9 +98,13 @@ class MakeFinalSignals(fd.Block):
 @export
 class MakeS1(MakeFinalSignals):
 
+    quanta_name = 'photoelectron'
+    s_name = 's1'
+
     dimensions = ('photoelectrons_detected', 's1')
     model_functions = ('photoelectron_gain_mean', 'photoelectron_gain_std',
                        's1_acceptance')
+    special_model_functions = ('reconstruction_bias_s1',)
 
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
@@ -111,8 +115,13 @@ class MakeS1(MakeFinalSignals):
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
-    quanta_name = 'photoelectron'
-    s_name = 's1'
+    @staticmethod
+    def reconstruction_bias_s1(sig):
+        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return reconstruction_bias
 
     def _compute(self, data_tensor, ptensor,
                  photoelectrons_detected, s1):
@@ -125,9 +134,13 @@ class MakeS1(MakeFinalSignals):
 @export
 class MakeS2(MakeFinalSignals):
 
+    quanta_name = 'electron'
+    s_name = 's2'
+
     dimensions = ('electrons_detected', 's2')
     model_functions = ('electron_gain_mean', 'electron_gain_std',
                        's2_acceptance')
+    special_model_functions = ('reconstruction_bias_s2',)
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):
@@ -141,8 +154,13 @@ class MakeS2(MakeFinalSignals):
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
-    quanta_name = 'electron'
-    s_name = 's2'
+    @staticmethod
+    def reconstruction_bias_s2(sig):
+        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return reconstruction_bias
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2):
