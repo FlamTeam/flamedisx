@@ -126,9 +126,8 @@ class FixedShapeEnergySpectrum(fd.Block):
         if d is None:
             return dict()
         elif isinstance(d, pd.DataFrame):
-            # TODO: Should we still support this case? User has no control
-            # over which cols to set, why not only use dicts here?
-
+            # This is useful, since it allows you to fix_truth with an
+            # observed event.
             # When passing in an event as DataFrame we select and set
             # only these columns:
             cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']

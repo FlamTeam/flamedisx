@@ -207,7 +207,7 @@ def index_lookup_dict(names, column_widths=None):
 
     result = dict()
     i = 0
-    while len(names):
+    while names:
         name = names.pop(0)
         width = column_widths.get(name, 1)
         if width == 1:

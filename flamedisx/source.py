@@ -36,12 +36,6 @@ class Source:
     def extra_needed_columns(self):
         return []
 
-    # List all columns for which sneaky hacks are used to intercept _fetch here
-    # These will not be added to the data tensor even when the model function
-    # inspection does find them.
-    def ignore_columns(self):
-        return []
-
     data = None
 
     ##
@@ -121,9 +115,7 @@ class Source:
         ctc += self.extra_needed_columns()                  # Manually fetched columns
         ctc += self.frozen_data_methods                     # Frozen methods (e.g. not tf-compatible)
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
-        ctc = [x for x in ctc if x not in self.ignore_columns()]
         ctc = list(set(ctc))
-        self.cols_to_cache = ctc
 
         self.column_index = fd.index_lookup_dict(ctc,
                                                  column_widths=self.array_columns)
@@ -209,9 +201,9 @@ class Source:
         """Do any final checks on the self.data dataframe,
         before passing it on to the tensorflow layer.
         """
-        for column in self.cols_to_cache:
+        for column in self.column_index:
             if (column not in self.data.columns
-                    and not column in self.frozen_data_methods):
+                    and column not in self.frozen_data_methods):
                 raise ValueError(f"Data lacks required column {column}; "
                                  f"did annotation happen correctly?")
 
@@ -309,9 +301,9 @@ class Source:
     def _fetch_param(self, param, ptensor):
         if ptensor is None:
             return self.defaults[param]
-        id = tf.dtypes.cast(self.parameter_index[param],
-                            dtype=fd.int_type())
-        return ptensor[id]
+        idx = tf.dtypes.cast(self.parameter_index[param],
+                             dtype=fd.int_type())
+        return ptensor[idx]
 
     # TODO: make data_tensor and ptensor keyword-only arguments
     # after https://github.com/tensorflow/tensorflow/issues/28725
@@ -456,7 +448,7 @@ class Source:
     # Simulation methods and helpers
     ##
 
-    def simulate(self, n_events, fix_truth=None, **params):
+    def simulate(self, n_events, fix_truth=None, full_annotate=False, **params):
         """Simulate n events.
 
         Will omit events lost due to selection/detection efficiencies
@@ -473,11 +465,13 @@ class Source:
                                    **params):
             # Do the forward simulation of the detector response
             d = self._simulate_response()
-            # Now that we have s1 and s2 values, we can do the full annotate,
-            # populating columns like e_vis, photon_produced_mle, etc.
-            # Set the data, annotate, compute bounds, skip TF
-            self.set_data(d, _skip_tf_init=True)
-            return self.data
+            if full_annotate:
+                # Now that we have s1 and s2 values, we can populate
+                # columns like e_vis, photon_produced_mle, etc.
+                # This is optional since it can be expensive (e.g. for
+                # the WIMPsource, where it includes the full energy spectrum!)
+                return self.annotate_data(d)
+            return d
 
     def validate_fix_truth(self, fix_truth):
         """Return checked fix truth, with extra derived variables if needed"""
