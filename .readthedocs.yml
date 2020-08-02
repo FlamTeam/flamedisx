@@ -25,3 +25,8 @@ python:
         path: .
         extra_requirements:
            - docs
+
+# Include the notebooks submodule, so we can build the tutorial docs page
+submodules:
+  include:
+    - notebooks
