@@ -20,14 +20,6 @@ flamedisx.block\_source module
    :undoc-members:
    :show-inheritance:
 
-flamedisx.er\_nr\_base module
------------------------------
-
-.. automodule:: flamedisx.er_nr_base
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 flamedisx.inference module
 --------------------------
 
@@ -44,10 +36,10 @@ flamedisx.likelihood module
    :undoc-members:
    :show-inheritance:
 
-flamedisx.lxe\_source module
-----------------------------
+flamedisx.lxe\_sources module
+-----------------------------
 
-.. automodule:: flamedisx.lxe_source
+.. automodule:: flamedisx.lxe_sources
    :members:
    :undoc-members:
    :show-inheritance:

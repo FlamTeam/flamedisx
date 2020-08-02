@@ -17,8 +17,13 @@ You can find more details in our arXiv preprint, at https://arxiv.org/abs/2003.1
    blocks.md
 
 
-Indices and tables
-==================
+
+.. toctree::
+    :maxdepth: 1
+    :caption: API Reference
+
+    reference/flamedisx
+
 
 * :ref:`genindex`
 * :ref:`modindex`
