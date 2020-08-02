@@ -175,6 +175,8 @@ class BlockModelSource(fd.Source):
         self.special_data_methods = tuple(collected['special_model_functions'])
         self.frozen_data_methods = tuple(collected['frozen_data_methods'])
         self.array_columns = tuple(collected['array_columns'])
+        # Only for inspection by user, not used in flamedisx
+        self.static_attributes = tuple(collected['static_attributes'])
 
         self.inner_dimensions = tuple([
             d for d in collected['dimensions']

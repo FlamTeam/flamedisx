@@ -34,6 +34,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
     'nbsphinx',
+    'recommonmark',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -43,6 +44,11 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
+
+# Also generate private members documentation during autodoc
+autodoc_default_options = {
+    'private-members': True
+}
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -56,15 +62,3 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-
-
-# -- Manual additions --------------------------------------------------------
-
-# The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
-#
-source_suffix = ['.rst', '.md']
-
-source_parsers = {
-   '.md': 'recommonmark.parser.CommonMarkParser',
-}
