@@ -44,26 +44,34 @@ DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 
 
 ##
-# Loading Pax reconstruction efficiencies (do not reorder)
+# Combined cuts acceptances
 ##
-path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
-       'RecEfficiencyMedians_SR1_70phd_v1.json',
-       'RecEfficiencyUppers_SR1_70phd_v1.json']
+path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
+path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
 ##
-# Loading Pax reconstruction bias
-## bins=nbins,
+# Pax reconstruction bias (do not reorder: Lowers, Uppers)
+## 
 path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS1BiasMeanUppers_SR1_v2.json']
+                                    'ReconstructionS1BiasMeanUppers_SR1_v2.json']
 path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS2BiasMeanUppers_SR1_v2.json']
+                                    'ReconstructionS2BiasMeanUppers_SR1_v2.json']
+
+##
+# Pax reconstruction efficiencies (do not reorder: Lowers, Medians, Uppers)
+##
+path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
+                                       'RecEfficiencyMedians_SR1_70phd_v1.json',
+                                       'RecEfficiencyUppers_SR1_70phd_v1.json']
 
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps. 
     Note that this implementation fundamentally assumes upper and lower bounds
     have exactly the same domain definition.
-
+    :param path_bag: Array of bbf files names to be read
+    :param is_bbf: 1 if reading bbf files, 0 if reading dummy maps
+    :return: Array of tensors of maps, and its corresponding domain
     """
     data_bag = []
     yy_ref_bag = []
@@ -79,32 +87,18 @@ def read_maps_tf(path_bag, is_bbf=False):
 
     return yy_ref_bag, domain_def
 
-def cal_test(sig, fmap, domain_def, pivot_pt):
-    """ Computes the reconstruction efficiency given the pivot point
-    :param sig: photon detected
+
+def itp_cut_accept_tf(sig, fmap, domain_def):
+    """ Interpolates the combined cut acceptance at given S1/S2
+    :param sig: S1 or S2 values
     :param fmap: map returned by read_maps_tf
     :param domain_def: domain returned by read_maps_tf
-    :param pivot_pt: Pivot point value (scalar)
-    :return: Tensor of bias values (same shape as sig)
+    :return: Tensor of combined cut acceptance values (same shape as sig)
     """
-    tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
-
-    bias_median = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[1],
-            fill_value='constant_extension')
-
-    if pivot_pt<0:
-        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
-                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
-                fill_value='constant_extension')
-        bias_out = pivot_pt*(bias_median-bias_other)+bias_median
-    else:
-        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
-                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[2],
-                fill_value='constant_extension')
-        bias_out = pivot_pt*(bias_other-bias_median)+bias_median
-    
-    return bias_out
+    accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
+            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap,
+            fill_value='constant_extension'))
+    return accept_out
 
 
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
@@ -131,18 +125,32 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
     return bias_out
 
 
-##
-# Loading combined cuts acceptances
-##
-path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
-path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
+def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
+    """ Computes the reconstruction efficiency given the pivot point
+    :param sig: photon detected
+    :param fmap: map returned by read_maps_tf
+    :param domain_def: domain returned by read_maps_tf
+    :param pivot_pt: Pivot point value (scalar)
+    :return: Tensor of bias values (same shape as sig)
+    """
+    tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
 
+    bias_median = tfp.math.interp_regular_1d_grid(x=tmp,
+            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[1],
+            fill_value='constant_extension')
 
-def itp_cut_accept_tf(sig, fmap, domain_def):
-    accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap,
-            fill_value='constant_extension'))
-    return accept_out
+    if pivot_pt<0:
+        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
+                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
+                fill_value='constant_extension')
+        bias_out = pivot_pt*(bias_median-bias_other)+bias_median
+    else:
+        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
+                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[2],
+                fill_value='constant_extension')
+        bias_out = pivot_pt*(bias_other-bias_median)+bias_median
+    
+    return bias_out
 
 
 ##
@@ -241,22 +249,10 @@ class SR1Source:
     def photon_acceptance(self,
                           photons_detected,
                           scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
-        print('photon_acceptance: x1t. nyan')
-        acceptance = cal_test(photons_detected, self.recon_eff_map_s1,
-                self.domain_def_ph, scalar)
-
-        '''
-        ## casting it to float even though it's conceptually an int
-        lala0 = tf.convert_to_tensor(photons_detected, dtype=fd.float_type()) 
-        lala1 = itp_cut_accept_tf(lala0, self.recon_eff_map_s1, self.domain_def_ph)
-
-        nbins=50
-        plt.hist(lala, histtype='step', bins=nbins, label='got scalar')
-        plt.hist(lala1, histtype='step', bins=nbins, label='no scalar')
-        plt.show()
-
-        pdb.set_trace()
-        '''
+        acceptance = cal_rec_efficiency_tf(photons_detected,
+                                        self.recon_eff_map_s1,
+                                        self.domain_def_ph,
+                                        scalar)
 
         return acceptance
 

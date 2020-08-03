@@ -170,7 +170,6 @@ class LXeSource(fd.Source):
             tf.ones_like(electrons_detected, dtype=fd.float_type()))
 
     def photon_acceptance(self, photons_detected):
-        print('photon_acceptance: er_nr_base')
         return tf.where(
             photons_detected < self.min_s1_photons_detected,
             tf.zeros_like(photons_detected, dtype=fd.float_type()),
