@@ -436,9 +436,8 @@ class Source:
         # TODO: somehow mask unnecessary elements and save computation time
         x_domain = self.domain(x, data_tensor)
         y_domain = self.domain(y, data_tensor)
-        # Change to tf.repeat once it's in the api
-        result_x = fd.repeat(x_domain[:, :, o], y_domain.shape[1], axis=2)
-        result_y = fd.repeat(y_domain[:, o, :], x_domain.shape[1], axis=1)
+        result_x = tf.repeat(x_domain[:, :, o], y_domain.shape[1], axis=2)
+        result_y = tf.repeat(y_domain[:, o, :], x_domain.shape[1], axis=1)
         return result_x, result_y
 
     ##

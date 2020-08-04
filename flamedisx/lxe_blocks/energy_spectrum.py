@@ -51,7 +51,7 @@ class FixedShapeEnergySpectrum(fd.Block):
     energy_spectrum_rate_multiplier = 1.
 
     def _compute(self, data_tensor, ptensor, *, energy):
-        spectrum = fd.repeat(self.rates_vs_energy[o, :],
+        spectrum = tf.repeat(self.rates_vs_energy[o, :],
                              self.source.batch_size,
                              axis=0)
         rate_multiplier = self.gimme('energy_spectrum_rate_multiplier',
@@ -60,7 +60,7 @@ class FixedShapeEnergySpectrum(fd.Block):
 
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
-        return {self.dimensions[0]: fd.repeat(fd.np_to_tf(self.energies)[o, :],
+        return {self.dimensions[0]: tf.repeat(fd.np_to_tf(self.energies)[o, :],
                                               self.source.batch_size,
                                               axis=0)}
 

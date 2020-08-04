@@ -5,8 +5,6 @@ import pandas as pd
 from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
-# Remove once tf.repeat is available in the tf api
-from tensorflow.python.ops.ragged.ragged_util import repeat  # yes, it IS used!
 lgamma = tf.math.lgamma
 
 o = tf.newaxis
@@ -33,7 +31,7 @@ def exporter():
 
 
 export, __all__ = exporter()
-__all__ += ['float_type', 'exporter', 'repeat',
+__all__ += ['float_type', 'exporter',
             'MIN_FLUCTUATION_P', 'MAX_MEAN_P']
 
 
