@@ -129,6 +129,7 @@ def beta_params(mean, sigma, force_valid=True):
       unimodal beta distributions. See issues #36 and #83
     """
     m, v = mean, sigma ** 2
+    m, v = np_to_tf(m), np_to_tf(v)  # We're called from numpy sometimes
 
     if force_valid:
         m = tf.clip_by_value(m, MIN_MEAN_P, MAX_MEAN_P)
