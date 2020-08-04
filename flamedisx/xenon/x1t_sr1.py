@@ -7,6 +7,8 @@ import tensorflow_probability as tfp
 import flamedisx as fd
 import json
 
+import pdb
+
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -221,11 +223,17 @@ class SR1Source:
 
     @staticmethod
     def electron_detection_eff(drift_time,
+                               event_time,
                                *,
                                elife=DEFAULT_ELECTRON_LIFETIME,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         #TODO: include function for elife time dependency
-        return extraction_eff * tf.exp(-drift_time / elife)
+
+        # just for fun
+        test = tf.where(event_time<1497496915587373230, elife-20e3, elife)
+        
+        #return extraction_eff * tf.exp(-drift_time / elife)
+        return extraction_eff * tf.exp(-drift_time / test)
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
