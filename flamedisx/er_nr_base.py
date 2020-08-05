@@ -152,7 +152,7 @@ class LXeSource(fd.Source):
 
     # Detection efficiencies
     @staticmethod
-    def electron_detection_eff(drift_time, event_time, *, elife=452e3, extraction_eff=0.96):
+    def electron_detection_eff(drift_time, *, elife=452e3, extraction_eff=0.96):
         return extraction_eff * tf.exp(-drift_time / elife)
 
     photon_detection_eff = 0.1
