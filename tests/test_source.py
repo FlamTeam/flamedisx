@@ -59,7 +59,7 @@ def xes(request):
         # Convert to events per bin histogram
         h.histogram *= bin_volumes
 
-        class ERSpatial(fd.SpatialRateHistogramSource):
+        class ERSpatial(fd.SpatialRateERSource):
             model_blocks = fd.ERSource.model_blocks
 
             spatial_rate_hist = h

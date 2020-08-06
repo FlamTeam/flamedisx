@@ -56,8 +56,6 @@ The source will operate as follows:
   * During **simulation**, we run `_simulate` of the blocks in the order you specified in `model_blocks`, starting with the first block. This is usually the block that creates the energy spectrum.
   * When **setting data** (e.g. when you create the source), we run `_annotate` of the blocks in reverse order. This way, you can first estimate hidden variables close to observables, then use those estimates for guessing deeper hidden variables. For example, you can use the estimated number of detected electrons to estimate the number of produced electrons.
 
-If your source needs an `__init__`, you may want to start by calling `self.build_source_from_blocks()`, so all the correct attributes, methods, etc. get copied over from blocks. The function is harmless if called more than once.  Likely you'll call `super().__init__(*args, **kwargs)` only after doing whatever it is you want to do, since `Source.__init__` will set the data.
-
 
 Blocks in detail
 -------------------
@@ -127,10 +125,23 @@ For example, `depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)` means th
 The dependency result and its domain (i.e. the x-values corresponding to the y-values the block returned) will be passed to `_compute` as extra arguments. In the above example, `_compute` will get `quanta_produced` and `rate_vs_quanta` as extra arguments. The former is the domain, the latter the result.
 
 
+Block initialization / setup
+============================
+
+Define a `setup` method if you want to do something when the block is initialized. You can:
+
+* Use your block's attributes and functions. They will already have been overriden with user-specified source attributes / functions.
+* Change attributes, or even specifications such as `array_columns`. This can be useful if you want to determine the width of an array column from another attribute.
+
+You can not:
+
+* Use self.source and expect its attributes to already reflect their final states. The source is only fully functional after the block setup phase.
+
 Frozen functions and array columns
 ===================================
 
 To be written -- see :py:class:`~flamedisx.lxe_sources.WIMPsource` for an example in the meantime.
+
 
 
 The first block of a source

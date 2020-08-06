@@ -31,6 +31,14 @@ class Block:
         assert len(self.dimensions) in (1, 2), \
             "Blocks must output 1 or 2 dimensions"
 
+    def setup(self):
+        """Do any necessary initialization.
+
+        Called after the block's attributes have been properly overriden
+        by source attributes, if specified.
+        """
+        pass
+
     def gimme(self, *args, **kwargs):
         """Shorthand for self.source.gimme, see docs there"""
         return self.source.gimme(*args, **kwargs)
@@ -129,10 +137,6 @@ class BlockModelSource(fd.Source):
     initial_dimensions: tuple
 
     def __init__(self, *args, **kwargs):
-        self.build_source_from_blocks()
-        super().__init__(*args, **kwargs)
-
-    def build_source_from_blocks(self):
         if isinstance(self.model_blocks[0], FirstBlock):
             # Blocks have already been instantiated
             return
@@ -151,34 +155,47 @@ class BlockModelSource(fd.Source):
             'frozen_model_functions',
             'array_columns')}
 
-        # Instantiate the blocks
+        # Instantiate the blocks.
         self.model_blocks = tuple([b(self) for b in self.model_blocks])
 
         for b in self.model_blocks:
-            _this_block = {}
+            # Maybe someome forgot a comma in a tuple specification
             for k in collected:
                 if not isinstance(getattr(b, k), tuple):
                     raise ValueError(
                         f"{k} in {b} should be a tuple, not a {type(k)}")
-                _this_block[k] = list(getattr(b, k))
-                collected[k] += _this_block[k]
 
-            for x in set(_this_block['model_functions']
-                         + _this_block['special_model_functions']
-                         + _this_block['model_attributes']):
+            attributes = set(b.model_functions
+                             + b.special_model_functions
+                             + b.model_attributes)
 
+            for x in attributes:
                 # If a source attribute was specified,
                 # override the block's attribute.
                 if hasattr(self, x):
                     setattr(b, x, getattr(self, x))
 
-                # Set the source attribute from the block's attribute
+            # Now that the block is properly furnished with all attributes,
+            # call the block setup.
+            b.setup()
+
+            # Set the source attributes from the block's attributes.
+            # If we did this before b.setup(), the source and block attributes
+            # could diverge, causing potential confusion.
+            for x in attributes:
                 setattr(self, x, getattr(b, x))
 
-                # Someone might try to modify the source attribute after
-                # instantiation, then be really surprised when nothing happens.
-                # Sorry. I can't use properties to prevent writing, since
-                # those are class-bound.
+            # Collect all information from the block.
+            # We also do this after the setup; the array columns field in
+            # particular is nice to change in the block setup
+            for k in collected:
+                collected[k] += getattr(b, k)
+
+            # Someone might try to modify a source attribute after
+            # instantiation, then be surprised when nothing happens
+            # (because the same-named block attribute wasn't changed).
+            # Sorry. I can't use properties to prevent writing, since
+            # those are class-bound.
 
         # The source may declare additional frozen data methods
         collected['frozen_model_functions'] += self.frozen_model_functions
@@ -207,6 +224,8 @@ class BlockModelSource(fd.Source):
             if ((d not in self.final_dimensions)
                 and (d not in self.model_blocks[0].dimensions))])
         self.initial_dimensions = self.model_blocks[0].dimensions
+
+        super().__init__(*args, **kwargs)
 
     @staticmethod
     def _find_block(blocks,

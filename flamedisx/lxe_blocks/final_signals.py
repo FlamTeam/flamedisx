@@ -103,10 +103,10 @@ class MakeS1(MakeFinalSignals):
 
     dimensions = ('photoelectrons_detected', 's1')
     special_model_functions = ('reconstruction_bias_s1',)
-    model_functions = tuple([
+    model_functions = (
         'photoelectron_gain_mean',
         'photoelectron_gain_std',
-        's1_acceptance'] + list(special_model_functions))
+        's1_acceptance') + special_model_functions
 
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
@@ -141,11 +141,11 @@ class MakeS2(MakeFinalSignals):
 
     dimensions = ('electrons_detected', 's2')
     special_model_functions = ('reconstruction_bias_s2',)
-    model_functions = tuple(
-        ['electron_gain_mean',
+    model_functions = (
+        ('electron_gain_mean',
          'electron_gain_std',
-         's2_acceptance']
-        + list(special_model_functions))
+         's2_acceptance')
+        + special_model_functions)
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):
