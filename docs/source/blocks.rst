@@ -66,7 +66,7 @@ Besides the main three methods, blocks usually specify additional attributes tha
 
 Static attributes
 =================
-`static_attributes` is a tuple of strings of Block attributes that should be exposed in the source. Setting one of these attributes in the Source will override their value.
+`model_attributes` is a tuple of strings of Block attributes that should be exposed in the source. Setting one of these attributes in the Source will override their value.
 
 For example, the :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum` block has the `energies` and `rates_vs_energy` attributes to specify the the source's discretized energy spectrum. The `ERSource` and `NRSource` both use this block, so you can write::
 
@@ -82,13 +82,13 @@ to change the energy spectrum. This is simply another form of 'common customizat
 
 Do not try to change static attributes after a source is initialized. They are called static for a reason. (If you change them despite this warning, the change will not be propagated from the `Source` to the `Block`, and code in the `Block` will still see the old attribute and cause you a headache.)
 
-You can find a string-tuple of all static attributes for a source in the `.static_attributes` attribute.
+You can find a string-tuple of all static attributes for a source in the `.model_attributes` attribute.
 
 
 Model functions
 =================
 
-Just like `static_attributes` exposes attributes, `model_functions` and `special_model_functions` expose methods to the source. Each are a tuple of strings of method names.
+Just like `model_attributes` exposes attributes, `model_functions` and `special_model_functions` expose methods to the source. Each are a tuple of strings of method names.
 
 In your block, you call model functions in different ways:
   * In `_compute`, call `self.gimme('your_model_function', data_tensor=data_tensor, ptensor=ptensor)`.
@@ -102,9 +102,11 @@ Never call a model function directly from your code!
 
 `special_model_functions` take an extra positional argument when they are called. It's up to you what this represents; usually this is used to pass variables. The extra argument (called `bonus_arg` in flamedisx code) is passed as the first argument after `self`.
 
+If a model function is 'special' in this way, you must list it in **both** model_functions and special_model_functions
+
 As an example, the :py:class:`~flamedisx.lxe_blocks.quanta_generation.MakeNRQuanta` block exposes a :py:meth:`~flamedisx.lxe_blocks.quanta_generation.MakeNRQuanta.lindhard_l` model function that parametrizes the Lindhard process (nuclear recoil energy losses as heat) as a function of energy. Sources using this block can define a new `lindhard_l` method to override this. The modelling sections of the tutorial illustrate model function overriding in detail.
 
-You can find string-tuples of all regular and special model functions for a source in the `.data_methods` attribute. (Special model functions are also listed in `.special_data_methods`.)
+You can find string-tuples of all regular and special model functions for a source in the `.model_functions` attribute. (Special model functions are also listed here, and separately in `.special_model_functions`.)
 
 Dimensions
 =================
@@ -140,7 +142,8 @@ Some restrictions are relaxed:
   * It does not have a `_simulate` method.
   * `_annotate` can (but does not have to) be omitted. There is no need to estimate bounds for its dimension (deposited energy), as the block returns the full energy spectrum for each event.
 
-Other restrictions are added: 
+Other restrictions are added:
+  * You must inherit from `FirstBlock`, rather than `Block`
   * It must specify a `domain` method, returning a dictionary mapping its dimension (e.g. deposited_energy) to the range of values for which `_compute` returns results.
   * It must implement a `random_truth` method, taking `n_events` and a parameter dictionary, returning a dataframe with a number of simulated events.
   * It must implement a `mu_before_efficiencies` method, taking a parameter dictionary and returning the number of expected events directly from the spectrum (i.e. before any efficiencies) given these parameters.

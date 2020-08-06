@@ -13,7 +13,7 @@ o = tf.newaxis
 class DetectPhotonsOrElectrons(fd.Block):
     """Common code for DetectPhotons and DetectElectrons"""
 
-    static_attributes = ('check_efficiencies',)
+    model_attributes = ('check_efficiencies',)
 
     # Whether to check if all events have a positive detection efficiency.
     # As with check_acceptances in MakeFinalSignals, you may have to
@@ -95,8 +95,9 @@ class DetectPhotonsOrElectrons(fd.Block):
 class DetectPhotons(DetectPhotonsOrElectrons):
     dimensions = ('photons_produced', 'photons_detected')
 
-    model_functions = ('photon_detection_eff',)
     special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
+    model_functions = tuple(['photon_detection_eff']
+                            + list(special_model_functions))
 
     photon_detection_eff = 0.1
 
@@ -124,8 +125,9 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 class DetectElectrons(DetectPhotonsOrElectrons):
     dimensions = ('electrons_produced', 'electrons_detected')
 
-    model_functions = ('electron_detection_eff',)
     special_model_functions = ('electron_acceptance',)
+    model_functions = tuple(['electron_detection_eff'] +
+                            list(special_model_functions))
 
     @staticmethod
     def electron_detection_eff(drift_time, *,

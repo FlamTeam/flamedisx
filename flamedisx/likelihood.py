@@ -129,11 +129,6 @@ class LogLikelihood:
                           batch_size=batch_size)
             for sname, sclass in self.sources.items()}
 
-        # Determine default parameters for each source
-        defaults_in_sources = {
-            sname: s.find_defaults()[2]
-            for sname, s in self.sources.items()}
-
         for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
             # sources
@@ -161,16 +156,16 @@ class LogLikelihood:
         self.mu_itps = {
             sname: s.mu_function(
                 n_trials=n_trials,
-                **{p_name: par
-                   for p_name, par in common_param_specs.items()
-                   if p_name in defaults_in_sources[sname].keys()})
+                # Source will filter out the params it needs
+                **common_param_specs)
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
         # Add the constraint
         if log_constraint is None:
-            log_constraint = lambda **kwargs: 0.
+            def log_constraint(**kwargs):
+                return 0.
         self.log_constraint = log_constraint
 
         self.set_data(data)

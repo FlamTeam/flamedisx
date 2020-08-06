@@ -17,6 +17,7 @@ class MakePhotonsElectronsBinomial(fd.Block):
     dimensions = ('electrons_produced', 'photons_produced')
 
     special_model_functions = ('p_electron',)
+    model_functions = special_model_functions
 
     p_electron = 0.5   # Nonsense, ER and NR sources provide specifics
 
@@ -101,6 +102,7 @@ class MakePhotonsElectronsBetaBinomial(MakePhotonsElectronsBinomial):
     special_model_functions = tuple(
         list(MakePhotonsElectronsBinomial.special_model_functions)
         + ['p_electron_fluctuation'])
+    model_functions = special_model_functions
 
     @staticmethod
     def p_electron_fluctuation(nq):

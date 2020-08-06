@@ -20,11 +20,11 @@ class Source:
     n_padding = None
     trace_difrate = True
 
-    data_methods = tuple()
-    special_data_methods = tuple()
+    model_functions = tuple()
+    special_model_functions = tuple()
     inner_dimensions = tuple()
 
-    frozen_data_methods = tuple()
+    frozen_model_functions = tuple()
     array_columns = tuple()
 
     # Final observable dimensions; for use in domain / cross-domain
@@ -42,15 +42,16 @@ class Source:
     # Initialization and helpers
     ##
 
-    def find_defaults(self):
+    def scan_model_functions(self):
         """Discover which functions need which arguments / dimensions
         Discover possible parameters.
         Returns f_dims, f_params and defaults.
         """
-        f_dims = {x: [] for x in self.data_methods}
-        f_params = {x: [] for x in self.data_methods}
-        defaults = dict()
-        for fname in self.data_methods:
+        self.f_dims = f_dims = {x: [] for x in self.model_functions}
+        self.f_params = f_params = {x: [] for x in self.model_functions}
+        self.defaults = defaults = dict()
+
+        for fname in self.model_functions:
             f = getattr(self, fname)
             if not callable(f):
                 # Constant
@@ -60,7 +61,7 @@ class Source:
                 if pname == 'self':
                     continue
                 if p.default is inspect.Parameter.empty:
-                    if fname in self.special_data_methods and not seen_special:
+                    if fname in self.special_model_functions and not seen_special:
                         seen_special = True
                     else:
                         # It's an observable dimension
@@ -68,11 +69,10 @@ class Source:
                 else:
                     # It's a parameter that can be fitted
                     f_params[fname].append(pname)
-                    if (pname in defaults and p.default != defaults[pname]):
+                    if pname in defaults and p.default != defaults[pname]:
                         raise ValueError(f"Inconsistent defaults for {pname}")
                     defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
-        return f_dims, f_params, defaults
 
     def __init__(self,
                  data=None,
@@ -97,14 +97,14 @@ class Source:
         self.max_sigma = max_sigma
 
         # Check for duplicated model functions
-        for attrname in ['data_methods', 'special_data_methods']:
+        for attrname in ['model_functions', 'special_model_functions']:
             l_ = getattr(self, attrname)
             if len(set(l_)) != len(l_):
                 raise ValueError(f"{attrname} contains duplicates: {l_}")
 
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
-        self.f_dims, self.f_params, self.defaults = self.find_defaults()
+        self.scan_model_functions()
 
         # Change from (column, length) tuple to dict
         self.array_columns = dict(self.array_columns)
@@ -113,7 +113,7 @@ class Source:
         ctc = list(set(sum(self.f_dims.values(), [])))      # Used in model functions.
         ctc += list(self.final_dimensions)                  # Final observables (e.g. S1, S2)
         ctc += self.extra_needed_columns()                  # Manually fetched columns
-        ctc += self.frozen_data_methods                     # Frozen methods (e.g. not tf-compatible)
+        ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
         ctc = list(set(ctc))
 
@@ -127,8 +127,8 @@ class Source:
 
         if fit_params is None:
             fit_params = list(self.defaults.keys())
-        self.fit_params = [x for x in fit_params
-                           if x in self.defaults]
+        # Filter out parameters the source does not use
+        self.fit_params = [x for x in fit_params if x in self.defaults]
 
         self.parameter_index = fd.index_lookup_dict(self.defaults.keys())
         # Indices of params we actually want to fit; we have to differentiate wrt these
@@ -203,7 +203,7 @@ class Source:
         """
         for column in self.column_index:
             if (column not in self.data.columns
-                    and column not in self.frozen_data_methods):
+                    and column not in self.frozen_model_functions):
                 raise ValueError(f"Data lacks required column {column}; "
                                  f"did annotation happen correctly?")
 
@@ -215,7 +215,7 @@ class Source:
         result = []
         for column in self.column_index:
 
-            if column in self.frozen_data_methods:
+            if column in self.frozen_model_functions:
                 # Calculate the column
                 y = self.gimme(column)
             else:
@@ -318,7 +318,7 @@ class Source:
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
-        assert (bonus_arg is not None) == (fname in self.special_data_methods)
+        assert (bonus_arg is not None) == (fname in self.special_model_functions)
         assert isinstance(fname, str), \
             f"gimme needs fname to be a string, not {type(fname)}"
 
@@ -335,7 +335,7 @@ class Source:
 
         # Frozen data methods should not be called again,
         # just fetch them from the data tensor (if we have one)
-        if fname in self.frozen_data_methods:
+        if fname in self.frozen_model_functions:
             if data_tensor is not None:
                 return self._fetch(fname, data_tensor)
 
@@ -510,6 +510,10 @@ class Source:
         mus = dict()        # parameter -> tensor of mus
         for pname, (start, stop, n) in tqdm(param_specs.items(),
                                        desc="Estimating mus"):
+            if pname not in self.defaults:
+                # We don't take this parameter. Consistent with __init__,
+                # don't complain and just discard it silently.
+                continue
             # Parameters are floats, but users might input ints as anchors
             # accidentally, triggering a confusing tensorflow device placement
             # message
@@ -564,7 +568,6 @@ class Source:
 
     def add_extra_columns(self, data):
         """Add additional columns to data
-        If the final signals are required to be present, use
 
         :param data: pandas DataFrame
         """
@@ -572,9 +575,7 @@ class Source:
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """
-        assert isinstance(n_events, int), \
-            f"n_events must be an int, not {type(n_events)}"
-        return pd.DataFrame({'energy': np.ones(n_events) * 5.})
+        raise NotImplementedError
 
     def _simulate_response(self):
         """Do a forward simulation of the detector response, using self.data"""

@@ -54,8 +54,8 @@ class MakeNRQuanta(fd.Block):
     dimensions = ('quanta_produced', 'energy')
     depends_on = ((('energy',), 'rate_vs_energy'),)
 
-    model_functions = ('work',)
     special_model_functions = ('lindhard_l',)
+    model_functions = tuple(['work'] + list(special_model_functions))
 
     work = DEFAULT_WORK_PER_QUANTUM
 

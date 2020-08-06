@@ -8,7 +8,7 @@ o = tf.newaxis
 
 
 @export
-class FixedShapeEnergySpectrum(fd.Block):
+class FixedShapeEnergySpectrum(fd.FirstBlock):
     """For a source whose energy spectrum has the same shape
     throughout space and time.
 
@@ -23,7 +23,7 @@ class FixedShapeEnergySpectrum(fd.Block):
 
     model_functions = ('energy_spectrum_rate_multiplier',)
     dimensions = ('energy',)
-    static_attributes = (
+    model_attributes = (
         'energies', 'rates_vs_energy',
         'fv_radius', 'fv_high', 'fv_low',
         'drift_velocity',
@@ -170,10 +170,6 @@ class VariableEnergySpectrum(FixedShapeEnergySpectrum):
 
     model_functions = ('energy_spectrum',)
     array_columns = (('energy_spectrum', 1000),)
-
-    def _annotate(self, d):
-        d['energy_spectrum'] = fd.pandafy_twod_array(
-            self.gimme_numpy('energy_spectrum'))
 
     def _compute(self, data_tensor, ptensor, *, energy):
         return self.gimme('energy_spectrum', data_tensor, ptensor)

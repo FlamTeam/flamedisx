@@ -244,11 +244,3 @@ def run_command(command):
             stderr=subprocess.STDOUT) as p:
         for line in iter(p.stdout.readline, ''):
             print(line.rstrip())
-
-
-@export
-def pandafy_twod_array(x):
-    """Convert x from a two-d array to a list of one-dimensional arrays
-    so you can stick it in a dataframe...
-    """
-    return [y for y in x]

@@ -16,7 +16,7 @@ SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
 
-    static_attributes = ('check_acceptances',)
+    model_attributes = ('check_acceptances',)
 
     # Whether to check acceptances are positive at the observed events.
     # This is recommended, but you'll have to turn it off if your
@@ -29,10 +29,10 @@ class MakeFinalSignals(fd.Block):
     gimme_numpy: ty.Callable
 
     quanta_name: str
-    s_name: str
+    signal_name: str
 
     def _simulate(self, d):
-        d[self.s_name] = stats.norm.rvs(
+        d[self.signal_name] = stats.norm.rvs(
             loc=(d[self.quanta_name + 's_detected']
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
@@ -42,14 +42,14 @@ class MakeFinalSignals(fd.Block):
         # observables from it (cs1, cs2) might be used in the acceptance.
         # TODO: This is a bit of a kludge
         self.source.add_extra_columns(d)
-        d['p_accepted'] *= self.gimme_numpy(self.s_name + '_acceptance')
+        d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.s_name] / m).clip(0, None)
+            (d[self.signal_name] / m).clip(0, None)
         scale = mle**0.5 * s / m
 
         for bound, sign, intify in (('min', -1, np.floor),
@@ -88,9 +88,9 @@ class MakeFinalSignals(fd.Block):
     def check_data(self):
         if not self.check_acceptances:
             return
-        s_acc = self.gimme_numpy(self.s_name + '_acceptance')
+        s_acc = self.gimme_numpy(self.signal_name + '_acceptance')
         if np.any(s_acc <= 0):
-            raise ValueError(f"Found event with non-positive {self.s_name} "
+            raise ValueError(f"Found event with non-positive {self.signal_name} "
                              f"acceptance: did you apply and configure "
                              "your cuts correctly?")
 
@@ -99,12 +99,14 @@ class MakeFinalSignals(fd.Block):
 class MakeS1(MakeFinalSignals):
 
     quanta_name = 'photoelectron'
-    s_name = 's1'
+    signal_name = 's1'
 
     dimensions = ('photoelectrons_detected', 's1')
-    model_functions = ('photoelectron_gain_mean', 'photoelectron_gain_std',
-                       's1_acceptance')
     special_model_functions = ('reconstruction_bias_s1',)
+    model_functions = tuple([
+        'photoelectron_gain_mean',
+        'photoelectron_gain_std',
+        's1_acceptance'] + list(special_model_functions))
 
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
@@ -135,12 +137,15 @@ class MakeS1(MakeFinalSignals):
 class MakeS2(MakeFinalSignals):
 
     quanta_name = 'electron'
-    s_name = 's2'
+    signal_name = 's2'
 
     dimensions = ('electrons_detected', 's2')
-    model_functions = ('electron_gain_mean', 'electron_gain_std',
-                       's2_acceptance')
     special_model_functions = ('reconstruction_bias_s2',)
+    model_functions = tuple(
+        ['electron_gain_mean',
+         'electron_gain_std',
+         's2_acceptance']
+        + list(special_model_functions))
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):

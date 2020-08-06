@@ -23,8 +23,8 @@ class Block:
     model_functions: ty.Tuple[str] = tuple()
     special_model_functions: ty.Tuple[str] = tuple()
     array_columns: ty.Tuple[str] = tuple()
-    frozen_data_methods: ty.Tuple[str] = tuple()
-    static_attributes: ty.Tuple[str] = tuple()
+    frozen_model_functions: ty.Tuple[str] = tuple()
+    model_attributes: ty.Tuple[str] = tuple()
 
     def __init__(self, source):
         self.source = source
@@ -38,10 +38,6 @@ class Block:
     def gimme_numpy(self, *args, **kwargs):
         """Shorthand for self.source.gimme_numpy"""
         return self.source.gimme_numpy(*args, **kwargs)
-
-    def domain(self, data_tensor):
-        """Return dictionary mapping dimension -> domain"""
-        return self.source.domain_for(self.dimensions)
 
     def compute(self, data_tensor, ptensor, **kwargs):
         kwargs.update(self.source._domain_dict(self.dimensions, data_tensor))
@@ -91,11 +87,36 @@ class Block:
         Use the p_accepted column to modify acceptances; do not remove
         events here.
         """
-        pass
+        raise NotImplementedError
 
     def _annotate(self, d):
         """Add _min and _max for each dimension to d in-place"""
+        raise NotImplementedError
+
+
+@export
+class FirstBlock(Block):
+    """The first Block of a source. This is usually an energy spectrum"""
+
+    def _simulate(self, d):
+        raise RuntimeError("FirstBlock's shouldn't simulate")
+
+    def _annotate(self, d):
+        # First block can omit annotate
         pass
+
+    def domain(self, data_tensor):
+        """Return dictionary mapping dimension -> domain"""
+        raise NotImplementedError
+
+    def random_truth(self, n_events, fix_truth=None, **params):
+        raise NotImplementedError
+
+    def mu_before_efficiencies(self, **params):
+        raise NotImplementedError
+
+    def validate_fix_truth(self, d):
+        raise NotImplementedError
 
 
 @export
@@ -112,17 +133,22 @@ class BlockModelSource(fd.Source):
         super().__init__(*args, **kwargs)
 
     def build_source_from_blocks(self):
-        if isinstance(self.model_blocks[0], Block):
+        if isinstance(self.model_blocks[0], FirstBlock):
             # Blocks have already been instantiated
             return
+        if not issubclass(self.model_blocks[0], FirstBlock):
+            raise RuntimeError("The first block must inherit from FirstBlock")
+        for b in self.model_blocks[1:]:
+            if issubclass(b, FirstBlock):
+                raise RuntimeError("Only the first block can be a FirstBlock")
 
         # Collect attributes from the different blocks in this dictionary:
         collected = {k: [] for k in (
             'dimensions',
             'model_functions',
             'special_model_functions',
-            'static_attributes',
-            'frozen_data_methods',
+            'model_attributes',
+            'frozen_model_functions',
             'array_columns')}
 
         # Instantiate the blocks
@@ -137,9 +163,9 @@ class BlockModelSource(fd.Source):
                 _this_block[k] = list(getattr(b, k))
                 collected[k] += _this_block[k]
 
-            for x in (_this_block['model_functions']
-                      + _this_block['special_model_functions']
-                      + _this_block['static_attributes']):
+            for x in set(_this_block['model_functions']
+                         + _this_block['special_model_functions']
+                         + _this_block['model_attributes']):
 
                 # If a source attribute was specified,
                 # override the block's attribute.
@@ -155,7 +181,7 @@ class BlockModelSource(fd.Source):
                 # those are class-bound.
 
         # The source may declare additional frozen data methods
-        collected['frozen_data_methods'] += self.frozen_data_methods
+        collected['frozen_model_functions'] += self.frozen_model_functions
 
         # For array columns, the source may declare new columns
         # or override the length of the old columns
@@ -169,14 +195,12 @@ class BlockModelSource(fd.Source):
                 # New column
                 collected['array_columns'] += [(column, length)]
 
-        # TODO: Ugly since source's conventions / naming is a bit divergent
-        self.data_methods = tuple(collected['model_functions']
-                                  + collected['special_model_functions'])
-        self.special_data_methods = tuple(collected['special_model_functions'])
-        self.frozen_data_methods = tuple(collected['frozen_data_methods'])
-        self.array_columns = tuple(collected['array_columns'])
-        # Only for inspection by user, not used in flamedisx
-        self.static_attributes = tuple(collected['static_attributes'])
+        # Make the collected attributes available to the source
+        for k, v in collected.items():
+            if k == 'dimensions':
+                # Dimensions is a special case, see below
+                continue
+            setattr(self, k, tuple(set(v)))
 
         self.inner_dimensions = tuple([
             d for d in collected['dimensions']

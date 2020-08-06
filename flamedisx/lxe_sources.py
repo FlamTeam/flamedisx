@@ -102,7 +102,7 @@ class WIMPSource(NRSource):
     model_blocks = tuple(
         [fd.VariableEnergySpectrum]
         + list(NRSource.model_blocks[1:]))
-    frozen_data_methods = ('energy_spectrum',)
+    frozen_model_functions = ('energy_spectrum',)
 
     # If set to True, the energy spectrum at each time will be set to its
     # average over the data taking period.
@@ -230,7 +230,7 @@ class SpatialRateHistogramSource(fd.BlockModelSource):
     coordinates. The coordinates are reconstructed positions.
     """
 
-    frozen_data_methods = ('energy_spectrum_rate_multiplier',)
+    frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
     spatial_rate_hist: Histdd
     spatial_rate_bin_volumes: Histdd
