@@ -232,7 +232,7 @@ class BlockModelSource(fd.Source):
                     has_dim: ty.Union[list, tuple, set],
                     exclude: Block = None):
         """Find a block with a dimension in allowed
-        Return ((dimensions, b), dimension found), or
+        Return (dimensions, b), or
          raises BlockNotFoundError if no such block found.
         """
         for dims, b in blocks.items():
@@ -240,7 +240,7 @@ class BlockModelSource(fd.Source):
                 continue
             for d in dims:
                 if d in has_dim:
-                    return (dims, b), d
+                    return dims, b
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
     def _differential_rate(self, data_tensor, ptensor):
@@ -266,7 +266,7 @@ class BlockModelSource(fd.Source):
             # do so anymore.
             try:
                 while True:
-                    (b2_dims, r2), shared_dim = self._find_block(
+                    b2_dims, r2 = self._find_block(
                         results, has_dim=b_dims, exclude=r)
 
                     new_dims, r = self.multiply_block_results(
@@ -295,10 +295,11 @@ class BlockModelSource(fd.Source):
         :param r2: tensor, second block result to be multiplied
         :return: (dimension specification, tensor) of results
         """
-        shared_dim = set(r).intersection(set(r2))
+        shared_dim = set(b_dims).intersection(set(b2_dims))
         if len(shared_dim) != 1:
             raise ValueError(f"Expected one shared dimension, "
                              f"found {len(shared_dim)}!")
+        shared_dim = list(shared_dim)[0]
 
         # Figure out dimensions of result
         new_dims = tuple([d for d in b_dims if d != shared_dim]
