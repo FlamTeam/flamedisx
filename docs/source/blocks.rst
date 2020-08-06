@@ -17,7 +17,7 @@ Sometimes, you need to apply customizations that go beyond overriding a source's
 
 However, some changes look like they require fundamental changes, but actually do not. For example:
 
-* Two binomial efficiencies following each other are mathematically identical to using binomial with ``p = p1 * p2``;
+* Two binomial efficiencies following each other are mathematically identical to using a binomial with ``p = p1 * p2``;
 * A binomial efficiency following a Poisson smearing is equivalent to changing the Poisson mean to ``mu = mu_orig * p``;
 * Two Gaussian smearings following each other are equivalent to one, with  the variance added in quadrature ``s^2 = s1^2 + s2^2``.
 
@@ -40,7 +40,7 @@ Each block is represented by a :py:class:`~flamedisx.block_source.Block` class, 
 
 Think of `_simulate` as going in the physical/causal direction, `_annotate` as going backwards, and `_compute` as a (usually) direction-independent description of the process.
 
-Most blocks can be computed independently of the other blocks. The results of different blocks are matrix-multiplied together, representing convolution over hidden variables (such as number of produced electrons).
+Most blocks in a source can be computed independently of the other blocks. The results of different blocks are matrix-multiplied together, representing convolution over hidden variables (such as number of produced electrons).
  
 A few blocks instead directly take the result of another block and turn it into something else in the compute step. For example, `MakeNRQuanta` takes in an energy spectrum and converts it into a spectrum vs. number of produced quanta in the nuclear recoil process.
 
@@ -80,7 +80,7 @@ For example, the :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEner
 
 to change the energy spectrum. This is simply another form of 'common customization', just like the more common model function overriding.
 
-Do not try to change static attributes after a source is initialized. They are called static for a reason. (If you change them despite this warning, the change will not be propagated from the ``Source` to the `Block`, and code in the `Block` will still see the old attribute and cause you a headache.)
+Do not try to change static attributes after a source is initialized. They are called static for a reason. (If you change them despite this warning, the change will not be propagated from the `Source` to the `Block`, and code in the `Block` will still see the old attribute and cause you a headache.)
 
 You can find a string-tuple of all static attributes for a source in the `.static_attributes` attribute.
 
