@@ -269,46 +269,11 @@ class BlockModelSource(fd.Source):
                     (b2_dims, r2), shared_dim = self._find_block(
                         results, has_dim=b_dims, exclude=r)
 
-                    # Figure out dimensions of result
-                    new_dims = tuple([d for d in b_dims if d != shared_dim]
-                                     + [d for d in b2_dims if d != shared_dim])
-
-                    # TODO: can we generalize to rank > 2?
-                    assert len(b_dims) in [1, 2]
-                    assert len(b2_dims) in [1, 2]
-
-                    # Due to the batch dimension, tf.matmul requires that the
-                    # ranks of arguments to tf.matmul match exactly.
-                    dummy_axis = None
-                    if len(b_dims) == 1 and len(b2_dims) == 2:
-                        dummy_axis = 1
-                        r = r[:, o, :]
-                    elif len(b_dims) == 2 and len(b2_dims) == 1:
-                        dummy_axis = 2
-                        r2 = r2[:, :, o]
-                    elif len(b_dims) == 2 and len(b2_dims) == 2:
-                        # Ensure the shared dimension is in the right position
-                        # for matrix multiplication
-                        if b_dims.index(shared_dim) != 1:
-                            assert len(b_dims) == 2
-                            r = tf.transpose(r, [0, 2, 1])
-                        if b2_dims.index(shared_dim) != 0:
-                            assert len(b2_dims) == 2
-                            r2 = tf.transpose(r2, [0, 2, 1])
-                    else:
-                        raise ValueError(
-                            "Unsupported ranks {len(b_dims)}, {len(b2_dims)}")
-
-                    # Multiply the matching index to get a new block
-                    r = r @ r2
-                    if dummy_axis:
-                        r = tf.squeeze(r, dummy_axis)
-                    assert len(r.shape) == len(new_dims) + 1
-
-                    # Update the block dict
+                    new_dims, r = self.multiply_block_results(
+                        b_dims, b2_dims, r, r2)
+                    results[new_dims] = r
                     del results[b_dims]
                     del results[b2_dims]
-                    results[new_dims] = r
 
             except BlockNotFoundError:
                 continue
@@ -321,6 +286,57 @@ class BlockModelSource(fd.Source):
         if result is None:
             raise ValueError("Result was not computed!")
         return tf.reshape(tf.squeeze(result), (self.batch_size,))
+
+    def multiply_block_results(self, b_dims, b2_dims, r, r2):
+        """Return result of matrix-multiplying two block results
+        :param b_dims: tuple, dimension specification of r
+        :param b2_dims: tuple, dimension specification of r2
+        :param r: tensor , first block result to be multiplier
+        :param r2: tensor, second block result to be multiplied
+        :return: (dimension specification, tensor) of results
+        """
+        shared_dim = set(r).intersection(set(r2))
+        if len(shared_dim) != 1:
+            raise ValueError(f"Expected one shared dimension, "
+                             f"found {len(shared_dim)}!")
+
+        # Figure out dimensions of result
+        new_dims = tuple([d for d in b_dims if d != shared_dim]
+                         + [d for d in b2_dims if d != shared_dim])
+
+        # TODO: can we generalize to rank > 2?
+        assert len(b_dims) in [1, 2]
+        assert len(b2_dims) in [1, 2]
+
+        # Due to the batch dimension, tf.matmul requires that the
+        # ranks of arguments to tf.matmul match exactly.
+        dummy_axis = None
+        if len(b_dims) == 1 and len(b2_dims) == 2:
+            dummy_axis = 1
+            r = r[:, o, :]
+        elif len(b_dims) == 2 and len(b2_dims) == 1:
+            dummy_axis = 2
+            r2 = r2[:, :, o]
+        elif len(b_dims) == 2 and len(b2_dims) == 2:
+            # Ensure the shared dimension is in the right position
+            # for matrix multiplication
+            if b_dims.index(shared_dim) != 1:
+                assert len(b_dims) == 2
+                r = tf.transpose(r, [0, 2, 1])
+            if b2_dims.index(shared_dim) != 0:
+                assert len(b2_dims) == 2
+                r2 = tf.transpose(r2, [0, 2, 1])
+        else:
+            raise ValueError(
+                "Unsupported ranks {len(b_dims)}, {len(b2_dims)}")
+
+        # Multiply the matching index to get a new block
+        r = r @ r2
+        if dummy_axis:
+            r = tf.squeeze(r, dummy_axis)
+        assert len(r.shape) == len(new_dims) + 1
+
+        return (new_dims, r)
 
     def random_truth(self, n_events, fix_truth=None, **params):
         # First block provides the 'deep' truth (energies, positions, time)
