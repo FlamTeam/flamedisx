@@ -54,7 +54,6 @@ class MakePhotonsElectronsBinomial(fd.Block):
                                    data_tensor=data_tensor,
                                    ptensor=ptensor)
             pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
-            pel_fluct = tf.clip_by_value(pel_fluct, fd.MIN_FLUCTUATION_P, 1.)
             # See issue #37 for why we use 1 - p and photons here
             return rate_nq * fd.beta_binom_pmf(
                 photons_produced,
@@ -73,9 +72,6 @@ class MakePhotonsElectronsBinomial(fd.Block):
         if self.do_pel_fluct:
             d['p_el_fluct'] = self.gimme_numpy(
                 'p_electron_fluctuation', d['quanta_produced'].values)
-            d['p_el_fluct'] = np.clip(d['p_el_fluct'].values,
-                                      fd.MIN_FLUCTUATION_P,
-                                      1.)
             d['p_el_actual'] = 1. - stats.beta.rvs(
                 *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
         else:
@@ -108,6 +104,4 @@ class MakePhotonsElectronsBetaBinomial(MakePhotonsElectronsBinomial):
     def p_electron_fluctuation(nq):
         # From SR0, BBF model, right?
         # q3 = 1.7 keV ~= 123 quanta
-        return tf.clip_by_value(0.041 * (1. - tf.exp(-nq / 123.)),
-                                fd.MIN_FLUCTUATION_P,
-                                1.)
+        return 0.041 * (1. - tf.exp(-nq / 123.))
