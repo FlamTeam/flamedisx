@@ -83,10 +83,14 @@ def test_multisource(xes: fd.ERSource):
         sources=dict(er=xes.__class__, er2=xes.__class__),
         elife=(100e3, 500e3, 5),
         data=xes.data)
+
     # Prevent jitter from mu interpolator simulation to fail test
     itp = lf.mu_itps['er']
     lf2.mu_itps = dict(er=itp, er2=itp)
-    assert lf2.log_likelihood()[0] == l1[0]
+
+    np.testing.assert_allclose(lf2.log_likelihood()[0],
+                               l1[0],
+                               rtol=1e-6)
 
 
 def test_multisource_er_nr(xes: fd.ERSource):
