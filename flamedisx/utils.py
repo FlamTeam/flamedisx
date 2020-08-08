@@ -5,8 +5,6 @@ import pandas as pd
 from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
-# Remove once tf.repeat is available in the tf api
-from tensorflow.python.ops.ragged.ragged_util import repeat  # yes, it IS used!
 lgamma = tf.math.lgamma
 
 o = tf.newaxis
@@ -33,7 +31,7 @@ def exporter():
 
 
 export, __all__ = exporter()
-__all__ += ['float_type', 'exporter', 'repeat',
+__all__ += ['float_type', 'exporter',
             'MIN_FLUCTUATION_P', 'MAX_MEAN_P']
 
 
@@ -90,19 +88,26 @@ def tf_to_np(x):
 @export
 def np_to_tf(x):
     """Convert (list/tuple of) arrays x to tensorflow"""
-    if isinstance(x, (list, tuple)):
+    if isinstance(x, pd.Series):
+        x = x.values
+    elif isinstance(x, pd.DataFrame):
+        raise ValueError("Cannot convert pd.DataFrame's to tensors!")
+    elif isinstance(x, (list, tuple)):
         return tuple([np_to_tf(y) for y in x])
-    if isinstance(x, tf.Tensor):
+    elif isinstance(x, tf.Tensor):
         return x
     return tf.convert_to_tensor(x, dtype=float_type())
+
 
 @export
 def cart_to_pol(x, y):
     return (x**2 + y**2)**0.5, np.arctan2(y, x)
 
+
 @export
 def pol_to_cart(r, theta):
     return r * np.cos(theta), r * np.sin(theta)
+
 
 @export
 def tf_log10(x):
@@ -189,11 +194,30 @@ def j2000_to_event_time(dates):
 
 
 @export
-def index_lookup_dict(names):
-    return dict(zip(
-        names,
-        [tf.constant(i, dtype=int_type())
-         for i in range(len(names))]))
+def index_lookup_dict(names, column_widths=None):
+    """Return dictionary mapping names to successive tensor indices
+     (tf.constant integers.)
+
+    :param column_widths: dictionary mapping names to column width.
+    For columns with width > 1, the result contains a tensor slice.
+    """
+    names = list(names)
+    if column_widths is None:
+        column_widths = dict()
+
+    result = dict()
+    i = 0
+    while names:
+        name = names.pop(0)
+        width = column_widths.get(name, 1)
+        if width == 1:
+            result[name] = tf.constant(i, dtype=int_type())
+        else:
+            result[name] = slice(tf.constant(i, dtype=int_type()),
+                                 tf.constant(i + width, dtype=int_type()))
+        i += width
+
+    return result
 
 
 @export
