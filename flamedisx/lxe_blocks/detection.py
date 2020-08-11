@@ -81,7 +81,7 @@ class DetectPhotonsOrElectrons(fd.Block):
         # Estimating the spread in number of produced quanta is tricky since
         # the number of detected quanta is itself uncertain.
         # TODO: where did this derivation come from again?
-        q = 1 / eff
+        q = (1 - eff) / eff
         _std = (q + (q ** 2 + 4 * n_prod_mle * q) ** 0.5) / 2
 
         for bound, sign, intify in (('min', -1, np.floor),
