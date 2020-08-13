@@ -11,7 +11,6 @@ import flamedisx as fd
 import json
 
 import pdb
-import matplotlib.pyplot as plt
 
 export, __all__ = fd.exporter()
 
@@ -172,12 +171,13 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
 
-    def __init__(self, t_start, t_stop, *args, **kwargs):
-        print('set time in SR1Source init')
-        self.t_start = pd.to_datetime(t_start, unit='ns')
-        self.t_stop = pd.to_datetime(t_stop, unit='ns')
-        print('done set time in SR1Source init')
+    #def __init__(self, t_start, t_stop, *args, **kwargs):
+    #    print('set time in SR1Source init')
+    #    self.t_start = pd.to_datetime(t_start, unit='ns')
+    #    self.t_stop = pd.to_datetime(t_stop, unit='ns')
+    #    print('done set time in SR1Source init')
 
+    def __init__(self, *args, **kwargs):
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
             read_maps_tf(path_cut_accept_s1, is_bbf=True)
@@ -198,9 +198,7 @@ class SR1Source:
         self.elife_tf, self.domain_def_elife = \
             read_maps_tf(path_electron_lifetimes, is_bbf=False) 
         
-        print('hi')
         super().__init__(*args, **kwargs)
-        print('bye')
 
     def reconstruction_bias_s1(self,
                                sig,
@@ -273,7 +271,6 @@ class SR1Source:
         # 0 * light yield is to fix the shape
         return single_electron_width + 0. * s2_relative_ly
 
-    #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
     def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1):
         mean_eff= g1 / (1. + DEFAULT_P_DPE)
