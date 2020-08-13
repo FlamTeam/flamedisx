@@ -271,7 +271,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
                         'mw',
                         'sigma_nucleon',
                         'n_time_bins',
-                        'energy_edges')
+                        'energy_edges') + VariableEnergySpectrum.model_attributes
 
     # If set to True, the energy spectrum at each time will be set to its
     # average over the data taking period.
