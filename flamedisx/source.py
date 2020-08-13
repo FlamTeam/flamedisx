@@ -20,20 +20,20 @@ class Source:
     n_padding = None
     trace_difrate = True
 
-    data_methods = tuple()
-    special_data_methods = tuple()
+    model_functions = tuple()
+    special_model_functions = tuple()
     inner_dimensions = tuple()
+
+    frozen_model_functions = tuple()
+    array_columns = tuple()
+
+    # Final observable dimensions; for use in domain / cross-domain
+    final_dimensions = tuple()
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
     def extra_needed_columns(self):
-        return []
-
-    # List all columns for which sneaky hacks are used to intercept _fetch here
-    # These will not be added to the data tensor even when the model function
-    # inspection does find them.
-    def ignore_columns(self):
         return []
 
     data = None
@@ -42,17 +42,17 @@ class Source:
     # Initialization and helpers
     ##
 
-    @classmethod
-    def find_defaults(cls):
+    def scan_model_functions(self):
         """Discover which functions need which arguments / dimensions
         Discover possible parameters.
         Returns f_dims, f_params and defaults.
         """
-        f_dims = {x: [] for x in cls.data_methods}
-        f_params = {x: [] for x in cls.data_methods}
-        defaults = dict()
-        for fname in cls.data_methods:
-            f = getattr(cls, fname)
+        self.f_dims = f_dims = {x: [] for x in self.model_functions}
+        self.f_params = f_params = {x: [] for x in self.model_functions}
+        self.defaults = defaults = dict()
+
+        for fname in self.model_functions:
+            f = getattr(self, fname)
             if not callable(f):
                 # Constant
                 continue
@@ -61,7 +61,7 @@ class Source:
                 if pname == 'self':
                     continue
                 if p.default is inspect.Parameter.empty:
-                    if fname in cls.special_data_methods and not seen_special:
+                    if fname in self.special_model_functions and not seen_special:
                         seen_special = True
                     else:
                         # It's an observable dimension
@@ -69,11 +69,10 @@ class Source:
                 else:
                     # It's a parameter that can be fitted
                     f_params[fname].append(pname)
-                    if (pname in defaults and p.default != defaults[pname]):
+                    if pname in defaults and p.default != defaults[pname]:
                         raise ValueError(f"Inconsistent defaults for {pname}")
                     defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
-        return f_dims, f_params, defaults
 
     def __init__(self,
                  data=None,
@@ -97,38 +96,44 @@ class Source:
         """
         self.max_sigma = max_sigma
 
+        # Check for duplicated model functions
+        for attrname in ['model_functions', 'special_model_functions']:
+            l_ = getattr(self, attrname)
+            if len(set(l_)) != len(l_):
+                raise ValueError(f"{attrname} contains duplicates: {l_}")
+
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
-        self.f_dims, self.f_params, self.defaults = self.find_defaults()
+        self.scan_model_functions()
+
+        # Change from (column, length) tuple to dict
+        self.array_columns = dict(self.array_columns)
 
         # Which columns are needed from data?
-        ctc = list(set(sum(self.f_dims.values(), [])))
-        ctc += self.extra_needed_columns()
-        ctc += [x + '_min' for x in self.inner_dimensions]  # Needed in domain
-        ctc = [x for x in ctc if x not in self.ignore_columns()]
-        self.cols_to_cache = ctc
+        ctc = list(set(sum(self.f_dims.values(), [])))      # Used in model functions.
+        ctc += list(self.final_dimensions)                  # Final observables (e.g. S1, S2)
+        ctc += self.extra_needed_columns()                  # Manually fetched columns
+        ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
+        ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
+        ctc = list(set(ctc))
 
-        # Check for duplicate columns and give error
-        _seen = set()
-        for x in self.cols_to_cache:
-            if x in _seen:
-                raise RuntimeError(
-                    f"Column {x} requested twice for data_tensor!")
-            _seen.add(x)
-
-        self.name_id = fd.index_lookup_dict(ctc)
+        self.column_index = fd.index_lookup_dict(ctc,
+                                                 column_widths=self.array_columns)
+        self.n_columns_in_data_tensor = (
+                len(self.column_index) + sum(self.array_columns.values())
+                - len(self.array_columns))
 
         self.set_defaults(**params)
 
         if fit_params is None:
             fit_params = list(self.defaults.keys())
-        self.fit_params = [x for x in fit_params
-                           if x in self.defaults]
+        # Filter out parameters the source does not use
+        self.fit_params = [x for x in fit_params if x in self.defaults]
 
-        self.param_id = fd.index_lookup_dict(self.defaults.keys())
+        self.parameter_index = fd.index_lookup_dict(self.defaults.keys())
         # Indices of params we actually want to fit; we have to differentiate wrt these
         self.fit_param_indices = tuple([
-            self.param_id[param_name]
+            self.parameter_index[param_name]
             for param_name in self.fit_params])
 
         if data is None:
@@ -184,7 +189,8 @@ class Source:
 
         if not data_is_annotated:
             self.add_extra_columns(self.data)
-            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+            if not _skip_bounds_computation:
+                self._annotate()
 
         if not _skip_tf_init:
             self._check_data()
@@ -195,28 +201,49 @@ class Source:
         """Do any final checks on the self.data dataframe,
         before passing it on to the tensorflow layer.
         """
-        for column in self.cols_to_cache:
-            if column not in self.data.columns:
+        for column in self.column_index:
+            if (column not in self.data.columns
+                    and column not in self.frozen_model_functions):
                 raise ValueError(f"Data lacks required column {column}; "
                                  f"did annotation happen correctly?")
 
     def _populate_tensor_cache(self):
+        """Set self.data_tensor to a big tensor of shape:
+          (n_batches, events_per_batch, n_columns_in_data_tensor)
+        """
+        # First, build a list of (n_events, 1 or column_width) tensors
+        result = []
+        for column in self.column_index:
 
-        # Create one big data tensor (n_batches, events_per_batch, n_cols)
-        # TODO: make a list
-        ctc = self.cols_to_cache
-        self.data_tensor = tf.constant(self.data[ctc].values,
-                                       dtype=fd.float_type())
-        self.data_tensor = tf.reshape(self.data_tensor, [self.n_batches,
-                                                         -1,
-                                                         len(ctc)])
+            if column in self.frozen_model_functions:
+                # Calculate the column
+                y = self.gimme(column)
+            else:
+                # Just fetch it from the dataframe
+                y = self._fetch(column)
+            y = tf.cast(y, dtype=fd.float_type())
+
+            # For non-array columns, add size-1 axis for concatenation
+            if len(y.shape) == 1:
+                assert column not in self.array_columns
+                y = tf.reshape(y, (len(y), 1))
+
+            result.append(y)
+
+        # Concat these and shape them to the batch size
+        result = tf.concat(result, axis=1)
+        self.data_tensor = tf.reshape(
+            result,
+            [self.n_batches, -1, self.n_columns_in_data_tensor])
 
     def _calculate_dimsizes(self):
         self.dimsizes = dict()
-        for var in self.inner_dimensions:
-            ma = self._fetch(var + '_max')
-            mi = self._fetch(var + '_min')
-            self.dimsizes[var] = int(tf.reduce_max(ma - mi + 1).numpy())
+        for dim in self.inner_dimensions:
+            ma = self._fetch(dim + '_max')
+            mi = self._fetch(dim + '_min')
+            self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
+        for dim in self.final_dimensions:
+            self.dimsizes[dim] = 1
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
@@ -243,10 +270,10 @@ class Source:
                     data_is_annotated=True,
                     _skip_tf_init=True)
 
-    def annotate_data(self, data, _skip_bounds_computation=False, **params):
+    def annotate_data(self, data, **params):
         """Add columns to data with inference information"""
         with self._set_temporarily(data, **params):
-            self._annotate(_skip_bounds_computation=_skip_bounds_computation)
+            self._annotate()
             return self.data
 
     ##
@@ -256,23 +283,24 @@ class Source:
     def _fetch(self, x, data_tensor=None):
         """Return a tensor column from the original dataframe (self.data)
         :param x: column name
-        :param data_tensor: Data tensor, columns as in self.name_id
+        :param data_tensor: Data tensor, columns as in self.column_index
         """
-        if x in self.ignore_columns():
-            raise RuntimeError(
-                "Attempt to fetch %s, which is in ignore_columns" % x)
         if data_tensor is None:
             # We're inside annotate, just return the column
-            return fd.np_to_tf(self.data[x].values)
+            x = self.data[x].values
+            if x.dtype == np.object:
+                # This will only work on homogeneous array fields
+                x = np.stack(x)
+            return fd.np_to_tf(x)
 
-        return data_tensor[:, self.name_id[x]]
+        return data_tensor[:, self.column_index[x]]
 
     def _fetch_param(self, param, ptensor):
         if ptensor is None:
             return self.defaults[param]
-        id = tf.dtypes.cast(self.param_id[param],
-                            dtype=fd.int_type())
-        return ptensor[id]
+        idx = tf.dtypes.cast(self.parameter_index[param],
+                             dtype=fd.int_type())
+        return ptensor[idx]
 
     # TODO: make data_tensor and ptensor keyword-only arguments
     # after https://github.com/tensorflow/tensorflow/issues/28725
@@ -283,25 +311,33 @@ class Source:
         :param bonus_arg: If fname takes a bonus argument, the data for it
         :param numpy_out: If True, return (tuple of) numpy arrays,
         otherwise (tuple of) tensors.
-        :param data_tensor: Data tensor, columns as self.name_id
+        :param data_tensor: Data tensor, columns as self.column_index
         If not given, use self.data (used in annotate)
         :param ptensor: Parameter tensor, columns as self.param_id
         If not give, use defaults dictionary (used in annotate)
         Before using gimme, you must use set_data to
         populate the internal caches.
         """
-        assert (bonus_arg is not None) == (fname in self.special_data_methods)
+        assert (bonus_arg is not None) == (fname in self.special_model_functions)
+        assert isinstance(fname, str), \
+            f"gimme needs fname to be a string, not {type(fname)}"
 
         if data_tensor is None:
             # We're in an annotate
             assert hasattr(self, 'data'), "You must set data first"
         else:
             # We're computing
-            if not hasattr(self, 'name_id'):
+            if not hasattr(self, 'data_tensor'):
                 raise ValueError(
                     "You must set_data first (and populate the tensor cache)")
 
         f = getattr(self, fname)
+
+        # Frozen data methods should not be called again,
+        # just fetch them from the data tensor (if we have one)
+        if fname in self.frozen_model_functions:
+            if data_tensor is not None:
+                return self._fetch(fname, data_tensor)
 
         if callable(f):
             args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
@@ -323,12 +359,22 @@ class Source:
             return fd.tf_to_np(res)
         return fd.np_to_tf(res)
 
+    def gimme_numpy(self, fname, bonus_arg=None):
+        """Gimme for use in simulation / annotate"""
+        return self.gimme(fname=fname,
+                          data_tensor=None, ptensor=None,
+                          bonus_arg=bonus_arg,
+                          numpy_out=True)
+
+    gimme_numpy.__doc__ = gimme.__doc__
+
     ##
     # Differential rate computation
     ##
 
-    # TODO: remove duplication for batch loop? Also in inference
     def batched_differential_rate(self, progress=True, **params):
+        """Return numpy array with differential rate for all events.
+        """
         progress = (lambda x: x) if not progress else tqdm
         y = []
         for i_batch in progress(range(self.n_batches)):
@@ -339,19 +385,18 @@ class Source:
         return np.concatenate(y)[:self.n_events]
 
     def _batch_data_tensor_shape(self):
-        return [self.batch_size, len(self.name_id)]
+        return [self.batch_size, self.n_columns_in_data_tensor]
 
     def trace_differential_rate(self):
         input_signature = (
             tf.TensorSpec(shape=self._batch_data_tensor_shape(),
                           dtype=fd.float_type()),
-            tf.TensorSpec(shape=[len(self.param_id)],
+            tf.TensorSpec(shape=[len(self.parameter_index)],
                           dtype=fd.float_type()))
         self._differential_rate_tf = tf.function(
             self._differential_rate,
             input_signature=input_signature)
 
-    # TODO: remove duplication?
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
@@ -370,47 +415,75 @@ class Source:
     ##
 
     def domain(self, x, data_tensor=None):
-        """Return (n_events, |possible x values|) matrix containing all possible integer
-        values of x for each event"""
-        result1 = tf.cast(tf.range(self.dimsizes[x]),
+        """Return (n_events, |possible x values|) matrix containing all
+        possible integer values of x for each event.
+
+        If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
+        tensor with observed values -- NOT a (n_events,) array!
+        """
+        if x in self.final_dimensions:
+            return self._fetch(x, data_tensor=data_tensor)[:, o]
+
+        x_range = tf.cast(tf.range(self.dimsizes[x]),
                           dtype=fd.float_type())[o, :]
-        result2 = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
-        return result1 + result2
+        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
         containing possible integer values of x and y, respectively.
         """
         # TODO: somehow mask unnecessary elements and save computation time
-        x_size = self.dimsizes[x]
-        y_size = self.dimsizes[y]
-        # Change to tf.repeat once it's in the api
-        result_x = fd.repeat(self.domain(x, data_tensor)[:, :, o], y_size, axis=2)
-        result_y = fd.repeat(self.domain(y, data_tensor)[:, o, :], x_size, axis=1)
+        x_domain = self.domain(x, data_tensor)
+        y_domain = self.domain(y, data_tensor)
+        result_x = tf.repeat(x_domain[:, :, o], y_domain.shape[1], axis=2)
+        result_y = tf.repeat(y_domain[:, o, :], x_domain.shape[1], axis=1)
         return result_x, result_y
-
 
     ##
     # Simulation methods and helpers
     ##
 
-    def simulate(self, n_events, fix_truth=None, **params):
+    def simulate(self, n_events, fix_truth=None, full_annotate=False, **params):
         """Simulate n events.
 
-        Will not return events lost due to selection/detection efficiencies
+        Will omit events lost due to selection/detection efficiencies
         """
+        assert isinstance(n_events, (int, float)), \
+            f"n_events must be an int or float, not {type(n_events)}"
+
         # Draw random "deep truth" variables (energy, position)
+        fix_truth = self.validate_fix_truth(fix_truth)
         sim_data = self.random_truth(n_events, fix_truth=fix_truth, **params)
+        assert isinstance(sim_data, pd.DataFrame)
 
         with self._set_temporarily(sim_data, _skip_bounds_computation=True,
                                    **params):
             # Do the forward simulation of the detector response
             d = self._simulate_response()
-            # Now that we have s1 and s2 values, we can do the full annotate,
-            # populating columns like e_vis, photon_produced_mle, etc.
-            # Set the data, annotate, compute bounds, skip TF
-            self.set_data(d, _skip_tf_init=True)
-            return self.data
+            if full_annotate:
+                # Now that we have s1 and s2 values, we can populate
+                # columns like e_vis, photon_produced_mle, etc.
+                # This is optional since it can be expensive (e.g. for
+                # the WIMPsource, where it includes the full energy spectrum!)
+                return self.annotate_data(d)
+            return d
+
+    def validate_fix_truth(self, fix_truth):
+        """Return checked fix truth, with extra derived variables if needed"""
+        return fix_truth
+
+    @staticmethod
+    def _overwrite_fixed_truths(data, fix_truth, n_events):
+        """Replaces all columns in data with fix_truth.
+
+        Careful: ensure mutual constraints are accounted for first!
+        (e.g. fixing energy for a modulating WIMP has consequences for the
+         time distribution.)
+        """
+        if fix_truth is not None:
+            for k, v in fix_truth.items():
+                data[k] = np.ones(n_events, dtype=np.float) * v
 
     ##
     # Mu estimation
@@ -437,6 +510,10 @@ class Source:
         mus = dict()        # parameter -> tensor of mus
         for pname, (start, stop, n) in tqdm(param_specs.items(),
                                        desc="Estimating mus"):
+            if pname not in self.defaults:
+                # We don't take this parameter. Consistent with __init__,
+                # don't complain and just discard it silently.
+                continue
             # Parameters are floats, but users might input ints as anchors
             # accidentally, triggering a confusing tensorflow device placement
             # message
@@ -484,10 +561,8 @@ class Source:
     # Functions you probably should override
     ##
 
-    def _annotate(self, _skip_bounds_computation=False):
+    def _annotate(self):
         """Add columns needed in inference to self.data
-        :param _skip_bounds_computation: Do not compute min/max bounds
-        TODO: explain why useful, see simulator
         """
         pass
 
@@ -500,9 +575,7 @@ class Source:
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """
-        assert isinstance(n_events, int), \
-            f"n_events must be an int, not {type(n_events)}"
-        return pd.DataFrame({'energy': np.ones(n_events)})
+        raise NotImplementedError
 
     def _simulate_response(self):
         """Do a forward simulation of the detector response, using self.data"""

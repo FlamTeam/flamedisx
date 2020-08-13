@@ -5,20 +5,18 @@ import pandas as pd
 from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
-# Remove once tf.repeat is available in the tf api
-from tensorflow.python.ops.ragged.ragged_util import repeat  # yes, it IS used!
 lgamma = tf.math.lgamma
 
 o = tf.newaxis
 FLOAT_TYPE = tf.float32
 INT_TYPE = tf.int32
 
-# Maximum p_electron and
-# Minimum p_electron probability fluctuation
-# Lower than this, numerical instabilities will occur in the
-# beta-binom pmf.
-MAX_MEAN_P = 0.95
-MIN_FLUCTUATION_P = 0.005
+# Extreme mean and standard deviations give numerical errors
+# in the beta-binomial.
+MAX_MEAN_P = 0.95            # issue #36
+MIN_FLUCTUATION_P = 0.005    # issue #36
+MIN_MEAN_P = 0.011           # issue #83. Adjust if changing MIN_FLUCTUATION_P!
+# The MAX_FLUCTUATION_P depends on the mean, see issue #83.
 
 
 def exporter():
@@ -33,7 +31,7 @@ def exporter():
 
 
 export, __all__ = exporter()
-__all__ += ['float_type', 'exporter', 'repeat',
+__all__ += ['float_type', 'exporter',
             'MIN_FLUCTUATION_P', 'MAX_MEAN_P']
 
 
@@ -90,19 +88,26 @@ def tf_to_np(x):
 @export
 def np_to_tf(x):
     """Convert (list/tuple of) arrays x to tensorflow"""
-    if isinstance(x, (list, tuple)):
+    if isinstance(x, pd.Series):
+        x = x.values
+    elif isinstance(x, pd.DataFrame):
+        raise ValueError("Cannot convert pd.DataFrame's to tensors!")
+    elif isinstance(x, (list, tuple)):
         return tuple([np_to_tf(y) for y in x])
-    if isinstance(x, tf.Tensor):
+    elif isinstance(x, tf.Tensor):
         return x
     return tf.convert_to_tensor(x, dtype=float_type())
+
 
 @export
 def cart_to_pol(x, y):
     return (x**2 + y**2)**0.5, np.arctan2(y, x)
 
+
 @export
 def pol_to_cart(r, theta):
     return r * np.cos(theta), r * np.sin(theta)
+
 
 @export
 def tf_log10(x):
@@ -122,17 +127,24 @@ def safe_p(ps):
 
 
 @export
-def beta_params(mean, sigma):
+def beta_params(mean, sigma, force_valid=True):
     """Convert (p_mean, p_sigma) to (alpha, beta) params of beta distribution
+
+    :param force_valid: If true, adjust values to give valid, stable, and
+      unimodal beta distributions. See issues #36 and #83
     """
-    # From Wikipedia:
-    # variance = 1/(4 * (2 * beta + 1)) = 1/(8 * beta + 4)
-    # mean = 1/(1+beta/alpha)
-    # =>
-    # beta = (1/variance - 4) / 8
-    # alpha
-    b = (1. / (8. * sigma ** 2) - 0.5)
-    a = b * mean / (1. - mean)
+    m, v = mean, sigma ** 2
+    m, v = np_to_tf(m), np_to_tf(v)  # We're called from numpy sometimes
+
+    if force_valid:
+        m = tf.clip_by_value(m, MIN_MEAN_P, MAX_MEAN_P)
+        max_v = tf.maximum(
+            (m-1)**2 * m / (2-m),
+            m**2 * (1-m)/(1+m))
+        v = tf.clip_by_value(v, MIN_FLUCTUATION_P**2, max_v)
+
+    a = m * (m/v - m**2/v - 1.)
+    b = a * (1/m - 1)
     return a, b
 
 
@@ -144,11 +156,6 @@ def beta_binom_pmf(x, n, p_mean, p_sigma):
     if the success probability p is drawn from a beta distribution
     with mean p_mean and standard deviation p_sigma.
     """
-    # Avoid numerical instabilities
-    # TODO: is there a better way?
-    p_mean = tf.clip_by_value(p_mean, 0., MAX_MEAN_P)
-    p_sigma = tf.clip_by_value(p_sigma, MIN_FLUCTUATION_P, 1.)
-
     a, b = beta_params(p_mean, p_sigma)
     res = tf.exp(
         lgamma(n + 1.) + lgamma(x + a) + lgamma(n - x + b)
@@ -187,11 +194,30 @@ def j2000_to_event_time(dates):
 
 
 @export
-def index_lookup_dict(names):
-    return dict(zip(
-        names,
-        [tf.constant(i, dtype=int_type())
-         for i in range(len(names))]))
+def index_lookup_dict(names, column_widths=None):
+    """Return dictionary mapping names to successive tensor indices
+     (tf.constant integers.)
+
+    :param column_widths: dictionary mapping names to column width.
+    For columns with width > 1, the result contains a tensor slice.
+    """
+    names = list(names)
+    if column_widths is None:
+        column_widths = dict()
+
+    result = dict()
+    i = 0
+    while names:
+        name = names.pop(0)
+        width = column_widths.get(name, 1)
+        if width == 1:
+            result[name] = tf.constant(i, dtype=int_type())
+        else:
+            result[name] = slice(tf.constant(i, dtype=int_type()),
+                                 tf.constant(i + width, dtype=int_type()))
+        i += width
+
+    return result
 
 
 @export

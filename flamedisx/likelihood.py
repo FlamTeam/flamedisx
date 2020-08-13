@@ -119,17 +119,13 @@ class LogLikelihood:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
             param_defaults[sn + '_rate_multiplier'] = 1.
 
-        # Determine default parameters for each source
-        defaults_in_sources = {
-            sname: sclass.find_defaults()[2]
-            for sname, sclass in self.sources.items()}
-
         # Create sources
         self.sources = {
             sname: sclass(data=None,
                           max_sigma=max_sigma,
-                          fit_params=list(k for k in common_param_specs.keys()
-                                          if k in defaults_in_sources[sname].keys()),
+                          # The source will filter out parameters it does not
+                          # take
+                          fit_params=list(k for k in common_param_specs.keys()),
                           batch_size=batch_size)
             for sname, sclass in self.sources.items()}
 
@@ -139,6 +135,9 @@ class LogLikelihood:
             defs = [s.defaults[pname]
                     for s in self.sources.values()
                     if pname in s.defaults]
+            if not defs:
+                raise ValueError(f"Invalid fit parameter {pname}: "
+                                 f"no source takes it?")
             if len(set([x.numpy() for x in defs])) > 1:
                 raise ValueError(
                     f"Inconsistent defaults {defs} for common parameters")
@@ -157,16 +156,16 @@ class LogLikelihood:
         self.mu_itps = {
             sname: s.mu_function(
                 n_trials=n_trials,
-                **{p_name: par
-                   for p_name, par in common_param_specs.items()
-                   if p_name in defaults_in_sources[sname].keys()})
+                # Source will filter out the params it needs
+                **common_param_specs)
             for sname, s in self.sources.items()}
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
         # Add the constraint
         if log_constraint is None:
-            log_constraint = lambda **kwargs: 0.
+            def log_constraint(**kwargs):
+                return 0.
         self.log_constraint = log_constraint
 
         self.set_data(data)

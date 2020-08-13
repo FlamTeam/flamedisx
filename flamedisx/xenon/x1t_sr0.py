@@ -70,8 +70,8 @@ s1_map, s2_map = [
 class SR0Source:
     # TODO: add p_el_sr0
 
-    def random_truth(self, energies, fix_truth=None, **params):
-        d = super().random_truth(energies, fix_truth=fix_truth, **params)
+    def random_truth(self, n_events, fix_truth=None, **params):
+        d = super().random_truth(n_events, fix_truth=fix_truth, **params)
         # TODO: Add field distortion maps
         d['x_observed'] = d['x']
         d['y_observed'] = d['y']
@@ -79,6 +79,7 @@ class SR0Source:
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
+
         d['s2_relative_ly'] = s2_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
@@ -86,6 +87,17 @@ class SR0Source:
             np.transpose([d['x'].values,
                           d['y'].values,
                           d['z'].values]))
+
+        # Add cS1 and cS2 following XENON conventions.
+        # Skip this if s1/s2 are not known, since we're simulating
+        # TODO: This is a kludge...
+        if 's1' in d.columns:
+            d['cs1'] = d['s1'] / d['s1_relative_ly']
+        if 's2' in d.columns:
+            d['cs2'] = (
+                d['s2']
+                / d['s2_relative_ly']
+                * np.exp(d['drift_time'] / self.defaults['elife']))
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
@@ -100,11 +112,7 @@ class SR0Source:
         return mean_eff * s1_relative_ly
 
     @staticmethod
-    def s1_acceptance(s1, photon_detection_eff, photon_gain_mean,
-                      mean_eff=0.142 / (1 + 0.219)):
-        # Both cS1 and S1 acceptance
-        cs1 = mean_eff * s1 / (
-            photon_detection_eff * photon_gain_mean)
+    def s1_acceptance(s1, cs1):
         return tf.where((s1 < 2) | (s1 > 70) | (cs1 < 2),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
@@ -127,6 +135,6 @@ class SR0WIMPSource(SR0Source, fd.WIMPSource):
     SR0 source. The time range is not changed from the default.
     """
     # WIMP settings
-    es = np.geomspace(0.7, 50, 100)  # [keV]
+    energies = np.geomspace(0.7, 50, 100)  # [keV]
     mw = 1e3  # GeV
     sigma_nucleon = 1e-45  # cm^2

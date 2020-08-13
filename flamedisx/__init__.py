@@ -2,14 +2,26 @@ __version__ = '1.2.0'
 
 from .utils import *
 from .source import *
+from .block_source import *
 from .likelihood import *
 from .inference import *
 
-from .er_nr_base import *
 
-from flamedisx.xenon.resource import *
-from flamedisx.xenon.itp_map import *
-from flamedisx.xenon.data import *
+# LXe model construction
+from .lxe_blocks.energy_spectrum import *
+from .lxe_blocks.quanta_generation import *
+from .lxe_blocks.quanta_splitting import *
+from .lxe_blocks.detection import *
+from .lxe_blocks.double_pe import *
+from .lxe_blocks.final_signals import *
 
-from flamedisx.xenon.x1t_sr0 import *
-from flamedisx.xenon.x1t_sr1 import *
+from .lxe_sources import *
+
+
+# XENON specifics
+from .xenon.resource import *
+from .xenon.itp_map import *
+from .xenon.data import *
+
+from .xenon.x1t_sr0 import *
+from .xenon.x1t_sr1 import *
