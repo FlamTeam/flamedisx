@@ -1,6 +1,9 @@
 """XENON1T SR1 implementation
 """
+import os
+
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -8,6 +11,7 @@ import flamedisx as fd
 import json
 
 import pdb
+import matplotlib.pyplot as plt
 
 export, __all__ = fd.exporter()
 
@@ -66,6 +70,13 @@ path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
                                        'RecEfficiencyMedians_SR1_70phd_v1.json',
                                        'RecEfficiencyUppers_SR1_70phd_v1.json']
 
+##
+# Elife
+##
+elife_variable = True
+
+auxiliary_base = os.path.abspath(os.path.join(os.path.join(__file__, os.pardir), os.pardir))
+path_electron_lifetimes = [auxiliary_base+'/auxiliary_maps/SR1_Elife.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps. 
@@ -161,9 +172,12 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
+    def __init__(self, t_start, t_stop, *args, **kwargs):
+        print('set time in SR1Source init')
+        self.t_start = pd.to_datetime(t_start, unit='ns')
+        self.t_stop = pd.to_datetime(t_stop, unit='ns')
+        print('done set time in SR1Source init')
+
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
             read_maps_tf(path_cut_accept_s1, is_bbf=True)
@@ -179,6 +193,14 @@ class SR1Source:
             read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
         self.recon_map_s2_tf, self.domain_def_s2 = \
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
+        
+        # Loading electron lifetime map
+        self.elife_tf, self.domain_def_elife = \
+            read_maps_tf(path_electron_lifetimes, is_bbf=False) 
+        
+        print('hi')
+        super().__init__(*args, **kwargs)
+        print('bye')
 
     def reconstruction_bias_s1(self,
                                sig,
@@ -221,19 +243,22 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
 
-    @staticmethod
-    def electron_detection_eff(drift_time,
+    def electron_detection_eff(self,
+                               drift_time,
                                event_time,
                                *,
                                elife=DEFAULT_ELECTRON_LIFETIME,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
-        #TODO: include function for elife time dependency
 
-        # just for fun
-        test = tf.where(event_time<1497496915587373230, elife-20e3, elife)
+        if elife_variable:
+            elife = itp_cut_accept_tf(event_time/1e9, self.elife_tf,
+                    self.domain_def_elife)
+            elife *= 1e3
+            print('Got elife evolution (normal)')
+        else:
+            print('No elife evolution')
         
-        #return extraction_eff * tf.exp(-drift_time / elife)
-        return extraction_eff * tf.exp(-drift_time / test)
+        return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,

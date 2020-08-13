@@ -15,6 +15,7 @@ from scipy import stats
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
+import pdb 
 o = tf.newaxis
 
 quanta_types = 'photon', 'electron'
@@ -67,8 +68,10 @@ class LXeSource(fd.Source):
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
     # This will then also be true at the midpoint of these times.
+    print('original define time')
     t_start = pd.to_datetime('2019-09-01T08:28:00')
     t_stop = pd.to_datetime('2020-09-01T08:28:00')
+    print('end original define time')
 
     # Spatial rate multiplier histogram
     # Multihist Histdd object to lookup space dependent rate multipliers
