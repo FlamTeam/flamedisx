@@ -453,7 +453,10 @@ class Source:
             f"n_events must be an int or float, not {type(n_events)}"
 
         # Draw random "deep truth" variables (energy, position)
-        fix_truth = self.validate_fix_truth(fix_truth)
+        # Pass on a copy of the dict or DataFrame
+        fix_truth = self.validate_fix_truth(fix_truth.copy()
+                                            if fix_truth is not None
+                                            else None)
         sim_data = self.random_truth(n_events, fix_truth=fix_truth, **params)
         assert isinstance(sim_data, pd.DataFrame)
 

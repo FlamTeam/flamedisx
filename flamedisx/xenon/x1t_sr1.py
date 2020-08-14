@@ -52,7 +52,7 @@ path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json'
 
 
 def read_maps_tf(path_bag, is_bbf=False):
-    """ Function to read reconstruction bias/combined cut acceptances/dummy maps. 
+    """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
     have exactly the same domain definition.
 
@@ -118,13 +118,13 @@ class SR1Source:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
             read_maps_tf(path_cut_accept_s1, is_bbf=True)
         self.cut_accept_map_s2, self.cut_accept_domain_s2 = \
             read_maps_tf(path_cut_accept_s2, is_bbf=True)
-            
+
         # Loading reconstruction bias map
         self.recon_map_s1_tf, self.domain_def_s1 = \
             read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
@@ -201,13 +201,10 @@ class SR1Source:
 
     def s1_acceptance(self,
                       s1,
-                      photon_detection_eff,
-                      photon_gain_mean,
-                      mean_eff=DEFAULT_G1 / (1 + DEFAULT_P_DPE),
+                      cs1,
                       # Only used here, DEFAULT_.. would be super verbose
                       cs1_min=3.,
                       cs1_max=70.):
-        cs1 = mean_eff * s1 / (photon_detection_eff * photon_gain_mean)
         acceptance = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                               tf.ones_like(s1, dtype=fd.float_type()),
                               tf.zeros_like(s1, dtype=fd.float_type()))
@@ -220,12 +217,9 @@ class SR1Source:
 
     def s2_acceptance(self,
                       s2,
-                      electron_detection_eff,
-                      electron_gain_mean,
+                      cs2,
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        cs2 = ((DEFAULT_G2/DEFAULT_EXTRACTION_EFFICIENCY) * s2
-               / (electron_detection_eff * electron_gain_mean))
         acceptance = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
