@@ -33,9 +33,6 @@ class Block:
         subclasses can override this to provide a more precise description,
         optionally they can return LaTeX code when latex=True.
         """
-        if latex:
-            raise NotImplementedError("Block.__str__ cannot return LaTeX code")
-
         dims = list(self.dimensions)
         deps = []
         for d in self.depends_on:
@@ -135,8 +132,6 @@ class FirstBlock(Block):
         """Return generic description of FirstBlock.
         FirstBlock usually models event rates not probabilities.
         """
-        if latex:
-            raise NotImplementedError("Block.__str__ cannot return LaTeX code")
         return "R" + super().__str__(latex)[1:]
 
     def _simulate(self, d):

@@ -36,6 +36,11 @@ class EnergySpectrum(fd.FirstBlock):
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
 
+    def __str__(self, latex=False, verbose=False):
+        if latex:
+            return r'R_{0}(E)'
+        return super().__str__()
+
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
         return {self.dimensions[0]: tf.repeat(fd.np_to_tf(self.energies)[o, :],

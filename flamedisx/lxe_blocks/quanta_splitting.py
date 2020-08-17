@@ -21,6 +21,16 @@ class MakePhotonsElectronsBinomial(fd.Block):
 
     p_electron = 0.5   # Nonsense, ER and NR sources provide specifics
 
+    def __str__(self, latex=False, verbose=False):
+        if latex:
+            nelp = r'n^{\text{el}}_{\text{prod}}'
+            nphp = r'n^{\text{ph}}_{\text{prod}}'
+            if verbose:
+                pass
+            #return 'P(' + nelp + r' \mid n_{q})\delta(n_{q} = ' + nphp + ' + ' + nelp + ')'
+            return fr'P({nelp} \mid n_{{q}})\delta(n_{{q}} = {nphp} + {nelp})'
+        return super().__str__()
+
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain

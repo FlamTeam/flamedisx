@@ -20,6 +20,13 @@ class MakeERQuanta(fd.Block):
 
     work = DEFAULT_WORK_PER_QUANTUM
 
+    def __str__(self, latex=False, verbose=False):
+        if latex:
+            if verbose:
+                return r'\delta(n_{q} = \lfloor E/W \rfloor)'
+            return r'P(n_{q} \mid E)'
+        return super().__str__()
+
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain
@@ -58,6 +65,13 @@ class MakeNRQuanta(fd.Block):
     model_functions = ('work',) + special_model_functions
 
     work = DEFAULT_WORK_PER_QUANTUM
+
+    def __str__(self, latex=False, verbose=False):
+        if latex:
+            if verbose:
+                return r'\text{Poisson}(n_{q} \mid E\mathcal{L}(E)/W)'
+            return r'P(n_{q} \mid E)'
+        return super().__str__()
 
     @staticmethod
     def lindhard_l(e, lindhard_k=tf.constant(0.138, dtype=fd.float_type())):
