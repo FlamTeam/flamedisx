@@ -26,6 +26,31 @@ class Block:
     frozen_model_functions: ty.Tuple[str] = tuple()
     model_attributes: ty.Tuple[str] = tuple()
 
+    def __str__(self, latex=False):
+        """Return a string describing the probability model of the block.
+
+        Block only returns an educated guess and provides no latex support,
+        subclasses can override this to provide a more precise description,
+        optionally they can return LaTeX code when latex=True.
+        """
+        if latex:
+            raise NotImplementedError("Block.__str__ cannot return LaTeX code")
+
+        dims = list(self.dimensions)
+        deps = []
+        for d in self.depends_on:
+            # Safer way to unpack?
+            d = d[0][0]
+            if d in self.dimensions:
+                # Than it should go after '|'
+                dims.remove(d)
+            deps.append(d)
+        if len(deps) == 0:
+            res = " | ".join(dims[::-1])
+        else:
+            res = ", ".join(dims[::-1]) + " | " + ", ".join(deps)
+        return f"P({res})"
+
     def __init__(self, source):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
@@ -106,6 +131,14 @@ class Block:
 class FirstBlock(Block):
     """The first Block of a source. This is usually an energy spectrum"""
 
+    def __str__(self, latex=False):
+        """Return generic description of FirstBlock.
+        FirstBlock usually models event rates not probabilities.
+        """
+        if latex:
+            raise NotImplementedError("Block.__str__ cannot return LaTeX code")
+        return "R" + super().__str__(latex)[1:]
+
     def _simulate(self, d):
         raise RuntimeError("FirstBlock's shouldn't simulate")
 
@@ -135,6 +168,23 @@ class BlockModelSource(fd.Source):
     model_blocks: tuple
     final_dimensions: tuple
     initial_dimensions: tuple
+
+    def __str__(self, latex=False):
+        """Return the concatenated Block.__str__ of each Block in model_blocks.
+        """
+        inner_dims = []
+        for b in self.model_blocks:
+            inner_dims += list(b.dimensions)
+        inner_dims = list(set(inner_dims))
+        for d in self.final_dimensions:
+            inner_dims.remove(d)
+
+        sums = " Summing over: " + ", ".join(inner_dims)
+        block_strings = " ".join([b.__str__(latex)
+                                   for b in self.model_blocks])
+        return ("R(" + ", ".join(self.final_dimensions) + ") = "
+                + block_strings
+                + sums)
 
     def __init__(self, *args, **kwargs):
         if isinstance(self.model_blocks[0], FirstBlock):
