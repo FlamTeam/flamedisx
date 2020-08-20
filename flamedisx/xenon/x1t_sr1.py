@@ -172,13 +172,14 @@ class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
 
     #def __init__(self, t_start, t_stop, *args, **kwargs):
-    #    print('set time in SR1Source init')
-    #    self.t_start = pd.to_datetime(t_start, unit='ns')
-    #    self.t_stop = pd.to_datetime(t_stop, unit='ns')
-    #    print('done set time in SR1Source init')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        #print('set time in SR1Source init')
+        #self.t_start = pd.to_datetime(t_start, unit='ns')
+        #self.t_stop = pd.to_datetime(t_stop, unit='ns')
+        #print('done set time in SR1Source init')
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
@@ -200,7 +201,7 @@ class SR1Source:
         self.elife_tf, self.domain_def_elife = \
             read_maps_tf(path_electron_lifetimes, is_bbf=False) 
         
-        super().__init__(*args, **kwargs)
+        #super().__init__(*args, **kwargs)
 
     def reconstruction_bias_s1(self,
                                sig,
@@ -242,7 +243,14 @@ class SR1Source:
             np.transpose([d['x'].values,
                           d['y'].values,
                           d['z'].values]))
+        
+        # Not good. patchy.
+        if 'elife' not in d.columns:
+            d['event_time'] = d['event_time'].astype('float32')
+            d['elife'] = itp_cut_accept_tf(d['event_time']/1e9, self.elife_tf,
+                                    self.domain_def_elife)*1e3
 
+            print('blah 4:21')
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -252,27 +260,14 @@ class SR1Source:
             d['cs2'] = (
                 d['s2']
                 / d['s2_relative_ly']
-                * np.exp(d['drift_time'] / self.defaults['elife']))
-            d['elife'] = self.defaults['elife']
+                * np.exp(d['drift_time'] / d['elife']))
 
     def electron_detection_eff(self, 
                                drift_time,
                                event_time,
+                               elife,
                                *,
-                               #elife=DEFAULT_ELECTRON_LIFETIME,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
-        if elife_variable:
-            elife = itp_cut_accept_tf(event_time/1e9, self.elife_tf,
-                    self.domain_def_elife)
-            elife *= 1e3
-            print('Got elife evolution (normal)')
-        else:
-            elife=DEFAULT_ELECTRON_LIFETIME,
-            print('No elife evolution')
-
-        print('rashly overwriting defaults[\'elife\']')
-        self.defaults['elife'] = elife
-        
         return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
