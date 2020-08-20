@@ -222,6 +222,9 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         return self.spatial_rate_pdf.lookup(*positions)
 
     def draw_positions(self, n_events):
+        """Return dictionary with x, y, z, r, theta, drift_time
+        drawn from the spatial rate histogram.
+        """
         data = dict()
         positions = self.spatial_rate_hist.get_random(size=n_events)
         for idx, col in enumerate(self.spatial_rate_hist.axis_names):
@@ -230,6 +233,8 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         else:
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
+
+        data['drift_time'] = - data['z'] / self.drift_velocity
         return data
 
 
