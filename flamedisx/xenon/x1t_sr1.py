@@ -244,13 +244,12 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
         
-        # Not good. patchy.
+        # Not good. patchy. event_time should be int.
         if 'elife' not in d.columns:
             d['event_time'] = d['event_time'].astype('float32')
             d['elife'] = itp_cut_accept_tf(d['event_time']/1e9, self.elife_tf,
                                     self.domain_def_elife)*1e3
 
-            print('blah 4:21')
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -262,9 +261,8 @@ class SR1Source:
                 / d['s2_relative_ly']
                 * np.exp(d['drift_time'] / d['elife']))
 
-    def electron_detection_eff(self, 
-                               drift_time,
-                               event_time,
+    @staticmethod
+    def electron_detection_eff(drift_time,
                                elife,
                                *,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
@@ -319,7 +317,9 @@ class SR1Source:
                       cs2,
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        acceptance = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+
+        cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
+        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
