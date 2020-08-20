@@ -253,20 +253,25 @@ class SR1Source:
                 d['s2']
                 / d['s2_relative_ly']
                 * np.exp(d['drift_time'] / self.defaults['elife']))
+            d['elife'] = self.defaults['elife']
 
-    @staticmethod
-    def electron_detection_eff(drift_time,
+    def electron_detection_eff(self, 
+                               drift_time,
+                               event_time,
                                *,
-                               elife=DEFAULT_ELECTRON_LIFETIME,
+                               #elife=DEFAULT_ELECTRON_LIFETIME,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
-
         if elife_variable:
             elife = itp_cut_accept_tf(event_time/1e9, self.elife_tf,
                     self.domain_def_elife)
             elife *= 1e3
             print('Got elife evolution (normal)')
         else:
+            elife=DEFAULT_ELECTRON_LIFETIME,
             print('No elife evolution')
+
+        print('rashly overwriting defaults[\'elife\']')
+        self.defaults['elife'] = elife
         
         return extraction_eff * tf.exp(-drift_time / elife)
 
