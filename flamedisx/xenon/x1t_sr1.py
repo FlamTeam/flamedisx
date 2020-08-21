@@ -73,6 +73,7 @@ path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
 # Elife
 ##
 elife_variable = True
+#elife_variable = False
 
 auxiliary_base = os.path.abspath(os.path.join(os.path.join(__file__, os.pardir), os.pardir))
 path_electron_lifetimes = [auxiliary_base+'/auxiliary_maps/SR1_Elife.json']
@@ -244,11 +245,19 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
         
-        # Not good. patchy. event_time should be int.
+        # Not good. patchy. event_time should be int since event_time in actual
+        # data is int in ns
         if 'elife' not in d.columns:
-            d['event_time'] = d['event_time'].astype('float32')
-            d['elife'] = itp_cut_accept_tf(d['event_time']/1e9, self.elife_tf,
-                                    self.domain_def_elife)*1e3
+            if elife_variable:
+                print('Variable elife')
+                d['event_time'] = d['event_time'].astype('float32')
+                d['elife'] = itp_cut_accept_tf(d['event_time'], self.elife_tf,
+                                        self.domain_def_elife)
+                print('sigh 3:54')
+            else:
+                print('Constant elife')
+                d['elife'] = DEFAULT_ELECTRON_LIFETIME 
+
 
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
