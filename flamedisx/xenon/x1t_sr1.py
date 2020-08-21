@@ -253,7 +253,6 @@ class SR1Source:
                 d['event_time'] = d['event_time'].astype('float32')
                 d['elife'] = itp_cut_accept_tf(d['event_time'], self.elife_tf,
                                         self.domain_def_elife)
-                print('sigh 3:54')
             else:
                 print('Constant elife')
                 d['elife'] = DEFAULT_ELECTRON_LIFETIME 
