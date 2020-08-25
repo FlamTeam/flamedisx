@@ -1,3 +1,9 @@
+1.3.0 / 2020-08-25
+------------------
+- Block system (#81)
+- Documentation (#81)
+- Bugfixes (#83, #87, #89)
+
 1.2.0 / 2020-07-21
 ------------------
 - Access BBF data and XENON-utilities (#80)
