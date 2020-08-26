@@ -10,8 +10,6 @@ import tensorflow_probability as tfp
 import flamedisx as fd
 import json
 
-import pdb
-
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -173,8 +171,6 @@ class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
 
     def __init__(self, *args, **kwargs):
-        print('sr1 __init__')
-
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
             read_maps_tf(path_cut_accept_s1, is_bbf=True)
@@ -195,12 +191,7 @@ class SR1Source:
         self.elife_tf, self.domain_def_elife = \
             read_maps_tf(path_electron_lifetimes, is_bbf=False) 
 
-        print('before sr1 super init. moved.')
         super().__init__(*args, **kwargs)
-        print('after sr1 super init')
-
-        print('sr1 __init__ exiting')
-        
 
     def reconstruction_bias_s1(self,
                                sig,
@@ -259,9 +250,9 @@ class SR1Source:
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
-        if 's1' in d.columns:
+        if ('s1' in d.columns) and ('cs1' not in d.columns):
             d['cs1'] = d['s1'] / d['s1_relative_ly']
-        if 's2' in d.columns:
+        if ('s2' in d.columns) and ('cs2' not in d.columns):
             d['cs2'] = (
                 d['s2']
                 / d['s2_relative_ly']
@@ -316,6 +307,7 @@ class SR1Source:
         acceptance *= itp_cut_accept_tf(s1,
                                         self.cut_accept_map_s1,
                                         self.cut_accept_domain_s1)
+
         return acceptance
 
     def s2_acceptance(self,

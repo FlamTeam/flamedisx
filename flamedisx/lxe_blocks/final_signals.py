@@ -9,7 +9,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
 

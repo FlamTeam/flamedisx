@@ -9,8 +9,6 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-import pdb
-
 @export
 class Block:
     """One part of a BlockSource model.
@@ -138,8 +136,6 @@ class BlockModelSource(fd.Source):
     initial_dimensions: tuple
 
     def __init__(self, *args, **kwargs):
-        print('BlockModelSource __init__')
-
         if isinstance(self.model_blocks[0], FirstBlock):
             # Blocks have already been instantiated
             return
@@ -227,10 +223,7 @@ class BlockModelSource(fd.Source):
             if ((d not in self.final_dimensions)
                 and (d not in self.model_blocks[0].dimensions))])
         self.initial_dimensions = self.model_blocks[0].dimensions
-        print('before BlockModelSource super __init__')
         super().__init__(*args, **kwargs)
-        print('after BlockModelSource super __init__')
-        print('BlockModelSource __init__ exiting')
 
     @staticmethod
     def _find_block(blocks,

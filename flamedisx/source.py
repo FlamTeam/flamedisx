@@ -13,8 +13,6 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-import pdb
-
 @export
 class Source:
     n_batches = None
@@ -95,8 +93,6 @@ class Source:
         :param fit_params: List of parameters to fit
         :param params: New defaults to use
         """
-        print('Source __init__')
-        pdb.set_trace()
         self.max_sigma = max_sigma
 
         # Check for duplicated model functions
@@ -152,7 +148,6 @@ class Source:
 
         if not _skip_tf_init:
             self.trace_differential_rate()
-        print('Source __init__ exiting')
 
     def set_defaults(self, **params):
         for k, v in params.items():
