@@ -13,6 +13,7 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
+import pdb
 
 @export
 class Source:
@@ -94,6 +95,8 @@ class Source:
         :param fit_params: List of parameters to fit
         :param params: New defaults to use
         """
+        print('Source __init__')
+        pdb.set_trace()
         self.max_sigma = max_sigma
 
         # Check for duplicated model functions
@@ -105,7 +108,7 @@ class Source:
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
         self.scan_model_functions()
-
+        
         # Change from (column, length) tuple to dict
         self.array_columns = dict(self.array_columns)
 
@@ -149,6 +152,7 @@ class Source:
 
         if not _skip_tf_init:
             self.trace_differential_rate()
+        print('Source __init__ exiting')
 
     def set_defaults(self, **params):
         for k, v in params.items():

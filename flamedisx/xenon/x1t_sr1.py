@@ -172,15 +172,8 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
 
-    #def __init__(self, t_start, t_stop, *args, **kwargs):
-
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        #print('set time in SR1Source init')
-        #self.t_start = pd.to_datetime(t_start, unit='ns')
-        #self.t_stop = pd.to_datetime(t_stop, unit='ns')
-        #print('done set time in SR1Source init')
+        print('sr1 __init__')
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
@@ -201,8 +194,13 @@ class SR1Source:
         # Loading electron lifetime map
         self.elife_tf, self.domain_def_elife = \
             read_maps_tf(path_electron_lifetimes, is_bbf=False) 
+
+        print('before sr1 super init. moved.')
+        super().__init__(*args, **kwargs)
+        print('after sr1 super init')
+
+        print('sr1 __init__ exiting')
         
-        #super().__init__(*args, **kwargs)
 
     def reconstruction_bias_s1(self,
                                sig,

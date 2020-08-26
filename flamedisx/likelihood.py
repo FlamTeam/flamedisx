@@ -7,6 +7,7 @@ import pandas as pd
 import tensorflow as tf
 import typing as ty
 
+import pdb
 
 export, __all__ = fd.exporter()
 
@@ -294,6 +295,8 @@ class LogLikelihood:
 
             for i_batch in range(n_batches):
                 # Iterating over tf.range seems much slower!
+
+                pdb.set_trace()
                 results = self._log_likelihood(
                     tf.constant(i_batch, dtype=fd.int_type()),
                     dsetname=dsetname,
@@ -302,6 +305,7 @@ class LogLikelihood:
                     omit_grads=omit_grads,
                     second_order=second_order,
                     **params)
+                pdb.set_trace()
                 ll += results[0].numpy().astype(np.float64)
 
                 if len(self.param_names):
