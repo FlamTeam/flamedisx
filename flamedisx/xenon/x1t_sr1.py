@@ -277,8 +277,8 @@ class SR1Source:
         return single_electron_width + 0. * s2_relative_ly
 
     @staticmethod
-    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1):
-        mean_eff= g1 / (1. + DEFAULT_P_DPE)
+    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1, dpe=DEFAULT_P_DPE):
+        mean_eff= g1 / (1. + dpe)
         return mean_eff * s1_relative_ly
 
     def photon_acceptance(self,
