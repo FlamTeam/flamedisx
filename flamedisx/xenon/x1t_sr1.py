@@ -204,8 +204,6 @@ class SR1Source:
 
     def reconstruction_bias_s2(self,
                                sig,
-                               # Need to change the name; the pivot points
-                               # for S2 and S2 are independent
                                bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
         reconstruction_bias = cal_bias_tf(sig,
                                           self.recon_map_s2_tf,

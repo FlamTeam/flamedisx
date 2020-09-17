@@ -589,7 +589,7 @@ class ColumnSource(Source):
     """Source that expects precomputed differential rate in a column,
     and precomputed mu in an attribute
     """
-    column = 'rename_me!'
+    column = 'name_of_column'
     mu = 42.
 
     def extra_needed_columns(self):
