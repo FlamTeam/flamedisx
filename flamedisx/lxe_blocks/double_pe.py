@@ -52,7 +52,7 @@ class MakeS1Photoelectrons(fd.Block):
         dpe_fraction = self.gimme_numpy('double_pe_fraction')
         for suffix, intify in (('min', np.floor),
                                ('max', np.ceil),
-                               ('mle', np.round)):
+                               ('mle', lambda x: x)):
             d['photons_detected_' + suffix] = \
                 intify(d['photoelectrons_detected_' + suffix].values
                        / (1 + dpe_fraction))
