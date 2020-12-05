@@ -52,7 +52,6 @@ flamedisx.lxe\_blocks.quanta\_splitting module
    :undoc-members:
    :show-inheritance:
 
-
 Module contents
 ---------------
 

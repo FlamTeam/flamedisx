@@ -44,7 +44,6 @@ flamedisx.xenon.x1t\_sr1 module
    :undoc-members:
    :show-inheritance:
 
-
 Module contents
 ---------------
 
