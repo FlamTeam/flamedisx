@@ -164,6 +164,8 @@ class SR1Source:
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
+
+        '''
         d['s2_relative_ly'] = s2_map(
              np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
@@ -172,7 +174,6 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
 
-        '''
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -218,7 +219,6 @@ class SR1Source:
                       # Only used here, DEFAULT_.. would be super verbose
                       cs1_min=3.,
                       cs1_max=70.):
-        print('!!!! s1_acceptance: should not come here!!!!')
         acceptance = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                               tf.ones_like(s1, dtype=fd.float_type()),
                               tf.zeros_like(s1, dtype=fd.float_type()))
@@ -234,7 +234,6 @@ class SR1Source:
                       cs2,
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        print('!!!! s2_acceptance: should not come here!!!!')
         acceptance = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
