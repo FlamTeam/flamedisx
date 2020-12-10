@@ -165,7 +165,6 @@ class SR1Source:
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
 
-        '''
         d['s2_relative_ly'] = s2_map(
              np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
@@ -173,6 +172,7 @@ class SR1Source:
             np.transpose([d['x'].values,
                           d['y'].values,
                           d['z'].values]))
+        '''
 
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
