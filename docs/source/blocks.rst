@@ -8,7 +8,28 @@ Common customization
 ---------------------
 The flamedisx tutorial describes the most common case: customizations by changing a model function.
 
-For example, if you want to change a source's energy spectrum, yield functions, detector response functions, etc., you can do that without knowing anything about the advanced topics described in this page.
+For example, if you want to change a source's energy spectrum, yield functions, detector response functions, etc., you can do that without knowing anything about the advanced topics described later in this page.
+
+Using additional columns/dimensions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Your models might use extra columns from the data besides s1, s2, and event times and positions. Often these are derived quantities, like corrected s1 or s2, used for cuts or response functions.
+
+As explained in the tutorial, flamedisx automatically determines which columns it needs from the dataframe of events, by inspecting your model functions.
+
+However, **you have to tell flamedisx how to (re)produce the values for any new columns you use**, by writing an :py:meth:`~flamedisx.source.Source.add_extra_columns` method for your Source. This modifies a dataframe in-place to add any required extra columns. It is called whenever new data, simulated or real, is set to the source (unless the user passes ``is_annotated=True`` to :py:meth:`~flamedisx.source.Source.set_data`, or ``data_is_annotated=False`` to a Source when it is initialized with data).
+
+This is required because flamedisx has to be able to simulate data. Likelihoods need to simulate events to estimate the total expected number of events ("mu"). Unless you customize the simulation code, simulated data will not magically have values for special columns you use in the model.
+
+If your model depends on columns whose values cannot be deterministically derived from basic quantities, e.g. a per-event noise level, you can either:
+
+* Write :py:meth:`~flamedisx.source.Source.add_extra_columns` so that it draws simulated values *only if the column is absent* from the dataframe. This avoids overwriting values in real data, or re-scrambling values in simulated data;
+* Customize the simulation code to also produce the required column -- see 'Advanced Customization' below.
+
+In rare cases, you might want to add columns to flamedisx's internal tensors which it does not actually need, e.g. for debugging purposes. The easiest way to do this is to  add extra, unused, arguments to any model function you like.
+
+(If for some reason you don't want to do this, you could also use the :py:meth:`~flamedisx.source.Source.extra_needed_columns` method to force flamedisx to include columns in its tensor representation. This is mostly a relic from older flamedisx days, and may be removed in the future.)
+
 
 Advanced customization
 ----------------------
@@ -96,7 +117,7 @@ This takes care of several things:
   * Positional arguments are filled in with columns from the data;
   * Keyword arguments are filled in with inference parameters.
   * For `gimme_numpy`, you will get back a numpy array (rather than a TensorFlow tensor).
-Never call a model function directly from your code!
+Never call a model function directly from your block's code!
 
 `special_model_functions` take an extra positional argument when they are called. It's up to you what this represents; usually this is used to pass variables. The extra argument (called `bonus_arg` in flamedisx code) is passed as the first argument after `self`.
 

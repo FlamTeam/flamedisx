@@ -5,6 +5,7 @@ Subpackages
 -----------
 
 .. toctree::
+   :maxdepth: 4
 
    flamedisx.lxe_blocks
    flamedisx.xenon
@@ -59,7 +60,6 @@ flamedisx.utils module
    :members:
    :undoc-members:
    :show-inheritance:
-
 
 Module contents
 ---------------
