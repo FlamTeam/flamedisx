@@ -506,7 +506,8 @@ class MinuitObjective(Objective):
                 grad=self.grad,
                 name=self.arg_names)
             fit.errors = initial_stepsizes
-            fit.limits = np.array([b for b in self.normed_bounds.values()])
+            if self.normed_bounds:
+                fit.limits = np.array([b for b in self.normed_bounds.values()])
             fit.errordef = 0.5
             fit.precision = precision
             fit.migrad(**kwargs)
