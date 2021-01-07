@@ -216,6 +216,9 @@ class LogLikelihood:
         # Choose sensible default rate multiplier guesses:
         #  (1) Assume each free source produces just 1 event
         for sname in self.sources:
+            if self.dset_for_source[sname] not in data:
+                # This dataset is not being updated, skip
+                continue
             rmname = sname + '_rate_multiplier'
             if rmname in self.param_names:
                 n_expected = self.mu(source_name=sname).numpy()
@@ -225,13 +228,13 @@ class LogLikelihood:
 
         # (2) If we still saw more events than expected, assume the
         #     first free source is responsible for all of this.
-        for dname in self.dsetnames:
-            n_observed = len(data[dname])
+        for dname, _data in data.items():
+            n_observed = len(_data)
             n_expected = self.mu(dataset_name=dname).numpy()
             assert n_expected > 0
             if n_observed <= n_expected:
                 continue
-            for sname in self.sources_in_dset:
+            for sname in self.sources_in_dset[dname]:
                 rmname = sname + '_rate_multiplier'
                 if rmname in self.param_names:
                     # Rate multiplier is set to value that produces
