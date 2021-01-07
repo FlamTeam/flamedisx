@@ -55,6 +55,7 @@ class LogLikelihood:
             n_trials=int(1e5),
             log_constraint=None,
             bounds_specified=True,
+            progress=True,
             **common_param_specs):
         """
 
@@ -77,10 +78,12 @@ class LogLikelihood:
 
         :param n_trials: Number of Monte-Carlo trials for mu estimation.
 
+        :param log_constraint: Logarithm of constraint to include in likelihood
+
         :param bounds_specified: If True (default), optimizers will be
             constrained within the specified parameter ranges.
 
-        :param log_constraint: Logarithm of constraint to include in likelihood
+        :param progress: Show progress bars during initialization
 
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
@@ -157,6 +160,7 @@ class LogLikelihood:
         self.mu_itps = {
             sname: s.mu_function(
                 n_trials=n_trials,
+                progress=progress,
                 # Source will filter out the params it needs
                 **common_param_specs)
             for sname, s in self.sources.items()}
