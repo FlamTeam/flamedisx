@@ -117,6 +117,7 @@ class LogLikelihood:
         for sn in free_rates:
             if sn not in self.sources:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
+            # The rate multiplier guesses will be improved after data is set
             param_defaults[sn + '_rate_multiplier'] = 1.
 
         # Create sources
@@ -193,7 +194,6 @@ class LogLikelihood:
                 return
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=np.int)
-        adjusted_rate_for = {d: False for d in self.dsetnames}
 
         for sname, source in self.sources.items():
             dname = self.dset_for_source[sname]
@@ -209,19 +209,31 @@ class LogLikelihood:
             batch_info[dset_index, :] = [
                 source.n_batches, source.batch_size, source.n_padding]
 
-            # If the rate is free, update the rate multiplier default
-            # (i.e. the fallback guess) once per dataset.
-            # That is, our guess will be that the first free source produces
-            # enough events to explain the observed event count.
+        # Choose sensible default rate multiplier guesses:
+        #  (1) Assume each free source produces just 1 event
+        for sname in self.sources:
             rmname = sname + '_rate_multiplier'
-            if rmname in self.param_names and not adjusted_rate_for[dname]:
-                mu_dset = self.mu(dsetname=dname)
-                mu_source = self.mu(source=sname)
-                mu_others = mu_dset - mu_source
-                n_observed = len(data[dname])
-                self.param_defaults[rmname] *= (
-                        (n_observed - mu_others) / mu_source)
-                adjusted_rate_for[dname] = True
+            if rmname in self.param_names:
+                n_expected = self.mu(source_name=sname).numpy()
+                assert n_expected >= 0
+                self.param_defaults[rmname] = (
+                    self.param_defaults[rmname] / n_expected)
+
+        # (2) If we still saw more events than expected, assume the
+        #     first free source is responsible for all of this.
+        for dname in self.dsetnames:
+            n_observed = len(data[dname])
+            n_expected = self.mu(dataset_name=dname).numpy()
+            assert n_expected > 0
+            if n_observed <= n_expected:
+                continue
+            for sname in self.sources_in_dset:
+                rmname = sname + '_rate_multiplier'
+                if rmname in self.param_names:
+                    # Rate multiplier is set to value that produces
+                    # one event, so we just have to multiply it:
+                    self.param_defaults[rmname] *= 1 + n_observed - n_expected
+                    break
 
         self.batch_info = tf.convert_to_tensor(batch_info, dtype=fd.int_type())
 
