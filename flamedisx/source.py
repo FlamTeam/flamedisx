@@ -306,9 +306,9 @@ class Source:
                              dtype=fd.int_type())
         return ptensor[idx]
 
-    # TODO: make data_tensor and ptensor keyword-only arguments
-    # after https://github.com/tensorflow/tensorflow/issues/28725
-    def gimme(self, fname, data_tensor=None, ptensor=None, bonus_arg=None, numpy_out=False):
+    def gimme(self, fname,
+              *,
+              data_tensor=None, ptensor=None, bonus_arg=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
@@ -574,14 +574,12 @@ class Source:
     def _annotate(self):
         """Add columns needed in inference to self.data
         """
-        pass
 
     def add_extra_columns(self, data):
         """Add additional columns to data
 
         :param data: pandas DataFrame
         """
-        pass
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """

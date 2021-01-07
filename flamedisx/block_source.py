@@ -37,7 +37,6 @@ class Block:
         Called after the block's attributes have been properly overriden
         by source attributes, if specified.
         """
-        pass
 
     def gimme(self, *args, **kwargs):
         """Shorthand for self.source.gimme, see docs there"""

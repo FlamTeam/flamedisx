@@ -117,7 +117,7 @@ class InterpolatingMap:
             del self.data['quantized']
 
         cs = self.data['coordinate_system']
-        if not len(cs):
+        if not cs:
             self.dimensions = 0
         elif isinstance(cs[0], list) and isinstance(cs[0][0], str):
             # Support for specifying coordinate system as a gridspec
@@ -147,8 +147,8 @@ class InterpolatingMap:
             if self.dimensions == 0:
                 # 0 D -- placeholder maps which take no arguments
                 # and always return a single value
-                def itp_fun(positions):
-                    return np.array([map_data])
+                def itp_fun(positions, _data=map_data):
+                    return np.array([_data])
             else:
                 if array_valued:
                     map_data = map_data.reshape((-1, map_data.shape[-1]))
