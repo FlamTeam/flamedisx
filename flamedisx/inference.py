@@ -1,8 +1,9 @@
+from packaging import version
 import typing as ty
 import warnings
 
 import flamedisx as fd
-from iminuit import Minuit
+import iminuit
 import numpy as np
 from scipy import optimize as scipy_optimize
 import tensorflow as tf
@@ -469,6 +470,7 @@ class TensorFlowObjective(Objective):
 
 
 class MinuitObjective(Objective):
+    minuit2 = version.parse(iminuit.__version__) >= version.parse('2.0.0')
 
     def _minimize(self):
         if self.use_hessian:
@@ -480,9 +482,14 @@ class MinuitObjective(Objective):
         kwargs = self.optimizer_kwargs
 
         x_guess = self._dict_to_array(self.normalize(self.guess))
-        kwargs.setdefault('error',
-                          np.maximum(x_guess * 0.1,
-                                     1e-3 * np.ones_like(x_guess)))
+
+        # Initial step sizes, called 'error' or 'errors' by minuit
+        if 'error' in kwargs:
+            initial_stepsizes = kwargs['error']
+            del kwargs['error']
+        else:
+            initial_stepsizes = np.maximum(x_guess * 0.1,
+                                           1e-3 * np.ones_like(x_guess))
 
         if 'precision' in kwargs:
             precision = kwargs['precision']
@@ -490,30 +497,52 @@ class MinuitObjective(Objective):
         else:
             precision = FLOAT32_EPS
 
-        for param_name, b in self.normed_bounds.items():
-            kwargs.setdefault('limit_' + param_name, b)
+        if self.minuit2:
+            # Minuit2 changed the API; Minuit() no longer takes 'option-like'
+            # arguments. Let's pass any remaining kwargs to migrad.
+            fit = iminuit.Minuit(
+                self.fun,
+                x_guess,
+                grad=self.grad,
+                name=self.arg_names)
+            fit.errors = initial_stepsizes
+            fit.limits = np.array([b for b in self.normed_bounds.values()])
+            fit.errordef = 0.5
+            fit.precision = precision
+            fit.migrad(**kwargs)
 
-        fit = Minuit.from_array_func(self.fun, x_guess, grad=self.grad,
-                                     errordef=0.5,
-                                     name=self.arg_names,
-                                     **kwargs)
+        else:
+            warnings.warn("iminuit <=1 is deprecated, update to iminuit >= 2",
+                          DeprecationWarning)
+            for param_name, b in self.normed_bounds.items():
+                kwargs.setdefault('limit_' + param_name, b)
 
-        fit.migrad(precision=precision)
+            fit = iminuit.Minuit.from_array_func(
+                self.fun,
+                x_guess,
+                grad=self.grad,
+                errordef=0.5,
+                name=self.arg_names,
+                error=initial_stepsizes,
+                **kwargs)
+            fit.migrad(precision=precision)
+
         return fit
 
-    def parse_result(self, result: Minuit):
-        if not result.migrad_ok():
+    def parse_result(self, result: iminuit.Minuit):
+        success = result.valid if self.minuit2 else result.migrad_ok()
+        if not success:
             # Borrowed from https://github.com/scikit-hep/iminuit/blob/
             # 2ff3cd79b84bf3b25b83f78523312a7c48e26b73/iminuit/_minimize.py#L107
             message = "Migrad failed! "
-            fmin = result.get_fmin()
+            fmin = result.fmin if self.minuit2 else result.get_fmin()
             if fmin.has_reached_call_limit:
                 message += " Call limit was reached. "
             if fmin.is_above_max_edm:
                 message += " Estimated distance to minimum too large. "
             self.fail(message)
 
-        position = {k: result.fitarg[k]
+        position = {k: result.values[i] if self.minuit2 else result.fitarg[k]
                     for i, k in enumerate(self.arg_names)}
         position = self.restore_scale(position)
         return position, result.fval
