@@ -261,7 +261,8 @@ class VariableEnergySpectrum(EnergySpectrum):
                        dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy):
-        return self.gimme('energy_spectrum', data_tensor, ptensor)
+        return self.gimme('energy_spectrum',
+                          data_tensor=data_tensor, ptensor=ptensor)
 
     def random_truth(self, n_events, fix_truth=None, **params):
         raise NotImplementedError
