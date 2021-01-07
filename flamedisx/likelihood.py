@@ -347,21 +347,25 @@ class LogLikelihood:
         """Return index of parameter pname"""
         return self.param_names.index(pname)
 
-    def mu(self, dsetname=None, source=None, **kwargs):
+    def mu(self, *,
+           source_name=None,
+           dataset_name=None,
+           **kwargs):
         """Return expected number of events
-        :param dsetname: ... for just this dataset
-        :param source: ... for just this source.
+        :param dataset_name: ... for just this dataset
+        :param source_name: ... for just this source.
         You must provide either dsetname or source, since it makes no sense to
-        add events from multiple dataset
+        add events from multiple datasets
         """
         kwargs = {**self.param_defaults, **kwargs}
-        if dsetname is None and source is None:
-            raise ValueError("Provide either dsetname or source")
+        if dataset_name is None and source_name is None:
+            raise ValueError("Provide either source or dataset name")
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
-            if dsetname is not None and self.dset_for_source[sname] != dsetname:
+            if (dataset_name is not None
+                    and self.dset_for_source[sname] != dataset_name):
                 continue
-            if source is not None and sname != source:
+            if source_name is not None and sname != source_name:
                 continue
             mu += (self._get_rate_mult(sname, kwargs)
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
@@ -434,7 +438,7 @@ class LogLikelihood:
         # Add mu once (to the first batch)
         # and constraint really only once (to first batch of first dataset)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       -self.mu(dsetname=dsetname, **params)
+                       -self.mu(dataset_name=dsetname, **params)
                            + (self.log_constraint(**params)
                               if dsetname == self.dsetnames[0] else 0.),
                        0.)
