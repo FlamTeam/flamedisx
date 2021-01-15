@@ -231,7 +231,8 @@ class SR1Source:
                       cs2,
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        acceptance = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+        cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
+        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
