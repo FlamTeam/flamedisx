@@ -249,7 +249,6 @@ class SR1Source:
     def photon_acceptance(self,
                           photons_detected,
                           scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
-        tf.print('hi')
         acceptance = cal_rec_efficiency_tf(photons_detected,
                                         self.recon_eff_map_s1,
                                         self.domain_def_ph,
