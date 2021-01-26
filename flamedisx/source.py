@@ -82,6 +82,7 @@ class Source:
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  fit_params=None,
+                 progress=False,
                  **params):
         """Initialize a flamedisx source
 
@@ -92,6 +93,8 @@ class Source:
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
         :param fit_params: List of parameters to fit
+        :param progress: whether to show progress bars for mu estimation
+          (if data is not None)
         :param params: New defaults to use
         """
         self.max_sigma = max_sigma
@@ -143,6 +146,7 @@ class Source:
         else:
             self.batch_size = min(batch_size, len(data))
             self.set_data(data,
+                          progress=progress,
                           data_is_annotated=data_is_annotated,
                           _skip_tf_init=_skip_tf_init,
                           _skip_bounds_computation=_skip_bounds_computation)
@@ -302,9 +306,9 @@ class Source:
                              dtype=fd.int_type())
         return ptensor[idx]
 
-    # TODO: make data_tensor and ptensor keyword-only arguments
-    # after https://github.com/tensorflow/tensorflow/issues/28725
-    def gimme(self, fname, data_tensor=None, ptensor=None, bonus_arg=None, numpy_out=False):
+    def gimme(self, fname,
+              *,
+              data_tensor=None, ptensor=None, bonus_arg=None, numpy_out=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
@@ -495,6 +499,7 @@ class Source:
     def mu_function(self,
                     interpolation_method='star',
                     n_trials=int(1e5),
+                    progress=True,
                     **param_specs):
         """Return interpolator for number of expected events
         Parameters must be specified as kwarg=(start, stop, n_anchors)
@@ -511,8 +516,10 @@ class Source:
         # Estimate mus under the specified variations
         pspaces = dict()    # parameter -> tf.linspace of anchors
         mus = dict()        # parameter -> tensor of mus
-        for pname, (start, stop, n) in tqdm(param_specs.items(),
-                                       desc="Estimating mus"):
+        _iter = param_specs.items()
+        if progress:
+            _iter = tqdm(_iter, desc="Estimating mus")
+        for pname, (start, stop, n) in _iter:
             if pname not in self.defaults:
                 # We don't take this parameter. Consistent with __init__,
                 # don't complain and just discard it silently.
@@ -567,14 +574,12 @@ class Source:
     def _annotate(self):
         """Add columns needed in inference to self.data
         """
-        pass
 
     def add_extra_columns(self, data):
         """Add additional columns to data
 
         :param data: pandas DataFrame
         """
-        pass
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """

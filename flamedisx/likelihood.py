@@ -55,6 +55,7 @@ class LogLikelihood:
             n_trials=int(1e5),
             log_constraint=None,
             bounds_specified=True,
+            progress=True,
             **common_param_specs):
         """
 
@@ -77,10 +78,12 @@ class LogLikelihood:
 
         :param n_trials: Number of Monte-Carlo trials for mu estimation.
 
+        :param log_constraint: Logarithm of constraint to include in likelihood
+
         :param bounds_specified: If True (default), optimizers will be
             constrained within the specified parameter ranges.
 
-        :param log_constraint: Logarithm of constraint to include in likelihood
+        :param progress: Show progress bars during initialization
 
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
@@ -117,6 +120,7 @@ class LogLikelihood:
         for sn in free_rates:
             if sn not in self.sources:
                 raise ValueError(f"Can't free rate of unknown source {sn}")
+            # The rate multiplier guesses will be improved after data is set
             param_defaults[sn + '_rate_multiplier'] = 1.
 
         # Create sources
@@ -156,6 +160,7 @@ class LogLikelihood:
         self.mu_itps = {
             sname: s.mu_function(
                 n_trials=n_trials,
+                progress=progress,
                 # Source will filter out the params it needs
                 **common_param_specs)
             for sname, s in self.sources.items()}
@@ -193,7 +198,6 @@ class LogLikelihood:
                 return
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=np.int)
-        adjusted_rate_for = {d: False for d in self.dsetnames}
 
         for sname, source in self.sources.items():
             dname = self.dset_for_source[sname]
@@ -209,19 +213,34 @@ class LogLikelihood:
             batch_info[dset_index, :] = [
                 source.n_batches, source.batch_size, source.n_padding]
 
-            # If the rate is free, update the rate multiplier default
-            # (i.e. the fallback guess) once per dataset.
-            # That is, our guess will be that the first free source produces
-            # enough events to explain the observed event count.
+        # Choose sensible default rate multiplier guesses:
+        #  (1) Assume each free source produces just 1 event
+        for sname in self.sources:
+            if self.dset_for_source[sname] not in data:
+                # This dataset is not being updated, skip
+                continue
             rmname = sname + '_rate_multiplier'
-            if rmname in self.param_names and not adjusted_rate_for[dname]:
-                mu_dset = self.mu(dsetname=dname)
-                mu_source = self.mu(source=sname)
-                mu_others = mu_dset - mu_source
-                n_observed = len(data[dname])
-                self.param_defaults[rmname] *= (
-                        (n_observed - mu_others) / mu_source)
-                adjusted_rate_for[dname] = True
+            if rmname in self.param_names:
+                n_expected = self.mu(source_name=sname).numpy()
+                assert n_expected >= 0
+                self.param_defaults[rmname] = (
+                    self.param_defaults[rmname] / n_expected)
+
+        # (2) If we still saw more events than expected, assume the
+        #     first free source is responsible for all of this.
+        for dname, _data in data.items():
+            n_observed = len(_data)
+            n_expected = self.mu(dataset_name=dname).numpy()
+            assert n_expected > 0
+            if n_observed <= n_expected:
+                continue
+            for sname in self.sources_in_dset[dname]:
+                rmname = sname + '_rate_multiplier'
+                if rmname in self.param_names:
+                    # Rate multiplier is set to value that produces
+                    # one event, so we just have to multiply it:
+                    self.param_defaults[rmname] *= 1 + n_observed - n_expected
+                    break
 
         self.batch_info = tf.convert_to_tensor(batch_info, dtype=fd.int_type())
 
@@ -347,21 +366,25 @@ class LogLikelihood:
         """Return index of parameter pname"""
         return self.param_names.index(pname)
 
-    def mu(self, dsetname=None, source=None, **kwargs):
+    def mu(self, *,
+           source_name=None,
+           dataset_name=None,
+           **kwargs):
         """Return expected number of events
-        :param dsetname: ... for just this dataset
-        :param source: ... for just this source.
+        :param dataset_name: ... for just this dataset
+        :param source_name: ... for just this source.
         You must provide either dsetname or source, since it makes no sense to
-        add events from multiple dataset
+        add events from multiple datasets
         """
         kwargs = {**self.param_defaults, **kwargs}
-        if dsetname is None and source is None:
-            raise ValueError("Provide either dsetname or source")
+        if dataset_name is None and source_name is None:
+            raise ValueError("Provide either source or dataset name")
         mu = tf.constant(0., dtype=fd.float_type())
         for sname, s in self.sources.items():
-            if dsetname is not None and self.dset_for_source[sname] != dsetname:
+            if (dataset_name is not None
+                    and self.dset_for_source[sname] != dataset_name):
                 continue
-            if source is not None and sname != source:
+            if source_name is not None and sname != source_name:
                 continue
             mu += (self._get_rate_mult(sname, kwargs)
                    * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
@@ -434,7 +457,7 @@ class LogLikelihood:
         # Add mu once (to the first batch)
         # and constraint really only once (to first batch of first dataset)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       -self.mu(dsetname=dsetname, **params)
+                       -self.mu(dataset_name=dsetname, **params)
                            + (self.log_constraint(**params)
                               if dsetname == self.dsetnames[0] else 0.),
                        0.)
