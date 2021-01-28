@@ -188,30 +188,33 @@ class SR1Source:
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
 
     def reconstruction_bias_s1(self,
-                               sig,
+                               s1,
                                bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(sig,
+        reconstruction_bias = cal_bias_tf(s1,
                                           self.recon_map_s1_tf,
                                           self.domain_def_s1,
                                           pivot_pt=bias_pivot_pt1)
-        reconstruction_bias_old = cal_bias_tf_old(sig,
+        lala = cal_bias_tf_old(s1,
                                           self.recon_map_s1_tf,
                                           self.domain_def_s1,
                                           pivot_pt=bias_pivot_pt1)
-        pdb.set_trace()
-
+        tf.print('recon_bias_s1 chksum:', tf.math.reduce_sum(reconstruction_bias-lala))
 
         return reconstruction_bias
 
     def reconstruction_bias_s2(self,
-                               sig,
-                               # Need to change the name; the pivot points
-                               # for S2 and S2 are independent
+                               s2,
                                bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(sig,
+        reconstruction_bias = cal_bias_tf(s2,
                                           self.recon_map_s2_tf,
                                           self.domain_def_s2,
                                           pivot_pt=bias_pivot_pt2)
+        lala = cal_bias_tf_old(s2,
+                                          self.recon_map_s2_tf,
+                                          self.domain_def_s2,
+                                          pivot_pt=bias_pivot_pt2)
+        tf.print('recon_bias_s2 chksum:', tf.math.reduce_sum(reconstruction_bias-lala))
+        
         return reconstruction_bias
 
     def random_truth(self, n_events, fix_truth=None, **params):
@@ -299,6 +302,9 @@ class SR1Source:
                                           self.cut_accept_map_s1,
                                           self.cut_accept_domain_s1))
 
+        ## surrogate
+        blah = self.reconstruction_bias_s1(s1)
+
         return acceptance
 
     def s2_acceptance(self,
@@ -315,6 +321,9 @@ class SR1Source:
         acceptance *= tf.squeeze(interpolate_tf(s2, 
                                           self.cut_accept_map_s2,
                                           self.cut_accept_domain_s2))
+
+        ## surrogate
+        blah = self.reconstruction_bias_s2(s2)
 
         return acceptance
 
