@@ -160,33 +160,6 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
     
     return bias_out
 
-def cal_rec_efficiency_tf_old(sig, fmap, domain_def, pivot_pt):
-    """ Computes the reconstruction efficiency given the pivot point
-    :param sig: photon detected
-    :param fmap: map returned by read_maps_tf
-    :param domain_def: domain returned by read_maps_tf
-    :param pivot_pt: Pivot point value (scalar)
-    :return: Tensor of bias values (same shape as sig)
-    """
-    tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
-
-    bias_median = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[1],
-            fill_value='constant_extension')
-
-    if pivot_pt<0:
-        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
-                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
-                fill_value='constant_extension')
-        bias_out = pivot_pt*(bias_median-bias_other)+bias_median
-    else:
-        bias_other = tfp.math.interp_regular_1d_grid(x=tmp,
-                x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[2],
-                fill_value='constant_extension')
-        bias_out = pivot_pt*(bias_other-bias_median)+bias_median
-    
-    return bias_out
-
 ###########
 
 ##
@@ -304,16 +277,10 @@ class SR1Source:
                           photons_detected,
                           scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
 
-        acceptance_old = cal_rec_efficiency_tf_old(photons_detected,
-                                        self.recon_eff_map_s1,
-                                        self.domain_def_ph,
-                                        scalar)
-
         acceptance = cal_rec_efficiency_tf(photons_detected,
                                         self.recon_eff_map_s1,
                                         self.domain_def_ph,
                                         scalar)
-        tf.print('xz so cute. photon_acceptance chksum:', tf.math.reduce_sum(acceptance-acceptance_old))
 
         return acceptance
 
