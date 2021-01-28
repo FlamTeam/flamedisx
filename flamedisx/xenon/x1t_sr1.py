@@ -113,33 +113,6 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
 
     return bias_out
 
-###########
-
-def cal_bias_tf_old(sig, fmap, domain_def, pivot_pt):
-    """ Computes the reconstruction bias mean given the pivot point
-    :param sig: S1 or S2 values
-    :param fmap: map returned by read_maps_tf
-    :param domain_def: domain returned by read_maps_tf
-    :param pivot_pt: Pivot point value (scalar)
-    :return: Tensor of bias values (same shape as sig)
-    """
-    tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
-    bias_low = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
-            fill_value='constant_extension')
-    bias_high = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[1],
-            fill_value='constant_extension')
-
-    tmp = tf.math.subtract(bias_high, bias_low)
-    tmp1 = tf.math.scalar_mul(pivot_pt, tmp)
-    bias_out = tf.math.add(tmp1, bias_low)
-    bias_out = tf.math.add(bias_out, tf.ones_like(bias_out))
-
-    return bias_out
-
-###########
-
 def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction efficiency given the pivot point
     :param sig: photon detected
@@ -159,8 +132,6 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
         bias_out = pivot_pt*(bias_other-bias_median)+bias_median
     
     return bias_out
-
-###########
 
 ##
 # Flamedisx sources
@@ -194,12 +165,7 @@ class SR1Source:
                                           self.recon_map_s1_tf,
                                           self.domain_def_s1,
                                           pivot_pt=bias_pivot_pt1)
-        lala = cal_bias_tf_old(s1,
-                                          self.recon_map_s1_tf,
-                                          self.domain_def_s1,
-                                          pivot_pt=bias_pivot_pt1)
-        tf.print('recon_bias_s1 chksum:', tf.math.reduce_sum(reconstruction_bias-lala))
-
+        
         return reconstruction_bias
 
     def reconstruction_bias_s2(self,
@@ -209,12 +175,7 @@ class SR1Source:
                                           self.recon_map_s2_tf,
                                           self.domain_def_s2,
                                           pivot_pt=bias_pivot_pt2)
-        lala = cal_bias_tf_old(s2,
-                                          self.recon_map_s2_tf,
-                                          self.domain_def_s2,
-                                          pivot_pt=bias_pivot_pt2)
-        tf.print('recon_bias_s2 chksum:', tf.math.reduce_sum(reconstruction_bias-lala))
-        
+                
         return reconstruction_bias
 
     def random_truth(self, n_events, fix_truth=None, **params):
@@ -302,9 +263,6 @@ class SR1Source:
                                           self.cut_accept_map_s1,
                                           self.cut_accept_domain_s1))
 
-        ## surrogate
-        blah = self.reconstruction_bias_s1(s1)
-
         return acceptance
 
     def s2_acceptance(self,
@@ -321,9 +279,6 @@ class SR1Source:
         acceptance *= tf.squeeze(interpolate_tf(s2, 
                                           self.cut_accept_map_s2,
                                           self.cut_accept_domain_s2))
-
-        ## surrogate
-        blah = self.reconstruction_bias_s2(s2)
 
         return acceptance
 
