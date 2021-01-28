@@ -69,7 +69,9 @@ def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
     have exactly the same domain definition.
-
+    :param path_bag: List with filenames of acceptance maps  
+    :param is_bbf: True if reading file from BBF folder. 
+    :return: List of acceptance maps and their domain definitions
     """
     data_bag = []
     yy_ref_bag = []
@@ -82,7 +84,7 @@ def read_maps_tf(path_bag, is_bbf=False):
         yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
         data_bag.append(tmp)
     domain_def = tmp['coordinate_system'][0][1]
-
+    
     return yy_ref_bag, domain_def
 
 def interpolate_tf(sig_tf, fmap, domain):
@@ -165,7 +167,6 @@ class SR1Source:
                                           self.recon_map_s1_tf,
                                           self.domain_def_s1,
                                           pivot_pt=bias_pivot_pt1)
-        
         return reconstruction_bias
 
     def reconstruction_bias_s2(self,
@@ -175,7 +176,6 @@ class SR1Source:
                                           self.recon_map_s2_tf,
                                           self.domain_def_s2,
                                           pivot_pt=bias_pivot_pt2)
-                
         return reconstruction_bias
 
     def random_truth(self, n_events, fix_truth=None, **params):
@@ -240,12 +240,10 @@ class SR1Source:
     def photon_acceptance(self,
                           photons_detected,
                           scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
-
         acceptance = cal_rec_efficiency_tf(photons_detected,
                                         self.recon_eff_map_s1,
                                         self.domain_def_ph,
                                         scalar)
-
         return acceptance
 
     def s1_acceptance(self,
