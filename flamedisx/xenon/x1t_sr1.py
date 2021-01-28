@@ -165,12 +165,6 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
     
     return bias_out
 
-def itp_cut_accept_tf(sig, fmap, domain_def):
-    accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap,
-            fill_value='constant_extension'))
-    return accept_out
-
 
 ##
 # Flamedisx sources
@@ -304,14 +298,6 @@ class SR1Source:
                               tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        lala = itp_cut_accept_tf(s1,
-                                 self.cut_accept_map_s1,
-                                 self.cut_accept_domain_s1)
-        lala2 = tf.squeeze(interpolate_tf(s1, 
-                                          self.cut_accept_map_s1,
-                                          self.cut_accept_domain_s1))
-        tf.print('s1_acceptance chk sum: ', tf.math.reduce_sum(lala-lala2))
-
         acceptance *= tf.squeeze(interpolate_tf(s1, 
                                           self.cut_accept_map_s1,
                                           self.cut_accept_domain_s1))
@@ -329,14 +315,6 @@ class SR1Source:
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        lala = itp_cut_accept_tf(s2,
-                                 self.cut_accept_map_s2,
-                                 self.cut_accept_domain_s2)
-        lala2 = tf.squeeze(interpolate_tf(s2, 
-                                          self.cut_accept_map_s2,
-                                          self.cut_accept_domain_s2))
-        tf.print('s2_acceptance chk sum: ', tf.math.reduce_sum(lala-lala2))
-
         acceptance *= tf.squeeze(interpolate_tf(s2, 
                                           self.cut_accept_map_s2,
                                           self.cut_accept_domain_s2))
