@@ -11,14 +11,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 ##
-# Yield maps
-##
-s1_map, s2_map = [
-    fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
-    for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
-              'XENON1T_s2_xy_ly_SR1_v2.2.json')]
-
-##
 # Parameters
 ##
 DEFAULT_G1 = 0.142
@@ -43,6 +35,14 @@ DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 
 
 ##
+# Yield maps
+##
+s1_map, s2_map = [
+    fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
+    for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
+              'XENON1T_s2_xy_ly_SR1_v2.2.json')]
+
+##
 # Loading Pax reconstruction bias
 ##
 path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
@@ -56,6 +56,12 @@ path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json'
 path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
                                        'RecEfficiencyMedians_SR1_70phd_v1.json',
                                        'RecEfficiencyUppers_SR1_70phd_v1.json']
+
+##
+# Loading combined cuts acceptances
+##
+path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
+path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
@@ -76,7 +82,6 @@ def read_maps_tf(path_bag, is_bbf=False):
     domain_def = tmp['coordinate_system'][0][1]
 
     return yy_ref_bag, domain_def
-
 
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction bias mean given the pivot point
@@ -127,13 +132,6 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
         bias_out = pivot_pt*(bias_other-bias_median)+bias_median
     
     return bias_out
-
-##
-# Loading combined cuts acceptances
-##
-path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
-path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
-
 
 def itp_cut_accept_tf(sig, fmap, domain_def):
     accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
