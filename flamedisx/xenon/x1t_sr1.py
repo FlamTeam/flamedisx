@@ -10,6 +10,8 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
+import pdb as pdb
+
 ##
 # Parameters
 ##
@@ -83,7 +85,37 @@ def read_maps_tf(path_bag, is_bbf=False):
 
     return yy_ref_bag, domain_def
 
+def interpolate_tf(sig_tf, fmap, domain):
+    """ Function to interpolate values from map given S1, S2 values
+    :param sig: S1 or S2 values as tf tensor of type float
+    :param fmap: specific acceptance map to be interpolated from returned by read_maps_tf
+    :param domain: domain returned by read_maps_tf
+    :return: Tensor of interpolated map values (same shape as x)
+    """
+    return tfp.math.interp_regular_1d_grid(x=sig_tf,
+            x_ref_min=domain[0], x_ref_max=domain[1], 
+            y_ref=fmap, fill_value='constant_extension')
+
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
+    """ Computes the reconstruction bias mean given the pivot point
+    :param sig: S1 or S2 values
+    :param fmap: map returned by read_maps_tf
+    :param domain_def: domain returned by read_maps_tf
+    :param pivot_pt: Pivot point value (scalar)
+    :return: Tensor of bias values (same shape as sig)
+    """
+    sig_tf = tf.convert_to_tensor(sig, dtype=fd.float_type())
+    bias_low = interpolate_tf(sig_tf, fmap[0], domain_def)
+    bias_high = interpolate_tf(sig_tf, fmap[1], domain_def)
+
+    bias = (bias_high-bias_low)*pivot_pt + bias_low
+    bias_out = bias + tf.ones_like(bias)
+
+    return bias_out
+
+###########
+
+def cal_bias_tf_old(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction bias mean given the pivot point
     :param sig: S1 or S2 values
     :param fmap: map returned by read_maps_tf
@@ -172,6 +204,13 @@ class SR1Source:
                                           self.recon_map_s1_tf,
                                           self.domain_def_s1,
                                           pivot_pt=bias_pivot_pt1)
+        reconstruction_bias_old = cal_bias_tf_old(sig,
+                                          self.recon_map_s1_tf,
+                                          self.domain_def_s1,
+                                          pivot_pt=bias_pivot_pt1)
+        pdb.set_trace()
+
+
         return reconstruction_bias
 
     def reconstruction_bias_s2(self,
@@ -265,9 +304,18 @@ class SR1Source:
                               tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= itp_cut_accept_tf(s1,
-                                        self.cut_accept_map_s1,
-                                        self.cut_accept_domain_s1)
+        lala = itp_cut_accept_tf(s1,
+                                 self.cut_accept_map_s1,
+                                 self.cut_accept_domain_s1)
+        lala2 = tf.squeeze(interpolate_tf(s1, 
+                                          self.cut_accept_map_s1,
+                                          self.cut_accept_domain_s1))
+        tf.print('s1_acceptance chk sum: ', tf.math.reduce_sum(lala-lala2))
+
+        acceptance *= tf.squeeze(interpolate_tf(s1, 
+                                          self.cut_accept_map_s1,
+                                          self.cut_accept_domain_s1))
+
         return acceptance
 
     def s2_acceptance(self,
@@ -281,9 +329,17 @@ class SR1Source:
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= itp_cut_accept_tf(s2,
-                                        self.cut_accept_map_s2,
-                                        self.cut_accept_domain_s2)
+        lala = itp_cut_accept_tf(s2,
+                                 self.cut_accept_map_s2,
+                                 self.cut_accept_domain_s2)
+        lala2 = tf.squeeze(interpolate_tf(s2, 
+                                          self.cut_accept_map_s2,
+                                          self.cut_accept_domain_s2))
+        tf.print('s2_acceptance chk sum: ', tf.math.reduce_sum(lala-lala2))
+
+        acceptance *= tf.squeeze(interpolate_tf(s2, 
+                                          self.cut_accept_map_s2,
+                                          self.cut_accept_domain_s2))
 
         return acceptance
 
