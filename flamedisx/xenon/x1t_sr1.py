@@ -97,7 +97,19 @@ def interpolate_tf(sig_tf, fmap, domain):
             y_ref=fmap, fill_value='constant_extension')
 
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
-    """ Computes the reconstruction bias mean given the pivot point
+    """ Computes the reconstruction bias mean given the pivot point.
+
+    The pax reconstruction bias mean is a function of the S1 or S2 size and is
+    defined as:
+    bias = (reconstructed_area - true_area)/ true_area
+    reconstructed_area = (bias+1)*true_area
+
+    It has a lower bound and upper bound because we do not know exactly how this
+    bias varies as a function of the actual waveform. The bias interpolated
+    linearly between the lower and upper bound according to a single scalar, the
+    pivot point:
+    bias = (upper_bound - lower_bound)*pivot + lower_bound
+
     :param sig: S1 or S2 values
     :param fmap: map returned by read_maps_tf
     :param domain_def: domain returned by read_maps_tf
