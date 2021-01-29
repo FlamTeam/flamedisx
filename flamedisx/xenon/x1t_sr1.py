@@ -1,10 +1,11 @@
 """XENON1T SR1 implementation"""
+import json
+
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
 import flamedisx as fd
-import json
 
 export, __all__ = fd.exporter()
 
@@ -46,9 +47,9 @@ s1_map, s2_map = [
 # Loading Pax reconstruction bias
 ##
 path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS1BiasMeanUppers_SR1_v2.json']
+                                    'ReconstructionS1BiasMeanUppers_SR1_v2.json']
 path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS2BiasMeanUppers_SR1_v2.json']
+                                    'ReconstructionS2BiasMeanUppers_SR1_v2.json']
 
 ##
 # Pax reconstruction efficiencies (do not reorder: Lowers, Medians, Uppers)
@@ -82,7 +83,6 @@ def read_maps_tf(path_bag, is_bbf=False):
         yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
         data_bag.append(tmp)
     domain_def = tmp['coordinate_system'][0][1]
-    
     return yy_ref_bag, domain_def
 
 def interpolate_tf(sig_tf, fmap, domain):
@@ -110,7 +110,6 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
 
     bias = (bias_high-bias_low)*pivot_pt + bias_low
     bias_out = bias + tf.ones_like(bias)
-
     return bias_out
 
 def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
@@ -130,7 +129,6 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
     else:
         bias_other = interpolate_tf(sig_tf, fmap[2], domain_def)
         bias_out = pivot_pt*(bias_other-bias_median)+bias_median
-    
     return bias_out
 
 ##
@@ -258,7 +256,6 @@ class SR1Source:
         acceptance *= tf.squeeze(interpolate_tf(s1, 
                                           self.cut_accept_map_s1,
                                           self.cut_accept_domain_s1))
-
         return acceptance
 
     def s2_acceptance(self,
@@ -275,7 +272,6 @@ class SR1Source:
         acceptance *= tf.squeeze(interpolate_tf(s2, 
                                           self.cut_accept_map_s2,
                                           self.cut_accept_domain_s2))
-
         return acceptance
 
 
@@ -298,7 +294,6 @@ class SR1ERSource(SR1Source,fd.ERSource):
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1. - r_er) / nq
-
         return fd.safe_p(p_el)
 
     @staticmethod
@@ -344,7 +339,6 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
         # Finally, number of electrons produced..
         n_el = ni * fnotr
-
         return fd.safe_p(n_el / nq)
 
 
