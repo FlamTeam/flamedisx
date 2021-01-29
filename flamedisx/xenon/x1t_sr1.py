@@ -253,9 +253,9 @@ class SR1Source:
                               tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= tf.squeeze(interpolate_tf(s1, 
-                                          self.cut_accept_map_s1,
-                                          self.cut_accept_domain_s1))
+        acceptance *= interpolate_tf(s1, 
+                                     self.cut_accept_map_s1,
+                                     self.cut_accept_domain_s1)[0]
         return acceptance
 
     def s2_acceptance(self,
@@ -269,9 +269,9 @@ class SR1Source:
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= tf.squeeze(interpolate_tf(s2, 
-                                          self.cut_accept_map_s2,
-                                          self.cut_accept_domain_s2))
+        acceptance *= interpolate_tf(s2, 
+                                     self.cut_accept_map_s2,
+                                     self.cut_accept_domain_s2)[0]
         return acceptance
 
 
