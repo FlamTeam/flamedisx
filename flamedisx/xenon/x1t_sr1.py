@@ -6,7 +6,6 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 import flamedisx as fd
-
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
@@ -122,6 +121,7 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
 
     bias = (bias_high-bias_low)*pivot_pt + bias_low
     bias_out = bias + tf.ones_like(bias)
+
     return bias_out
 
 def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
@@ -266,8 +266,8 @@ class SR1Source:
 
         # multiplying by combined cut acceptance
         acceptance *= interpolate_tf(s1, 
-                                     self.cut_accept_map_s1,
-                                     self.cut_accept_domain_s1)[0]
+                                     self.cut_accept_map_s1[0],
+                                     self.cut_accept_domain_s1)
         return acceptance
 
     def s2_acceptance(self,
@@ -282,8 +282,8 @@ class SR1Source:
 
         # multiplying by combined cut acceptance
         acceptance *= interpolate_tf(s2, 
-                                     self.cut_accept_map_s2,
-                                     self.cut_accept_domain_s2)[0]
+                                     self.cut_accept_map_s2[0],
+                                     self.cut_accept_domain_s2)
         return acceptance
 
 
