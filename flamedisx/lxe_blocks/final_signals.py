@@ -9,7 +9,7 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-
+import pdb as pdb
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
 
@@ -37,6 +37,13 @@ class MakeFinalSignals(fd.Block):
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
+
+
+        #### start test
+        aa = self.gimme_numpy('reconstruction_bias_'+self.signal_name,
+                bonus_arg=d[self.signal_name])
+        d[self.signal_name] *= aa
+        #### end test
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -79,6 +86,29 @@ class MakeFinalSignals(fd.Block):
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
         ).prob(s_observed)
+
+        ###
+
+        aa = self.gimme('reconstruction_bias_'+self.signal_name,
+                data_tensor=data_tensor, ptensor=ptensor,
+                bonus_arg=result)
+        bb = result*aa
+        cc = aa[:, o, o]
+        dd = result*cc
+        tf.print('<<<')
+        tf.print(aa.shape)
+        tf.print(bb.shape)
+        tf.print(cc.shape)
+        tf.print(dd.shape)
+        tf.print(self.quanta_name)
+        tf.print(self.signal_name)
+        tf.print('>>>')
+
+        ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name?
+        ## what's up with [:, o, o]
+        ## recon bias correction before or after s1_acceptance, s2_acceptance?
+
+        ###
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
