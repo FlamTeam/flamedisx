@@ -333,7 +333,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
     def energy_spectrum(self, event_time):
         t_j2000 = wr.j2000(fd.tf_to_np(event_time))
-        result = np.stack([self.energy_hist.slicesum(np.clip(t, self.t_start, self.t_stop)).histogram
+        result = np.stack([self.energy_hist.slicesum(np.clip(t, self.t_start.value, self.t_stop.value)).histogram
                            for t in t_j2000])
         return fd.np_to_tf(result)
 
