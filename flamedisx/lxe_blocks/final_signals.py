@@ -88,23 +88,12 @@ class MakeFinalSignals(fd.Block):
         ).prob(s_observed)
 
         ###
-
         aa = self.gimme('reconstruction_bias_'+self.signal_name,
-                data_tensor=data_tensor, ptensor=ptensor,
-                bonus_arg=result)
-        bb = result*aa
-        cc = aa[:, o, o]
-        dd = result*cc
-        tf.print('<<<')
-        tf.print(aa.shape)
-        tf.print(bb.shape)
-        tf.print(cc.shape)
-        tf.print(dd.shape)
-        tf.print(self.quanta_name)
-        tf.print(self.signal_name)
-        tf.print('>>>')
+                        data_tensor=data_tensor, ptensor=ptensor,
+                        bonus_arg=result)
+        result *= aa
 
-        ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name?
+        ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name straight?
         ## what's up with [:, o, o]
         ## recon bias correction before or after s1_acceptance, s2_acceptance?
 
