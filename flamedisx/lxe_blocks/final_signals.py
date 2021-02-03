@@ -39,6 +39,7 @@ class MakeFinalSignals(fd.Block):
 
 
         #### start test
+        tf.print('hi from _simulate')
         aa = self.gimme_numpy('reconstruction_bias_'+self.signal_name,
                 bonus_arg=d[self.signal_name])
         d[self.signal_name] *= aa
@@ -51,7 +52,7 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        
+        tf.print('hi from _annotate')
         #### start insertion
         aa = d[self.signal_name]/self.gimme_numpy('reconstruction_bias_'+\
                 self.signal_name, bonus_arg=d[self.signal_name])
@@ -93,6 +94,7 @@ class MakeFinalSignals(fd.Block):
         ).prob(s_observed)
 
         ###
+        tf.print('hi from _compute')
         aa = self.gimme('reconstruction_bias_'+self.signal_name,
                         data_tensor=data_tensor, ptensor=ptensor,
                         bonus_arg=result)
