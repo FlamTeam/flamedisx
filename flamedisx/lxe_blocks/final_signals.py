@@ -55,11 +55,11 @@ class MakeFinalSignals(fd.Block):
     def _annotate(self, d):
         #### start insertion
         tf.print('hi from _annotate. just ones.')
-        aa = np.ones(np.shape(d[self.signal_name]))
-        '''
+        #aa = np.ones(np.shape(d[self.signal_name]))
+        #'''
         aa = self.gimme_numpy('reconstruction_bias_'+\
                 self.signal_name, bonus_arg=d[self.signal_name])
-        '''
+        #'''
         #### end insertion
 
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
