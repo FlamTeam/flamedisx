@@ -52,10 +52,13 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        tf.print('hi from _annotate')
         #### start insertion
+        tf.print('hi from _annotate but temporarily off')
+        aa = d[self.signal_name]
+        '''
         aa = d[self.signal_name]/self.gimme_numpy('reconstruction_bias_'+\
                 self.signal_name, bonus_arg=d[self.signal_name])
+        '''
         #### end insertion
 
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
