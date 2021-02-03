@@ -92,25 +92,26 @@ class MakeFinalSignals(fd.Block):
         mean = quanta_detected * mean_per_q
         std = quanta_detected ** 0.5 * std_per_q
 
-        # add offset to std to avoid NaNs from norm.pdf if std = 0
-        result = tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).prob(s_observed)
-
         ###
-        tf.print('hi from _compute but temporarily off')
-        '''
+        tf.print('hi from _compute. with bias.')
+        
+        #aa = tf.ones_like(s_observed)
+        #'''
         aa = self.gimme('reconstruction_bias_'+self.signal_name,
                         data_tensor=data_tensor, ptensor=ptensor,
-                        bonus_arg=result)
-        result *= aa
-        '''
+                        bonus_arg=s_observed)
+        #'''
 
         ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name straight?
         ## what's up with [:, o, o]
         ## recon bias correction before or after s1_acceptance, s2_acceptance?
 
         ###
+
+        # add offset to std to avoid NaNs from norm.pdf if std = 0
+        result = tfp.distributions.Normal(
+            loc=mean, scale=std + 1e-10
+        ).prob(s_observed/aa)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
