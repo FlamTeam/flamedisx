@@ -6,6 +6,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 import flamedisx as fd
+import pdb as pdb
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
@@ -53,19 +54,17 @@ class MakeFinalSignals(fd.Block):
 
     def _annotate(self, d):
         #### start insertion
-        tf.print('hi from _annotate but temporarily off')
-        aa = d[self.signal_name]
-        '''
-        aa = d[self.signal_name]/self.gimme_numpy('reconstruction_bias_'+\
+        tf.print('hi from _annotate. just ones.')
+        aa = np.ones(np.shape(d[self.signal_name]))
+        #aa = self.gimme_numpy('reconstruction_bias_'+\
                 self.signal_name, bonus_arg=d[self.signal_name])
-        '''
         #### end insertion
 
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            (aa / m).clip(0, None)
+            ((d[self.signal_name]/aa) / m).clip(0, None)
         scale = mle**0.5 * s / m
 
         for bound, sign, intify in (('min', -1, np.floor),
