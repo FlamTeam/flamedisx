@@ -54,9 +54,9 @@ class MakeFinalSignals(fd.Block):
 
     def _annotate(self, d):
         #### start insertion
-        tf.print('hi from _annotate. actual bias.')
-        #aa = np.ones(np.shape(d[self.signal_name]))
-        #'''
+        tf.print('hi from _annotate. back to ones.')
+        aa = np.ones(np.shape(d[self.signal_name]))
+        '''
         aa = self.gimme_numpy('reconstruction_bias_'+\
                 self.signal_name, bonus_arg=d[self.signal_name])
         #'''
