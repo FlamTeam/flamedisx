@@ -9,7 +9,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-import pdb as pdb
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
 
@@ -52,11 +51,17 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
+        
+        #### start insertion
+        aa = d[self.signal_name]/self.gimme_numpy('reconstruction_bias_'+\
+                self.signal_name, bonus_arg=d[self.signal_name])
+        #### end insertion
+
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.signal_name] / m).clip(0, None)
+            (aa / m).clip(0, None)
         scale = mle**0.5 * s / m
 
         for bound, sign, intify in (('min', -1, np.floor),
