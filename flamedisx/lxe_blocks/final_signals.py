@@ -94,11 +94,13 @@ class MakeFinalSignals(fd.Block):
         ).prob(s_observed)
 
         ###
-        tf.print('hi from _compute')
+        tf.print('hi from _compute but temporarily off')
+        '''
         aa = self.gimme('reconstruction_bias_'+self.signal_name,
                         data_tensor=data_tensor, ptensor=ptensor,
                         bonus_arg=result)
         result *= aa
+        '''
 
         ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name straight?
         ## what's up with [:, o, o]
