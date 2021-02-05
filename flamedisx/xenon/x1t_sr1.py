@@ -1,23 +1,14 @@
-"""XENON1T SR1 implementation
-"""
+"""XENON1T SR1 implementation"""
+import json
+
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
 import flamedisx as fd
-import json
-
 export, __all__ = fd.exporter()
 
 o = tf.newaxis
-
-##
-# Yield maps
-##
-s1_map, s2_map = [
-    fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
-    for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
-              'XENON1T_s2_xy_ly_SR1_v2.2.json')]
 
 ##
 # Parameters
@@ -38,24 +29,47 @@ DEFAULT_G2_TOTAL = DEFAULT_G2 / (1.-DEFAULT_AREA_FRACTION_TOP)
 DEFAULT_SINGLE_ELECTRON_GAIN = DEFAULT_G2_TOTAL / DEFAULT_EXTRACTION_EFFICIENCY
 DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
 
-# Official numbers from BBF, do not question them ;-)
+# Official numbers from BBF
 DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
+DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 
+
+##
+# Yield maps
+##
+s1_map, s2_map = [
+    fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
+    for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
+              'XENON1T_s2_xy_ly_SR1_v2.2.json')]
 
 ##
 # Loading Pax reconstruction bias
 ##
 path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS1BiasMeanUppers_SR1_v2.json']
+                                    'ReconstructionS1BiasMeanUppers_SR1_v2.json']
 path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS2BiasMeanUppers_SR1_v2.json']
+                                    'ReconstructionS2BiasMeanUppers_SR1_v2.json']
 
+##
+# Pax reconstruction efficiencies (do not reorder: Lowers, Medians, Uppers)
+##
+path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
+                                       'RecEfficiencyMedians_SR1_70phd_v1.json',
+                                       'RecEfficiencyUppers_SR1_70phd_v1.json']
+
+##
+# Loading combined cuts acceptances
+##
+path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
+path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
     have exactly the same domain definition.
-
+    :param path_bag: List with filenames of acceptance maps  
+    :param is_bbf: True if reading file from BBF folder. 
+    :return: List of acceptance maps and their domain definitions
     """
     data_bag = []
     yy_ref_bag = []
@@ -68,47 +82,66 @@ def read_maps_tf(path_bag, is_bbf=False):
         yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
         data_bag.append(tmp)
     domain_def = tmp['coordinate_system'][0][1]
-
     return yy_ref_bag, domain_def
 
+def interpolate_tf(sig_tf, fmap, domain):
+    """ Function to interpolate values from map given S1, S2 values
+    :param sig: S1 or S2 values as tf tensor of type float
+    :param fmap: specific acceptance map to be interpolated from returned by read_maps_tf
+    :param domain: domain returned by read_maps_tf
+    :return: Tensor of interpolated map values (same shape as x)
+    """
+    return tfp.math.interp_regular_1d_grid(x=sig_tf,
+            x_ref_min=domain[0], x_ref_max=domain[1], 
+            y_ref=fmap, fill_value='constant_extension')
 
 def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
-    """ Computes the reconstruction bias mean given the pivot point
+    """ Computes the reconstruction bias mean given the pivot point.
+
+    The pax reconstruction bias mean is a function of the S1 or S2 size and is
+    defined as:
+    bias = (reconstructed_area - true_area)/ true_area
+    reconstructed_area = (bias+1)*true_area
+
+    It has a lower bound and upper bound because we do not know exactly how this
+    bias varies as a function of the actual waveform. The bias interpolated
+    linearly between the lower and upper bound according to a single scalar, the
+    pivot point:
+    bias = (upper_bound - lower_bound)*pivot + lower_bound
+
     :param sig: S1 or S2 values
     :param fmap: map returned by read_maps_tf
     :param domain_def: domain returned by read_maps_tf
     :param pivot_pt: Pivot point value (scalar)
     :return: Tensor of bias values (same shape as sig)
     """
-    tmp = tf.convert_to_tensor(sig, dtype=fd.float_type())
-    bias_low = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[0],
-            fill_value='constant_extension')
-    bias_high = tfp.math.interp_regular_1d_grid(x=tmp,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap[1],
-            fill_value='constant_extension')
+    sig_tf = tf.convert_to_tensor(sig, dtype=fd.float_type())
+    bias_low = interpolate_tf(sig_tf, fmap[0], domain_def)
+    bias_high = interpolate_tf(sig_tf, fmap[1], domain_def)
 
-    tmp = tf.math.subtract(bias_high, bias_low)
-    tmp1 = tf.math.scalar_mul(pivot_pt, tmp)
-    bias_out = tf.math.add(tmp1, bias_low)
-    bias_out = tf.math.add(bias_out, tf.ones_like(bias_out))
+    bias = (bias_high-bias_low)*pivot_pt + bias_low
+    bias_out = bias + tf.ones_like(bias)
 
     return bias_out
 
+def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
+    """ Computes the reconstruction efficiency given the pivot point
+    :param sig: photon detected
+    :param fmap: map returned by read_maps_tf
+    :param domain_def: domain returned by read_maps_tf
+    :param pivot_pt: Pivot point value (scalar)
+    :return: Tensor of bias values (same shape as sig)
+    """
+    sig_tf = tf.convert_to_tensor(sig, dtype=fd.float_type())
+    bias_median = interpolate_tf(sig_tf, fmap[1], domain_def)
 
-##
-# Loading combined cuts acceptances
-##
-path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
-path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
-
-
-def itp_cut_accept_tf(sig, fmap, domain_def):
-    accept_out = tf.squeeze(tfp.math.interp_regular_1d_grid(x=sig,
-            x_ref_min=domain_def[0], x_ref_max=domain_def[1], y_ref=fmap,
-            fill_value='constant_extension'))
-    return accept_out
-
+    if pivot_pt<0:
+        bias_other = interpolate_tf(sig_tf, fmap[0], domain_def)
+        bias_out = pivot_pt*(bias_median-bias_other)+bias_median
+    else:
+        bias_other = interpolate_tf(sig_tf, fmap[2], domain_def)
+        bias_out = pivot_pt*(bias_other-bias_median)+bias_median
+    return bias_out
 
 ##
 # Flamedisx sources
@@ -125,6 +158,10 @@ class SR1Source:
         self.cut_accept_map_s2, self.cut_accept_domain_s2 = \
             read_maps_tf(path_cut_accept_s2, is_bbf=True)
 
+        # Loading reconstruction efficiencies map
+        self.recon_eff_map_s1, self.domain_def_ph = \
+            read_maps_tf(path_reconstruction_efficiencies_s1, is_bbf=True)
+
         # Loading reconstruction bias map
         self.recon_map_s1_tf, self.domain_def_s1 = \
             read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
@@ -132,20 +169,18 @@ class SR1Source:
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
 
     def reconstruction_bias_s1(self,
-                               sig,
+                               s1,
                                bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(sig,
+        reconstruction_bias = cal_bias_tf(s1,
                                           self.recon_map_s1_tf,
                                           self.domain_def_s1,
                                           pivot_pt=bias_pivot_pt1)
         return reconstruction_bias
 
     def reconstruction_bias_s2(self,
-                               sig,
-                               # Need to change the name; the pivot points
-                               # for S2 and S2 are independent
+                               s2,
                                bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(sig,
+        reconstruction_bias = cal_bias_tf(s2,
                                           self.recon_map_s2_tf,
                                           self.domain_def_s2,
                                           pivot_pt=bias_pivot_pt2)
@@ -210,6 +245,15 @@ class SR1Source:
         mean_eff= g1 / (1. + DEFAULT_P_DPE)
         return mean_eff * s1_relative_ly
 
+    def photon_acceptance(self,
+                          photons_detected,
+                          scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
+        acceptance = cal_rec_efficiency_tf(photons_detected,
+                                        self.recon_eff_map_s1,
+                                        self.domain_def_ph,
+                                        scalar)
+        return acceptance
+
     def s1_acceptance(self,
                       s1,
                       cs1,
@@ -221,9 +265,9 @@ class SR1Source:
                               tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= itp_cut_accept_tf(s1,
-                                        self.cut_accept_map_s1,
-                                        self.cut_accept_domain_s1)
+        acceptance *= interpolate_tf(s1, 
+                                     self.cut_accept_map_s1[0],
+                                     self.cut_accept_domain_s1)
         return acceptance
 
     def s2_acceptance(self,
@@ -231,15 +275,15 @@ class SR1Source:
                       cs2,
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        acceptance = tf.where((cs2 > cs2b_min) & (cs2 < cs2b_max),
+        cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
+        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= itp_cut_accept_tf(s2,
-                                        self.cut_accept_map_s2,
-                                        self.cut_accept_domain_s2)
-
+        acceptance *= interpolate_tf(s2, 
+                                     self.cut_accept_map_s2[0],
+                                     self.cut_accept_domain_s2)
         return acceptance
 
 
@@ -262,7 +306,6 @@ class SR1ERSource(SR1Source,fd.ERSource):
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1. - r_er) / nq
-
         return fd.safe_p(p_el)
 
     @staticmethod
@@ -308,7 +351,6 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
         # Finally, number of electrons produced..
         n_el = ni * fnotr
-
         return fd.safe_p(n_el / nq)
 
 
