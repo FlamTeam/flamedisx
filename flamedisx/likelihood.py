@@ -323,7 +323,7 @@ class LogLikelihood:
                     **params)
                 ll += results[0].numpy().astype(np.float64)
 
-                if len(self.param_names):
+                if self.param_names:
                     llgrad += results[1].numpy().astype(np.float64)
                     if second_order:
                         llgrad2 += results[2].numpy().astype(np.float64)
