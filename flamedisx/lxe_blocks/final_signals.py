@@ -43,7 +43,7 @@ class MakeFinalSignals(fd.Block):
         tf.print('hi from _simulate')
         aa = self.gimme_numpy('reconstruction_bias_'+self.signal_name,
                 bonus_arg=d[self.signal_name])
-        d[self.signal_name] /= aa
+        d[self.signal_name] *= aa
         #### end test
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
@@ -111,7 +111,7 @@ class MakeFinalSignals(fd.Block):
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s_observed*aa)
+        ).prob(s_observed/aa)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
