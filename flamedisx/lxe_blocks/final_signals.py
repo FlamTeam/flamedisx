@@ -6,7 +6,6 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 import flamedisx as fd
-import pdb as pdb
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
@@ -40,7 +39,7 @@ class MakeFinalSignals(fd.Block):
 
 
         #### start test
-        tf.print('hi from _simulate')
+        # tf.print('hi from _simulate')
         aa = self.gimme_numpy('reconstruction_bias_'+self.signal_name,
                 bonus_arg=d[self.signal_name])
         d[self.signal_name] *= aa
@@ -54,12 +53,9 @@ class MakeFinalSignals(fd.Block):
 
     def _annotate(self, d):
         #### start insertion
-        tf.print('hi from _annotate. back to ones.')
-        aa = np.ones(np.shape(d[self.signal_name]))
-        '''
-        aa = self.gimme_numpy('reconstruction_bias_'+\
-                self.signal_name, bonus_arg=d[self.signal_name])
-        #'''
+        # Actually, don't think I should be modifying this.
+        # _annotate calculates the min, max, mle for quanta detected
+        # pax recon bias mean is in units of photoelectrons.
         #### end insertion
 
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
@@ -93,8 +89,7 @@ class MakeFinalSignals(fd.Block):
         std = quanta_detected ** 0.5 * std_per_q
 
         ###
-        tf.print('hi from _compute. with bias.')
-        
+        # tf.print('hi from _compute. with bias.')
         #aa = tf.ones_like(s_observed)
         #'''
         aa = self.gimme('reconstruction_bias_'+self.signal_name,
