@@ -267,7 +267,7 @@ class LogLikelihood:
     def simulate(self, fix_truth=None, **params):
         """Simulate events from sources.
         """
-        params = self.prepare_params(params)
+        params = self.prepare_params(params, free_all_rates=True)
         # Collect Source event DFs in ds
         ds = []
         for sname, s in self.sources.items():
@@ -339,9 +339,11 @@ class LogLikelihood:
         hess = -2 * result[2] if result[2] is not None else None
         return -2 * ll, -2 * grad, hess
 
-    def prepare_params(self, kwargs):
+    def prepare_params(self, kwargs, free_all_rates=False):
         for k in kwargs:
             if k not in self.param_defaults:
+                if k.endswith('_rate_multiplier') and free_all_rates:
+                    continue
                 raise ValueError(f"Unknown parameter {k}")
         return {**self.param_defaults, **fd.values_to_constants(kwargs)}
 
