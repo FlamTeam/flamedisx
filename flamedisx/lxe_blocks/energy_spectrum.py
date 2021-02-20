@@ -173,61 +173,53 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
 
 @export
 class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
-    model_attributes = (('spatial_rate_hist', 'spatial_rate_bin_volumes')
+    model_attributes = (('spatial_hist',)
                         + FixedShapeEnergySpectrum.model_attributes)
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
-    spatial_rate_hist: Histdd
-    spatial_rate_bin_volumes: Histdd
+    spatial_hist: Histdd
 
     def setup(self):
-        # Check we actually have the histograms
-        for attribute, kind in [('spatial_rate_hist', Histdd),
-                                ('spatial_rate_bin_volumes', np.ndarray)]:
-            assert hasattr(self, attribute), f"{attribute} missing"
-            assert isinstance(getattr(self, attribute), kind), \
-                f"{attribute} should be a {kind}"
+        assert isinstance(self.spatial_hist, Histdd)
 
         # Are we Cartesian, polar, or in trouble?
-        axes = tuple(self.spatial_rate_hist.axis_names)
+        axes = tuple(self.spatial_hist.axis_names)
         self.polar = (axes == ('r', 'theta', 'z'))
-        if not self.polar:
+
+        self.bin_volumes = self.spatial_hist.bin_volumes()
+        if self.polar:
+            # Volume element in cylindrical coords = r * (dr dq dz)
+            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
+        else:
             assert axes == ('x', 'y', 'z'), \
                 ("axis_names of spatial_rate_hist must be either "
                  "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
 
-        # Correctly scale the events/bin histogram E to make the pdf R
-        # histogram, taking into account (non uniform) bin volumes. This
-        # ensures we don't need to modify mu_before_efficiencies.
-        # R = E / bv
-        # R_norm = (E / sum E) / (bv / sum bv)
-        # R_norm = (E / bv) * (sum bv / sum E)
-        bv = self.spatial_rate_bin_volumes
-        E = self.spatial_rate_hist.histogram
-        R_norm = (E / bv) * (bv.sum() / E.sum())
+        # Normalize the histogram
+        self.spatial_hist.histogram = \
+                self.spatial_hist.histogram.astype(np.float) / self.spatial_hist.n
 
-        self.spatial_rate_pdf = self.spatial_rate_hist.similar_blank_hist()
-        self.spatial_rate_pdf.histogram = R_norm
-
-        # Check the spatial rate histogram was properly normalized.
-        # It's easy to mis-normalize by accident, don't cause any surprises:
-        assert 0.9999 < np.mean(E / bv) < 1.0001, \
-            "Spatial rate histogram is not normalized correctly"
+        # Local rate multiplier = PDF / uniform PDF
+        # = ((normed_hist/bin_volumes) / (1/total_volume))
+        self.local_rate_multiplier = self.spatial_hist.similar_blank_hist()
+        self.local_rate_multiplier.histogram = (
+            (self.spatial_hist.histogram / self.bin_volumes)
+            * self.bin_volumes.sum())
 
     def energy_spectrum_rate_multiplier(self, x, y, z):
         if self.polar:
             positions = list(fd.cart_to_pol(x, y)) + [z]
         else:
             positions = [x, y, z]
-        return self.spatial_rate_pdf.lookup(*positions)
+        return self.local_rate_multiplier.lookup(*positions)
 
     def draw_positions(self, n_events):
         """Return dictionary with x, y, z, r, theta, drift_time
         drawn from the spatial rate histogram.
         """
         data = dict()
-        positions = self.spatial_rate_hist.get_random(size=n_events)
-        for idx, col in enumerate(self.spatial_rate_hist.axis_names):
+        positions = self.spatial_hist.get_random(size=n_events)
+        for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
         if self.polar:
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
