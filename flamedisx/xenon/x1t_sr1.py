@@ -119,7 +119,7 @@ def interpolate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
     bias_low = interpolate_tf(sig_tf, fmap[0], domain_def)
     bias_high = interpolate_tf(sig_tf, fmap[1], domain_def)
 
-    bias = (bias_high-bias_low)*pivot_pt + bias_low
+    bias = (bias_high - bias_low) * pivot_pt + bias_low
     bias_out = bias + tf.ones_like(bias)
 
     return bias_out
@@ -292,7 +292,7 @@ class SR1Source:
 
 # ER Source for SR1
 @export
-class SR1ERSource(SR1Source,fd.ERSource):
+class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
     def p_electron(nq, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
