@@ -16,7 +16,7 @@ DEFAULT_DSETNAME = 'the_dataset'
 
 @export
 class LogLikelihood:
-    param_defaults: ty.Dict[str, float]
+    param_defaults: ty.Dict[str, tf.Tensor]
 
     dsetnames: ty.List[str]              # Dataset names
     sources: ty.Dict[str, fd.Source]     # Source name -> Source instance
@@ -464,9 +464,10 @@ class LogLikelihood:
                        0.)
         return ll
 
-    def guess(self):
+    def guess(self) -> ty.Dict[str, float]:
         """Return dictionary of parameter guesses"""
-        return self.param_defaults
+        return {k: v.numpy()
+                for k, v in self.param_defaults.items()}
 
     def params_to_dict(self, values):
         """Return parameter {name: value} dictionary"""
