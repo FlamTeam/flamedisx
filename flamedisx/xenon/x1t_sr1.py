@@ -95,7 +95,7 @@ def interpolate_tf(sig_tf, fmap, domain):
             x_ref_min=domain[0], x_ref_max=domain[1], 
             y_ref=fmap, fill_value='constant_extension')
 
-def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
+def interpolate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction bias mean given the pivot point.
 
     The pax reconstruction bias mean is a function of the S1 or S2 size and is
@@ -124,7 +124,7 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
 
     return bias_out
 
-def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
+def interpolate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction efficiency given the pivot point
     :param sig: photon detected
     :param fmap: map returned by read_maps_tf
@@ -170,21 +170,23 @@ class SR1Source:
 
     def reconstruction_bias_s1(self,
                                s1,
-                               bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(s1,
-                                          self.recon_map_s1_tf,
-                                          self.domain_def_s1,
-                                          pivot_pt=bias_pivot_pt1)
-        return reconstruction_bias
+                               s1_reconstruction_bias_pivot=\
+                                   DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
+        return interpolate_reconstruction_bias(
+            s1,
+            self.recon_map_s1_tf,
+            self.domain_def_s1,
+            pivot_pt=s1_reconstruction_bias_pivot)
 
     def reconstruction_bias_s2(self,
                                s2,
-                               bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(s2,
-                                          self.recon_map_s2_tf,
-                                          self.domain_def_s2,
-                                          pivot_pt=bias_pivot_pt2)
-        return reconstruction_bias
+                               s2_reconstruction_bias_pivot=\
+                                   DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
+        return interpolate_reconstruction_bias(
+            s2,
+            self.recon_map_s2_tf,
+            self.domain_def_s2,
+            pivot_pt=s2_reconstruction_bias_pivot)
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -247,12 +249,13 @@ class SR1Source:
 
     def photon_acceptance(self,
                           photons_detected,
-                          scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
-        acceptance = cal_rec_efficiency_tf(photons_detected,
-                                        self.recon_eff_map_s1,
-                                        self.domain_def_ph,
-                                        scalar)
-        return acceptance
+                          s1_reconstruction_efficiency_pivot=\
+                              DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
+        return interpolate_reconstruction_efficiency(
+            photons_detected,
+            self.recon_eff_map_s1,
+            self.domain_def_ph,
+            s1_reconstruction_efficiency_pivot)
 
     def s1_acceptance(self,
                       s1,
