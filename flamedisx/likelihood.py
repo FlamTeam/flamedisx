@@ -56,6 +56,7 @@ class LogLikelihood:
             log_constraint=None,
             bounds_specified=True,
             progress=True,
+            defaults=None,
             **common_param_specs):
         """
 
@@ -85,10 +86,15 @@ class LogLikelihood:
 
         :param progress: Show progress bars during initialization
 
+        :param defaults: dictionary of default parameter values to use for
+            all sources.
+
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
         param_defaults = dict()
 
+        if defaults is None:
+            defaults = dict()
         if isinstance(data, pd.DataFrame) or data is None:
             # Only one dataset
             data = {DEFAULT_DSETNAME: data}
@@ -130,7 +136,8 @@ class LogLikelihood:
                           # The source will filter out parameters it does not
                           # take
                           fit_params=list(k for k in common_param_specs.keys()),
-                          batch_size=batch_size)
+                          batch_size=batch_size,
+                          **defaults)
             for sname, sclass in self.sources.items()}
 
         for pname in common_param_specs:
