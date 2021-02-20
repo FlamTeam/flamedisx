@@ -267,6 +267,7 @@ class LogLikelihood:
     def simulate(self, fix_truth=None, **params):
         """Simulate events from sources.
         """
+        params = self.prepare_params(params)
         # Collect Source event DFs in ds
         ds = []
         for sname, s in self.sources.items():
