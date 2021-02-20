@@ -135,13 +135,11 @@ def interpolate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
     sig_tf = tf.convert_to_tensor(sig, dtype=fd.float_type())
     bias_median = interpolate_tf(sig_tf, fmap[1], domain_def)
 
-    if pivot_pt<0:
-        bias_other = interpolate_tf(sig_tf, fmap[0], domain_def)
-        bias_out = pivot_pt*(bias_median-bias_other)+bias_median
-    else:
-        bias_other = interpolate_tf(sig_tf, fmap[2], domain_def)
-        bias_out = pivot_pt*(bias_other-bias_median)+bias_median
-    return bias_out
+    bias_diff = tf.cond(
+        pivot_pt < 0,
+        lambda: bias_median - interpolate_tf(sig_tf, fmap[0], domain_def),
+        lambda: interpolate_tf(sig_tf, fmap[2], domain_def) - bias_median)
+    return bias_median + pivot_pt * bias_diff
 
 ##
 # Flamedisx sources
