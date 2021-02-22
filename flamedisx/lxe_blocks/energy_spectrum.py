@@ -369,16 +369,17 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
         data = self.draw_positions(n_events)
 
         if 'event_time' in fix_truth:
+            # Convert to valid J200 timestamp (from whatever user specified)
+            t = self.clip_j2000_times(wr.j2000(fix_truth['event_time']))
+
             # Time is fixed, so the energy spectrum differs.
             # (if energy is also fixed, it will just be overridden later
             #  and we're doing a bit of unnecessary work here)
-            t = wr.j2000(fix_truth['event_time'])
-            t_edges = self.energy_hist.bin_edges[0]
-            assert t_edges[0] <= t < t_edges[-1], "fix_truth time out of bounds"
             data['energy'] = \
                 self.energy_hist \
                     .slicesum(t, axis=0) \
                     .get_random(n_events)
+            times = t
 
         elif 'energy' in fix_truth:
             # Energy is fixed, so the time distribution differs.
@@ -389,14 +390,18 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
                 self.energy_hist \
                     .slicesum(fix_truth['energy'], axis=1) \
                     .get_random(n_events)
-            data['event_time'] = fd.j2000_to_event_time(times)
 
         else:
             times, data['energy'] = self.energy_hist.get_random(n_events).T
-            data['event_time'] = fd.j2000_to_event_time(times)
 
-        # Overwrite all fixed truth keys
-        self.source._overwrite_fixed_truths(data, fix_truth, n_events)
+        data['event_time'] = fd.j2000_to_event_time(times)
+
+        # Time has already been handled, do not overwrite it again
+        # (if we do, we could crash if the user specified it as a datetime
+        #  object rather than a unix timestamp)
+        fix_truth_notime = {k: v for k, v in fix_truth.items()
+                            if k != 'event_time'}
+        self.source._overwrite_fixed_truths(data, fix_truth_notime, n_events)
 
         return pd.DataFrame(data)
 
