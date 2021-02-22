@@ -1,7 +1,9 @@
+from datetime import timedelta
 import numpy as np
 import pandas as pd
 import pytest
 import tensorflow as tf
+from wimprates import j2000
 
 from multihist import Histdd
 
@@ -320,3 +322,16 @@ def test_set_data(xes: fd.ERSource):
 
     x = xes.batched_differential_rate()
     assert x.shape == (3,)
+
+
+def test_clip(xes):
+    if not isinstance(xes, fd.WIMPSource):
+        return
+
+    t_bad = pd.to_datetime(xes.t_start) - timedelta(days=2)
+    with pytest.raises(fd.InvalidEventTimes):
+        xes.simulate(10, fix_truth=dict(event_time=t_bad))
+
+    t_good = pd.to_datetime(xes.t_start) + timedelta(days=2)
+    assert xes.model_blocks[0].clip_j2000_times(j2000(t_good)) == j2000(t_good)
+    xes.simulate(10, fix_truth=dict(event_time=t_good))
