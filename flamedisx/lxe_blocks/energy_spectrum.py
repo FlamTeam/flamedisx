@@ -273,6 +273,11 @@ class VariableEnergySpectrum(EnergySpectrum):
 
 
 @export
+class InvalidEventTimes(Exception):
+    pass
+
+
+@export
 class WIMPEnergySpectrum(VariableEnergySpectrum):
     model_attributes = ('pretend_wimps_dont_modulate',
                         'mw',
@@ -332,10 +337,27 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
                 / self.n_time_bins)
 
     def energy_spectrum(self, event_time):
-        t_j2000 = wr.j2000(fd.tf_to_np(event_time))
-        result = np.stack([self.energy_hist.slicesum(np.clip(t, self.t_start.value, self.t_stop.value)).histogram
-                           for t in t_j2000])
+        ts = fd.tf_to_np(event_time)
+        ts = wr.j2000(ts)
+        ts = self.clip_j2000_times(ts)
+
+        result = np.stack([self.energy_hist.slicesum(t).histogram
+                           for t in ts])
         return fd.np_to_tf(result)
+
+    def clip_j2000_times(self, ts):
+        """Return J2000 time(s) ts, clipped to the range of the
+        energy-time histogram. If times are more than one day out,
+        raises InvalidEventTimes.
+
+        :param ts: J2000 timestamp, or array of timestamps
+        """
+        tbins = self.energy_hist.bin_edges[0]
+        if np.min(ts) < tbins[0] - 1 or np.max(ts) > tbins[-1] + 1:
+            raise InvalidEventTimes(
+                f"You passed J200 times in [{np.min(ts):.1f}, {np.max(ts):.1f}]"
+                f"But this source expects [{tbins[0]:.1f} - {tbins[-1]:.1f}].")
+        return np.clip(ts, tbins[0], tbins[-1])
 
     def mu_before_efficiencies(self, **params):
         return self.energy_hist.n / self.n_time_bins
