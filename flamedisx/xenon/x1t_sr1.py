@@ -95,7 +95,7 @@ def interpolate_tf(sig_tf, fmap, domain):
             x_ref_min=domain[0], x_ref_max=domain[1], 
             y_ref=fmap, fill_value='constant_extension')
 
-def interpolate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
+def calculate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction bias mean given the pivot point.
 
     The pax reconstruction bias mean is a function of the S1 or S2 size and is
@@ -124,7 +124,7 @@ def interpolate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
 
     return bias_out
 
-def interpolate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
+def calculate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction efficiency given the pivot point
     :param sig: photon detected
     :param fmap: map returned by read_maps_tf
@@ -170,7 +170,7 @@ class SR1Source:
                                s1,
                                s1_reconstruction_bias_pivot=\
                                    DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        return interpolate_reconstruction_bias(
+        return calculate_reconstruction_bias(
             s1,
             self.recon_map_s1_tf,
             self.domain_def_s1,
@@ -180,7 +180,7 @@ class SR1Source:
                                s2,
                                s2_reconstruction_bias_pivot=\
                                    DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        return interpolate_reconstruction_bias(
+        return calculate_reconstruction_bias(
             s2,
             self.recon_map_s2_tf,
             self.domain_def_s2,
@@ -249,7 +249,7 @@ class SR1Source:
                           photons_detected,
                           s1_reconstruction_efficiency_pivot=\
                               DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
-        return interpolate_reconstruction_efficiency(
+        return calculate_reconstruction_efficiency(
             photons_detected,
             self.recon_eff_map_s1,
             self.domain_def_ph,
