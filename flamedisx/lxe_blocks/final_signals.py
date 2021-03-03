@@ -36,11 +36,9 @@ class MakeFinalSignals(fd.Block):
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
 
-        #### true area -> reconstructed area
-        aa = self.gimme_numpy('reconstruction_bias_'+self.signal_name,
-                bonus_arg=d[self.signal_name])
-        d[self.signal_name] *= aa
-        #### end 
+        # reconstructed area = (bias+1)*true area
+        d[self.signal_name] *= self.gimme_numpy('reconstruction_bias_'+self.signal_name,
+                            bonus_arg=d[self.signal_name])
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -49,12 +47,6 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        #### start insertion
-        # Actually, don't think I should be modifying this.
-        # _annotate calculates the min, max, mle for quanta detected
-        # pax recon bias mean is a function of true area in units of photoelectrons
-        #### end insertion
-
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
@@ -85,20 +77,16 @@ class MakeFinalSignals(fd.Block):
         mean = quanta_detected * mean_per_q
         std = quanta_detected ** 0.5 * std_per_q
 
-        ### reconstructed -> true area
-        #'''
-        #aa = tf.ones_like(s_observed)
-        aa = self.gimme('reconstruction_bias_'+self.signal_name,
+        # true area = reconstructed area/(bias+1)
+        s_true = self.gimme('reconstruction_bias_'+self.signal_name,
                         data_tensor=data_tensor, ptensor=ptensor,
                         bonus_arg=s_observed)
-        #'''
-        ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name straight?
-        ###
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
+        # evaluating pdf at true area instead of reconstructed area 
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s_observed/aa)
+        ).prob(s_true)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
