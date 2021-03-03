@@ -222,6 +222,7 @@ def index_lookup_dict(names, column_widths=None):
 
 @export
 def values_to_constants(kwargs):
+    """Return dictionary with python/numpy values replaced by tf.constant"""
     for k, v in kwargs.items():
         if isinstance(v, (float, int)) or is_numpy_number(v):
             kwargs[k] = tf.constant(v, dtype=float_type())

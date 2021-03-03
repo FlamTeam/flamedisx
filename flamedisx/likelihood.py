@@ -16,7 +16,7 @@ DEFAULT_DSETNAME = 'the_dataset'
 
 @export
 class LogLikelihood:
-    param_defaults: ty.Dict[str, float]
+    param_defaults: ty.Dict[str, tf.Tensor]
 
     dsetnames: ty.List[str]              # Dataset names
     sources: ty.Dict[str, fd.Source]     # Source name -> Source instance
@@ -56,6 +56,7 @@ class LogLikelihood:
             log_constraint=None,
             bounds_specified=True,
             progress=True,
+            defaults=None,
             **common_param_specs):
         """
 
@@ -85,10 +86,15 @@ class LogLikelihood:
 
         :param progress: Show progress bars during initialization
 
+        :param defaults: dictionary of default parameter values to use for
+            all sources.
+
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
         param_defaults = dict()
 
+        if defaults is None:
+            defaults = dict()
         if isinstance(data, pd.DataFrame) or data is None:
             # Only one dataset
             data = {DEFAULT_DSETNAME: data}
@@ -130,7 +136,8 @@ class LogLikelihood:
                           # The source will filter out parameters it does not
                           # take
                           fit_params=list(k for k in common_param_specs.keys()),
-                          batch_size=batch_size)
+                          batch_size=batch_size,
+                          **defaults)
             for sname, sclass in self.sources.items()}
 
         for pname in common_param_specs:
@@ -267,6 +274,7 @@ class LogLikelihood:
     def simulate(self, fix_truth=None, **params):
         """Simulate events from sources.
         """
+        params = self.prepare_params(params, free_all_rates=True)
         # Collect Source event DFs in ds
         ds = []
         for sname, s in self.sources.items():
@@ -338,9 +346,11 @@ class LogLikelihood:
         hess = -2 * result[2] if result[2] is not None else None
         return -2 * ll, -2 * grad, hess
 
-    def prepare_params(self, kwargs):
+    def prepare_params(self, kwargs, free_all_rates=False):
         for k in kwargs:
             if k not in self.param_defaults:
+                if k.endswith('_rate_multiplier') and free_all_rates:
+                    continue
                 raise ValueError(f"Unknown parameter {k}")
         return {**self.param_defaults, **fd.values_to_constants(kwargs)}
 
@@ -463,9 +473,10 @@ class LogLikelihood:
                        0.)
         return ll
 
-    def guess(self):
+    def guess(self) -> ty.Dict[str, float]:
         """Return dictionary of parameter guesses"""
-        return self.param_defaults
+        return {k: v.numpy()
+                for k, v in self.param_defaults.items()}
 
     def params_to_dict(self, values):
         """Return parameter {name: value} dictionary"""
