@@ -78,7 +78,7 @@ class MakeFinalSignals(fd.Block):
         std = quanta_detected ** 0.5 * std_per_q
 
         # true area = reconstructed area/(bias+1)
-        s_true = self.gimme('reconstruction_bias_'+self.signal_name,
+        s_true = s_observed/self.gimme('reconstruction_bias_'+self.signal_name,
                         data_tensor=data_tensor, ptensor=ptensor,
                         bonus_arg=s_observed)
 
