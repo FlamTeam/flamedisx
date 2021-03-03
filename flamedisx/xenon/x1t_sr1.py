@@ -95,7 +95,7 @@ def interpolate_tf(sig_tf, fmap, domain):
             x_ref_min=domain[0], x_ref_max=domain[1], 
             y_ref=fmap, fill_value='constant_extension')
 
-def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
+def calculate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction bias mean given the pivot point.
 
     The pax reconstruction bias mean is a function of the S1 or S2 size and is
@@ -119,12 +119,12 @@ def cal_bias_tf(sig, fmap, domain_def, pivot_pt):
     bias_low = interpolate_tf(sig_tf, fmap[0], domain_def)
     bias_high = interpolate_tf(sig_tf, fmap[1], domain_def)
 
-    bias = (bias_high-bias_low)*pivot_pt + bias_low
+    bias = (bias_high - bias_low) * pivot_pt + bias_low
     bias_out = bias + tf.ones_like(bias)
 
     return bias_out
 
-def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
+def calculate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction efficiency given the pivot point
     :param sig: photon detected
     :param fmap: map returned by read_maps_tf
@@ -135,13 +135,11 @@ def cal_rec_efficiency_tf(sig, fmap, domain_def, pivot_pt):
     sig_tf = tf.convert_to_tensor(sig, dtype=fd.float_type())
     bias_median = interpolate_tf(sig_tf, fmap[1], domain_def)
 
-    if pivot_pt<0:
-        bias_other = interpolate_tf(sig_tf, fmap[0], domain_def)
-        bias_out = pivot_pt*(bias_median-bias_other)+bias_median
-    else:
-        bias_other = interpolate_tf(sig_tf, fmap[2], domain_def)
-        bias_out = pivot_pt*(bias_other-bias_median)+bias_median
-    return bias_out
+    bias_diff = tf.cond(
+        pivot_pt < 0,
+        lambda: bias_median - interpolate_tf(sig_tf, fmap[0], domain_def),
+        lambda: interpolate_tf(sig_tf, fmap[2], domain_def) - bias_median)
+    return bias_median + pivot_pt * bias_diff
 
 ##
 # Flamedisx sources
@@ -170,21 +168,23 @@ class SR1Source:
 
     def reconstruction_bias_s1(self,
                                s1,
-                               bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(s1,
-                                          self.recon_map_s1_tf,
-                                          self.domain_def_s1,
-                                          pivot_pt=bias_pivot_pt1)
-        return reconstruction_bias
+                               s1_reconstruction_bias_pivot=\
+                                   DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
+        return calculate_reconstruction_bias(
+            s1,
+            self.recon_map_s1_tf,
+            self.domain_def_s1,
+            pivot_pt=s1_reconstruction_bias_pivot)
 
     def reconstruction_bias_s2(self,
                                s2,
-                               bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        reconstruction_bias = cal_bias_tf(s2,
-                                          self.recon_map_s2_tf,
-                                          self.domain_def_s2,
-                                          pivot_pt=bias_pivot_pt2)
-        return reconstruction_bias
+                               s2_reconstruction_bias_pivot=\
+                                   DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
+        return calculate_reconstruction_bias(
+            s2,
+            self.recon_map_s2_tf,
+            self.domain_def_s2,
+            pivot_pt=s2_reconstruction_bias_pivot)
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -247,12 +247,13 @@ class SR1Source:
 
     def photon_acceptance(self,
                           photons_detected,
-                          scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
-        acceptance = cal_rec_efficiency_tf(photons_detected,
-                                        self.recon_eff_map_s1,
-                                        self.domain_def_ph,
-                                        scalar)
-        return acceptance
+                          s1_reconstruction_efficiency_pivot=\
+                              DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
+        return calculate_reconstruction_efficiency(
+            photons_detected,
+            self.recon_eff_map_s1,
+            self.domain_def_ph,
+            s1_reconstruction_efficiency_pivot)
 
     def s1_acceptance(self,
                       s1,
@@ -289,7 +290,7 @@ class SR1Source:
 
 # ER Source for SR1
 @export
-class SR1ERSource(SR1Source,fd.ERSource):
+class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
     def p_electron(nq, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
