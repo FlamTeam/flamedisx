@@ -11,7 +11,6 @@ o = tf.newaxis
 
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
-
 class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
 
@@ -31,15 +30,14 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
+        tf.print('*** _simulate starts')
         d[self.signal_name] = stats.norm.rvs(
             loc=(d[self.quanta_name + 's_detected']
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
 
-
         #### start test
-        # tf.print('hi from _simulate')
         aa = self.gimme_numpy('reconstruction_bias_'+self.signal_name,
                 bonus_arg=d[self.signal_name])
         d[self.signal_name] *= aa
@@ -50,6 +48,7 @@ class MakeFinalSignals(fd.Block):
         # TODO: This is a bit of a kludge
         self.source.add_extra_columns(d)
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
+        tf.print('_simulate ends ***')
 
     def _annotate(self, d):
         #### start insertion
@@ -62,7 +61,7 @@ class MakeFinalSignals(fd.Block):
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            ((d[self.signal_name]/aa) / m).clip(0, None)
+            (d[self.signal_name] / m).clip(0, None)
         scale = mle**0.5 * s / m
 
         for bound, sign, intify in (('min', -1, np.floor),
@@ -77,6 +76,7 @@ class MakeFinalSignals(fd.Block):
     def _compute(self,
                  quanta_detected, s_observed,
                  data_tensor, ptensor):
+        tf.print('*** _compute starts')
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
                                 data_tensor=data_tensor,
@@ -89,28 +89,28 @@ class MakeFinalSignals(fd.Block):
         std = quanta_detected ** 0.5 * std_per_q
 
         ###
-        # tf.print('hi from _compute. with bias.')
         #aa = tf.ones_like(s_observed)
         #'''
         aa = self.gimme('reconstruction_bias_'+self.signal_name,
                         data_tensor=data_tensor, ptensor=ptensor,
                         bonus_arg=s_observed)
+        s_observed /= aa
         #'''
 
         ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name straight?
-        ## what's up with [:, o, o]
-        ## recon bias correction before or after s1_acceptance, s2_acceptance?
 
         ###
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s_observed/aa)
+        ).prob(s_observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+
+        tf.print('_compute ends ***')
         return result
 
     def check_data(self):
