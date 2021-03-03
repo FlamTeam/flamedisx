@@ -30,31 +30,29 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
-        tf.print('*** _simulate starts')
         d[self.signal_name] = stats.norm.rvs(
             loc=(d[self.quanta_name + 's_detected']
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
 
-        #### start test
+        #### true area -> reconstructed area
         aa = self.gimme_numpy('reconstruction_bias_'+self.signal_name,
                 bonus_arg=d[self.signal_name])
         d[self.signal_name] *= aa
-        #### end test
+        #### end 
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
         # TODO: This is a bit of a kludge
         self.source.add_extra_columns(d)
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
-        tf.print('_simulate ends ***')
 
     def _annotate(self, d):
         #### start insertion
         # Actually, don't think I should be modifying this.
         # _annotate calculates the min, max, mle for quanta detected
-        # pax recon bias mean is in units of photoelectrons.
+        # pax recon bias mean is a function of true area in units of photoelectrons
         #### end insertion
 
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
@@ -76,7 +74,6 @@ class MakeFinalSignals(fd.Block):
     def _compute(self,
                  quanta_detected, s_observed,
                  data_tensor, ptensor):
-        tf.print('*** _compute starts')
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
                                 data_tensor=data_tensor,
@@ -88,29 +85,25 @@ class MakeFinalSignals(fd.Block):
         mean = quanta_detected * mean_per_q
         std = quanta_detected ** 0.5 * std_per_q
 
-        ###
-        #aa = tf.ones_like(s_observed)
+        ### reconstructed -> true area
         #'''
+        #aa = tf.ones_like(s_observed)
         aa = self.gimme('reconstruction_bias_'+self.signal_name,
                         data_tensor=data_tensor, ptensor=ptensor,
                         bonus_arg=s_observed)
-        s_observed /= aa
         #'''
-
         ## why need SIGNAL_NAMES[self.quanta_name]? cannot self.signal_name straight?
-
         ###
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s_observed)
+        ).prob(s_observed/aa)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
-        tf.print('_compute ends ***')
         return result
 
     def check_data(self):

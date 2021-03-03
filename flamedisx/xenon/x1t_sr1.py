@@ -171,23 +171,19 @@ class SR1Source:
     def reconstruction_bias_s1(self,
                                s1,
                                bias_pivot_pt1=DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        tf.print('!! reconstruction_bias_s1 ')
         reconstruction_bias = cal_bias_tf(s1,
                                           self.recon_map_s1_tf,
                                           self.domain_def_s1,
                                           pivot_pt=bias_pivot_pt1)
-        tf.print('reconstruction_bias_s1 !!')
         return reconstruction_bias
 
     def reconstruction_bias_s2(self,
                                s2,
                                bias_pivot_pt2=DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        tf.print('!! reconstruction_bias_s2')
         reconstruction_bias = cal_bias_tf(s2,
                                           self.recon_map_s2_tf,
                                           self.domain_def_s2,
                                           pivot_pt=bias_pivot_pt2)
-        tf.print('reconstruction_bias_s2 !!')
         return reconstruction_bias
 
     def random_truth(self, n_events, fix_truth=None, **params):
@@ -252,12 +248,10 @@ class SR1Source:
     def photon_acceptance(self,
                           photons_detected,
                           scalar=DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT):
-        tf.print('!! photon_acceptance')
         acceptance = cal_rec_efficiency_tf(photons_detected,
                                         self.recon_eff_map_s1,
                                         self.domain_def_ph,
                                         scalar)
-        tf.print('photon_acceptance !!')
         return acceptance
 
     def s1_acceptance(self,
@@ -266,7 +260,6 @@ class SR1Source:
                       # Only used here, DEFAULT_.. would be super verbose
                       cs1_min=3.,
                       cs1_max=70.):
-        tf.print('!! s1_acceptance')
         acceptance = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                               tf.ones_like(s1, dtype=fd.float_type()),
                               tf.zeros_like(s1, dtype=fd.float_type()))
@@ -275,7 +268,6 @@ class SR1Source:
         acceptance *= interpolate_tf(s1, 
                                      self.cut_accept_map_s1[0],
                                      self.cut_accept_domain_s1)
-        tf.print(' s1_acceptance !!')
         return acceptance
 
     def s2_acceptance(self,
@@ -283,7 +275,6 @@ class SR1Source:
                       cs2,
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        tf.print('!! s2_acceptance')
         cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
         acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max),
                               tf.ones_like(s2, dtype=fd.float_type()),
@@ -293,7 +284,6 @@ class SR1Source:
         acceptance *= interpolate_tf(s2, 
                                      self.cut_accept_map_s2[0],
                                      self.cut_accept_domain_s2)
-        tf.print('s2_acceptance !!')
         return acceptance
 
 
