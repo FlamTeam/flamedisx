@@ -1,8 +1,10 @@
 import setuptools
 
-# Get requirements from requirements_minimal.txt
 with open('requirements_minimal.txt') as f:
     requires = [x.strip() for x in f.readlines()]
+
+with open('requirements.txt') as f:
+    requires_strict = [x.strip() for x in f.readlines()]
 
 with open('README.md') as file:
     readme = file.read()
@@ -25,6 +27,7 @@ setuptools.setup(
                  'sphinx_rtd_theme',
                  'nbsphinx',
                  'recommonmark'],
+        'strict-deps': requires_strict,
     },
     long_description=readme + '\n\n' + history,
     long_description_content_type="text/markdown",

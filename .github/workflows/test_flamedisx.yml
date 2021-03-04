@@ -19,7 +19,7 @@ jobs:
         pip install -r requirements.txt
     - name: Install flamedisx
       run: |
-        python setup.py install
+        pip install .[strict]
     - name: Test with pytest
       run: |
         pytest
