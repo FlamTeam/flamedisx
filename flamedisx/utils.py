@@ -31,11 +31,10 @@ def exporter():
     return decorator, all_
 
 
-# __all__ += breaks pyflakes
 export, __all__ = exporter()
-__all__ = __all__ + [
+__all__.extend([
     'float_type', 'exporter',
-    'MIN_FLUCTUATION_P', 'MAX_MEAN_P']
+    'MIN_FLUCTUATION_P', 'MAX_MEAN_P'])
 
 
 @export
