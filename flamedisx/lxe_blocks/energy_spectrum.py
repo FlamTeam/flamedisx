@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import wimprates as wr
+import warnings 
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -272,6 +273,11 @@ class VariableEnergySpectrum(EnergySpectrum):
 
 
 @export
+class InvalidEventTimes(Exception):
+    pass
+
+
+@export
 class WIMPEnergySpectrum(VariableEnergySpectrum):
     model_attributes = ('pretend_wimps_dont_modulate',
                         'mw',
@@ -331,10 +337,27 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
                 / self.n_time_bins)
 
     def energy_spectrum(self, event_time):
-        t_j2000 = wr.j2000(fd.tf_to_np(event_time))
+        ts = fd.tf_to_np(event_time)
+        ts = wr.j2000(ts)
+        ts = self.clip_j2000_times(ts)
+
         result = np.stack([self.energy_hist.slicesum(t).histogram
-                           for t in t_j2000])
+                           for t in ts])
         return fd.np_to_tf(result)
+
+    def clip_j2000_times(self, ts):
+        """Return J2000 time(s) ts, clipped to the range of the
+        energy-time histogram. If times are more than one day out,
+        raises InvalidEventTimes.
+
+        :param ts: J2000 timestamp, or array of timestamps
+        """
+        tbins = self.energy_hist.bin_edges[0]
+        if np.min(ts) < tbins[0] - 1 or np.max(ts) > tbins[-1] + 1:
+            raise InvalidEventTimes(
+                f"You passed J200 times in [{np.min(ts):.1f}, {np.max(ts):.1f}]"
+                f"But this source expects [{tbins[0]:.1f} - {tbins[-1]:.1f}].")
+        return np.clip(ts, tbins[0], tbins[-1])
 
     def mu_before_efficiencies(self, **params):
         return self.energy_hist.n / self.n_time_bins
@@ -346,16 +369,17 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
         data = self.draw_positions(n_events)
 
         if 'event_time' in fix_truth:
+            # Convert to valid J200 timestamp (from whatever user specified)
+            t = self.clip_j2000_times(wr.j2000(fix_truth['event_time']))
+
             # Time is fixed, so the energy spectrum differs.
             # (if energy is also fixed, it will just be overridden later
             #  and we're doing a bit of unnecessary work here)
-            t = wr.j2000(fix_truth['event_time'])
-            t_edges = self.energy_hist.bin_edges[0]
-            assert t_edges[0] <= t < t_edges[-1], "fix_truth time out of bounds"
             data['energy'] = \
                 self.energy_hist \
                     .slicesum(t, axis=0) \
                     .get_random(n_events)
+            times = t
 
         elif 'energy' in fix_truth:
             # Energy is fixed, so the time distribution differs.
@@ -366,14 +390,18 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
                 self.energy_hist \
                     .slicesum(fix_truth['energy'], axis=1) \
                     .get_random(n_events)
-            data['event_time'] = fd.j2000_to_event_time(times)
 
         else:
             times, data['energy'] = self.energy_hist.get_random(n_events).T
-            data['event_time'] = fd.j2000_to_event_time(times)
 
-        # Overwrite all fixed truth keys
-        self.source._overwrite_fixed_truths(data, fix_truth, n_events)
+        data['event_time'] = fd.j2000_to_event_time(times)
+
+        # Time has already been handled, do not overwrite it again
+        # (if we do, we could crash if the user specified it as a datetime
+        #  object rather than a unix timestamp)
+        fix_truth_notime = {k: v for k, v in fix_truth.items()
+                            if k != 'event_time'}
+        self.source._overwrite_fixed_truths(data, fix_truth_notime, n_events)
 
         return pd.DataFrame(data)
 
