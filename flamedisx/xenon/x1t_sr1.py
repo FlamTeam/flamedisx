@@ -71,7 +71,7 @@ elife_variable = True
 
 # ugly, got nicer way?
 auxiliary_base = os.path.abspath(os.path.join(os.path.join(__file__, os.pardir), os.pardir))
-path_electron_lifetimes = [auxiliary_base+'/auxiliary_maps/SR1_Elife.json']
+path_electron_lifetimes = [auxiliary_base+'/dummy_maps/SR1_Elife.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
@@ -231,6 +231,18 @@ class SR1Source:
                 d['s2']
                 / d['s2_relative_ly']
                 * np.exp(d['drift_time'] / self.defaults['elife']))
+
+        # Not good. patchy. event_time should be int since event_time in actual
+        # data is int in ns
+        if 'elife' not in d.columns:
+            if elife_variable:
+                print('Variable elife')
+                d['event_time'] = d['event_time'].astype('float32')
+                d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
+                                        self.domain_def_elife)
+            else:
+                print('Constant elife')
+                d['elife'] = DEFAULT_ELECTRON_LIFETIME 
 
     @staticmethod
     def electron_detection_eff(drift_time,
