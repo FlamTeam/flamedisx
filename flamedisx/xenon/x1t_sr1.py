@@ -63,6 +63,15 @@ path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
 path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
 path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
+## 
+# variable elife
+##
+elife_variable = True
+
+# ugly, got nicer way?
+auxiliary_base = os.path.abspath(os.path.join(os.path.join(__file__, os.pardir), os.pardir))
+path_electron_lifetimes = [auxiliary_base+'/auxiliary_maps/SR1_Elife.json']
+
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
@@ -167,6 +176,10 @@ class SR1Source:
             read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
         self.recon_map_s2_tf, self.domain_def_s2 = \
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
+
+        # Loading electron lifetime map
+        self.elife_tf, self.domain_def_elife = \
+            read_maps_tf(path_electron_lifetimes, is_bbf=False)
 
     def reconstruction_bias_s1(self,
                                s1,
