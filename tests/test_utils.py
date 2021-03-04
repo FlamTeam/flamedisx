@@ -3,6 +3,7 @@ import pandas as pd
 import wimprates as wr
 import flamedisx as fd
 
+
 def test_j2000_conversion():
     j2000_times = np.linspace(0., 10000., 100)
 

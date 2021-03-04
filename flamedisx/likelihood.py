@@ -467,9 +467,9 @@ class LogLikelihood:
         # Add mu once (to the first batch)
         # and constraint really only once (to first batch of first dataset)
         ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       -self.mu(dataset_name=dsetname, **params)
-                           + (self.log_constraint(**params)
-                              if dsetname == self.dsetnames[0] else 0.),
+                       - self.mu(dataset_name=dsetname, **params)
+                       + (self.log_constraint(**params)
+                          if dsetname == self.dsetnames[0] else 0.),
                        0.)
         return ll
 
@@ -638,7 +638,7 @@ class LogLikelihood:
 
         if bestfit is None:
             # Determine global bestfit
-            if optimizer=='nlin':
+            if optimizer == 'nlin':
                 # This optimizer is only for interval setting.
                 # Use scipy to get best-fit first
                 bestfit = self.bestfit(fix=fix, optimizer='scipy')

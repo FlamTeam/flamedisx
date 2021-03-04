@@ -138,7 +138,7 @@ class InterpolatingMap:
         log = logging.getLogger('InterpolatingMap')
         log.debug('Map name: %s' % self.data['name'])
         log.debug('Map description:\n    ' +
-                       re.sub(r'\n', r'\n    ', self.data['description']))
+                  re.sub(r'\n', r'\n    ', self.data['description']))
         log.debug("Map names found: %s" % self.map_names)
 
         for map_name in self.map_names:

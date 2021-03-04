@@ -24,9 +24,11 @@ def exporter():
     Returns export decorator, __all__ list
     """
     all_ = []
+
     def decorator(obj):
         all_.append(obj.__name__)
         return obj
+
     return decorator, all_
 
 

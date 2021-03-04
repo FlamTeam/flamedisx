@@ -9,6 +9,7 @@ from flamedisx.likelihood import DEFAULT_DSETNAME
 
 n_events = 2
 
+
 @pytest.fixture(params=["ER", "NR"])
 def xes(request):
     # warnings.filterwarnings("error")
@@ -63,7 +64,7 @@ def test_inference(xes: fd.ERSource):
                                         batch_info=lf.batch_info,
                                         elife=tf.constant(300e3))
     assert (x - x2).numpy() != 0
-    assert (x_grad - x2_grad).numpy().sum() !=0
+    assert (x_grad - x2_grad).numpy().sum() != 0
 
     # Test batching
     l1 = lf.log_likelihood()
