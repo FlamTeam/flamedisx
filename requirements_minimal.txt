@@ -1,0 +1,9 @@
+numpy
+scipy
+pandas
+multihist
+wimprates>=0.3.1
+tqdm
+tensorflow>=2.2.0
+tensorflow_probability>=0.8.0
+iminuit

@@ -1,7 +1,7 @@
 import setuptools
 
-# Get requirements from requirements.txt
-with open('requirements.txt') as f:
+# Get requirements from requirements_minimal.txt
+with open('requirements_minimal.txt') as f:
     requires = [x.strip() for x in f.readlines()]
 
 with open('README.md') as file:
