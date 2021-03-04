@@ -4,9 +4,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 import tensorflow as tf
-import tensorflow_probability as tfp
-lgamma = tf.math.lgamma
 
+lgamma = tf.math.lgamma
 o = tf.newaxis
 FLOAT_TYPE = tf.float32
 INT_TYPE = tf.int32
