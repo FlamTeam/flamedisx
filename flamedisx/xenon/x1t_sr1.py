@@ -1,4 +1,5 @@
 """XENON1T SR1 implementation"""
+import os
 import json
 
 import numpy as np
