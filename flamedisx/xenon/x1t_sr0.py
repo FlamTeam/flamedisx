@@ -2,7 +2,6 @@
 
 """
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 import flamedisx as fd
@@ -39,7 +38,7 @@ def p_el_sr0(e_kev):
 
         fi = 1 / (1 + mean_nexni)
         nq = e_kev / w_bbf
-        ni, nex = nq * fi, nq * (1 - fi)
+        ni, _ = nq * fi, nq * (1 - fi)
         wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * f_dr ** (-delta_er)
         r_er = 1 - tf.math.log(1 + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1 + tf.exp(-(e_kev - q0) / q1))

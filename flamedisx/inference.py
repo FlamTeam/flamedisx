@@ -11,11 +11,11 @@ import tensorflow_probability as tfp
 
 from scipy.optimize import NonlinearConstraint
 
-export, __all__ = fd.exporter()
-__all__ += ['LOWER_RATE_MULTIPLIER_BOUND',
-            'SUPPORTED_OPTIMIZERS',
-            'SUPPORTED_INTERVAL_OPTIMIZERS',
-            'FLOAT32_EPS']
+
+__all__ = ['LOWER_RATE_MULTIPLIER_BOUND',
+           'SUPPORTED_OPTIMIZERS',
+           'SUPPORTED_INTERVAL_OPTIMIZERS',
+           'FLOAT32_EPS']
 
 # Setting this to 0 does work, but makes the inference rather slow
 # (at least for scipy); probably there is a relative xtol computation,

@@ -4,9 +4,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 import tensorflow as tf
-import tensorflow_probability as tfp
-lgamma = tf.math.lgamma
 
+lgamma = tf.math.lgamma
 o = tf.newaxis
 FLOAT_TYPE = tf.float32
 INT_TYPE = tf.int32
@@ -24,15 +23,18 @@ def exporter():
     Returns export decorator, __all__ list
     """
     all_ = []
+
     def decorator(obj):
         all_.append(obj.__name__)
         return obj
+
     return decorator, all_
 
 
 export, __all__ = exporter()
-__all__ += ['float_type', 'exporter',
-            'MIN_FLUCTUATION_P', 'MAX_MEAN_P']
+__all__.extend([
+    'float_type', 'exporter',
+    'MIN_FLUCTUATION_P', 'MAX_MEAN_P'])
 
 
 @export
