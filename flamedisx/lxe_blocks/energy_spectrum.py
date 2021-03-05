@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import wimprates as wr
-import warnings 
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
