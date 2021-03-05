@@ -304,6 +304,11 @@ def test_set_data(xes: fd.ERSource):
         np.testing.assert_array_equal(xes.data['s1'], data2['s1'])
     np.testing.assert_array_equal(xes.data['s1'], data1['s1'])
 
+    # Setting defaults temporarily (see PR #110)
+    with xes._set_temporarily(data2, elife=100e3):
+        pass
+    assert xes.defaults['elife'] == fd.ERSource().defaults['elife']
+
     # Setting for real
     xes.set_data(data2)
     assert xes.data is not data1
