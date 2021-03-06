@@ -197,7 +197,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
 
         # Normalize the histogram
         self.spatial_hist.histogram = \
-                self.spatial_hist.histogram.astype(np.float) / self.spatial_hist.n
+            self.spatial_hist.histogram.astype(np.float) / self.spatial_hist.n
 
         # Local rate multiplier = PDF / uniform PDF
         # = ((normed_hist/bin_volumes) / (1/total_volume))
