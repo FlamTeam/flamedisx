@@ -1,3 +1,15 @@
+1.4.0 / 2021-03-05
+------------------
+- Fix 'sticky defaults' bug (#110)
+- Enable GitHub Actions and Dependabot (#109)
+- Documentation updates (#92, [notebooks#3](https://github.com/FlamTeam/flamedisx-notebooks/pull/3))
+- Likelihood `defaults` support, simulate argument fixes (#103) 
+- SpatialRateEnergySpectrum: Simplify API (#100) and fix draw_positions (#105)
+- WIMPEnergySpectrum: Accept event times slightly out of range (#99)
+- Do not round photons_detected_mle (#91)
+- XENON1T: fix S2 acceptance (#97) and name reconstruction efficiency pivots (#102)
+
+
 1.3.0 / 2020-08-25
 ------------------
 - Block system (#81)
