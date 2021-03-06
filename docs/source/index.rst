@@ -14,6 +14,8 @@ You can find more details in our arXiv preprint, at https://arxiv.org/abs/2003.1
    :caption: Contents:
 
    tutorial.ipynb
+   wimp_limit_example.ipynb
+   spatial_rate_variation_demo.ipynb
    blocks.md
 
 
