@@ -3,7 +3,7 @@ Flamedisx
 
 Fast likelihood analysis in more dimensions for xenon TPCs.
 
-[![Build Status](https://travis-ci.org/FlamTeam/flamedisx.svg?branch=master)](https://travis-ci.org/FlamTeam/flamedisx)
+![Build Status](https://github.com/FlamTeam/flamedisx/actions/workflows/test_flamedisx.yml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/flamedisx/badge/?version=latest)](https://flamedisx.readthedocs.io/en/latest/?badge=latest)
 [![DOI](https://zenodo.org/badge/176141558.svg)](https://zenodo.org/badge/latestdoi/176141558)
 [![ArXiv number](https://img.shields.io/badge/physics.ins--det-arXiv%3A2003.12483-%23B31B1B)](https://arxiv.org/abs/2003.12483)

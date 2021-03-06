@@ -1,4 +1,4 @@
-name: Test and lint flamedisx
+name: build
 
 on: [push, pull_request]
 
