@@ -50,22 +50,14 @@ def xes(request):
         z = np.linspace(-97.6, 0, nbins + 1)
         theta = np.linspace(0, 2 * np.pi, nbins + 1)
 
-        # Construct PDF histogram
+        # Construct histogram corresponding to a uniform source
+        # (since the tests expect this)
+        # number of events ~ bin volume ~ r
         h = Histdd(bins=[r, theta, z], axis_names=['r', 'theta', 'z'])
-        h.histogram = np.ones((nbins, nbins, nbins))
-
-        # Calculate bin volumes for cylindrical coords (r dr dtheta)
-        r_c, _, _ = h.bin_centers()
-        bin_volumes = h.bin_volumes() * r_c[:, np.newaxis, np.newaxis]
-
-        # Convert to events per bin histogram
-        h.histogram *= bin_volumes
+        h.histogram = h.histogram * 0 + h.bin_centers('r')[:, None, None]
 
         class ERSpatial(fd.SpatialRateERSource):
-            model_blocks = fd.ERSource.model_blocks
-
-            spatial_rate_hist = h
-            spatial_rate_bin_volumes = bin_volumes
+            spatial_hist = h
 
         x = ERSpatial(data.copy(), batch_size=2, max_sigma=8)
     return x
