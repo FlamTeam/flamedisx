@@ -1,3 +1,4 @@
+from copy import copy
 from contextlib import contextmanager
 import inspect
 
@@ -255,7 +256,7 @@ class Source:
         data tensor state"""
         if data is None:
             raise ValueError("No point in setting data = None temporarily")
-        old_defaults = self.defaults
+        old_defaults = copy(self.defaults)
         if data is None:
             self.set_defaults(**kwargs)
         else:
