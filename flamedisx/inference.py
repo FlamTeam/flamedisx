@@ -133,37 +133,59 @@ class Objective:
         """Final part of initialization, done after self.guess and self.bounds
          are set"""
 
-        # Use the guess and bounds to define normalized coordinates:
+        self.is_bounded = [
+            not any ([x is None for x in
+                      self.bounds.get(param_name, (None, None))])
+            for param_name in self.arg_names]
+
+        # Find offset and scale for coordinate normalization:
         #     normalized = (physical - offset)/scale
 
-        scales = []
-        offsets = []
-        for param_index, param_name in enumerate(self.arg_names):
-            guess = self.guess[param_name]
+        if self.use_hessian:
+            # Use the absolute value of the guess as the offset
+            # (the absolute value ensures bounds do not have to be swapped for
+            #  negative parameters)
 
-            # For bounded parameters, use (right_bound - left_bound) as the scale
-            #     and the guess as the offset.
-            left, right = self.bounds.get(param_name, (None, None))
-            if left is not None and right is not None:
-                scale = right - left
-                offset = guess
+            # Filter out non-fitted parameters (e.g. fixed ones) from the guess
+            guess = {k: v for k, v in self.guess.items()
+                     if k in self.arg_names}
+            self.offset_vector = np.abs(self._dict_to_array(guess))
 
-            # For unbounded parameters with 0 guess: no normalization
-            elif guess == 0:
-                scale = 1.
-                offset = 0.
+            # Use the inverse Hessian to estimate parameter scales
+            std_errors, _ = fd.cov_to_std(self.lf.inverse_hessian(guess))
+            self.scale_vector = np.array([
+                std_errors[i]
+                for i, param_name in enumerate(self.arg_names)
+                if param_name in self.arg_names])
 
-            # For regular unbounded parameters: use abs(guess) as a scale
-            # (the abs ensures we don't have to flip the bounds)
-            else:
-                scale = abs(guess)
-                offset = 0.
+        else:
+            scales = []
+            offsets = []
+            for param_index, param_name in enumerate(self.arg_names):
+                guess = self.guess[param_name]
 
-            scales.append(scale)
-            offsets.append(offset)
+                # For bounded parameters, use (right_bound - left_bound) as the scale
+                #     and the guess as the offset.
+                if self.is_bounded[param_index]:
+                    left, right = self.bounds[param_name]
+                    scale = right - left
+                    offset = guess
 
-        self.offset_vector = np.asarray(offsets)
-        self.scale_vector = np.asarray(scales)
+                # For unbounded parameters with 0 guess: do not normalize
+                elif guess == 0:
+                    scale = 1.
+                    offset = 0.
+
+                # For regular unbounded parameters: use abs(guess) as a scale
+                else:
+                    scale = abs(guess)
+                    offset = 0.
+
+                scales.append(scale)
+                offsets.append(offset)
+
+            self.offset_vector = np.asarray(offsets)
+            self.scale_vector = np.asarray(scales)
 
         # Convert bounds to normed space
         self.normed_bounds = self.normalize(self.bounds, 'bounds')
@@ -625,10 +647,16 @@ class IntervalObjective(Objective):
         self.tol_multiplier = tol_multiplier
 
         if sigma_guess is None:
-            # Estimate one sigma interval using parabolic approx.
-            sigma_guess = fd.cov_to_std(
-                self.lf.inverse_hessian(bestfit)
-            )[0][self.arg_names.index(self.target_parameter)]
+            if self.use_hessian:
+                # Estimate one sigma interval using parabolic approx.
+                sigma_guess = fd.cov_to_std(
+                    self.lf.inverse_hessian(bestfit)
+                )[0][self.arg_names.index(self.target_parameter)]
+            else:
+                raise ValueError(
+                    "You must set a sigma_guess to an estimate of the 1 sigma "
+                    "uncertainty; since use_hessian=False, we can't guess "
+                    "something automatically.")
         self.sigma_guess = sigma_guess
 
         if t_ppf:
