@@ -7,8 +7,6 @@ import os.path
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
-import pdb
-
 
 # Path to the root folder of the BBF repository, if you have already cloned BBF
 # (Do not export it. If you do, reassigning fd.BBF_PATH won't update this one.)
