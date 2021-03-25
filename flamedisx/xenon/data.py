@@ -13,9 +13,10 @@ export, __all__ = fd.exporter()
 BBF_PATH = './bbf'
 
 # Path to the root folder of the XENONnT/Flamedisx repository, if you have
-# already cloned XENONnT/Flamedisx 
+# already cloned XENONnT/Flamedisx
 # (Do not export it. If you do, reassigning fd.NTFD_PATH won't update this one.)
 NTFD_PATH = './Flamedisx'
+
 
 @export
 def pax_file(x):
@@ -95,7 +96,7 @@ def refresh_nt(token=None):
     if os.path.exists(NTFD_PATH):
         fd.run_command(f'rm -rf {NTFD_PATH}')
         fd.run_command(f'git clone https://{token}:x-oauth-basic'
-                   f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
+                       f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
 
 
 @export
