@@ -63,6 +63,9 @@ path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
 path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
 path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
+blah_file = '1t_maps/test_map.json'
+blah = fd.get_nt_file(blah_file)
+
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds

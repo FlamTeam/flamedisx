@@ -12,6 +12,10 @@ export, __all__ = fd.exporter()
 # (Do not export it. If you do, reassigning fd.BBF_PATH won't update this one.)
 BBF_PATH = './bbf'
 
+# Path to the root folder of the XENONnT/Flamedisx repository, if you have
+# already cloned XENONnT/Flamedisx 
+# (Do not export it. If you do, reassigning fd.NTFD_PATH won't update this one.)
+NTFD_PATH = './Flamedisx'
 
 @export
 def pax_file(x):
