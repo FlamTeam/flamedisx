@@ -7,6 +7,8 @@ import os.path
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
+import pdb
+
 
 # Path to the root folder of the BBF repository, if you have already cloned BBF
 # (Do not export it. If you do, reassigning fd.BBF_PATH won't update this one.)
@@ -72,6 +74,30 @@ def ensure_nt(token=None):
             token = getpass.getpass('Github OAuth token: ')
         fd.run_command(f'git clone https://{token}:x-oauth-basic'
                        f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
+
+
+@export
+def refresh_nt(token=None):
+    """Cloning latest version of XENONnT/Flamedisx (prompting for credentials) if we do not have it"""
+    print("XENONnT private data requested, we are cloning latest Flamedisx folder (~xx MB).")
+    if token is None:
+        print("    - Create a token with full 'repo' permissions at "
+              "https://github.com/settings/tokens\n"
+              "    - Save or write it down somewhere \n"
+              "    - Type it in the prompt above\n\n"
+              "'Repository not found' means you didn't give the token"
+              " full 'repo' permissions.\n"
+              "'Authentication failed' means you mistyped the token.\n")
+        # We could prompt for username/password instead, but then the password
+        # would be printed in plaintext if there is any problem during cloning.
+        token = getpass.getpass('Github OAuth token: ')
+
+    # `git pull` does not work if not in a git repo and not everybody wants to `git init`
+    # Delete old repo and clone again
+    if os.path.exists(NTFD_PATH):
+        fd.run_command(f'rm -rf {NTFD_PATH}')
+        fd.run_command(f'git clone https://{token}:x-oauth-basic'
+                   f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
 
 
 @export
