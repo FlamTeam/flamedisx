@@ -8,7 +8,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
-import pdb as pdb
 # Path to the root folder of the BBF repository, if you have already cloned BBF
 # (Do not export it. If you do, reassigning fd.BBF_PATH won't update this one.)
 BBF_PATH = './bbf'
@@ -47,10 +46,7 @@ def ensure_repo(repo_name, repo_path, token=None):
     """Clones private repository (prompting for credentials) if we do not have it"""
     if not os.path.exists(repo_path):
         print("Private data requested, we must clone repository folder.")
-        print('in ensure_repo')
         token = ensure_token()
-        print(f'git clone https://{token}:x-oauth-basic'
-                       f'@github.com/{repo_name} {repo_path}')
         fd.run_command(f'git clone https://{token}:x-oauth-basic'
                        f'@github.com/{repo_name} {repo_path}')
 
@@ -65,39 +61,6 @@ def get_bbf_file(data_file_name):
     ensure_repo('XENON1T/bbf.git', BBF_PATH)
     return fd.get_resource(f'{BBF_PATH}/bbf/data/{data_file_name}')
 
-
-@export
-def ensure_nt(token=None):
-    """Clones XENONnT/Flamedisx (prompting for credentials) if we do not have it"""
-    if not os.path.exists(NTFD_PATH):
-        print("XENONnT private data requested, we must clone Flamedisx folder (~xx MB).")
-        if token is None:
-            print("    - Create a token with full 'repo' permissions at "
-                  "https://github.com/settings/tokens\n"
-                  "    - Save or write it down somewhere \n"
-                  "    - Type it in the prompt above\n\n"
-                  "'Repository not found' means you didn't give the token"
-                  " full 'repo' permissions.\n"
-                  "'Authentication failed' means you mistyped the token.\n")
-            # We could prompt for username/password instead, but then the password
-            # would be printed in plaintext if there is any problem during cloning.
-            token = getpass.getpass('Github OAuth token: ')
-        print('in ensure_nt')
-        print(f'git clone https://{token}:x-oauth-basic'
-                       f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
-        fd.run_command(f'git clone https://{token}:x-oauth-basic'
-                       f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
-                       
-                       
-@export
-def get_nt_file_old(data_file_name):
-    """Return information from file in XENONnT/Flamedisx/...
-
-    Do NOT call on import time --
-    that would make flamedisx unusable to non-XENON folks!
-    """
-    ensure_nt()
-    return fd.get_resource(f'{NTFD_PATH}/{data_file_name}')
 
 @export
 def get_nt_file(data_file_name):
@@ -117,9 +80,7 @@ def refresh_nt(token=None):
     # Delete old repo and clone again
     if os.path.exists(NTFD_PATH):
         fd.run_command(f'rm -rf {NTFD_PATH}')
-    print("XENONnT private data requested, we are cloning latest Flamedisx folder (~xx MB).")
-    print('aiya bbw')
+    print("XENONnT private data requested, we are cloning latest Flamedisx folder.")
     token = ensure_token()
-    print(token)
     fd.run_command(f'git clone https://{token}:x-oauth-basic'
                    f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
