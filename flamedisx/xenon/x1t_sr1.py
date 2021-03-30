@@ -63,6 +63,11 @@ path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
 path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
 path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
+##
+# Loading elife maps
+##
+path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
+
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
@@ -77,8 +82,7 @@ def read_maps_tf(path_bag, is_bbf=False):
         if is_bbf:
             tmp = fd.get_bbf_file(loc_path)
         else:
-            with open(loc_path) as json_file:
-                tmp = json.load(json_file)
+            tmp = fd.get_nt_file(loc_path)
         yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
         data_bag.append(tmp)
     domain_def = tmp['coordinate_system'][0][1]
@@ -166,6 +170,10 @@ class SR1Source:
         self.recon_map_s2_tf, self.domain_def_s2 = \
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
 
+        # Loading electron lifetime map
+        self.elife_tf, self.domain_def_elife = \
+            read_maps_tf(path_electron_lifetimes, is_bbf=False)
+
     def reconstruction_bias_s1(self,
                                s1,
                                s1_reconstruction_bias_pivot=\
@@ -218,10 +226,24 @@ class SR1Source:
                 / d['s2_relative_ly']
                 * np.exp(d['drift_time'] / self.defaults['elife']))
 
+        # Not sure what this old comment is about, did Jordan's patch fix this?
+        # Not good. patchy. event_time should be int since event_time in actual
+        # data is int in ns
+        if 'elife' not in d.columns:
+            if elife_variable:
+                print('Variable elife')
+                d['event_time'] = d['event_time'].astype('float32')
+                d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
+                                        self.domain_def_elife)
+            else:
+                print('Constant elife')
+                d['elife'] = DEFAULT_ELECTRON_LIFETIME 
+
+
     @staticmethod
     def electron_detection_eff(drift_time,
                                *,
-                               elife=DEFAULT_ELECTRON_LIFETIME,
+                               elife=DEFAULT_ELECTRON_LIFETIME, # shouldn't i remove this?
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         #TODO: include function for elife time dependency
         return extraction_eff * tf.exp(-drift_time / elife)
