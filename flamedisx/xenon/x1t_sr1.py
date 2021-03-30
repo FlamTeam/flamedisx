@@ -233,12 +233,14 @@ class SR1Source:
             print('Variable elife')
             d['event_time'] = d['event_time'].astype('float32')
             d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
+                                    self.domain_def_elife)
 
 
     @staticmethod
     def electron_detection_eff(drift_time,
                                *,
-                               elife=DEFAULT_ELECTRON_LIFETIME, # shouldn't i remove this?
+                               elife=DEFAULT_ELECTRON_LIFETIME, # shouldn't i
+                               remove this?
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         #TODO: include function for elife time dependency
         return extraction_eff * tf.exp(-drift_time / elife)
