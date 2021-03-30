@@ -215,6 +215,14 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
 
+        # Not sure what this old comment is about, did Jordan's patch fix this?
+        # Not good. patchy. event_time should be int since event_time in actual
+        # data is int in ns
+        if 'elife' not in d.columns:
+            d['event_time'] = d['event_time'].astype('float32')
+            d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
+                                    self.domain_def_elife)
+
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -224,21 +232,14 @@ class SR1Source:
             d['cs2'] = (
                 d['s2']
                 / d['s2_relative_ly']
-                * np.exp(d['drift_time'] / self.defaults['elife']))
-
-        # Not sure what this old comment is about, did Jordan's patch fix this?
-        # Not good. patchy. event_time should be int since event_time in actual
-        # data is int in ns
-        if 'elife' not in d.columns:
-            d['event_time'] = d['event_time'].astype('float32')
-            d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
-                                    self.domain_def_elife)
+                * np.exp(d['drift_time'] / d['elife']))
 
 
     @staticmethod
     def electron_detection_eff(drift_time,
+                               elife,
                                *,
-                               elife=DEFAULT_ELECTRON_LIFETIME, # shouldn't i remove this?
+                               #elife=DEFAULT_ELECTRON_LIFETIME, # shouldn't i remove this?
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         #TODO: include function for elife time dependency
         return extraction_eff * tf.exp(-drift_time / elife)
