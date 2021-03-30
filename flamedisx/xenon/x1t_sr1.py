@@ -230,7 +230,6 @@ class SR1Source:
         # Not good. patchy. event_time should be int since event_time in actual
         # data is int in ns
         if 'elife' not in d.columns:
-            print('Variable elife')
             d['event_time'] = d['event_time'].astype('float32')
             d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
                                     self.domain_def_elife)
