@@ -239,7 +239,8 @@ class SR1Source:
                 print('Variable elife')
                 d['event_time'] = d['event_time'].astype('float32')
                 d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
-                                        self.domain_def_elife)
+                                        self.domain_def_elife)*np.nan
+                print(d['elife'])
             else:
                 print('Constant elife')
                 d['elife'] = DEFAULT_ELECTRON_LIFETIME 
