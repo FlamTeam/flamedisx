@@ -10,6 +10,8 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
+import pdb as pdb
+
 ##
 # Parameters
 ##
@@ -20,6 +22,7 @@ DEFAULT_AREA_FRACTION_TOP = 0.63  # fraction of light from top array
 DEFAULT_P_DPE = 0.219
 DEFAULT_EXTRACTION_EFFICIENCY = 0.96
 
+DEFAULT_ELECTRON_LIFETIME = 641e3
 DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
 DEFAULT_DRIFT_FIELD = 81.
@@ -65,6 +68,7 @@ path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 ##
 # Loading elife maps
 ##
+variable_elife = True
 path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
@@ -217,9 +221,12 @@ class SR1Source:
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
         if 'elife' not in d.columns:
-            d['event_time'] = d['event_time'].astype('float32')
-            d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
-                                    self.domain_def_elife)
+            if variable_elife:
+                d['event_time'] = d['event_time'].astype('float32')
+                d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
+                                        self.domain_def_elife)
+            else:
+                d['elife'] = DEFAULT_ELECTRON_LIFETIME
 
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
@@ -307,7 +314,7 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, r, z, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
         F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
@@ -316,6 +323,10 @@ class SR1ERSource(SR1Source, fd.ERSource):
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
         wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+
+        test = gamma_er * tf.exp(-e_kev / omega_er) * r ** (-0.24)
+        tf.print(test)
+
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
