@@ -71,6 +71,12 @@ path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 variable_elife = True
 path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
 
+##
+# Field distortion maps
+##
+variable_field = True
+path_field_distortion = '1t_maps/field_junji.npz'
+
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
@@ -101,6 +107,51 @@ def interpolate_tf(sig_tf, fmap, domain):
     return tfp.math.interp_regular_1d_grid(x=sig_tf,
             x_ref_min=domain[0], x_ref_max=domain[1], 
             y_ref=fmap, fill_value='constant_extension')
+
+def read_field_map(path):
+    tmp = fd.get_nt_file(path)
+    r_def, z_def, f_grid = tmp['RR'], tmp['ZZ'], tmp['CC']
+    r_def = r_def[0, :]
+    z_def = z_def[:, 0]
+    return r_def, z_def, f_grid
+
+def interpolate_field_tf(path, r, z):
+    """ Function to interpolate values from 2d scalar field
+
+    """
+
+    r_def, z_def, f_grid = read_field_map(path)
+
+    # Domain definition
+    y_ref = np.nan_to_num(f_grid)
+
+    # because tf uses ij indexing, junji used xy indexing
+    x_ref_min = tf.convert_to_tensor([min(z_def), min(r_def)], dtype=r.dtype)
+    x_ref_max = tf.convert_to_tensor([max(z_def), max(r_def)], dtype=r.dtype)
+
+    x_test = tf.stack([z, r], axis=1)
+    tf_output = tfp.math.batch_interp_regular_nd_grid(x_test, x_ref_min,
+            x_ref_max, y_ref, axis=-2)
+    pdb.set_trace()
+    '''
+    # where you wanna interpolate
+    lala = np.transpose(np.vstack((rn_data['r'], rn_data['z'])))
+    x_itp = tf.convert_to_tensor(lala)
+    x_test = tf.reverse(x_itp, axis=[1]) # does a flip left right, x<->y
+
+    # interpolating 
+
+    tf_output = tfp.math.batch_interp_regular_nd_grid(x_test, x_ref_min,
+    x_ref_max, y_ref, axis=-2)
+    '''
+
+    '''
+    return tfp.math.batch_interp_regular_nd_grid(x_itp,
+            x_ref_min, x_ref_max,
+            y_ref, axis=-2)
+    '''
+
+    return r_def, z_def, f_grid
 
 def calculate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction bias mean given the pivot point.
@@ -318,6 +369,9 @@ class SR1ERSource(SR1Source, fd.ERSource):
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
         F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+
+        rr, zz, cc = interpolate_field_tf(path_field_distortion, r, z)
+        pdb.set_trace()
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
