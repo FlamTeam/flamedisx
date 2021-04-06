@@ -123,16 +123,15 @@ def interpolate_field_tf(path, r, z):
     r_def, z_def, f_grid = read_field_map(path)
 
     # Domain definition
-    y_ref = np.nan_to_num(f_grid)
+    y_ref = tf.convert_to_tensor(np.nan_to_num(f_grid), dtype=r.dtype)
 
     # because tf uses ij indexing, junji used xy indexing
     x_ref_min = tf.convert_to_tensor([min(z_def), min(r_def)], dtype=r.dtype)
     x_ref_max = tf.convert_to_tensor([max(z_def), max(r_def)], dtype=r.dtype)
 
-    x_test = tf.stack([z, r], axis=1)
-    tf_output = tfp.math.batch_interp_regular_nd_grid(x_test, x_ref_min,
+    x_itp = tf.stack([z, r], axis=1)
+    outfield = tfp.math.batch_interp_regular_nd_grid(x_itp, x_ref_min,
             x_ref_max, y_ref, axis=-2)
-    pdb.set_trace()
     '''
     # where you wanna interpolate
     lala = np.transpose(np.vstack((rn_data['r'], rn_data['z'])))
@@ -151,7 +150,7 @@ def interpolate_field_tf(path, r, z):
             y_ref, axis=-2)
     '''
 
-    return r_def, z_def, f_grid
+    return outfield
 
 def calculate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
     """ Computes the reconstruction bias mean given the pivot point.
@@ -368,16 +367,14 @@ class SR1ERSource(SR1Source, fd.ERSource):
     def p_electron(nq, r, z, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
-        F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
-
-        rr, zz, cc = interpolate_field_tf(path_field_distortion, r, z)
-        pdb.set_trace()
+        #F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+        F = interpolate_field_tf(path_field_distortion, r, z)
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
         wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
-
+        
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
