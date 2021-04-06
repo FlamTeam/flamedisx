@@ -375,6 +375,8 @@ class SR1ERSource(SR1Source, fd.ERSource):
         ni, nex = nq * fi, nq * (1. - fi)
         wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
         
+        #test = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
+
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
