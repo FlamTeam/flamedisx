@@ -68,7 +68,7 @@ path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 ##
 # Loading elife maps
 ##
-variable_elife = True
+variable_elife = False
 path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
