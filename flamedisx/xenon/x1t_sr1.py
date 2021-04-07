@@ -10,6 +10,8 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
+import pdb as pdb
+
 ##
 # Parameters
 ##
@@ -63,6 +65,12 @@ path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
 path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
 path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
+##
+# Loading elife maps
+##
+variable_elife = True
+path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
+
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
@@ -77,8 +85,7 @@ def read_maps_tf(path_bag, is_bbf=False):
         if is_bbf:
             tmp = fd.get_bbf_file(loc_path)
         else:
-            with open(loc_path) as json_file:
-                tmp = json.load(json_file)
+            tmp = fd.get_nt_file(loc_path)
         yy_ref_bag.append(tf.convert_to_tensor(tmp['map'], dtype=fd.float_type()))
         data_bag.append(tmp)
     domain_def = tmp['coordinate_system'][0][1]
@@ -166,6 +173,10 @@ class SR1Source:
         self.recon_map_s2_tf, self.domain_def_s2 = \
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
 
+        # Loading electron lifetime map
+        self.elife_tf, self.domain_def_elife = \
+            read_maps_tf(path_electron_lifetimes, is_bbf=False)
+
     def reconstruction_bias_s1(self,
                                s1,
                                s1_reconstruction_bias_pivot=\
@@ -207,6 +218,16 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
 
+        # Not too good. patchy. event_time should be int since event_time in actual
+        # data is int64 in ns. But need this to be float32 to interpolate.
+        if 'elife' not in d.columns:
+            if variable_elife:
+                d['event_time'] = d['event_time'].astype('float32')
+                d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
+                                        self.domain_def_elife)
+            else:
+                d['elife'] = DEFAULT_ELECTRON_LIFETIME
+
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -216,14 +237,14 @@ class SR1Source:
             d['cs2'] = (
                 d['s2']
                 / d['s2_relative_ly']
-                * np.exp(d['drift_time'] / self.defaults['elife']))
+                * np.exp(d['drift_time'] / d['elife']))
+
 
     @staticmethod
     def electron_detection_eff(drift_time,
+                               elife,
                                *,
-                               elife=DEFAULT_ELECTRON_LIFETIME,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
-        #TODO: include function for elife time dependency
         return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
@@ -293,7 +314,7 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, r, z, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
         F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
@@ -302,6 +323,7 @@ class SR1ERSource(SR1Source, fd.ERSource):
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
         wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
