@@ -282,8 +282,10 @@ class SR1Source:
         d['lala'] = np.squeeze(np.asarray(tmp))
         del tmp
 
-        # Not too good. patchy. event_time should be int since event_time in actual
-        # data is int64 in ns. But need this to be float32 to interpolate.
+        # Typecasting event_time from int64(in ns) to float32(in ns) for
+        # interpolate to work. See
+        # https://github.com/FlamTeam/flamedisx/issues/90 for potential
+        # associated complications
         if 'elife' not in d.columns:
             if variable_elife:
                 d['event_time'] = d['event_time'].astype('float32')
