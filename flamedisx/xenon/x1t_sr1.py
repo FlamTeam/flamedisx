@@ -383,22 +383,31 @@ class SR1ERSource(SR1Source, fd.ERSource):
     def p_electron(nq, lala, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
-        #F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
-        #F = interpolate_field_tf(path_field_distortion, r, z)
+        F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+        #ff = interpolate_field_tf(path_field_distortion, r, z)
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        #wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * lala ** (-0.24)
-        
-        #test = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
 
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+
+        if tf.is_tensor(nq):
+            aa, bb = nq.shape
+            cc = tf.reshape(lala, (aa,1))
+            dd = tf.ones((1, bb))
+            ff = tf.matmul(cc, dd)
+            test = gamma_er * tf.exp(-e_kev / omega_er) * lala ** (-0.24)
+        else:
+            test = gamma_er * tf.exp(-e_kev / omega_er) * lala ** (-0.24)
+
+        tf.print(nq.shape, lala.shape)
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1. - r_er) / nq
+
         return fd.safe_p(p_el)
 
     @staticmethod
