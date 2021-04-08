@@ -1,6 +1,7 @@
 """XENON1T SR1 implementation"""
 import json
 
+import scipy.interpolate as itp
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -77,6 +78,12 @@ path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
 variable_field = True
 path_field_distortion = '1t_maps/field_junji.npz'
 
+def sigh(path):
+    r_def, z_def, f_grid = read_field_map(path)
+    return itp.interp2d(r_def, z_def, f_grid, kind='linear')
+
+
+
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
@@ -110,7 +117,7 @@ def interpolate_tf(sig_tf, fmap, domain):
 
 def read_field_map(path):
     tmp = fd.get_nt_file(path)
-    r_def, z_def, f_grid = tmp['RR'], tmp['ZZ'], tmp['CC']
+    r_def, z_def, f_grid = tmp['RR'], tmp['ZZ'], np.nan_to_num(tmp['CC'])
     r_def = r_def[0, :]
     z_def = z_def[:, 0]
     return r_def, z_def, f_grid
@@ -123,7 +130,7 @@ def interpolate_field_tf(path, r, z):
     r_def, z_def, f_grid = read_field_map(path)
 
     # Domain definition
-    y_ref = tf.convert_to_tensor(np.nan_to_num(f_grid), dtype=r.dtype)
+    y_ref = tf.convert_to_tensor(f_grid, dtype=r.dtype)
 
     # because tf uses ij indexing, junji used xy indexing
     x_ref_min = tf.convert_to_tensor([min(z_def), min(r_def)], dtype=r.dtype)
