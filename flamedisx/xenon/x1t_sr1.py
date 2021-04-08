@@ -72,18 +72,6 @@ path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 variable_elife = True
 path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
 
-##
-# Field distortion maps
-##
-variable_field = True
-path_field_distortion = '1t_maps/field_junji.npz'
-
-def sigh(path):
-    r_def, z_def, f_grid = read_field_map(path)
-    return itp.interp2d(r_def, z_def, f_grid, kind='linear')
-
-
-
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
@@ -205,6 +193,19 @@ def calculate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
         lambda: interpolate_tf(sig_tf, fmap[2], domain_def) - bias_median)
     return bias_median + pivot_pt * bias_diff
 
+
+
+##
+# Field distortion maps
+##
+variable_field = True
+path_field_distortion = '1t_maps/field_junji.npz'
+
+# Read and make interpolation function once
+r_def, z_def, f_grid = read_field_map(path_field_distortion)
+my_field_map = itp.interp2d(r_def, z_def, f_grid, kind='linear')
+
+
 ##
 # Flamedisx sources
 ##
@@ -274,6 +275,12 @@ class SR1Source:
             np.transpose([d['x'].values,
                           d['y'].values,
                           d['z'].values]))
+
+        tmp = []
+        for ii, rr in enumerate(d['r']):
+            tmp.append(my_field_map(rr, d['z'].values[ii]))
+        d['lala'] = np.squeeze(np.asarray(tmp))
+        del tmp
 
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
@@ -371,16 +378,17 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, r, z, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, lala, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
         #F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
-        F = interpolate_field_tf(path_field_distortion, r, z)
+        #F = interpolate_field_tf(path_field_distortion, r, z)
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+        #wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * lala ** (-0.24)
         
         #test = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
 
