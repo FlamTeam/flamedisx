@@ -392,7 +392,7 @@ class SR1ERSource(SR1Source, fd.ERSource):
 
         wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
 
-        if tf.is_tensor(nq):
+        if nq.ndim==2:
             aa, bb = nq.shape
             cc = tf.reshape(lala, (aa,1))
             dd = tf.ones((1, bb))
