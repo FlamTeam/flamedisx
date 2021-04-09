@@ -110,8 +110,16 @@ def read_field_map(path):
     return r_def, z_def, f_grid
 
 def interpolate_field_tf(path, r, z):
-    """ Function to interpolate values from 2d scalar field
+    """ TF function to interpolate values from 2d scalar field since functions
+    within model functions have to be in tf. Just in case you want to tune the
+    drift field with a nuisance parameter in the future. Call it from within
+    `p_electron` using 
 
+    drift_field = interpolate_field_tf(path_field_distortion, r, z)
+
+    :param path: path(in xenon github repo) to field distortion map
+    :param r: r values of event
+    :param z: z values of event
     """
     r_def, z_def, f_grid = read_field_map(path)
 
@@ -256,11 +264,14 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
 
-        tmp = []
-        for ii, rr in enumerate(d['r']):
-            tmp.append(my_field_map(rr, d['z'].values[ii]))
-        d['drift_field'] = np.squeeze(np.asarray(tmp))
-        del tmp
+        if 'drift_field' not in d.columns:
+            if variable_field:
+                # need nicer way of interpolating drift_field
+                tmp = []
+                for ii, rr in enumerate(d['r']):
+                    tmp.append(my_field_map(rr, d['z'].values[ii]))
+                d['drift_field'] = np.squeeze(np.asarray(tmp))
+                del tmp
 
         # Typecasting event_time from int64(in ns) to float32(in ns) for
         # interpolate to work. See
@@ -363,14 +374,13 @@ class SR1ERSource(SR1Source, fd.ERSource):
     def p_electron(nq, drift_field, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
-        #ff = interpolate_field_tf(path_field_distortion, r, z)
-
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
 
-        #F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
-        #wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+        if not variable_field:
+            drift_field = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
 
         if not tf.is_tensor(nq):
             wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
