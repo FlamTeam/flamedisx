@@ -272,6 +272,8 @@ class SR1Source:
                     tmp.append(my_field_map(rr, d['z'].values[ii]))
                 d['drift_field'] = np.squeeze(np.asarray(tmp))
                 del tmp
+            else:
+                d['drift_field'] = DEFAULT_DRIFT_FIELD 
 
         # Typecasting event_time from int64(in ns) to float32(in ns) for
         # interpolate to work. See
@@ -378,18 +380,14 @@ class SR1ERSource(SR1Source, fd.ERSource):
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
 
-        if not variable_field:
-            drift_field = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+        if not tf.is_tensor(nq): # for _simulate
             wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
-        else:
-            if not tf.is_tensor(nq):
-                wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
-            else:
-                aa, bb = nq.shape
-                cc = tf.reshape(drift_field, (aa,1))
-                dd = tf.ones((1, bb))
-                ff = tf.matmul(cc, dd)
-                wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
+        else: # for _compute
+            aa, bb = nq.shape
+            cc = tf.reshape(drift_field, (aa,1))
+            dd = tf.ones((1, bb))
+            ff = tf.matmul(cc, dd)
+            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
