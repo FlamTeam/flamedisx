@@ -65,12 +65,6 @@ path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
 path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
 path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 
-##
-# Loading elife maps
-##
-variable_elife = True
-path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
-
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
@@ -219,10 +213,6 @@ class SR1Source:
         self.recon_map_s2_tf, self.domain_def_s2 = \
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
 
-        # Loading electron lifetime map
-        self.elife_tf, self.domain_def_elife = \
-            read_maps_tf(path_electron_lifetimes, is_bbf=False)
-
     def reconstruction_bias_s1(self,
                                s1,
                                s1_reconstruction_bias_pivot=\
@@ -275,18 +265,6 @@ class SR1Source:
             else:
                 d['drift_field'] = DEFAULT_DRIFT_FIELD 
 
-        # Typecasting event_time from int64(in ns) to float32(in ns) for
-        # interpolate to work. See
-        # https://github.com/FlamTeam/flamedisx/issues/90 for potential
-        # associated complications
-        if 'elife' not in d.columns:
-            if variable_elife:
-                d['event_time'] = d['event_time'].astype('float32')
-                d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
-                                        self.domain_def_elife)
-            else:
-                d['elife'] = DEFAULT_ELECTRON_LIFETIME
-
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -296,13 +274,13 @@ class SR1Source:
             d['cs2'] = (
                 d['s2']
                 / d['s2_relative_ly']
-                * np.exp(d['drift_time'] / d['elife']))
+                * np.exp(d['drift_time'] / self.defaults['elife']))
 
 
     @staticmethod
     def electron_detection_eff(drift_time,
-                               elife,
                                *,
+                               elife=DEFAULT_ELECTRON_LIFETIME,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         return extraction_eff * tf.exp(-drift_time / elife)
 
