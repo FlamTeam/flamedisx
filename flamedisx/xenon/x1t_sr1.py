@@ -381,15 +381,15 @@ class SR1ERSource(SR1Source, fd.ERSource):
         if not variable_field:
             drift_field = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
             wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
-
-        if not tf.is_tensor(nq):
-            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
         else:
-            aa, bb = nq.shape
-            cc = tf.reshape(drift_field, (aa,1))
-            dd = tf.ones((1, bb))
-            ff = tf.matmul(cc, dd)
-            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
+            if not tf.is_tensor(nq):
+                wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
+            else:
+                aa, bb = nq.shape
+                cc = tf.reshape(drift_field, (aa,1))
+                dd = tf.ones((1, bb))
+                ff = tf.matmul(cc, dd)
+                wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
