@@ -11,7 +11,6 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-import pdb as pdb
 
 ##
 # Parameters
