@@ -114,7 +114,6 @@ def interpolate_field_tf(path, r, z):
     """ Function to interpolate values from 2d scalar field
 
     """
-
     r_def, z_def, f_grid = read_field_map(path)
 
     # Domain definition
@@ -127,24 +126,6 @@ def interpolate_field_tf(path, r, z):
     x_itp = tf.stack([z, r], axis=1)
     outfield = tfp.math.batch_interp_regular_nd_grid(x_itp, x_ref_min,
             x_ref_max, y_ref, axis=-2)
-    '''
-    # where you wanna interpolate
-    lala = np.transpose(np.vstack((rn_data['r'], rn_data['z'])))
-    x_itp = tf.convert_to_tensor(lala)
-    x_test = tf.reverse(x_itp, axis=[1]) # does a flip left right, x<->y
-
-    # interpolating 
-
-    tf_output = tfp.math.batch_interp_regular_nd_grid(x_test, x_ref_min,
-    x_ref_max, y_ref, axis=-2)
-    '''
-
-    '''
-    return tfp.math.batch_interp_regular_nd_grid(x_itp,
-            x_ref_min, x_ref_max,
-            y_ref, axis=-2)
-    '''
-
     return outfield
 
 def calculate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
@@ -279,7 +260,7 @@ class SR1Source:
         tmp = []
         for ii, rr in enumerate(d['r']):
             tmp.append(my_field_map(rr, d['z'].values[ii]))
-        d['lala'] = np.squeeze(np.asarray(tmp))
+        d['drift_field'] = np.squeeze(np.asarray(tmp))
         del tmp
 
         # Typecasting event_time from int64(in ns) to float32(in ns) for
@@ -380,28 +361,27 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, lala, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, drift_field, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
-        F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
         #ff = interpolate_field_tf(path_field_distortion, r, z)
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
 
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+        #F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+        #wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
 
-        if nq.ndim==2:
+        if not tf.is_tensor(nq):
+            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
+        else:
             aa, bb = nq.shape
-            cc = tf.reshape(lala, (aa,1))
+            cc = tf.reshape(drift_field, (aa,1))
             dd = tf.ones((1, bb))
             ff = tf.matmul(cc, dd)
-            test = gamma_er * tf.exp(-e_kev / omega_er) * lala ** (-0.24)
-        else:
-            test = gamma_er * tf.exp(-e_kev / omega_er) * lala ** (-0.24)
+            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
 
-        tf.print(nq.shape, lala.shape)
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
