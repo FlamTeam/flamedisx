@@ -251,6 +251,7 @@ class Source:
 
     def _calculate_dimsizes(self, max_dim_size):
         self.dimsizes = dict()
+        self.steps = dict()
         for dim in self.inner_dimensions:
             ma = self._fetch(dim + '_max')
             mi = self._fetch(dim + '_min')
@@ -442,6 +443,14 @@ class Source:
         x_range = tf.cast(tf.range(self.dimsizes[x]),
                           dtype=fd.float_type())[o, :]
         left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        right_bound = self._fetch(x + '_max', data_tensor=data_tensor)[:, o]
+        steps = tf.where((right_bound-left_bound+1) > self.dimsizes[x],
+                         tf.math.ceil((right_bound-left_bound)/(self.dimsizes[x]-1)),
+                         1) # We want to ceil this to ensure we cover to at least the upper bound
+        # Store the steps for later multiplying probabilities
+        self.steps[x] = steps
+        # Cover the bounds range in integer steps not necessarily of 1
+        x_range = tf.cast(tf.range(self.dimsizes[x]), dtype=fd.float_type()) * steps
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
