@@ -126,6 +126,7 @@ class Source:
         ctc += self.extra_needed_columns()                  # Manually fetched columns
         ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
+        ctc += [x + '_max' for x in self.inner_dimensions]  # Right bounds of domains
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
@@ -207,7 +208,7 @@ class Source:
         if not _skip_tf_init:
             self._check_data()
             self._populate_tensor_cache()
-            self._calculate_dimsizes()
+            self._calculate_dimsizes(self.max_dim_size)
 
     def _check_data(self):
         """Do any final checks on the self.data dataframe,
@@ -248,12 +249,14 @@ class Source:
             result,
             [self.n_batches, -1, self.n_columns_in_data_tensor])
 
-    def _calculate_dimsizes(self):
+    def _calculate_dimsizes(self, max_dim_size):
         self.dimsizes = dict()
         for dim in self.inner_dimensions:
             ma = self._fetch(dim + '_max')
             mi = self._fetch(dim + '_min')
             self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
+            if (self.dimsizes[dim] > max_dim_size) and (dim not in self.penultimate_dimensions):
+                self.dimsizes[dim] = max_dim_size
         for dim in self.final_dimensions:
             self.dimsizes[dim] = 1
 
