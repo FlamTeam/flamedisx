@@ -31,6 +31,9 @@ class Source:
     # Final observable dimensions; for use in domain / cross-domain
     final_dimensions = tuple()
 
+    # Penultimate model dimensions; avoid variable stepping over these
+    penultimate_dimensions = tuple()
+
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
@@ -79,6 +82,7 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=3,
+                 max_dim_size=70,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -90,15 +94,18 @@ class Source:
         :param data: Dataframe with events to use in the inference
         :param batch_size: Number of events / tensorflow batch
         :param max_sigma: Hint for hidden variable bounds computation
+        :param max_dim_size: Maximum bounds size for inner_dimensions,
+            excluding penultimate_dimensions
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
         :param fit_params: List of parameters to fit
         :param progress: whether to show progress bars for mu estimation
-          (if data is not None)
+            (if data is not None)
         :param params: New defaults to use
         """
         self.max_sigma = max_sigma
+        self.max_dim_size = max_dim_size
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:

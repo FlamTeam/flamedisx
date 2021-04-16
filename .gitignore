@@ -45,3 +45,6 @@ resource_cache
 # Data
 *.pkl
 *.csv
+
+# Apple
+.DS_Store

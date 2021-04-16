@@ -52,6 +52,7 @@ class LogLikelihood:
             free_rates=None,
             batch_size=10,
             max_sigma=3,
+            max_dim_size=70,
             n_trials=int(1e5),
             log_constraint=None,
             bounds_specified=True,
@@ -76,6 +77,9 @@ class LogLikelihood:
 
         :param max_sigma: Maximum sigma to use in bounds estimation.
             Higher numbers give better accuracy, at the cost of performance.
+
+        :param max_dim_size: Maximum bounds size for inner_dimensions,
+            excluding penultimate_dimensions
 
         :param n_trials: Number of Monte-Carlo trials for mu estimation.
 
@@ -133,6 +137,7 @@ class LogLikelihood:
         self.sources = {
             sname: sclass(data=None,
                           max_sigma=max_sigma,
+                          max_dim_size=max_dim_size,
                           # The source will filter out parameters it does not
                           # take
                           fit_params=list(k for k in common_param_specs.keys()),
