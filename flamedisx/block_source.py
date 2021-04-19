@@ -265,7 +265,7 @@ class BlockModelSource(fd.Source):
             # 
             for dim in b_dims:
                 if (dim in self.inner_dimensions) and \
-                (dim not in self.penultimate_dimensions) and \
+                (dim not in self.no_step_dimensions) and \
                 (dim not in already_stepped):
                     step_mul = tf.repeat(self.steps[dim], r.shape[1], axis=1)
                     step_mul = tf.repeat(step_mul[:,:,o], r.shape[2], axis=2)

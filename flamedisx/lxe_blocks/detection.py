@@ -89,6 +89,10 @@ class DetectPhotonsOrElectrons(fd.Block):
             d[self.quanta_name + 's_produced_' + bound] = intify(
                 n_prod_mle + sign * self.source.max_sigma * _std
             ).clip(0, None).astype(np.int)
+        d['electrons_produced_min'] = 1000
+        d['electrons_produced_max'] = 3500
+        d['photons_produced_min'] = 4000
+        d['photons_produced_max'] = 6000
 
 
 @export
@@ -100,12 +104,13 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 
     photon_detection_eff = 0.1
 
-    @staticmethod
-    def photon_acceptance(photons_detected):
-        return tf.where(
-            photons_detected < 3,
-            tf.zeros_like(photons_detected, dtype=fd.float_type()),
-            tf.ones_like(photons_detected, dtype=fd.float_type()))
+    # @staticmethod
+    # def photon_acceptance(photons_detected):
+    #     return tf.where(
+    #         photons_detected < 3,
+    #         tf.zeros_like(photons_detected, dtype=fd.float_type()),
+    #         tf.ones_like(photons_detected, dtype=fd.float_type()))
+    photon_acceptance = 1.
 
     quanta_name = 'photon'
 

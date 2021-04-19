@@ -52,7 +52,7 @@ class LogLikelihood:
             free_rates=None,
             batch_size=10,
             max_sigma=3,
-            max_dim_size=70,
+            max_dim_size=100,
             n_trials=int(1e5),
             log_constraint=None,
             bounds_specified=True,
@@ -79,7 +79,7 @@ class LogLikelihood:
             Higher numbers give better accuracy, at the cost of performance.
 
         :param max_dim_size: Maximum bounds size for inner_dimensions,
-            excluding penultimate_dimensions
+            excluding no_step_dimensions
 
         :param n_trials: Number of Monte-Carlo trials for mu estimation.
 

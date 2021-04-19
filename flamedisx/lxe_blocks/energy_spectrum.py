@@ -33,7 +33,7 @@ class EnergySpectrum(fd.FirstBlock):
     t_stop = pd.to_datetime('2020-09-01T08:28:00')
 
     # Just a dummy 0-10 keV spectrum
-    energies = tf.cast(tf.linspace(0., 10., 1000),
+    energies = tf.cast(tf.linspace(100., 100., 1000),
                        dtype=fd.float_type())
 
     def domain(self, data_tensor):
