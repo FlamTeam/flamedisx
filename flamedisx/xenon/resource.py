@@ -94,7 +94,7 @@ def get_resource(x, fmt=None):
 
     else:
         # File resource
-        if fmt in ['npy', 'npy_pickle']:
+        if fmt in ['npy', 'npy_pickle', 'npz']:
             result = np.load(x, allow_pickle=fmt == 'npy_pickle')
             if isinstance(result, np.lib.npyio.NpzFile):
                 # Slurp the arrays in the file, so the result can be copied,
