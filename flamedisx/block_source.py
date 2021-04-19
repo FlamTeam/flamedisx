@@ -244,6 +244,7 @@ class BlockModelSource(fd.Source):
 
     def _differential_rate(self, data_tensor, ptensor):
         results = {}
+        already_stepped = () # Avoid double-multiplying to account for stepping
 
         for b in self.model_blocks:
             b_dims = b.dimensions
@@ -259,7 +260,19 @@ class BlockModelSource(fd.Source):
                 kwargs.update(self._domain_dict(dependency_dims, data_tensor))
 
             # Compute the block
-            results[b_dims] = r = b.compute(data_tensor, ptensor, **kwargs)
+            r = b.compute(data_tensor, ptensor, **kwargs)
+
+            # 
+            for dim in b_dims:
+                if (dim in self.inner_dimensions) and \
+                (dim not in self.penultimate_dimensions) and \
+                (dim not in already_stepped):
+                    step_mul = tf.repeat(self.steps[dim], r.shape[1], axis=1)
+                    step_mul = tf.repeat(step_mul[:,:,o], r.shape[2], axis=2)
+                    r *= step_mul
+                    already_stepped += (dim,)
+
+            results[b_dims] = r
 
             # Try to matrix multiply with earlier blocks, until we cannot
             # do so anymore.
