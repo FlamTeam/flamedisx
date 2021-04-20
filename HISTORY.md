@@ -1,3 +1,10 @@
+1.4.1 / 2021-04-20
+------------------
+- Stabilize default optimizer with better parameter scaling (#114)
+- XENONnT: Support reading data from private repository (#115)
+- XENON1T: Variable elife (#118)
+- XENON1T: Npz resource reading (#123)
+
 1.4.0 / 2021-03-05
 ------------------
 - Fix 'sticky defaults' bug (#110)
@@ -8,7 +15,6 @@
 - WIMPEnergySpectrum: Accept event times slightly out of range (#99)
 - Do not round photons_detected_mle (#91)
 - XENON1T: fix S2 acceptance (#97) and name reconstruction efficiency pivots (#102)
-
 
 1.3.0 / 2020-08-25
 ------------------
@@ -22,7 +28,6 @@
 - Double photoelectron emission modeling (#78)
 - Optimization improvements (#76)
 - Bugfix (#79)
-
 
 1.1.0 / 2020-07-09
 ------------------
