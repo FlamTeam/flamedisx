@@ -31,8 +31,11 @@ class Source:
     # Final observable dimensions; for use in domain / cross-domain
     final_dimensions = tuple()
 
-    # Model dimensions to avoid variable stepping over the bounds
+    # Avoid variable stepping over these inner_dimensions
     no_step_dimensions = tuple()
+
+    # Any non-hidden variable extra_dimensions
+    bonus_dimensions = tuple()
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
@@ -127,6 +130,8 @@ class Source:
         ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
         ctc += [x + '_max' for x in self.inner_dimensions]  # Right bounds of domains
+        ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
+        ctc += [x + '_max' for x in self.bonus_dimensions]  # Right bounds of domains
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
@@ -260,6 +265,10 @@ class Source:
                 self.dimsizes[dim] = max_dim_size
         for dim in self.final_dimensions:
             self.dimsizes[dim] = 1
+        for dim in self.bonus_dimensions:
+            ma = self._fetch(dim + '_max')
+            mi = self._fetch(dim + '_min')
+            self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):

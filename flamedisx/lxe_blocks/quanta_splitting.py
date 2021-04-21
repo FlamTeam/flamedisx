@@ -15,7 +15,7 @@ class MakePhotonsElectronsBinomial(fd.Block):
 
     depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)
     dimensions = ('electrons_produced', 'photons_produced')
-    bonus_dimensions = ()
+    extra_dimensions = ()
 
     special_model_functions = ('p_electron',)
     model_functions = special_model_functions

@@ -15,7 +15,7 @@ DEFAULT_WORK_PER_QUANTUM = 13.7e-3
 class MakeERQuanta(fd.Block):
 
     dimensions = ('quanta_produced', 'energy')
-    bonus_dimensions = ()
+    extra_dimensions = (('quanta_produced_noStep', False),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
@@ -34,20 +34,13 @@ class MakeERQuanta(fd.Block):
             tf.floor(energy / work[:, o, o]),
             dtype=fd.float_type())
 
-        quanta_produced_min = self.source._fetch('quanta_produced_min', data_tensor=data_tensor)[:, o]
-        quanta_produced_max = self.source._fetch('quanta_produced_max', data_tensor=data_tensor)[:, o]
-        quanta_produced_dimsize = tf.reduce_max(quanta_produced_max - quanta_produced_min + 1)
-        quanta_produced_dimsize += (self.source.dimsizes['quanta_produced'] - (quanta_produced_dimsize % self.source.dimsizes['quanta_produced']))
-        quanta_produced_no_step = quanta_produced_min + tf.cast(tf.range(quanta_produced_dimsize), dtype=fd.float_type())
-        quanta_produced_no_step = tf.repeat(quanta_produced_no_step[:, :, o], tf.shape(quanta_produced)[2], axis=2)
-
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
         result = tf.cast(tf.equal(quanta_produced, quanta_produced_real),
                          dtype=fd.float_type())
 
-        quanta_produced_chunks = int(quanta_produced_dimsize / self.source.dimsizes['quanta_produced'])
-        test = tf.reshape(quanta_produced_no_step, [tf.shape(quanta_produced_no_step)[0], int(tf.shape(quanta_produced_no_step)[1] / quanta_produced_chunks), quanta_produced_chunks, tf.shape(quanta_produced_no_step)[2]])
-        test = tf.reduce_sum(test, axis=2)
+        # quanta_produced_chunks = int(quanta_produced_dimsize / self.source.dimsizes['quanta_produced'])
+        # test = tf.reshape(quanta_produced_no_step, [tf.shape(quanta_produced_no_step)[0], int(tf.shape(quanta_produced_no_step)[1] / quanta_produced_chunks), quanta_produced_chunks, tf.shape(quanta_produced_no_step)[2]])
+        # test = tf.reduce_sum(test, axis=2)
 
         return result
 
@@ -57,7 +50,14 @@ class MakeERQuanta(fd.Block):
                                         / work).astype(np.int)
 
     def _annotate(self, d):
+        for bound in ('min', 'max'):
+            d['quanta_produced_noStep_' + bound] = (
+                    d['electrons_produced_' + bound]
+                    + d['photons_produced_' + bound])
         annotate_ces(self, d)
+
+    def _domain_dict_bonus(self, d):
+        domain_dict_bonus(self, d)
 
 
 @export
@@ -129,3 +129,17 @@ def annotate_ces(self, d):
         d['quanta_produced_' + bound] = (
                 d['electrons_produced_' + bound]
                 + d['photons_produced_' + bound])
+
+def domain_dict_bonus(self, d):
+    # dimsize += (self.source.dimsizes['quanta_produced'] -
+    # (dimsize % self.source.dimsizes['quanta_produced']))
+    #
+    # quanta_produced_noStep_domain = mi + tf.cast(tf.range(dimsize),
+    # dtype=fd.float_type())
+    # energy_domain = self.source.domain('energy', d)
+    #
+    # quanta_produced_noStep = tf.repeat(quanta_produced_noStep_domain[:, :, o],
+    # energy_domain.shape[1], axis=2)
+    # energy = tf.repeat(energy_domain[:, o, :],
+    # quanta_produced_noStep_domain.shape[1], axis=1)
+    test = 0

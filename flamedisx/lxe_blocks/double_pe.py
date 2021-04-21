@@ -11,7 +11,7 @@ o = tf.newaxis
 @export
 class MakeS1Photoelectrons(fd.Block):
     dimensions = ('photons_detected', 'photoelectrons_detected')
-    bonus_dimensions = ()
+    extra_dimensions = ()
 
     model_functions = ('double_pe_fraction',)
 

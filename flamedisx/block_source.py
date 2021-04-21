@@ -17,9 +17,12 @@ class Block:
     For example, P(electrons_detected | electrons_produced).
     """
     dimensions: ty.Tuple[str]
-    bonus_dimensions: ty.Tuple[ty.Tuple[str, bool]] # Any extra dimensions treated differently.
-    # Label true if they represent an internally contracted hidden variable (will
-    # be added to inner_dimenions), label false otherwise.
+    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]] # Any extra dimensions
+    # treated differently. Label true if they represent an internally
+    # contracted hidden variable (will be added to inner_dimenions, domain
+    # tensors will automatically be calculated), label false otherwise (will be
+    # added to bonus_dimensions, any additional domain tensors utilising them
+    # will will need calculating via the block overriding _domain_dict_bonus())
 
     depends_on: ty.Tuple[str] = tuple()
 
@@ -33,6 +36,10 @@ class Block:
         self.source = source
         assert len(self.dimensions) in (1, 2), \
             "Blocks must output 1 or 2 dimensions"
+        # Currently only support 1 extra_dimension per block
+        assert len(self.extra_dimensions) <= 1, \
+            f"{self} has >1 extra dimension!"
+
 
     def setup(self):
         """Do any necessary initialization.
@@ -50,7 +57,16 @@ class Block:
         return self.source.gimme_numpy(*args, **kwargs)
 
     def compute(self, data_tensor, ptensor, **kwargs):
-        kwargs.update(self.source._domain_dict(self.dimensions, data_tensor))
+        if len(self.extra_dimensions) == 0:
+            kwargs.update(self.source._domain_dict(
+            self.dimensions, data_tensor))
+        else:
+            if self.extra_dimensions[0][1]==True:
+                raise NotImplementedError
+            else:
+                kwargs.update(self.source._domain_dict(
+                self.dimensions, data_tensor))
+                self._domain_dict_bonus(data_tensor)
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
@@ -103,6 +119,11 @@ class Block:
         """Add _min and _max for each dimension to d in-place"""
         raise NotImplementedError
 
+    def _domain_dict_bonus(self, d):
+        """Calculate any additional intenal tensors arising from the use of
+        bonus_dimensions in a block"""
+        raise NotImplementedError
+
 
 @export
 class FirstBlock(Block):
@@ -151,7 +172,7 @@ class BlockModelSource(fd.Source):
         # Collect attributes from the different blocks in this dictionary:
         collected = {k: [] for k in (
             'dimensions',
-            'bonus_dimensions',
+            'extra_dimensions',
             'model_functions',
             'special_model_functions',
             'model_attributes',
@@ -226,9 +247,11 @@ class BlockModelSource(fd.Source):
             d for d in collected['dimensions']
             if ((d not in self.final_dimensions)
                 and (d not in self.model_blocks[0].dimensions))]
-            + [d for d in collected['bonus_dimensions']
+            + [d[0] for d in collected['extra_dimensions']
             if d[1]==True])
         self.initial_dimensions = self.model_blocks[0].dimensions
+        self.bonus_dimensions = tuple([
+            d[0] for d in collected['extra_dimensions'] if d[1]==False])
 
         super().__init__(*args, **kwargs)
 
