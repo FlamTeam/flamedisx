@@ -33,7 +33,7 @@ class ERSource(fd.BlockModelSource):
         return fd.safe_p(qy * 13.7e-3)
 
     final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('quanta_produced', 'photoelectrons_detected', 'electrons_detected')
+    no_step_dimensions = ('photoelectrons_detected', 'electrons_detected')
 
 
 @export

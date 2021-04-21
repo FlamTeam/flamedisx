@@ -33,9 +33,20 @@ class MakeERQuanta(fd.Block):
             tf.floor(energy / work[:, o, o]),
             dtype=fd.float_type())
 
+        quanta_produced_min = self.source._fetch('quanta_produced_min', data_tensor=data_tensor)[:, o]
+        quanta_produced_max = self.source._fetch('quanta_produced_max', data_tensor=data_tensor)[:, o]
+        quanta_produced_dimsize = tf.reduce_max(quanta_produced_max - quanta_produced_min + 1)
+        quanta_produced_dimsize += (self.source.dimsizes['quanta_produced'] - (quanta_produced_dimsize % self.source.dimsizes['quanta_produced']))
+        quanta_produced_no_step = quanta_produced_min + tf.cast(tf.range(quanta_produced_dimsize), dtype=fd.float_type())
+        quanta_produced_no_step = tf.repeat(quanta_produced_no_step[:, :, o], tf.shape(quanta_produced)[2], axis=2)
+
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
         result = tf.cast(tf.equal(quanta_produced, quanta_produced_real),
                          dtype=fd.float_type())
+
+        quanta_produced_chunks = int(quanta_produced_dimsize / self.source.dimsizes['quanta_produced'])
+        test = tf.reshape(quanta_produced_no_step, [tf.shape(quanta_produced_no_step)[0], int(tf.shape(quanta_produced_no_step)[1] / quanta_produced_chunks), quanta_produced_chunks, tf.shape(quanta_produced_no_step)[2]])
+        test = tf.reduce_sum(test, axis=2)
 
         return result
 

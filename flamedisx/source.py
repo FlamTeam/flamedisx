@@ -440,8 +440,6 @@ class Source:
         if x in self.final_dimensions:
             return self._fetch(x, data_tensor=data_tensor)[:, o]
 
-        x_range = tf.cast(tf.range(self.dimsizes[x]),
-                          dtype=fd.float_type())[o, :]
         left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
         right_bound = self._fetch(x + '_max', data_tensor=data_tensor)[:, o]
         steps = tf.where((right_bound-left_bound+1) > self.dimsizes[x],
