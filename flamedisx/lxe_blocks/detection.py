@@ -98,6 +98,7 @@ class DetectPhotonsOrElectrons(fd.Block):
 @export
 class DetectPhotons(DetectPhotonsOrElectrons):
     dimensions = ('photons_produced', 'photons_detected')
+    bonus_dimensions = ()
 
     special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
     model_functions = ('photon_detection_eff',) + special_model_functions
@@ -128,6 +129,7 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 @export
 class DetectElectrons(DetectPhotonsOrElectrons):
     dimensions = ('electrons_produced', 'electrons_detected')
+    bonus_dimensions = ()
 
     special_model_functions = ('electron_acceptance',)
     model_functions = ('electron_detection_eff',) + special_model_functions

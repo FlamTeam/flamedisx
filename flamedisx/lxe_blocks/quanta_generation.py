@@ -15,6 +15,7 @@ DEFAULT_WORK_PER_QUANTUM = 13.7e-3
 class MakeERQuanta(fd.Block):
 
     dimensions = ('quanta_produced', 'energy')
+    bonus_dimensions = ()
     depends_on = ((('energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
