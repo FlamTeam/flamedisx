@@ -27,21 +27,23 @@ class MakeERQuanta(fd.Block):
                  quanta_produced,
                  # Dependency domain and value
                  energy, rate_vs_energy,
-                 quanta_produced_noStep):
+                 quanta_produced_noStep, energy_noStep):
 
         # Assume the intial number of quanta is always the same for each energy
         work = self.gimme('work', data_tensor=data_tensor, ptensor=ptensor)
         quanta_produced_real = tf.cast(
-            tf.floor(energy / work[:, o, o]),
+            tf.floor(energy_noStep / work[:, o, o]),
             dtype=fd.float_type())
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        result = tf.cast(tf.equal(quanta_produced, quanta_produced_real),
-                         dtype=fd.float_type())
+        result = tf.cast(tf.equal(quanta_produced_noStep,
+        quanta_produced_real), dtype=fd.float_type())
 
-        # quanta_produced_chunks = int(quanta_produced_dimsize / self.source.dimsizes['quanta_produced'])
-        # test = tf.reshape(quanta_produced_no_step, [tf.shape(quanta_produced_no_step)[0], int(tf.shape(quanta_produced_no_step)[1] / quanta_produced_chunks), quanta_produced_chunks, tf.shape(quanta_produced_no_step)[2]])
-        # test = tf.reduce_sum(test, axis=2)
+        chunks = int(result.shape[1] / quanta_produced.shape[1])
+
+        result_temp = tf.reshape(result, [result.shape[0],
+        int(result.shape[1] / chunks), chunks, result.shape[2]])
+        result = tf.reduce_sum(result_temp, axis=2)
 
         return result
 
@@ -143,5 +145,8 @@ def domain_dict_bonus(self, d):
 
     quanta_produced_noStep = tf.repeat(quanta_produced_noStep_domain[:, :, o],
     energy_domain.shape[1], axis=2)
+    energy_noStep = tf.repeat(energy_domain[:, o, :],
+    quanta_produced_noStep_domain.shape[1], axis=1)
 
-    return dict({'quanta_produced_noStep': quanta_produced_noStep})
+    return dict({'quanta_produced_noStep': quanta_produced_noStep,
+    'energy_noStep': energy_noStep})
