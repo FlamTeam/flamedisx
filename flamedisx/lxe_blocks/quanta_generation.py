@@ -27,6 +27,7 @@ class MakeERQuanta(fd.Block):
                  quanta_produced,
                  # Dependency domain and value
                  energy, rate_vs_energy,
+                 # Extra tensors for internal use
                  quanta_produced_noStep, energy_noStep):
 
         # Assume the intial number of quanta is always the same for each energy
@@ -39,11 +40,16 @@ class MakeERQuanta(fd.Block):
         result = tf.cast(tf.equal(quanta_produced_noStep,
         quanta_produced_real), dtype=fd.float_type())
 
+        # Chunks to sum result in, to get to same dimension as
+        # quanta_produced
         chunks = int(result.shape[1] / quanta_produced.shape[1])
 
+        # Perform the summing - will later multiply by the stepping, so divide
+        # out by it here
         result_temp = tf.reshape(result, [result.shape[0],
         int(result.shape[1] / chunks), chunks, result.shape[2]])
-        result = tf.reduce_sum(result_temp, axis=2)
+        result = tf.reduce_sum(result_temp, axis=2) \
+        / self.source.steps['quanta_produced'][:,:,o]
 
         return result
 
@@ -134,10 +140,13 @@ def annotate_ces(self, d):
                 + d['photons_produced_' + bound])
 
 def domain_dict_bonus(self, d):
+    # When we sum slice of the result using quanta_produced_noStep, need it to
+    # be the same size as quanta_produced
     dimsize = self.source.dimsizes['quanta_produced_noStep']
     dimsize += (self.source.dimsizes['quanta_produced'] -
     (dimsize % self.source.dimsizes['quanta_produced']))
 
+    # Calculate cross_domains
     mi = self.source._fetch('quanta_produced_noStep_min',data_tensor=d)[:, o]
     quanta_produced_noStep_domain = mi + tf.cast(tf.range(dimsize),
     dtype=fd.float_type())
@@ -148,5 +157,6 @@ def domain_dict_bonus(self, d):
     energy_noStep = tf.repeat(energy_domain[:, o, :],
     quanta_produced_noStep_domain.shape[1], axis=1)
 
+    # Return as domain_dict
     return dict({'quanta_produced_noStep': quanta_produced_noStep,
     'energy_noStep': energy_noStep})
