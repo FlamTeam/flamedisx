@@ -26,7 +26,8 @@ class MakeERQuanta(fd.Block):
                  # Domain
                  quanta_produced,
                  # Dependency domain and value
-                 energy, rate_vs_energy):
+                 energy, rate_vs_energy,
+                 quanta_produced_noStep):
 
         # Assume the intial number of quanta is always the same for each energy
         work = self.gimme('work', data_tensor=data_tensor, ptensor=ptensor)
@@ -57,7 +58,7 @@ class MakeERQuanta(fd.Block):
         annotate_ces(self, d)
 
     def _domain_dict_bonus(self, d):
-        domain_dict_bonus(self, d)
+        return domain_dict_bonus(self, d)
 
 
 @export
@@ -131,15 +132,16 @@ def annotate_ces(self, d):
                 + d['photons_produced_' + bound])
 
 def domain_dict_bonus(self, d):
-    # dimsize += (self.source.dimsizes['quanta_produced'] -
-    # (dimsize % self.source.dimsizes['quanta_produced']))
-    #
-    # quanta_produced_noStep_domain = mi + tf.cast(tf.range(dimsize),
-    # dtype=fd.float_type())
-    # energy_domain = self.source.domain('energy', d)
-    #
-    # quanta_produced_noStep = tf.repeat(quanta_produced_noStep_domain[:, :, o],
-    # energy_domain.shape[1], axis=2)
-    # energy = tf.repeat(energy_domain[:, o, :],
-    # quanta_produced_noStep_domain.shape[1], axis=1)
-    test = 0
+    dimsize = self.source.dimsizes['quanta_produced_noStep']
+    dimsize += (self.source.dimsizes['quanta_produced'] -
+    (dimsize % self.source.dimsizes['quanta_produced']))
+
+    mi = self.source._fetch('quanta_produced_noStep_min',data_tensor=d)[:, o]
+    quanta_produced_noStep_domain = mi + tf.cast(tf.range(dimsize),
+    dtype=fd.float_type())
+    energy_domain = self.source.domain('energy', d)
+
+    quanta_produced_noStep = tf.repeat(quanta_produced_noStep_domain[:, :, o],
+    energy_domain.shape[1], axis=2)
+
+    return dict({'quanta_produced_noStep': quanta_produced_noStep})

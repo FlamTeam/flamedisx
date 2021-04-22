@@ -66,7 +66,7 @@ class Block:
             else:
                 kwargs.update(self.source._domain_dict(
                 self.dimensions, data_tensor))
-                self._domain_dict_bonus(data_tensor)
+                kwargs.update(self._domain_dict_bonus(data_tensor))
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
