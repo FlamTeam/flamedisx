@@ -387,11 +387,13 @@ class SR1ERSource(SR1Source, fd.ERSource):
         # let tensorflow do the broadcasting over the nq dimension:
 
         if tf.is_tensor(nq):
-            tf.print('hi')
+            tf.print('inside before:', drift_field.shape())
             # drift_field is an (n_events) tensor, n_q an (n_events, n_nq) tensor
             # Insert empty axis in drift_field for broadcasting
             drift_field = drift_field[:, None]
+            tf.print('inside after:', drift_field.shape())
         wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
+        tf.print('outside:', drift_field.shape())
 
         '''
         if not tf.is_tensor(nq): # for _simulate
