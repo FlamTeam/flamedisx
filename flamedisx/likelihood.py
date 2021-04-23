@@ -52,7 +52,7 @@ class LogLikelihood:
             free_rates=None,
             batch_size=10,
             max_sigma=3,
-            max_dim_size=100,
+            max_dim_size=70,
             n_trials=int(1e5),
             log_constraint=None,
             bounds_specified=True,

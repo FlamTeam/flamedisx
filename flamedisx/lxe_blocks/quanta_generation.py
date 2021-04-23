@@ -40,16 +40,17 @@ class MakeERQuanta(fd.Block):
         result = tf.cast(tf.equal(quanta_produced_noStep,
         quanta_produced_real), dtype=fd.float_type())
 
-        # Chunks to sum result in, to get to same dimension as
+        # Chunks to average result in, to get to same dimension as
         # quanta_produced
         chunks = int(result.shape[1] / quanta_produced.shape[1])
 
-        # Perform the summing - will later multiply by the stepping, so divide
+        # Take the average - will later multiply by the stepping, so divide
         # out by it here
         result_temp = tf.reshape(result, [result.shape[0],
         int(result.shape[1] / chunks), chunks, result.shape[2]])
         result = tf.reduce_sum(result_temp, axis=2) \
-        / self.source.steps['quanta_produced'][:,:,o]
+        / (self.source.steps['quanta_produced'][:, : ,o] \
+        * self.source.steps['quanta_produced'][:, : ,o])
 
         return result
 

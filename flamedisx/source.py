@@ -85,7 +85,7 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=3,
-                 max_dim_size=100,
+                 max_dim_size=70,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -263,12 +263,11 @@ class Source:
             self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
             if (self.dimsizes[dim] > max_dim_size) and (dim not in self.no_step_dimensions):
                 self.dimsizes[dim] = max_dim_size
+            if dim=='quanta_produced':
+                self.dimsizes[dim] = 70 + 70 - 1
         for dim in self.final_dimensions:
             self.dimsizes[dim] = 1
-        for dim in self.bonus_dimensions:
-            ma = self._fetch(dim + '_max')
-            mi = self._fetch(dim + '_min')
-            self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
+        self.dimsizes['quanta_produced_noStep'] = self.dimsizes['quanta_produced'] + int(tf.reduce_max((tf.convert_to_tensor(15 * np.ones((10,1)), dtype=fd.float_type()) - 1)).numpy()) * (self.dimsizes['quanta_produced'] - 1)
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
@@ -456,8 +455,12 @@ class Source:
                          1) # We want to ceil this to ensure we cover to at least the upper bound
         # Store the steps for later multiplying probabilities
         self.steps[x] = steps
+
+        if x=='quanta_produced':
+            self.steps[x] = tf.convert_to_tensor(15 * np.ones((10,1)), dtype=fd.float_type())
+
         # Cover the bounds range in integer steps not necessarily of 1
-        x_range = tf.cast(tf.range(self.dimsizes[x]), dtype=fd.float_type()) * steps
+        x_range = tf.cast(tf.range(self.dimsizes[x]), dtype=fd.float_type()) * self.steps[x]
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
