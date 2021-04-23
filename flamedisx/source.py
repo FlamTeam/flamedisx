@@ -131,7 +131,6 @@ class Source:
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
         ctc += [x + '_max' for x in self.inner_dimensions]  # Right bounds of domains
         ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
-        ctc += [x + '_max' for x in self.bonus_dimensions]  # Right bounds of domains
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
