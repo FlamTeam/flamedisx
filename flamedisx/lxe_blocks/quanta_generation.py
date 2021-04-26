@@ -40,19 +40,24 @@ class MakeERQuanta(fd.Block):
         result = tf.cast(tf.equal(quanta_produced_noStep,
         quanta_produced_real), dtype=fd.float_type())
 
-        # Chunks to average result in, to get to same dimension as
-        # quanta_produced
-        chunks = int(result.shape[1] / quanta_produced.shape[1])
+        result_pad_left = tf.pad(result, [[0, 0], [15 - result.shape[1] % 15, 0], [0, 0]])
+        result_pad_right = tf.pad(result, [[0, 0], [0, 15 - result.shape[1] % 15], [0, 0]])
 
-        # Take the average - will later multiply by the stepping, so divide
-        # out by it here
-        result_temp = tf.reshape(result, [result.shape[0],
-        int(result.shape[1] / chunks), chunks, result.shape[2]])
-        result = tf.reduce_sum(result_temp, axis=2) \
+        chunks = int(result_pad_left.shape[1] / quanta_produced.shape[1])
+
+        result_temp_left = tf.reshape(result_pad_left, [result_pad_left.shape[0],
+        int(result_pad_left.shape[1] / chunks), chunks, result_pad_left.shape[2]])
+        result_left = tf.reduce_sum(result_temp_left, axis=2) \
         / (self.source.steps['quanta_produced'][:, : ,o] \
         * self.source.steps['quanta_produced'][:, : ,o])
 
-        return result
+        result_temp_right = tf.reshape(result_pad_right, [result_pad_right.shape[0],
+        int(result_pad_right.shape[1] / chunks), chunks, result_pad_right.shape[2]])
+        result_right = tf.reduce_sum(result_temp_right, axis=2) \
+        / (self.source.steps['quanta_produced'][:, : ,o] \
+        * self.source.steps['quanta_produced'][:, : ,o])
+
+        return (result_left + result_right) / 2
 
     def _simulate(self, d):
         work = self.gimme_numpy('work')
@@ -143,8 +148,6 @@ def domain_dict_bonus(self, d):
     # When we sum slice of the result using quanta_produced_noStep, need it to
     # be the same size as quanta_produced
     dimsize = self.source.dimsizes['quanta_produced_noStep']
-    dimsize += (self.source.dimsizes['quanta_produced'] -
-    (dimsize % self.source.dimsizes['quanta_produced']))
 
     # Calculate cross_domains
     mi = self.source._fetch('quanta_produced_noStep_min',data_tensor=d)[:, o]
