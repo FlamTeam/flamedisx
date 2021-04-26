@@ -358,14 +358,13 @@ class SR1ERSource(SR1Source, fd.ERSource):
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
 
-        if not tf.is_tensor(nq): # for _simulate
-            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
-        else: # for _compute
-            aa, bb = nq.shape
-            cc = tf.reshape(drift_field, (aa,1))
-            dd = tf.ones((1, bb))
-            ff = tf.matmul(cc, dd)
-            wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * ff ** (-0.24)
+        # in _simulate, n_events = n_trials, drift_field is a (n_events) tensor, nq is a (n_events, ) numpy array.
+        if tf.is_tensor(nq):
+            # in _compute, n_events = batch_size
+            # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+            # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+            drift_field = drift_field[:, None]
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
