@@ -40,10 +40,12 @@ class MakeERQuanta(fd.Block):
         result = tf.cast(tf.equal(quanta_produced_noStep,
         quanta_produced_real), dtype=fd.float_type())
 
-        result_pad_left = tf.pad(result, [[0, 0],
-        [15 - result.shape[1] % 15, 0], [0, 0]])
-        result_pad_right = tf.pad(result, [[0, 0],
-        [0, 15 - result.shape[1] % 15], [0, 0]])
+        padding = int(np.floor(quanta_produced_noStep.shape[1] / \
+        (quanta_produced.shape[1]-1))) - \
+        quanta_produced_noStep.shape[1] % (quanta_produced.shape[1]-1)
+
+        result_pad_left = tf.pad(result, [[0, 0], [padding, 0], [0, 0]])
+        result_pad_right = tf.pad(result, [[0, 0], [0, padding], [0, 0]])
 
         steps = self.source._fetch('quanta_produced_steps',
         data_tensor=data_tensor)
