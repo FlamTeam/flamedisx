@@ -22,7 +22,10 @@ class Block:
     # contracted hidden variable (will be added to inner_dimenions, domain
     # tensors will automatically be calculated), label false otherwise (will be
     # added to bonus_dimensions, any additional domain tensors utilising them
-    # will will need calculating via the block overriding _domain_dict_bonus())
+    # will need calculating via the block overriding _domain_dict_bonus())
+    special_dimensions: ty.Tuple[str] # Any dimensions where dimsizes
+    # are calculated differently. Calculation of dimsizes will need calculating
+    # via overriding _calculate_dimsizes_special() within a block
 
     depends_on: ty.Tuple[str] = tuple()
 
@@ -121,8 +124,12 @@ class Block:
 
     def _domain_dict_bonus(self, d):
         """Calculate any additional intenal tensors arising from the use of
-        bonus_dimensions in a block"""
+        bonus_dimensions in a block. Override within block"""
         raise NotImplementedError
+
+    def _calculate_dimsizes_special(self):
+        """Calculate dimension size for any special_dimensions"""
+        pass
 
 
 @export
@@ -296,7 +303,8 @@ class BlockModelSource(fd.Source):
                 if (dim in self.inner_dimensions) and \
                 (dim not in self.no_step_dimensions) and \
                 (dim not in already_stepped):
-                    step_mul = tf.repeat(self.steps[dim], r.shape[1], axis=1)
+                    steps = self._fetch(dim+'_steps', data_tensor=data_tensor)
+                    step_mul = tf.repeat(steps[:,o], r.shape[1], axis=1)
                     step_mul = tf.repeat(step_mul[:,:,o], r.shape[2], axis=2)
                     r *= step_mul
                     already_stepped += (dim,)
@@ -436,6 +444,12 @@ class BlockModelSource(fd.Source):
 
     def add_derived_observables(self, d):
         pass
+
+    def calculate_dimsizes_special(self):
+        """Calculate dimension size for any special_dimensions; override
+        _calculate_dimsizes_special within block"""
+        for b in self.model_blocks:
+            b._calculate_dimsizes_special()
 
 
 class BlockNotFoundError(Exception):

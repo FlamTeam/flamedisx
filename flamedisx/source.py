@@ -34,6 +34,9 @@ class Source:
     # Avoid variable stepping over these inner_dimensions
     no_step_dimensions = tuple()
 
+    # Calculate dimesize differently for these dimensions
+    special_dimensions = tuple()
+
     # Any non-hidden variable extra_dimensions
     bonus_dimensions = tuple()
 
@@ -131,6 +134,8 @@ class Source:
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
         ctc += [x + '_max' for x in self.inner_dimensions]  # Right bounds of domains
         ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
+        ctc += [x + '_steps' for x in self.inner_dimensions]  # Step sizes
+        ctc += [x + '_steps' for x in self.bonus_dimensions]  # Step sizes
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
@@ -208,11 +213,11 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
+                self._calculate_dimsizes(self.max_dim_size)
 
         if not _skip_tf_init:
             self._check_data()
             self._populate_tensor_cache()
-            self._calculate_dimsizes(self.max_dim_size)
 
     def _check_data(self):
         """Do any final checks on the self.data dataframe,
@@ -255,18 +260,29 @@ class Source:
 
     def _calculate_dimsizes(self, max_dim_size):
         self.dimsizes = dict()
-        self.steps = dict()
+        d = self.data
         for dim in self.inner_dimensions:
+            if dim in self.special_dimensions:
+                continue
             ma = self._fetch(dim + '_max')
             mi = self._fetch(dim + '_min')
             self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
-            if (self.dimsizes[dim] > max_dim_size) and (dim not in self.no_step_dimensions):
+            if (self.dimsizes[dim] > max_dim_size) and \
+            (dim not in self.no_step_dimensions):
                 self.dimsizes[dim] = max_dim_size
-            if dim=='quanta_produced':
-                self.dimsizes[dim] = 70 + 70 - 1
+
+            steps = tf.where((ma-mi+1) > self.dimsizes[dim],
+                             tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
+                             1).numpy() # We want to ceil this to ensure we cover to at
+                             # least the upper bound
+            # Store the steps for later multiplying probabilities
+            d[dim + '_steps'] = steps
+
         for dim in self.final_dimensions:
             self.dimsizes[dim] = 1
-        self.dimsizes['quanta_produced_noStep'] = self.dimsizes['quanta_produced'] + int(tf.reduce_max((tf.convert_to_tensor(15 * np.ones((10,1)), dtype=fd.float_type()) - 1)).numpy()) * (self.dimsizes['quanta_produced'] - 1)
+
+        # Calculate all custom dimsizes
+        self.calculate_dimsizes_special()
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
@@ -447,19 +463,10 @@ class Source:
         if x in self.final_dimensions:
             return self._fetch(x, data_tensor=data_tensor)[:, o]
 
-        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
-        right_bound = self._fetch(x + '_max', data_tensor=data_tensor)[:, o]
-        steps = tf.where((right_bound-left_bound+1) > self.dimsizes[x],
-                         tf.math.ceil((right_bound-left_bound)/(self.dimsizes[x]-1)),
-                         1) # We want to ceil this to ensure we cover to at least the upper bound
-        # Store the steps for later multiplying probabilities
-        self.steps[x] = steps
-
-        if x=='quanta_produced':
-            self.steps[x] = tf.convert_to_tensor(15 * np.ones((10,1)), dtype=fd.float_type())
-
         # Cover the bounds range in integer steps not necessarily of 1
-        x_range = tf.cast(tf.range(self.dimsizes[x]), dtype=fd.float_type()) * self.steps[x]
+        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        steps = self._fetch(x + '_steps', data_tensor=data_tensor)[:, o]
+        x_range = tf.cast(tf.range(self.dimsizes[x]), dtype=fd.float_type()) * steps
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):

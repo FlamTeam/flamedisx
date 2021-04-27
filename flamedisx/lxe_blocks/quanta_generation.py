@@ -40,22 +40,24 @@ class MakeERQuanta(fd.Block):
         result = tf.cast(tf.equal(quanta_produced_noStep,
         quanta_produced_real), dtype=fd.float_type())
 
-        result_pad_left = tf.pad(result, [[0, 0], [15 - result.shape[1] % 15, 0], [0, 0]])
-        result_pad_right = tf.pad(result, [[0, 0], [0, 15 - result.shape[1] % 15], [0, 0]])
+        result_pad_left = tf.pad(result, [[0, 0],
+        [15 - result.shape[1] % 15, 0], [0, 0]])
+        result_pad_right = tf.pad(result, [[0, 0],
+        [0, 15 - result.shape[1] % 15], [0, 0]])
 
+        steps = self.source._fetch('quanta_produced_steps',
+        data_tensor=data_tensor)
         chunks = int(result_pad_left.shape[1] / quanta_produced.shape[1])
 
         result_temp_left = tf.reshape(result_pad_left, [result_pad_left.shape[0],
         int(result_pad_left.shape[1] / chunks), chunks, result_pad_left.shape[2]])
         result_left = tf.reduce_sum(result_temp_left, axis=2) \
-        / (self.source.steps['quanta_produced'][:, : ,o] \
-        * self.source.steps['quanta_produced'][:, : ,o])
+        / (steps[:, o ,o] * steps[:, o ,o])
 
         result_temp_right = tf.reshape(result_pad_right, [result_pad_right.shape[0],
         int(result_pad_right.shape[1] / chunks), chunks, result_pad_right.shape[2]])
         result_right = tf.reduce_sum(result_temp_right, axis=2) \
-        / (self.source.steps['quanta_produced'][:, : ,o] \
-        * self.source.steps['quanta_produced'][:, : ,o])
+        / (steps[:, o ,o] * steps[:, o ,o])
 
         return (result_left + result_right) / 2
 
@@ -72,6 +74,9 @@ class MakeERQuanta(fd.Block):
 
     def _domain_dict_bonus(self, d):
         return domain_dict_bonus(self, d)
+
+    def _calculate_dimsizes_special(self):
+        return calculate_dimsizes_special(self)
 
 
 @export
@@ -163,3 +168,18 @@ def domain_dict_bonus(self, d):
     # Return as domain_dict
     return dict({'quanta_produced_noStep': quanta_produced_noStep,
     'energy_noStep': energy_noStep})
+
+def calculate_dimsizes_special(self):
+    self.source.dimsizes['quanta_produced'] = \
+    self.source.dimsizes['electrons_produced'] + \
+    self.source.dimsizes['photons_produced'] - 1
+
+    d = self.source.data
+    d['quanta_produced_steps'] = d['electrons_produced_steps']
+
+    self.source.dimsizes['quanta_produced_noStep'] = \
+    self.source.dimsizes['quanta_produced'] + \
+    int(tf.reduce_max((d['quanta_produced_steps'] - 1)).numpy()) * \
+    (self.source.dimsizes['quanta_produced'] - 1)
+
+    d['quanta_produced_noStep_steps'] = 1
