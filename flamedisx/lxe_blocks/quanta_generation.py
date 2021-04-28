@@ -185,11 +185,11 @@ def calculate_dimsizes_special(self):
     d['quanta_produced_noStep_steps'] = 1
 
     self.source.dimsizes['electrons_produced'] = \
-    int(tf.reduce_max((self.source._fetch('electrons_produced_max') - \
-    self.source._fetch('electrons_produced_min')) / quanta_steps).numpy())
+    int(np.ceil(tf.reduce_max((self.source._fetch('electrons_produced_max') - \
+    self.source._fetch('electrons_produced_min')) / quanta_steps).numpy()) + 1)
     self.source.dimsizes['photons_produced'] = \
-    int(tf.reduce_max((self.source._fetch('photons_produced_max') - \
-    self.source._fetch('photons_produced_min')) / quanta_steps).numpy())
+    int(np.ceil(tf.reduce_max((self.source._fetch('photons_produced_max') - \
+    self.source._fetch('photons_produced_min')) / quanta_steps).numpy()) + 1)
 
     electrons_produced_dimsizes = (d['electrons_produced_max'].to_numpy() \
     - d['electrons_produced_min'].to_numpy()) / quanta_steps.to_numpy()
