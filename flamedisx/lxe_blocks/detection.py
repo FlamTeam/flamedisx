@@ -89,10 +89,6 @@ class DetectPhotonsOrElectrons(fd.Block):
             d[self.quanta_name + 's_produced_' + bound] = intify(
                 n_prod_mle + sign * self.source.max_sigma * _std
             ).clip(0, None).astype(np.int)
-        d['electrons_produced_min'] = 500
-        d['electrons_produced_max'] = 1500
-        d['photons_produced_min'] = 2100
-        d['photons_produced_max'] = 3100
 
 
 @export
