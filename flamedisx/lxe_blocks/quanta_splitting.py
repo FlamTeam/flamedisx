@@ -93,23 +93,6 @@ class MakePhotonsElectronsBinomial(fd.Block):
                 d['photons_produced_' + suffix]
                 + d['electrons_produced_' + suffix])
 
-    def _calculate_dimsizes_special(self):
-        d = self.source.data
-        steps = (d['electrons_produced_steps'] <
-        d['photons_produced_steps']) * d['electrons_produced_steps']
-        + (d['photons_produced_steps'] <
-        d['electrons_produced_steps']) * d['photons_produced_steps']
-
-        d['electrons_produced_steps'] = steps
-        d['photons_produced_steps'] = steps
-
-        self.source.dimsizes['electrons_produced'] = \
-        int(tf.reduce_max((self.source._fetch('electrons_produced_max') - \
-        self.source._fetch('electrons_produced_min')) / steps).numpy())
-        self.source.dimsizes['photons_produced'] = \
-        int(tf.reduce_max((self.source._fetch('photons_produced_max') - \
-        self.source._fetch('photons_produced_min')) / steps).numpy())
-
 
 @export
 class MakePhotonsElectronsBetaBinomial(MakePhotonsElectronsBinomial):

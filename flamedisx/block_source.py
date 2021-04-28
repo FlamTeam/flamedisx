@@ -23,9 +23,6 @@ class Block:
     # tensors will automatically be calculated), label false otherwise (will be
     # added to bonus_dimensions, any additional domain tensors utilising them
     # will need calculating via the block overriding _domain_dict_bonus())
-    special_dimensions: ty.Tuple[str] # Any dimensions where dimsizes
-    # are calculated differently. Calculation of dimsizes will need calculating
-    # via overriding _calculate_dimsizes_special() within a block
 
     depends_on: ty.Tuple[str] = tuple()
 
@@ -128,7 +125,8 @@ class Block:
         raise NotImplementedError
 
     def _calculate_dimsizes_special(self):
-        """Calculate dimension size for any special_dimensions"""
+        """Re-calculate dimension size, steps differently for any dimensions;
+        will need to override _calculate_dimsizes_special() within a block"""
         pass
 
 
@@ -446,7 +444,7 @@ class BlockModelSource(fd.Source):
         pass
 
     def calculate_dimsizes_special(self):
-        """Calculate dimension size for any special_dimensions; override
+        """Custom calulcation of any dimension sizes and steps; override
         _calculate_dimsizes_special within block"""
         for b in self.model_blocks:
             b._calculate_dimsizes_special()

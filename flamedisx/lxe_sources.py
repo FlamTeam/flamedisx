@@ -34,7 +34,6 @@ class ERSource(fd.BlockModelSource):
 
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ('photoelectrons_detected', 'electrons_detected')
-    special_dimensions = ('quanta_produced', 'quanta_produced_noStep')
 
 
 @export

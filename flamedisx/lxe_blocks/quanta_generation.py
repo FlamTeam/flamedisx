@@ -172,16 +172,48 @@ def domain_dict_bonus(self, d):
     'energy_noStep': energy_noStep})
 
 def calculate_dimsizes_special(self):
+    d = self.source.data
+
+    quanta_steps = (d['electrons_produced_steps'] <
+    d['photons_produced_steps']) * d['electrons_produced_steps']
+    + (d['photons_produced_steps'] <
+    d['electrons_produced_steps']) * d['photons_produced_steps']
+
+    d['electrons_produced_steps'] = quanta_steps
+    d['photons_produced_steps'] = quanta_steps
+    d['quanta_produced_steps'] = quanta_steps
+    d['quanta_produced_noStep_steps'] = 1
+
+    self.source.dimsizes['electrons_produced'] = \
+    int(tf.reduce_max((self.source._fetch('electrons_produced_max') - \
+    self.source._fetch('electrons_produced_min')) / quanta_steps).numpy())
+    self.source.dimsizes['photons_produced'] = \
+    int(tf.reduce_max((self.source._fetch('photons_produced_max') - \
+    self.source._fetch('photons_produced_min')) / quanta_steps).numpy())
+
+    electrons_produced_dimsizes = (d['electrons_produced_max'].to_numpy() \
+    - d['electrons_produced_min'].to_numpy()) / quanta_steps.to_numpy()
+    self.source.add_to_dimsizes('electrons_produced',
+    electrons_produced_dimsizes)
+    photons_produced_dimsizes = (d['photons_produced_max'].to_numpy() \
+    - d['photons_produced_min'].to_numpy()) / quanta_steps.to_numpy()
+    self.source.add_to_dimsizes('photons_produced',
+    photons_produced_dimsizes)
+
     self.source.dimsizes['quanta_produced'] = \
     self.source.dimsizes['electrons_produced'] + \
     self.source.dimsizes['photons_produced'] - 1
 
-    d = self.source.data
-    d['quanta_produced_steps'] = d['electrons_produced_steps']
+    quanta_produced_dimsizes = electrons_produced_dimsizes \
+    + photons_produced_dimsizes - 1
+    self.source.add_to_dimsizes('quanta_produced',
+    quanta_produced_dimsizes)
 
     self.source.dimsizes['quanta_produced_noStep'] = \
     self.source.dimsizes['quanta_produced'] + \
     int(tf.reduce_max((d['quanta_produced_steps'] - 1)).numpy()) * \
     (self.source.dimsizes['quanta_produced'] - 1)
 
-    d['quanta_produced_noStep_steps'] = 1
+    self.source.add_to_dimsizes('quanta_produced_noStep',
+    quanta_produced_dimsizes + (quanta_steps - 1) \
+    * (quanta_produced_dimsizes - 1))

@@ -34,9 +34,6 @@ class Source:
     # Avoid variable stepping over these inner_dimensions
     no_step_dimensions = tuple()
 
-    # Calculate dimesize differently for these dimensions
-    special_dimensions = tuple()
-
     # Any non-hidden variable extra_dimensions
     bonus_dimensions = tuple()
 
@@ -86,7 +83,7 @@ class Source:
 
     def __init__(self,
                  data=None,
-                 batch_size=10,
+                 batch_size=1,
                  max_sigma=3,
                  max_dim_size=70,
                  data_is_annotated=False,
@@ -258,18 +255,31 @@ class Source:
             result,
             [self.n_batches, -1, self.n_columns_in_data_tensor])
 
+    def add_to_dimsizes(self, dim, value):
+      self.dimsizes_test[dim] = value
+
+    def cap_dimsizes(self, dim, cap):
+        if dim in self.no_step_dimensions:
+            pass
+        else:
+            self.dimsizes_test[dim] = cap * np.greater(self.dimsizes_test[dim], cap) + self.dimsizes_test[dim] * np.less_equal(self.dimsizes_test[dim], cap)
+
     def _calculate_dimsizes(self, max_dim_size):
         self.dimsizes = dict()
+        self.dimsizes_test = dict()
         d = self.data
         for dim in self.inner_dimensions:
-            if dim in self.special_dimensions:
-                continue
             ma = self._fetch(dim + '_max')
             mi = self._fetch(dim + '_min')
             self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
             if (self.dimsizes[dim] > max_dim_size) and \
             (dim not in self.no_step_dimensions):
                 self.dimsizes[dim] = max_dim_size
+
+            ma = d[dim + '_max'].to_numpy()
+            mi = d[dim + '_min'].to_numpy()
+            self.add_to_dimsizes(dim, ma - mi + 1)
+            self.cap_dimsizes(dim, max_dim_size)
 
             steps = tf.where((ma-mi+1) > self.dimsizes[dim],
                              tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
@@ -280,6 +290,7 @@ class Source:
 
         for dim in self.final_dimensions:
             self.dimsizes[dim] = 1
+            self.add_to_dimsizes(dim, np.ones(len(d)))
 
         # Calculate all custom dimsizes
         self.calculate_dimsizes_special()
