@@ -40,24 +40,28 @@ class MakeERQuanta(fd.Block):
         result = tf.cast(tf.equal(quanta_produced_noStep,
         quanta_produced_real), dtype=fd.float_type())
 
-        padding = int(np.floor(quanta_produced_noStep.shape[1] / \
-        (quanta_produced.shape[1]-1))) - \
-        quanta_produced_noStep.shape[1] % (quanta_produced.shape[1]-1)
+        padding = int(tf.floor(tf.shape(quanta_produced_noStep)[1] / \
+        (tf.shape(quanta_produced)[1]-1))) - \
+        tf.shape(quanta_produced_noStep)[1] % (tf.shape(quanta_produced)[1]-1)
 
         result_pad_left = tf.pad(result, [[0, 0], [padding, 0], [0, 0]])
         result_pad_right = tf.pad(result, [[0, 0], [0, padding], [0, 0]])
 
         steps = self.source._fetch('quanta_produced_steps',
         data_tensor=data_tensor)
-        chunks = int(result_pad_left.shape[1] / quanta_produced.shape[1])
+        chunks = int(tf.shape(result_pad_left)[1] / tf.shape(quanta_produced)[1])
 
-        result_temp_left = tf.reshape(result_pad_left, [result_pad_left.shape[0],
-        int(result_pad_left.shape[1] / chunks), chunks, result_pad_left.shape[2]])
+        result_temp_left = tf.reshape(result_pad_left,
+        [tf.shape(result_pad_left)[0],
+        int(tf.shape(result_pad_left)[1] / chunks), chunks,
+        tf.shape(result_pad_left)[2]])
         result_left = tf.reduce_sum(result_temp_left, axis=2) \
         / (steps[:, o ,o] * steps[:, o ,o])
 
-        result_temp_right = tf.reshape(result_pad_right, [result_pad_right.shape[0],
-        int(result_pad_right.shape[1] / chunks), chunks, result_pad_right.shape[2]])
+        result_temp_right = tf.reshape(result_pad_right,
+        [tf.shape(result_pad_right)[0],
+        int(tf.shape(result_pad_right)[1] / chunks), chunks,
+        tf.shape(result_pad_right)[2]])
         result_right = tf.reduce_sum(result_temp_right, axis=2) \
         / (steps[:, o ,o] * steps[:, o ,o])
 
@@ -152,20 +156,16 @@ def annotate_ces(self, d):
                 + d['photons_produced_' + bound])
 
 def domain_dict_bonus(self, d):
-    # When we sum slice of the result using quanta_produced_noStep, need it to
-    # be the same size as quanta_produced
-    dimsize = self.source.dimsizes['quanta_produced_noStep']
-
     # Calculate cross_domains
     mi = self.source._fetch('quanta_produced_noStep_min',data_tensor=d)[:, o]
-    quanta_produced_noStep_domain = mi + tf.cast(tf.range(dimsize),
-    dtype=fd.float_type())
+    quanta_produced_noStep_domain = mi + tf.range(tf.reduce_sum(
+    self.source._fetch('quanta_produced_noStep_dimsizes', data_tensor=d)))
     energy_domain = self.source.domain('energy', d)
 
     quanta_produced_noStep = tf.repeat(quanta_produced_noStep_domain[:, :, o],
-    energy_domain.shape[1], axis=2)
+    tf.shape(energy_domain)[1], axis=2)
     energy_noStep = tf.repeat(energy_domain[:, o, :],
-    quanta_produced_noStep_domain.shape[1], axis=1)
+    tf.shape(quanta_produced_noStep_domain)[1], axis=1)
 
     # Return as domain_dict
     return dict({'quanta_produced_noStep': quanta_produced_noStep,
@@ -191,12 +191,15 @@ def calculate_dimsizes_special(self):
     int(np.ceil(tf.reduce_max((self.source._fetch('photons_produced_max') - \
     self.source._fetch('photons_produced_min')) / quanta_steps).numpy()) + 1)
 
-    electrons_produced_dimsizes = (d['electrons_produced_max'].to_numpy() \
-    - d['electrons_produced_min'].to_numpy()) / quanta_steps.to_numpy()
+    electrons_produced_dimsizes = np.ceil((
+    d['electrons_produced_max'].to_numpy() \
+    - d['electrons_produced_min'].to_numpy()) / quanta_steps.to_numpy()) + 1
     self.source.add_to_dimsizes('electrons_produced',
     electrons_produced_dimsizes)
-    photons_produced_dimsizes = (d['photons_produced_max'].to_numpy() \
-    - d['photons_produced_min'].to_numpy()) / quanta_steps.to_numpy()
+
+    photons_produced_dimsizes = np.ceil((
+    d['photons_produced_max'].to_numpy() \
+    - d['photons_produced_min'].to_numpy()) / quanta_steps.to_numpy()) + 1
     self.source.add_to_dimsizes('photons_produced',
     photons_produced_dimsizes)
 
@@ -215,5 +218,5 @@ def calculate_dimsizes_special(self):
     (self.source.dimsizes['quanta_produced'] - 1)
 
     self.source.add_to_dimsizes('quanta_produced_noStep',
-    quanta_produced_dimsizes + (quanta_steps - 1) \
+    quanta_produced_dimsizes + (quanta_steps.to_numpy() - 1) \
     * (quanta_produced_dimsizes - 1))

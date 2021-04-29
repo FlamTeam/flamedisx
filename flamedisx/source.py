@@ -133,6 +133,9 @@ class Source:
         ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
         ctc += [x + '_steps' for x in self.inner_dimensions]  # Step sizes
         ctc += [x + '_steps' for x in self.bonus_dimensions]  # Step sizes
+        ctc += [x + '_dimsizes' for x in self.inner_dimensions]  #
+        ctc += [x + '_dimsizes' for x in self.bonus_dimensions]  #
+        ctc += [x + '_dimsizes' for x in self.final_dimensions]  #
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
@@ -281,8 +284,8 @@ class Source:
             self.add_to_dimsizes(dim, ma - mi + 1)
             self.cap_dimsizes(dim, max_dim_size)
 
-            steps = tf.where((ma-mi+1) > self.dimsizes[dim],
-                             tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
+            steps = tf.where((ma-mi+1) > self.dimsizes_test[dim],
+                             tf.math.ceil((ma-mi) / (self.dimsizes_test[dim]-1)),
                              1).numpy() # We want to ceil this to ensure we cover to at
                              # least the upper bound
             # Store the steps for later multiplying probabilities
@@ -294,6 +297,13 @@ class Source:
 
         # Calculate all custom dimsizes
         self.calculate_dimsizes_special()
+
+        for dim in self.inner_dimensions:
+            d[dim + "_dimsizes"] = self.dimsizes_test[dim]
+        for dim in self.bonus_dimensions:
+            d[dim + "_dimsizes"] = self.dimsizes_test[dim]
+        for dim in self.final_dimensions:
+            d[dim + "_dimsizes"] = self.dimsizes_test[dim]
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
@@ -480,6 +490,22 @@ class Source:
         x_range = tf.cast(tf.range(self.dimsizes[x]), dtype=fd.float_type()) * steps
         return left_bound + x_range
 
+    def domain_test(self, x, data_tensor=None):
+        """Return (n_events, |possible x values|) matrix containing all
+        possible integer values of x for each event.
+
+        If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
+        tensor with observed values -- NOT a (n_events,) array!
+        """
+        if x in self.final_dimensions:
+            return self._fetch(x, data_tensor=data_tensor)[:, o]
+
+        # Cover the bounds range in integer steps not necessarily of 1
+        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        steps = self._fetch(x + '_steps', data_tensor=data_tensor)[:, o]
+        x_range = tf.range(tf.reduce_sum(self._fetch(x + '_dimsizes', data_tensor=data_tensor))) * steps
+        return left_bound + x_range
+
     def cross_domains(self, x, y, data_tensor):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
         containing possible integer values of x and y, respectively.
@@ -487,9 +513,13 @@ class Source:
         # TODO: somehow mask unnecessary elements and save computation time
         x_domain = self.domain(x, data_tensor)
         y_domain = self.domain(y, data_tensor)
+        x_domain_test = self.domain_test(x, data_tensor)
+        y_domain_test = self.domain_test(y, data_tensor)
         result_x = tf.repeat(x_domain[:, :, o], y_domain.shape[1], axis=2)
         result_y = tf.repeat(y_domain[:, o, :], x_domain.shape[1], axis=1)
-        return result_x, result_y
+        result_x_test = tf.repeat(x_domain_test[:, :, o], tf.shape(y_domain_test)[1], axis=2)
+        result_y_test = tf.repeat(y_domain_test[:, o, :], tf.shape(x_domain_test)[1], axis=1)
+        return result_x_test, result_y_test
 
     ##
     # Simulation methods and helpers

@@ -302,8 +302,9 @@ class BlockModelSource(fd.Source):
                 (dim not in self.no_step_dimensions) and \
                 (dim not in already_stepped):
                     steps = self._fetch(dim+'_steps', data_tensor=data_tensor)
-                    step_mul = tf.repeat(steps[:,o], r.shape[1], axis=1)
-                    step_mul = tf.repeat(step_mul[:,:,o], r.shape[2], axis=2)
+                    step_mul = tf.repeat(steps[:,o], tf.shape(r)[1], axis=1)
+                    step_mul = tf.repeat(step_mul[:,:,o],
+                    tf.shape(r)[2], axis=2)
                     r *= step_mul
                     already_stepped += (dim,)
 
@@ -430,6 +431,14 @@ class BlockModelSource(fd.Source):
             return self.model_blocks[0].domain(data_tensor=data_tensor)[x]
         else:
             return super().domain(x, data_tensor=data_tensor)
+
+    def domain_test(self, x, data_tensor=None):
+        if x in self.initial_dimensions:
+            # Domain computation of the inner dimension is passed to the
+            # first block
+            return self.model_blocks[0].domain(data_tensor=data_tensor)[x]
+        else:
+            return super().domain_test(x, data_tensor=data_tensor)
 
     def _domain_dict(self, dimensions, data_tensor):
         if len(dimensions) == 1:
