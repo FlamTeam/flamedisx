@@ -49,11 +49,11 @@ class NRSource(fd.BlockModelSource):
         fd.MakeS2)
 
     final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('quanta_produced', 'photoelectrons_detected', 'electrons_detected')
+    no_step_dimensions = ('photoelectrons_detected', 'electrons_detected')
 
     # Use a larger default energy range, since most energy is lost
     # to heat.
-    energies = tf.cast(tf.linspace(0.7, 150., 100),
+    energies = tf.cast(tf.linspace(50., 50., 100),
                        fd.float_type())
     rates_vs_energy = tf.ones(100, fd.float_type())
 

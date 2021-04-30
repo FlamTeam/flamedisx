@@ -89,6 +89,7 @@ class MakeERQuanta(fd.Block):
 class MakeNRQuanta(fd.Block):
 
     dimensions = ('quanta_produced', 'energy')
+    extra_dimensions = (('quanta_produced_noStep', False),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
 
     special_model_functions = ('lindhard_l',)
@@ -116,17 +117,47 @@ class MakeNRQuanta(fd.Block):
                  # Domain
                  quanta_produced,
                  # Dependency domain and value
-                 energy, rate_vs_energy):
+                 energy, rate_vs_energy,
+                 # Extra tensors for internal use
+                 quanta_produced_noStep, energy_noStep):
 
         work = self.gimme('work', data_tensor=data_tensor, ptensor=ptensor)
         mean_q_produced = (
-                energy
-                * self.gimme('lindhard_l', bonus_arg=energy,
+                energy_noStep
+                * self.gimme('lindhard_l', bonus_arg=energy_noStep,
                              data_tensor=data_tensor, ptensor=ptensor)
                 / work[:, o, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)
-        return tfp.distributions.Poisson(mean_q_produced).prob(quanta_produced)
+        result = tfp.distributions.Poisson(mean_q_produced).prob(
+        quanta_produced_noStep)
+
+        padding = int(tf.floor(tf.shape(quanta_produced_noStep)[1] / \
+        (tf.shape(quanta_produced)[1]-1))) - \
+        tf.shape(quanta_produced_noStep)[1] % (tf.shape(quanta_produced)[1]-1)
+
+        result_pad_left = tf.pad(result, [[0, 0], [padding, 0], [0, 0]])
+        result_pad_right = tf.pad(result, [[0, 0], [0, padding], [0, 0]])
+
+        steps = self.source._fetch('quanta_produced_steps',
+        data_tensor=data_tensor)
+        chunks = int(tf.shape(result_pad_left)[1] / tf.shape(quanta_produced)[1])
+
+        result_temp_left = tf.reshape(result_pad_left,
+        [tf.shape(result_pad_left)[0],
+        int(tf.shape(result_pad_left)[1] / chunks), chunks,
+        tf.shape(result_pad_left)[2]])
+        result_left = tf.reduce_sum(result_temp_left, axis=2) \
+        / (steps[:, o ,o] * steps[:, o ,o])
+
+        result_temp_right = tf.reshape(result_pad_right,
+        [tf.shape(result_pad_right)[0],
+        int(tf.shape(result_pad_right)[1] / chunks), chunks,
+        tf.shape(result_pad_right)[2]])
+        result_right = tf.reduce_sum(result_temp_right, axis=2) \
+        / (steps[:, o ,o] * steps[:, o ,o])
+
+        return (result_left + result_right) / 2
 
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
@@ -136,7 +167,16 @@ class MakeNRQuanta(fd.Block):
         d['quanta_produced'] = stats.poisson.rvs(energies * lindhard_l / work)
 
     def _annotate(self, d):
+        d['quanta_produced_noStep_min'] = (
+                d['electrons_produced_min']
+                + d['photons_produced_min'])
         annotate_ces(self, d)
+
+    def _domain_dict_bonus(self, d):
+        return domain_dict_bonus(self, d)
+
+    def _calculate_dimsizes_special(self):
+        return calculate_dimsizes_special(self)
 
 
 def annotate_ces(self, d):
