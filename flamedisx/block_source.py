@@ -432,14 +432,6 @@ class BlockModelSource(fd.Source):
         else:
             return super().domain(x, data_tensor=data_tensor)
 
-    def domain_test(self, x, data_tensor=None):
-        if x in self.initial_dimensions:
-            # Domain computation of the inner dimension is passed to the
-            # first block
-            return self.model_blocks[0].domain(data_tensor=data_tensor)[x]
-        else:
-            return super().domain_test(x, data_tensor=data_tensor)
-
     def _domain_dict(self, dimensions, data_tensor):
         if len(dimensions) == 1:
             return {dimensions[0]:
