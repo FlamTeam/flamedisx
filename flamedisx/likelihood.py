@@ -50,7 +50,7 @@ class LogLikelihood:
                 pd.DataFrame,
                 ty.Dict[str, pd.DataFrame]] = None,
             free_rates=None,
-            batch_size=1,
+            batch_size=10,
             max_sigma=3,
             max_dim_size=70,
             n_trials=int(1e5),

@@ -83,7 +83,7 @@ class Source:
 
     def __init__(self,
                  data=None,
-                 batch_size=1,
+                 batch_size=10,
                  max_sigma=3,
                  max_dim_size=70,
                  data_is_annotated=False,
@@ -475,7 +475,7 @@ class Source:
         # Cover the bounds range in integer steps not necessarily of 1
         left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
         steps = self._fetch(x + '_steps', data_tensor=data_tensor)[:, o]
-        x_range = tf.range(tf.reduce_sum(self._fetch(x + '_dimsizes', data_tensor=data_tensor))) * steps
+        x_range = tf.range(tf.reduce_max(self._fetch(x + '_dimsizes', data_tensor=data_tensor))) * steps
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
