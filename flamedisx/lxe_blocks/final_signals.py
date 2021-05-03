@@ -112,12 +112,11 @@ class MakeS1(MakeFinalSignals):
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
 
-    # @staticmethod
-    # def s1_acceptance(s1):
-    #     return tf.where((s1 < 2) | (s1 > 70),
-    #                     tf.zeros_like(s1, dtype=fd.float_type()),
-    #                     tf.ones_like(s1, dtype=fd.float_type()))
-    s1_acceptance = 1.
+    @staticmethod
+    def s1_acceptance(s1):
+        return tf.where((s1 < 2) | (s1 > 70),
+                        tf.zeros_like(s1, dtype=fd.float_type()),
+                        tf.ones_like(s1, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_s1(sig):
@@ -156,12 +155,11 @@ class MakeS2(MakeFinalSignals):
 
     electron_gain_std = 5.
 
-    # @staticmethod
-    # def s2_acceptance(s2):
-    #     return tf.where((s2 < 200) | (s2 > 6000),
-    #                     tf.zeros_like(s2, dtype=fd.float_type()),
-    #                     tf.ones_like(s2, dtype=fd.float_type()))
-    s2_acceptance = 1.
+    @staticmethod
+    def s2_acceptance(s2):
+        return tf.where((s2 < 200) | (s2 > 6000),
+                        tf.zeros_like(s2, dtype=fd.float_type()),
+                        tf.ones_like(s2, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_s2(sig):

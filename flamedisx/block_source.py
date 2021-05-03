@@ -125,8 +125,9 @@ class Block:
         raise NotImplementedError
 
     def _calculate_dimsizes_special(self):
-        """Re-calculate dimension size, steps differently for any dimensions;
-        will need to override _calculate_dimsizes_special() within a block"""
+        """Re-calculate dimension size and steps differently for any
+        dimensions; will need to override _calculate_dimsizes_special()
+        within a block"""
         pass
 
 
@@ -296,7 +297,8 @@ class BlockModelSource(fd.Source):
             # Compute the block
             r = b.compute(data_tensor, ptensor, **kwargs)
 
-            # 
+            # Scale the block by stepped dimenions, if not already done in
+            # another block
             for dim in b_dims:
                 if (dim in self.inner_dimensions) and \
                 (dim not in self.no_step_dimensions) and \

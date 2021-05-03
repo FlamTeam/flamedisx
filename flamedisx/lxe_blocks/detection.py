@@ -101,13 +101,12 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 
     photon_detection_eff = 0.1
 
-    # @staticmethod
-    # def photon_acceptance(photons_detected):
-    #     return tf.where(
-    #         photons_detected < 3,
-    #         tf.zeros_like(photons_detected, dtype=fd.float_type()),
-    #         tf.ones_like(photons_detected, dtype=fd.float_type()))
-    photon_acceptance = 1.
+    @staticmethod
+    def photon_acceptance(photons_detected):
+        return tf.where(
+            photons_detected < 3,
+            tf.zeros_like(photons_detected, dtype=fd.float_type()),
+            tf.ones_like(photons_detected, dtype=fd.float_type()))
 
     quanta_name = 'photon'
 

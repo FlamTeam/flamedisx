@@ -133,9 +133,9 @@ class Source:
         ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
         ctc += [x + '_steps' for x in self.inner_dimensions]  # Step sizes
         ctc += [x + '_steps' for x in self.bonus_dimensions]  # Step sizes
-        ctc += [x + '_dimsizes' for x in self.inner_dimensions]  #
-        ctc += [x + '_dimsizes' for x in self.bonus_dimensions]  #
-        ctc += [x + '_dimsizes' for x in self.final_dimensions]  #
+        ctc += [x + '_dimsizes' for x in self.inner_dimensions]  # Dimension sizes
+        ctc += [x + '_dimsizes' for x in self.bonus_dimensions]  # Dimension sizes
+        ctc += [x + '_dimsizes' for x in self.final_dimensions]  # Dimension sizes
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
@@ -271,13 +271,15 @@ class Source:
             ma = d[dim + '_max'].to_numpy()
             mi = d[dim + '_min'].to_numpy()
             self.dimsizes[dim] = ma - mi + 1
+            # Ensure we don't go over max_dim_size in a domain
             self.cap_dimsizes(dim, max_dim_size)
 
+            # Calculate steps if we have cappeed the dimesize
             steps = tf.where((ma-mi+1) > self.dimsizes[dim],
                              tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
                              1).numpy() # We want to ceil this to ensure we cover to at
                              # least the upper bound
-            # Store the steps for later multiplying probabilities
+            # Store the steps in the dataframe
             d[dim + '_steps'] = steps
 
         for dim in self.final_dimensions:
@@ -286,6 +288,7 @@ class Source:
         # Calculate all custom dimsizes
         self.calculate_dimsizes_special()
 
+        # Store the dimsizes in the dataframe
         for dim in self.inner_dimensions:
             d[dim + "_dimsizes"] = self.dimsizes[dim]
         for dim in self.bonus_dimensions:
