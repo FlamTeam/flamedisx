@@ -9,13 +9,10 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-import configparser, os, sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from configure import config_file
+import configparser, os
 
 config = configparser.ConfigParser(inline_comment_prefixes=';')
-config.read(os.path.join(os.path.dirname(__file__), '../config', config_file))
+config.read(os.path.join(os.path.dirname(__file__), '../config', fd.config_file))
 
 
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')

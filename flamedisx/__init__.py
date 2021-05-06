@@ -1,6 +1,9 @@
 __version__ = '1.4.0'
+global mode_folder
+global config_file
 
 from .configure import *
+configure_mode()
 
 from .utils import *
 from .source import *
