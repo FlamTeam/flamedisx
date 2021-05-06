@@ -9,6 +9,14 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+import configparser, os, sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from configure import config_file
+
+config = configparser.ConfigParser(inline_comment_prefixes=';')
+config.read(os.path.join(os.path.dirname(__file__), '../config', config_file))
+
 
 class DetectPhotonsOrElectrons(fd.Block):
     """Common code for DetectPhotons and DetectElectrons"""
@@ -104,7 +112,7 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     @staticmethod
     def photon_acceptance(photons_detected):
         return tf.where(
-            photons_detected < 3,
+            photons_detected < config.getint('DEFAULT','min_photons_config'),
             tf.zeros_like(photons_detected, dtype=fd.float_type()),
             tf.ones_like(photons_detected, dtype=fd.float_type()))
 

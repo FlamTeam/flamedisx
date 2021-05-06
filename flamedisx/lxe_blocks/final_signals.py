@@ -9,6 +9,14 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+import configparser, os, sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from configure import config_file
+
+config = configparser.ConfigParser(inline_comment_prefixes=';')
+config.read(os.path.join(os.path.dirname(__file__), '../config', config_file))
+
 
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
@@ -114,7 +122,8 @@ class MakeS1(MakeFinalSignals):
 
     @staticmethod
     def s1_acceptance(s1):
-        return tf.where((s1 < 2) | (s1 > 70),
+        return tf.where((s1 < config.getfloat('DEFAULT','S1_min_config')) |
+        (s1 > config.getfloat('DEFAULT','S1_max_config')),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
@@ -157,7 +166,8 @@ class MakeS2(MakeFinalSignals):
 
     @staticmethod
     def s2_acceptance(s2):
-        return tf.where((s2 < 200) | (s2 > 6000),
+        return tf.where((s2 < config.getfloat('DEFAULT','S2_min_config')) |
+        (s2 > config.getfloat('DEFAULT','S2_max_config')),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 

@@ -1,5 +1,7 @@
 __version__ = '1.4.0'
 
+from .configure import *
+
 from .utils import *
 from .source import *
 from .block_source import *
