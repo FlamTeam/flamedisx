@@ -114,8 +114,10 @@ class MakeS1(MakeFinalSignals):
         'photoelectron_gain_std',
         's1_acceptance') + special_model_functions
 
-    photoelectron_gain_mean = 1.
-    photoelectron_gain_std = 0.5
+    photoelectron_gain_mean = config.getfloat('DEFAULT',
+    'photoelectron_gain_mean_config')
+    photoelectron_gain_std = config.getfloat('DEFAULT',
+    'photoelectron_gain_std_config')
 
     @staticmethod
     def s1_acceptance(s1):
@@ -156,10 +158,10 @@ class MakeS2(MakeFinalSignals):
         + special_model_functions)
 
     @staticmethod
-    def electron_gain_mean(z, *, g2=20):
+    def electron_gain_mean(z, *, g2=config.getfloat('DEFAULT','g2_guess')):
         return g2 * tf.ones_like(z)
 
-    electron_gain_std = 5.
+    electron_gain_std = config.getfloat('DEFAULT','electron_gain_std_config')
 
     @staticmethod
     def s2_acceptance(s2):

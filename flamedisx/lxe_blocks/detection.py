@@ -104,7 +104,8 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
     model_functions = ('photon_detection_eff',) + special_model_functions
 
-    photon_detection_eff = 0.1
+    photon_detection_eff = config.getfloat('DEFAULT',
+    'photon_detection_eff_config')
 
     @staticmethod
     def photon_acceptance(photons_detected):
@@ -136,7 +137,9 @@ class DetectElectrons(DetectPhotonsOrElectrons):
 
     @staticmethod
     def electron_detection_eff(drift_time, *,
-                               elife=452e3, extraction_eff=0.96):
+                               elife=config.getfloat('DEFAULT','elife_guess'),
+                               extraction_eff=config.getfloat('DEFAULT',
+                               'extraction_eff_guess')):
         return extraction_eff * tf.exp(-drift_time / elife)
 
     electron_acceptance = 1.

@@ -8,6 +8,11 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+import configparser, os
+
+config = configparser.ConfigParser(inline_comment_prefixes=';')
+config.read(os.path.join(os.path.dirname(__file__), '../config', fd.config_file))
+
 
 @export
 class EnergySpectrum(fd.FirstBlock):
@@ -21,11 +26,11 @@ class EnergySpectrum(fd.FirstBlock):
 
     # The fiducial volume bounds for a cylindrical volume
     # default to full (2t) XENON1T dimensions
-    fv_radius = 47.9   # cm
-    fv_high = 0.  # cm
-    fv_low = -97.6  # cm
+    fv_radius =  config.getfloat('DEFAULT','radius_config')
+    fv_high = config.getfloat('DEFAULT','z_top_config')
+    fv_low = config.getfloat('DEFAULT','z_bottom_config')
 
-    drift_velocity = 1.335 * 1e-4   # cm/ns
+    drift_velocity = config.getfloat('DEFAULT','drift_velocity_config')
 
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.

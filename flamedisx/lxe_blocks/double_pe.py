@@ -7,6 +7,11 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+import configparser, os
+
+config = configparser.ConfigParser(inline_comment_prefixes=';')
+config.read(os.path.join(os.path.dirname(__file__), '../config', fd.config_file))
+
 
 @export
 class MakeS1Photoelectrons(fd.Block):
@@ -15,7 +20,7 @@ class MakeS1Photoelectrons(fd.Block):
 
     model_functions = ('double_pe_fraction',)
 
-    double_pe_fraction = 0.219
+    double_pe_fraction = config.getfloat('DEFAULT','double_pe_fraction_config')
 
     def _compute(self, data_tensor, ptensor,
                  photons_detected, photoelectrons_detected):

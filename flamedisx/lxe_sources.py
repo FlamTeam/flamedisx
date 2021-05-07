@@ -3,6 +3,11 @@ import tensorflow as tf
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
+import configparser, os
+
+config = configparser.ConfigParser(inline_comment_prefixes=';')
+config.read(os.path.join(os.path.dirname(__file__), 'config', fd.config_file))
+
 
 @export
 class ERSource(fd.BlockModelSource):
@@ -17,8 +22,10 @@ class ERSource(fd.BlockModelSource):
         fd.MakeS2)
 
     @staticmethod
-    def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
-                   er_pel_e0=5.):
+    def p_electron(nq, *, er_pel_a=config.getfloat('DEFAULT','er_pel_a_guess'),
+                   er_pel_b=config.getfloat('DEFAULT','er_pel_b_guess'),
+                   er_pel_c=config.getfloat('DEFAULT','er_pel_c_guess'),
+                   er_pel_e0=config.getfloat('DEFAULT','er_pel_e0_guess')):
         """Fraction of ER quanta that become electrons
         Simplified form from Jelle's thesis
         """
@@ -59,9 +66,12 @@ class NRSource(fd.BlockModelSource):
 
     @staticmethod
     def p_electron(nq, *,
-                   alpha=1.280, zeta=0.045, beta=273 * .9e-4,
-                   gamma=0.0141, delta=0.062,
-                   drift_field=120):
+                   alpha=config.getfloat('DEFAULT','alpha_guess'),
+                   zeta=config.getfloat('DEFAULT','zeta_guess'),
+                   beta=config.getfloat('DEFAULT','beta_guess'),
+                   gamma=config.getfloat('DEFAULT','gamma_guess'),
+                   delta=config.getfloat('DEFAULT','delta_guess'),
+                   drift_field=config.getfloat('DEFAULT','drift_field_guess')):
         """Fraction of detectable NR quanta that become electrons,
         slightly adjusted from Lenardo et al.'s global fit
         (https://arxiv.org/abs/1412.4417).
