@@ -9,11 +9,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-import configparser, os
-
-config = configparser.ConfigParser(inline_comment_prefixes=';')
-config.read(os.path.join(os.path.dirname(__file__), '../../config', fd.config_file))
-
 
 class DetectPhotonsOrElectrons(fd.Block):
     """Common code for DetectPhotons and DetectElectrons"""
@@ -104,13 +99,14 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
     model_functions = ('photon_detection_eff',) + special_model_functions
 
-    photon_detection_eff = config.getfloat('DEFAULT',
-    'photon_detection_eff_config')
+    def __init__(self, *args, **kwargs):
+        self.photon_detection_eff = fd.config.getfloat('DEFAULT','photon_detection_eff_config')
+        self.min_photons = fd.config.getint('DEFAULT','min_photons_config')
+        super().__init__(*args, **kwargs)
 
-    @staticmethod
-    def photon_acceptance(photons_detected):
+    def photon_acceptance(self, photons_detected):
         return tf.where(
-            photons_detected < config.getint('DEFAULT','min_photons_config'),
+            photons_detected < self.min_photons,
             tf.zeros_like(photons_detected, dtype=fd.float_type()),
             tf.ones_like(photons_detected, dtype=fd.float_type()))
 
@@ -137,9 +133,7 @@ class DetectElectrons(DetectPhotonsOrElectrons):
 
     @staticmethod
     def electron_detection_eff(drift_time, *,
-                               elife=config.getfloat('DEFAULT','elife_guess'),
-                               extraction_eff=config.getfloat('DEFAULT',
-                               'extraction_eff_guess')):
+                               elife=452e3, extraction_eff=0.96):
         return extraction_eff * tf.exp(-drift_time / elife)
 
     electron_acceptance = 1.

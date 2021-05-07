@@ -9,11 +9,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-import configparser, os
-
-config = configparser.ConfigParser(inline_comment_prefixes=';')
-config.read(os.path.join(os.path.dirname(__file__), '../../config', fd.config_file))
-
 
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
@@ -114,15 +109,15 @@ class MakeS1(MakeFinalSignals):
         'photoelectron_gain_std',
         's1_acceptance') + special_model_functions
 
-    photoelectron_gain_mean = config.getfloat('DEFAULT',
-    'photoelectron_gain_mean_config')
-    photoelectron_gain_std = config.getfloat('DEFAULT',
-    'photoelectron_gain_std_config')
+    def __init__(self, *args, **kwargs):
+        self.photoelectron_gain_mean = fd.config.getfloat('DEFAULT','photoelectron_gain_mean_config')
+        self.photoelectron_gain_std = fd.config.getfloat('DEFAULT','photoelectron_gain_std_config')
+        self.S1_min = fd.config.getfloat('DEFAULT','S1_min_config')
+        self.S1_max = fd.config.getfloat('DEFAULT','S1_max_config')
+        super().__init__(*args, **kwargs)
 
-    @staticmethod
-    def s1_acceptance(s1):
-        return tf.where((s1 < config.getfloat('DEFAULT','S1_min_config')) |
-        (s1 > config.getfloat('DEFAULT','S1_max_config')),
+    def s1_acceptance(self, s1):
+        return tf.where((s1 < self.S1_min) | (s1 > self.S1_max),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
@@ -157,16 +152,18 @@ class MakeS2(MakeFinalSignals):
          's2_acceptance')
         + special_model_functions)
 
+    def __init__(self, *args, **kwargs):
+        self.electron_gain_std = fd.config.getfloat('DEFAULT','electron_gain_std_config')
+        self.S2_min = fd.config.getfloat('DEFAULT','S2_min_config')
+        self.S2_max = fd.config.getfloat('DEFAULT','S2_max_config')
+        super().__init__(*args, **kwargs)
+
     @staticmethod
-    def electron_gain_mean(z, *, g2=config.getfloat('DEFAULT','g2_guess')):
+    def electron_gain_mean(z, *, g2=20):
         return g2 * tf.ones_like(z)
 
-    electron_gain_std = config.getfloat('DEFAULT','electron_gain_std_config')
-
-    @staticmethod
-    def s2_acceptance(s2):
-        return tf.where((s2 < config.getfloat('DEFAULT','S2_min_config')) |
-        (s2 > config.getfloat('DEFAULT','S2_max_config')),
+    def s2_acceptance(self, s2):
+        return tf.where((s2 < self.S2_min) | (s2 > self.S2_max),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 

@@ -3,15 +3,12 @@ import tensorflow as tf
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
-import configparser, os
-
-config = configparser.ConfigParser(inline_comment_prefixes=';')
-config.read(os.path.join(os.path.dirname(__file__), '../config', fd.config_file))
-
 
 @export
-class ERSource(fd.BlockModelSource):
-    assert fd.detector in ('default',)
+class defaultERSource(fd.BlockModelSource):
+    def __init__(self, *args, **kwargs):
+        assert fd.detector in ('default',)
+        super().__init__(*args, **kwargs)
 
     model_blocks = (
         fd.default.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum,
@@ -24,10 +21,8 @@ class ERSource(fd.BlockModelSource):
         fd.default.lxe_blocks.final_signals.MakeS2)
 
     @staticmethod
-    def p_electron(nq, *, er_pel_a=config.getfloat('DEFAULT','er_pel_a_guess'),
-                   er_pel_b=config.getfloat('DEFAULT','er_pel_b_guess'),
-                   er_pel_c=config.getfloat('DEFAULT','er_pel_c_guess'),
-                   er_pel_e0=config.getfloat('DEFAULT','er_pel_e0_guess')):
+    def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
+                   er_pel_e0=5.):
         """Fraction of ER quanta that become electrons
         Simplified form from Jelle's thesis
         """
@@ -46,8 +41,10 @@ class ERSource(fd.BlockModelSource):
 
 
 @export
-class NRSource(fd.BlockModelSource):
-    assert fd.detector in ('default',)
+class defaultNRSource(fd.BlockModelSource):
+    def __init__(self, *args, **kwargs):
+        assert fd.detector in ('default',)
+        super().__init__(*args, **kwargs)
 
     model_blocks = (
         fd.default.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum,
@@ -70,12 +67,9 @@ class NRSource(fd.BlockModelSource):
 
     @staticmethod
     def p_electron(nq, *,
-                   alpha=config.getfloat('DEFAULT','alpha_guess'),
-                   zeta=config.getfloat('DEFAULT','zeta_guess'),
-                   beta=config.getfloat('DEFAULT','beta_guess'),
-                   gamma=config.getfloat('DEFAULT','gamma_guess'),
-                   delta=config.getfloat('DEFAULT','delta_guess'),
-                   drift_field=config.getfloat('DEFAULT','drift_field_guess')):
+                   alpha=1.280, zeta=0.045, beta=273 * .9e-4,
+                   gamma=0.0141, delta=0.062,
+                   drift_field=120):
         """Fraction of detectable NR quanta that become electrons,
         slightly adjusted from Lenardo et al.'s global fit
         (https://arxiv.org/abs/1412.4417).
@@ -103,15 +97,15 @@ class NRSource(fd.BlockModelSource):
 
 
 @export
-class SpatialRateERSource(ERSource):
-    model_blocks = (fd.default.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + ERSource.model_blocks[1:]
+class defaultSpatialRateERSource(defaultERSource):
+    model_blocks = (fd.default.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + defaultERSource.model_blocks[1:]
 
 
 @export
-class SpatialRateNRSource(NRSource):
-    model_blocks = (fd.default.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + NRSource.model_blocks[1:]
+class defaultSpatialRateNRSource(defaultNRSource):
+    model_blocks = (fd.default.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + defaultNRSource.model_blocks[1:]
 
 
 @export
-class WIMPSource(NRSource):
-    model_blocks = (fd.default.lxe_blocks.energy_spectrum.WIMPEnergySpectrum,) + NRSource.model_blocks[1:]
+class defaultWIMPSource(defaultNRSource):
+    model_blocks = (fd.default.lxe_blocks.energy_spectrum.WIMPEnergySpectrum,) + defaultNRSource.model_blocks[1:]

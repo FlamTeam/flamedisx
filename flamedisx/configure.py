@@ -1,8 +1,12 @@
 import flamedisx as fd
-import os
+
+import configparser, os
+import importlib
 
 def configure_detector(detector='default'):
     fd.detector = detector
-    fd.config_file = detector + '_config.ini'
+
     assert os.path.exists(os.path.join(
-    os.path.dirname(__file__), 'config', fd.config_file))
+    os.path.dirname(__file__), 'config/', detector+'.ini'))
+    fd.config = configparser.ConfigParser(inline_comment_prefixes=';')
+    fd.config.read(os.path.join(os.path.dirname(__file__), 'config/', detector+'.ini'))
