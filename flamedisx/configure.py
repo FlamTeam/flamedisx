@@ -1,18 +1,8 @@
 import flamedisx as fd
+import os
 
-def configure_mode(mode = 'default'):
-    if mode == 'default':
-        fd.mode_folder = mode
-        configure_detector('default')
-    else:
-        raise NotImplementedError
-
-def configure_detector(detector):
-    if detector == 'default':
-        assert fd.mode_folder in ('default',)
-        fd.config_file = detector + '_config.ini'
-    elif detector == 'LUX':
-        assert fd.mode_folder in ('nest',)
-        fd.config_file = detector + '_config.ini'
-    else:
-        raise NotImplementedError
+def configure_detector(detector='default'):
+    fd.detector = detector
+    fd.config_file = detector + '_config.ini'
+    assert os.path.exists(os.path.join(
+    os.path.dirname(__file__), 'config', fd.config_file))

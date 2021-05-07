@@ -6,20 +6,22 @@ export, __all__ = fd.exporter()
 import configparser, os
 
 config = configparser.ConfigParser(inline_comment_prefixes=';')
-config.read(os.path.join(os.path.dirname(__file__), 'config', fd.config_file))
+config.read(os.path.join(os.path.dirname(__file__), '../config', fd.config_file))
 
 
 @export
 class ERSource(fd.BlockModelSource):
+    assert fd.detector in ('default',)
+
     model_blocks = (
-        fd.FixedShapeEnergySpectrum,
-        fd.MakeERQuanta,
-        fd.MakePhotonsElectronsBetaBinomial,
-        fd.DetectPhotons,
-        fd.MakeS1Photoelectrons,
-        fd.MakeS1,
-        fd.DetectElectrons,
-        fd.MakeS2)
+        fd.default.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum,
+        fd.default.lxe_blocks.quanta_generation.MakeERQuanta,
+        fd.default.lxe_blocks.quanta_splitting.MakePhotonsElectronsBetaBinomial,
+        fd.default.lxe_blocks.detection.DetectPhotons,
+        fd.default.lxe_blocks.double_pe.MakeS1Photoelectrons,
+        fd.default.lxe_blocks.final_signals.MakeS1,
+        fd.default.lxe_blocks.detection.DetectElectrons,
+        fd.default.lxe_blocks.final_signals.MakeS2)
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=config.getfloat('DEFAULT','er_pel_a_guess'),
@@ -45,15 +47,17 @@ class ERSource(fd.BlockModelSource):
 
 @export
 class NRSource(fd.BlockModelSource):
+    assert fd.detector in ('default',)
+
     model_blocks = (
-        fd.FixedShapeEnergySpectrum,
-        fd.MakeNRQuanta,
-        fd.MakePhotonsElectronsBinomial,
-        fd.DetectPhotons,
-        fd.MakeS1Photoelectrons,
-        fd.MakeS1,
-        fd.DetectElectrons,
-        fd.MakeS2)
+        fd.default.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum,
+        fd.default.lxe_blocks.quanta_generation.MakeNRQuanta,
+        fd.default.lxe_blocks.quanta_splitting.MakePhotonsElectronsBinomial,
+        fd.default.lxe_blocks.detection.DetectPhotons,
+        fd.default.lxe_blocks.double_pe.MakeS1Photoelectrons,
+        fd.default.lxe_blocks.final_signals.MakeS1,
+        fd.default.lxe_blocks.detection.DetectElectrons,
+        fd.default.lxe_blocks.final_signals.MakeS2)
 
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ()
@@ -100,14 +104,14 @@ class NRSource(fd.BlockModelSource):
 
 @export
 class SpatialRateERSource(ERSource):
-    model_blocks = (fd.SpatialRateEnergySpectrum,) + ERSource.model_blocks[1:]
+    model_blocks = (fd.default.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + ERSource.model_blocks[1:]
 
 
 @export
 class SpatialRateNRSource(NRSource):
-    model_blocks = (fd.SpatialRateEnergySpectrum,) + NRSource.model_blocks[1:]
+    model_blocks = (fd.default.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + NRSource.model_blocks[1:]
 
 
 @export
 class WIMPSource(NRSource):
-    model_blocks = (fd.WIMPEnergySpectrum,) + NRSource.model_blocks[1:]
+    model_blocks = (fd.default.lxe_blocks.energy_spectrum.WIMPEnergySpectrum,) + NRSource.model_blocks[1:]

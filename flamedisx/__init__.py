@@ -1,9 +1,7 @@
 __version__ = '1.4.0'
-global mode_folder
-global config_file
 
 from .configure import *
-configure_mode()
+configure_detector()
 
 from .utils import *
 from .source import *
@@ -13,14 +11,14 @@ from .inference import *
 
 
 # LXe model construction
-from .lxe_blocks.energy_spectrum import *
-from .lxe_blocks.quanta_generation import *
-from .lxe_blocks.quanta_splitting import *
-from .lxe_blocks.detection import *
-from .lxe_blocks.double_pe import *
-from .lxe_blocks.final_signals import *
+from .default.lxe_blocks import energy_spectrum
+from .default.lxe_blocks import quanta_generation
+from .default.lxe_blocks import quanta_splitting
+from .default.lxe_blocks import detection
+from .default.lxe_blocks import double_pe
+from .default.lxe_blocks import final_signals
 
-from .lxe_sources import *
+from .default.lxe_sources import *
 
 
 # XENON specifics

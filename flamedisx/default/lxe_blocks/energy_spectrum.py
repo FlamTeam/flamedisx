@@ -11,7 +11,7 @@ o = tf.newaxis
 import configparser, os
 
 config = configparser.ConfigParser(inline_comment_prefixes=';')
-config.read(os.path.join(os.path.dirname(__file__), '../config', fd.config_file))
+config.read(os.path.join(os.path.dirname(__file__), '../../config', fd.config_file))
 
 
 @export
