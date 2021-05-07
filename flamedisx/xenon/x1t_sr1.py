@@ -241,8 +241,8 @@ class SR1Source:
 
     @staticmethod
     def electron_detection_eff(drift_time,
-                               elife,
                                *,
+                               elife=DEFAULT_ELECTRON_LIFETIME,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         return extraction_eff * tf.exp(-drift_time / elife)
 
