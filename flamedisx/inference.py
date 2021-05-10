@@ -11,11 +11,11 @@ import tensorflow_probability as tfp
 
 from scipy.optimize import NonlinearConstraint
 
-
-__all__ = ['LOWER_RATE_MULTIPLIER_BOUND',
-           'SUPPORTED_OPTIMIZERS',
-           'SUPPORTED_INTERVAL_OPTIMIZERS',
-           'FLOAT32_EPS']
+export, __all__ = fd.exporter()
+__all__ += ['LOWER_RATE_MULTIPLIER_BOUND',
+            'SUPPORTED_OPTIMIZERS',
+            'SUPPORTED_INTERVAL_OPTIMIZERS',
+            'FLOAT32_EPS']
 
 # Setting this to 0 does work, but makes the inference rather slow
 # (at least for scipy); probably there is a relative xtol computation,
@@ -130,40 +130,15 @@ class Objective:
             self._process_guess()
 
     def _process_guess(self):
-        """Final part of initialization, done after self.guess and self.bounds
-         are set"""
+        """Part of initialization: perform ones self.guess and self.bounds
+        are set"""
 
-        # Use the guess and bounds to define normalized coordinates:
-        #     normalized = (physical - offset)/scale
-
-        scales = []
-        offsets = []
-        for param_index, param_name in enumerate(self.arg_names):
-            guess = self.guess[param_name]
-
-            # For bounded parameters, use (right_bound - left_bound) as the scale
-            #     and the guess as the offset.
-            left, right = self.bounds.get(param_name, (None, None))
-            if left is not None and right is not None:
-                scale = right - left
-                offset = guess
-
-            # For unbounded parameters with 0 guess: no normalization
-            elif guess == 0:
-                scale = 1.
-                offset = 0.
-
-            # For regular unbounded parameters: use abs(guess) as a scale
-            # (the abs ensures we don't have to flip the bounds)
-            else:
-                scale = abs(guess)
-                offset = 0.
-
-            scales.append(scale)
-            offsets.append(offset)
-
-        self.offset_vector = np.asarray(offsets)
-        self.scale_vector = np.asarray(scales)
+        # We have the guess and bounds info, use them to define the scaled
+        # coordinates used internally by the optimizers.
+        # We always scale with positive numbers, so we don't have to reverse
+        # any bounds.
+        self.scale_vector = np.abs(self._dict_to_array(self.guess))
+        self.scale_vector[self.scale_vector == 0.] = 1.
 
         # Convert bounds to normed space
         self.normed_bounds = self.normalize(self.bounds, 'bounds')
@@ -183,26 +158,18 @@ class Objective:
                   x: ty.Union[dict, np.ndarray],
                   input_kind='parameters',
                   _reverse=False):
-        """Convert parameters or gradients to normalized coordinates,
+        """Convert parameters or gradients to normalized space,
         for use inside the optimizer.
 
         :param x: Object to transform
         :param input_kind: Kind of object. Choose:
-          - parameters (default), array or dictionary
-          - gradient, 1d array
-          - hessian, 2d array
-          - bounds, dictionary
+          - parameters (default),
+          - gradient
+          - hessian
+          - bounds
         """
-
         scale = self.scale_vector
-        offset = self.offset_vector
         if _reverse:
-            # normalized = (physical - offset) / scale
-            # => physical = normalized * scale + offset
-            # => physical = (normalized - X) / Y, with
-            #   X = - offset / scale
-            #   Y = 1 / scale
-            offset = - offset / scale
             scale = 1 / scale
 
         if x is None:
@@ -210,12 +177,8 @@ class Objective:
 
         if input_kind == 'parameters':
             if isinstance(x, dict):
-                x_arr = self._dict_to_array(x)
-                x_arr = self.normalize(x_arr,
-                                       input_kind=input_kind,
-                                       _reverse=_reverse)
-                return self._array_to_dict(x_arr)
-            return (x - offset) / scale
+                return self._array_to_dict(self._dict_to_array(x) / scale)
+            return x / scale
 
         if input_kind == 'gradient':
             # d / dx -> reversed scaling
@@ -226,9 +189,8 @@ class Objective:
 
         if input_kind == 'bounds':
             scale_dict = self._array_to_dict(scale)
-            offset_dict = self._array_to_dict(offset)
             return {
-                k: tuple([(b - offset_dict[k]) / scale_dict[k]
+                k: tuple([b / scale_dict[k]
                           if b is not None else None
                           for b in tuple_of_bounds])
                 for k, tuple_of_bounds in x.items()}
