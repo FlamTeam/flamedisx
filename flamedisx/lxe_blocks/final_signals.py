@@ -9,9 +9,7 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
-
 
 class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
@@ -37,6 +35,10 @@ class MakeFinalSignals(fd.Block):
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
+
+        # reconstructed area = (bias+1)*true area
+        d[self.signal_name] *= self.gimme_numpy('reconstruction_bias_'+self.signal_name,
+                            bonus_arg=d[self.signal_name])
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -75,14 +77,21 @@ class MakeFinalSignals(fd.Block):
         mean = quanta_detected * mean_per_q
         std = quanta_detected ** 0.5 * std_per_q
 
+        # true area = reconstructed area/(bias+1)
+        s_true = s_observed/self.gimme('reconstruction_bias_'+self.signal_name,
+                        data_tensor=data_tensor, ptensor=ptensor,
+                        bonus_arg=s_observed)
+
         # add offset to std to avoid NaNs from norm.pdf if std = 0
+        # evaluating pdf at true area instead of reconstructed area 
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s_observed)
+        ).prob(s_true)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+
         return result
 
     def check_data(self):
