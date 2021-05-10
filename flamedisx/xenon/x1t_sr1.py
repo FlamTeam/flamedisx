@@ -236,7 +236,7 @@ class SR1Source:
             d['cs2'] = (
                 d['s2']
                 / d['s2_relative_ly']
-                * np.exp(d['drift_time'] / DEFAULT_ELECTRON_LIFETIME))
+                * np.exp(d['drift_time'] / d['elife']))
 
 
     @staticmethod
