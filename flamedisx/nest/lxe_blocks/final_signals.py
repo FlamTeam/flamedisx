@@ -9,6 +9,9 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+GAS_CONSTANT = 8.314
+N_AVAGADRO = 6.0221409e23
+A_XENON = 131.293
 
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
@@ -28,62 +31,7 @@ class MakeFinalSignals(fd.Block):
     gimme: ty.Callable
     gimme_numpy: ty.Callable
 
-    quanta_name: str
     signal_name: str
-
-    def _simulate(self, d):
-        d[self.signal_name] = stats.norm.rvs(
-            loc=(d[self.quanta_name + 's_detected']
-                 * self.gimme_numpy(self.quanta_name + '_gain_mean')),
-            scale=(d[self.quanta_name + 's_detected']**0.5
-                   * self.gimme_numpy(self.quanta_name + '_gain_std')))
-
-        # Call add_extra_columns now, since s1 and s2 are known and derived
-        # observables from it (cs1, cs2) might be used in the acceptance.
-        # TODO: This is a bit of a kludge
-        self.source.add_extra_columns(d)
-        d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
-
-    def _annotate(self, d):
-        m = self.gimme_numpy(self.quanta_name + '_gain_mean')
-        s = self.gimme_numpy(self.quanta_name + '_gain_std')
-
-        mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.signal_name] / m).clip(0, None)
-        scale = mle**0.5 * s / m
-
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            # For detected quanta the MLE is quite accurate
-            # (since fluctuations are tiny)
-            # so let's just use the relative error on the MLE)
-            d[self.quanta_name + 's_detected_' + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
-
-    def _compute(self,
-                 quanta_detected, s_observed,
-                 data_tensor, ptensor):
-        # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
-                                data_tensor=data_tensor,
-                                ptensor=ptensor)[:, o, o]
-        std_per_q = self.gimme(self.quanta_name + '_gain_std',
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)[:, o, o]
-
-        mean = quanta_detected * mean_per_q
-        std = quanta_detected ** 0.5 * std_per_q
-
-        # add offset to std to avoid NaNs from norm.pdf if std = 0
-        result = tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).prob(s_observed)
-
-        # Add detection/selection efficiency
-        result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        return result
 
     def check_data(self):
         if not self.check_acceptances:
@@ -98,22 +46,19 @@ class MakeFinalSignals(fd.Block):
 @export
 class MakeS1(MakeFinalSignals):
 
-    quanta_name = 'photoelectron'
     signal_name = 's1'
 
     dimensions = ('photoelectrons_detected', 's1')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s1',)
-    model_functions = (
-        'photoelectron_gain_mean',
-        'photoelectron_gain_std',
-        's1_acceptance') + special_model_functions
+    model_functions = ('s1_acceptance',) + special_model_functions
 
     def __init__(self, *args, **kwargs):
-        self.photoelectron_gain_mean = fd.config.getfloat('NEST','photoelectron_gain_mean_config')
-        self.photoelectron_gain_std = fd.config.getfloat('NEST','photoelectron_gain_std_config')
+        self.spe_res = fd.config.getfloat('NEST','spe_res_config')
+
         self.S1_min = fd.config.getfloat('NEST','S1_min_config')
         self.S1_max = fd.config.getfloat('NEST','S1_max_config')
+
         super().__init__(*args, **kwargs)
 
     def s1_acceptance(self, s1):
@@ -129,18 +74,50 @@ class MakeS1(MakeFinalSignals):
         reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
         return reconstruction_bias
 
+    def _simulate(self, d):
+        d['s1'] = stats.norm.rvs(
+            loc=(d['photoelectrons_detected']),
+            scale=(d['photoelectrons_detected']**0.5
+                   * self.spe_res))
+
+        # Call add_extra_columns now, since s1 and s2 are known and derived
+        # observables from it (cs1, cs2) might be used in the acceptance.
+        # TODO: This is a bit of a kludge
+        self.source.add_extra_columns(d)
+        d['p_accepted'] *= self.gimme_numpy('s1_acceptance')
+
+    def _annotate(self, d):
+        mle = d['photoelectrons_detected_mle'] = d['s1'].clip(0, None)
+        scale = mle**0.5 * self.spe_res
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            # For detected quanta the MLE is quite accurate
+            # (since fluctuations are tiny)
+            # so let's just use the relative error on the MLE)
+            d['photoelectrons_detected_' + bound] = intify(
+                mle + sign * self.source.max_sigma * scale
+            ).clip(0, None).astype(np.int)
+
     def _compute(self, data_tensor, ptensor,
                  photoelectrons_detected, s1):
-        return super()._compute(
-            quanta_detected=photoelectrons_detected,
-            s_observed=s1,
-            data_tensor=data_tensor, ptensor=ptensor)
+        mean = photoelectrons_detected
+        std = photoelectrons_detected ** 0.5 * self.spe_res
+
+        # add offset to std to avoid NaNs from norm.pdf if std = 0
+        result = tfp.distributions.Normal(
+            loc=mean, scale=std + 1e-10
+        ).prob(s1)
+
+        # Add detection/selection efficiency
+        result *= self.gimme('s1_acceptance',
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        return result
 
 
 @export
 class MakeS2(MakeFinalSignals):
 
-    quanta_name = 'electron'
     signal_name = 's2'
 
     dimensions = ('electrons_detected', 's2')
@@ -153,14 +130,34 @@ class MakeS2(MakeFinalSignals):
         + special_model_functions)
 
     def __init__(self, *args, **kwargs):
-        self.electron_gain_std = fd.config.getfloat('NEST','electron_gain_std_config')
+        self.double_pe_factor = 1 + fd.config.getfloat('NEST','double_pe_fraction_config')
+
+        self.temperature = fd.config.getfloat('NEST','temperature_config')
+        self.pressure = fd.config.getfloat('NEST','pressure_config')
+        self.gas_field = fd.config.getfloat('NEST','gas_field_config')
+        self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
+        self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
+
         self.S2_min = fd.config.getfloat('NEST','S2_min_config')
         self.S2_max = fd.config.getfloat('NEST','S2_max_config')
+
         super().__init__(*args, **kwargs)
 
-    @staticmethod
-    def electron_gain_mean(z, *, g2=20):
-        return g2 * tf.ones_like(z)
+    def electron_gain_mean(self):
+        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
+        A_XENON * 1e-6
+        elYield = (0.137 * self.gas_field*  1e3 - \
+        4.70e-18 * (N_AVAGADRO * rho / A_XENON)) * self.gas_gap * 0.1
+
+        return tf.cast(elYield * self.g1_gas, fd.float_type())[o]
+
+    def electron_gain_std(self):
+        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
+        A_XENON * 1e-6
+        elYield = (0.137 * self.gas_field*  1e3 - \
+        4.70e-18 * (N_AVAGADRO * rho / A_XENON)) * self.gas_gap * 0.1
+
+        return tf.sqrt(2 * elYield)[o]
 
     def s2_acceptance(self, s2):
         return tf.where((s2 < self.S2_min) | (s2 > self.S2_max),
@@ -175,9 +172,56 @@ class MakeS2(MakeFinalSignals):
         reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
         return reconstruction_bias
 
+    def _simulate(self, d):
+        d['s2'] = self.double_pe_factor * stats.norm.rvs(
+            loc=(d['electrons_detected']
+                 * self.gimme_numpy('electron_gain_mean')),
+            scale=(d['electrons_detected']**0.5
+                   * self.gimme_numpy('electron_gain_std')))
+
+        # Call add_extra_columns now, since s1 and s2 are known and derived
+        # observables from it (cs1, cs2) might be used in the acceptance.
+        # TODO: This is a bit of a kludge
+        self.source.add_extra_columns(d)
+        d['p_accepted'] *= self.gimme_numpy('s2_acceptance')
+
+    def _annotate(self, d):
+        m = self.gimme_numpy('electron_gain_mean') * self.double_pe_factor
+        s = self.gimme_numpy('electron_gain_std') * self.double_pe_factor
+
+        mle = d['electrons_detected_mle'] = \
+            (d['s2'] / m).clip(0, None)
+
+        scale = mle**0.5 * s / m
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            # For detected quanta the MLE is quite accurate
+            # (since fluctuations are tiny)
+            # so let's just use the relative error on the MLE)
+            d['electrons_detected_' + bound] = intify(
+                mle + sign * self.source.max_sigma * scale
+            ).clip(0, None).astype(np.int)
+
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2):
-        return super()._compute(
-            quanta_detected=electrons_detected,
-            s_observed=s2,
-            data_tensor=data_tensor, ptensor=ptensor)
+        # Lookup signal gain mean and std per detected quanta
+        mean_per_q = self.gimme('electron_gain_mean',
+                                data_tensor=data_tensor,
+                                ptensor=ptensor)[:, o, o]
+        std_per_q = self.gimme('electron_gain_std',
+                               data_tensor=data_tensor,
+                               ptensor=ptensor)[:, o, o]
+
+        mean = electrons_detected * mean_per_q * self.double_pe_factor
+        std = electrons_detected ** 0.5 * std_per_q * self.double_pe_factor
+
+        # add offset to std to avoid NaNs from norm.pdf if std = 0
+        result = tfp.distributions.Normal(
+            loc=mean, scale=std + 1e-10
+        ).prob(s2)
+
+        # Add detection/selection efficiency
+        result *= self.gimme('s2_acceptance',
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        return result
