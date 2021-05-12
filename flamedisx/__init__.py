@@ -22,6 +22,8 @@ from .default.lxe_sources import *
 
 
 # LXe model construction: NEST
+from .nest.parameter_calc import *
+
 from .nest.lxe_blocks import energy_spectrum
 from .nest.lxe_blocks import quanta_generation
 from .nest.lxe_blocks import quanta_splitting
@@ -39,3 +41,7 @@ from .xenon.data import *
 
 from .xenon.x1t_sr0 import *
 from .xenon.x1t_sr1 import *
+
+
+# LUX specifics
+from .LUX.LUX import *
