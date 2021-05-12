@@ -126,6 +126,7 @@ class MakeS2(MakeFinalSignals):
     model_functions = (
         ('electron_gain_mean',
          'electron_gain_std',
+         's2_posDependence',
          's2_acceptance')
         + special_model_functions)
 
@@ -159,6 +160,13 @@ class MakeS2(MakeFinalSignals):
 
         return tf.sqrt(2 * elYield)[o]
 
+    @staticmethod
+    def s2_posDependence(r):
+        """
+        Override for specific detector.
+        """
+        return tf.ones_like(r, dtype=fd.float_type())
+
     def s2_acceptance(self, s2):
         return tf.where((s2 < self.S2_min) | (s2 > self.S2_max),
                         tf.zeros_like(s2, dtype=fd.float_type()),
@@ -175,7 +183,8 @@ class MakeS2(MakeFinalSignals):
     def _simulate(self, d):
         d['s2'] = self.double_pe_factor * stats.norm.rvs(
             loc=(d['electrons_detected']
-                 * self.gimme_numpy('electron_gain_mean')),
+                 * self.gimme_numpy('electron_gain_mean')
+                 * self.gimme_numpy('s2_posDependence')),
             scale=(d['electrons_detected']**0.5
                    * self.gimme_numpy('electron_gain_std')))
 
@@ -186,7 +195,8 @@ class MakeS2(MakeFinalSignals):
         d['p_accepted'] *= self.gimme_numpy('s2_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy('electron_gain_mean') * self.double_pe_factor
+        m = self.gimme_numpy('electron_gain_mean') * \
+        self.gimme_numpy('s2_posDependence') * self.double_pe_factor
         s = self.gimme_numpy('electron_gain_std') * self.double_pe_factor
 
         mle = d['electrons_detected_mle'] = \
@@ -209,6 +219,9 @@ class MakeS2(MakeFinalSignals):
         mean_per_q = self.gimme('electron_gain_mean',
                                 data_tensor=data_tensor,
                                 ptensor=ptensor)[:, o, o]
+        mean_per_q *= self.gimme('s2_posDependence',
+                                 data_tensor=data_tensor,
+                                 ptensor=ptensor)[:, o, o]
         std_per_q = self.gimme('electron_gain_std',
                                data_tensor=data_tensor,
                                ptensor=ptensor)[:, o, o]

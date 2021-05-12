@@ -15,17 +15,23 @@ class EnergySpectrum(fd.FirstBlock):
     extra_dimensions = ()
     model_attributes = (
         'energies',
-        'fv_radius', 'fv_high', 'fv_low',
+        'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
         't_start', 't_stop')
 
     def __init__(self, *args, **kwargs):
         # The fiducial volume bounds for a cylindrical volume
-        self.fv_radius =  fd.config.getfloat('NEST','radius_config')
-        self.fv_high = fd.config.getfloat('NEST','z_top_config')
-        self.fv_low = fd.config.getfloat('NEST','z_bottom_config')
+        self.radius =  fd.config.getfloat('NEST','radius_config')
+        self.z_top = fd.config.getfloat('NEST','z_top_config')
+        self.z_bottom = fd.config.getfloat('NEST','z_bottom_config')
+        self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
 
-        self.drift_velocity = fd.config.getfloat('NEST','drift_velocity_config')
+        self.density = fd.calculate_density(
+        fd.config.getfloat('NEST','temperature_config'),
+        fd.config.getfloat('NEST','pressure_config')).item()
+        self.drift_velocity = fd.calculate_drift_velocity(
+        fd.config.getfloat('NEST','drift_field_config'), self.density,
+        fd.config.getfloat('NEST','temperature_config')).item()
         super().__init__(*args, **kwargs)
 
     # The default boundaries are at points where the WIMP wind is at its
@@ -49,13 +55,13 @@ class EnergySpectrum(fd.FirstBlock):
         randomly drawn.
         """
         data = dict()
-        data['r'] = (np.random.rand(n_events) * self.fv_radius**2)**0.5
+        data['r'] = (np.random.rand(n_events) * self.radius**2)**0.5
         data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
-        data['z'] = np.random.uniform(self.fv_low, self.fv_high,
+        data['z'] = np.random.uniform(self.z_bottom, self.z_top,
                                       size=n_events)
         data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
 
-        data['drift_time'] = - data['z'] / self.drift_velocity
+        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
         return data
 
     def draw_time(self, n_events, **params):
@@ -125,7 +131,7 @@ class EnergySpectrum(fd.FirstBlock):
             else:
                 raise ValueError("When fixing position, give (x, y, z), "
                                  "or (r, theta, z).")
-            d['drift_time'] = - d['z'] / self.drift_velocity
+            d['drift_time'] = (self.z_topDrift-d['z']) / self.drift_velocity
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
             raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
@@ -228,7 +234,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         else:
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
-        data['drift_time'] = - data['z'] / self.drift_velocity
+        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
         return data
 
 
