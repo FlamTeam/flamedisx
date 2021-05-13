@@ -37,10 +37,12 @@ class nestSource(fd.BlockModelSource):
         self.spe_res = fd.config.getfloat('NEST','spe_res_config')
         self.S1_min = fd.config.getfloat('NEST','S1_min_config')
         self.S1_max = fd.config.getfloat('NEST','S1_max_config')
+
         self.dpe_factor = 1 + fd.config.getfloat('NEST','double_pe_fraction_config')
         self.gas_field = fd.config.getfloat('NEST','gas_field_config')
         self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
         self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
+        self.s2Fano = fd.config.getfloat('NEST','s2Fano_config')
         self.S2_min = fd.config.getfloat('NEST','S2_min_config')
         self.S2_max = fd.config.getfloat('NEST','S2_max_config')
 
@@ -68,7 +70,7 @@ class nestSource(fd.BlockModelSource):
         elYield = (0.137 * self.gas_field*  1e3 - \
         4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) * self.gas_gap * 0.1
 
-        return tf.sqrt(2 * elYield)[o]
+        return tf.sqrt(self.s2Fano * elYield)[o]
 
 
 @export
