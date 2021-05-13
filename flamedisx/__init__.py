@@ -29,6 +29,7 @@ from .nest.lxe_blocks import quanta_generation
 from .nest.lxe_blocks import quanta_splitting
 from .nest.lxe_blocks import detection
 from .nest.lxe_blocks import double_pe
+from .nest.lxe_blocks import pe_detection
 from .nest.lxe_blocks import final_signals
 
 from .nest.lxe_sources import *

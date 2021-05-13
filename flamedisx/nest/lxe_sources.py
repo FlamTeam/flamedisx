@@ -52,6 +52,9 @@ class nestSource(fd.BlockModelSource):
         self.z_bottom = fd.config.getfloat('NEST','z_bottom_config')
         self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
 
+        # pe_detection.py
+        self.spe_eff = fd.config.getfloat('NEST','spe_eff_config')
+
         super().__init__(*args, **kwargs)
 
     # final_signals.py
@@ -72,6 +75,11 @@ class nestSource(fd.BlockModelSource):
 
         return tf.sqrt(self.s2Fano * elYield)[o]
 
+    # pe_detection.py
+
+    def photoelectron_detection_eff(self):
+        return tf.cast(1 - (1 - self.spe_eff) / self.dpe_factor, fd.float_type())[o]
+
 
 @export
 class nestERSource(nestSource):
@@ -84,6 +92,7 @@ class nestERSource(nestSource):
         fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsBetaBinomial,
         fd.nest.lxe_blocks.detection.DetectPhotons,
         fd.nest.lxe_blocks.double_pe.MakeS1Photoelectrons,
+        fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
@@ -119,6 +128,7 @@ class nestNRSource(nestSource):
         fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsBinomial,
         fd.nest.lxe_blocks.detection.DetectPhotons,
         fd.nest.lxe_blocks.double_pe.MakeS1Photoelectrons,
+        fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
         fd.nest.lxe_blocks.final_signals.MakeS2)

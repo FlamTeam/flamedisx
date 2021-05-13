@@ -10,19 +10,19 @@ o = tf.newaxis
 
 @export
 class MakeS1Photoelectrons(fd.Block):
-    dimensions = ('photons_detected', 'photoelectrons_detected')
+    dimensions = ('photons_detected', 'photoelectrons_produced')
     extra_dimensions = ()
 
     model_functions = ('double_pe_fraction',)
 
     def _compute(self, data_tensor, ptensor,
-                 photons_detected, photoelectrons_detected):
+                 photons_detected, photoelectrons_produced):
         p_dpe = self.gimme('double_pe_fraction',
                            data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         # Double-pe emission only creates additional photoelectrons.
         # Invalid values will get assigned p=0 later.
-        extra_pe = photoelectrons_detected - photons_detected
+        extra_pe = photoelectrons_produced - photons_detected
         invalid = extra_pe < 0
 
         # Negative arguments would mess up tfp's Binomial
@@ -38,11 +38,11 @@ class MakeS1Photoelectrons(fd.Block):
 
         # Set probability of extra_pe < 0 cases to 0
         return tf.where(invalid,
-                        tf.zeros_like(photoelectrons_detected),
+                        tf.zeros_like(photoelectrons_produced),
                         result)
 
     def _simulate(self, d):
-        d['photoelectrons_detected'] = stats.binom.rvs(
+        d['photoelectrons_produced'] = stats.binom.rvs(
             n=d['photons_detected'],
             p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
 
@@ -53,5 +53,5 @@ class MakeS1Photoelectrons(fd.Block):
                                ('max', np.ceil),
                                ('mle', lambda x: x)):
             d['photons_detected_' + suffix] = \
-                intify(d['photoelectrons_detected_' + suffix].values
+                intify(d['photoelectrons_produced_' + suffix].values
                        / (1 + dpe_fraction))
