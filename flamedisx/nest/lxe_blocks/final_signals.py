@@ -9,10 +9,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-GAS_CONSTANT = 8.314
-N_AVAGADRO = 6.0221409e23
-A_XENON = 131.293
-
 SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 
 
@@ -51,18 +47,10 @@ class MakeS1(MakeFinalSignals):
     dimensions = ('photoelectrons_detected', 's1')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s1',)
-    model_functions = ('s1_acceptance',) + special_model_functions
-
-    def __init__(self, *args, **kwargs):
-        self.spe_res = fd.config.getfloat('NEST','spe_res_config')
-
-        self.S1_min = fd.config.getfloat('NEST','S1_min_config')
-        self.S1_max = fd.config.getfloat('NEST','S1_max_config')
-
-        super().__init__(*args, **kwargs)
+    model_functions = ('spe_res', 's1_acceptance',) + special_model_functions
 
     def s1_acceptance(self, s1):
-        return tf.where((s1 < self.S1_min) | (s1 > self.S1_max),
+        return tf.where((s1 < self.source.S1_min) | (s1 > self.source.S1_max),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
@@ -78,7 +66,7 @@ class MakeS1(MakeFinalSignals):
         d['s1'] = stats.norm.rvs(
             loc=(d['photoelectrons_detected']),
             scale=(d['photoelectrons_detected']**0.5
-                   * self.spe_res))
+                   * self.gimme_numpy('spe_res')))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -88,7 +76,7 @@ class MakeS1(MakeFinalSignals):
 
     def _annotate(self, d):
         mle = d['photoelectrons_detected_mle'] = d['s1'].clip(0, None)
-        scale = mle**0.5 * self.spe_res
+        scale = mle**0.5 * self.gimme_numpy('spe_res')
 
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
@@ -102,7 +90,8 @@ class MakeS1(MakeFinalSignals):
     def _compute(self, data_tensor, ptensor,
                  photoelectrons_detected, s1):
         mean = photoelectrons_detected
-        std = photoelectrons_detected ** 0.5 * self.spe_res
+        std = photoelectrons_detected ** 0.5 * self.gimme('spe_res',
+                           data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
@@ -124,41 +113,12 @@ class MakeS2(MakeFinalSignals):
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s2',)
     model_functions = (
-        ('electron_gain_mean',
+        ('dpe_factor',
+         'electron_gain_mean',
          'electron_gain_std',
          's2_posDependence',
          's2_acceptance')
         + special_model_functions)
-
-    def __init__(self, *args, **kwargs):
-        self.double_pe_factor = 1 + fd.config.getfloat('NEST','double_pe_fraction_config')
-
-        self.temperature = fd.config.getfloat('NEST','temperature_config')
-        self.pressure = fd.config.getfloat('NEST','pressure_config')
-        self.gas_field = fd.config.getfloat('NEST','gas_field_config')
-        self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
-        self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
-
-        self.S2_min = fd.config.getfloat('NEST','S2_min_config')
-        self.S2_max = fd.config.getfloat('NEST','S2_max_config')
-
-        super().__init__(*args, **kwargs)
-
-    def electron_gain_mean(self):
-        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
-        A_XENON * 1e-6
-        elYield = (0.137 * self.gas_field*  1e3 - \
-        4.70e-18 * (N_AVAGADRO * rho / A_XENON)) * self.gas_gap * 0.1
-
-        return tf.cast(elYield * self.g1_gas, fd.float_type())[o]
-
-    def electron_gain_std(self):
-        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
-        A_XENON * 1e-6
-        elYield = (0.137 * self.gas_field*  1e3 - \
-        4.70e-18 * (N_AVAGADRO * rho / A_XENON)) * self.gas_gap * 0.1
-
-        return tf.sqrt(2 * elYield)[o]
 
     @staticmethod
     def s2_posDependence(r):
@@ -168,7 +128,7 @@ class MakeS2(MakeFinalSignals):
         return tf.ones_like(r, dtype=fd.float_type())
 
     def s2_acceptance(self, s2):
-        return tf.where((s2 < self.S2_min) | (s2 > self.S2_max),
+        return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
@@ -181,7 +141,7 @@ class MakeS2(MakeFinalSignals):
         return reconstruction_bias
 
     def _simulate(self, d):
-        d['s2'] = self.double_pe_factor * stats.norm.rvs(
+        d['s2'] = self.gimme_numpy('dpe_factor') * stats.norm.rvs(
             loc=(d['electrons_detected']
                  * self.gimme_numpy('electron_gain_mean')
                  * self.gimme_numpy('s2_posDependence')),
@@ -196,8 +156,9 @@ class MakeS2(MakeFinalSignals):
 
     def _annotate(self, d):
         m = self.gimme_numpy('electron_gain_mean') * \
-        self.gimme_numpy('s2_posDependence') * self.double_pe_factor
-        s = self.gimme_numpy('electron_gain_std') * self.double_pe_factor
+        self.gimme_numpy('s2_posDependence') * self.gimme_numpy('dpe_factor')
+        s = self.gimme_numpy('electron_gain_std') * \
+        self.gimme_numpy('dpe_factor')
 
         mle = d['electrons_detected_mle'] = \
             (d['s2'] / m).clip(0, None)
@@ -226,8 +187,10 @@ class MakeS2(MakeFinalSignals):
                                data_tensor=data_tensor,
                                ptensor=ptensor)[:, o, o]
 
-        mean = electrons_detected * mean_per_q * self.double_pe_factor
-        std = electrons_detected ** 0.5 * std_per_q * self.double_pe_factor
+        dpe_factor = self.gimme('dpe_factor',
+                           data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        mean = electrons_detected * mean_per_q * dpe_factor
+        std = electrons_detected ** 0.5 * std_per_q * dpe_factor
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(

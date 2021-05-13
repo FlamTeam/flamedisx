@@ -4,10 +4,35 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
-@export
-class defaultERSource(fd.BlockModelSource):
+class defaultSource(fd.BlockModelSource):
     def __init__(self, *args, **kwargs):
         assert fd.detector in ('default',)
+
+        # detection.py
+        self.photon_detection_eff = fd.config.getfloat('DEFAULT','photon_detection_eff_config')
+        self.min_photons = fd.config.getint('DEFAULT','min_photons_config')
+        # double_pe.py
+        self.double_pe_fraction = fd.config.getfloat('DEFAULT','double_pe_fraction_config')
+        # final_signals.py
+        self.photoelectron_gain_mean = fd.config.getfloat('DEFAULT','photoelectron_gain_mean_config')
+        self.photoelectron_gain_std = fd.config.getfloat('DEFAULT','photoelectron_gain_std_config')
+        self.S1_min = fd.config.getfloat('DEFAULT','S1_min_config')
+        self.S1_max = fd.config.getfloat('DEFAULT','S1_max_config')
+        self.electron_gain_std = fd.config.getfloat('DEFAULT','electron_gain_std_config')
+        self.S2_min = fd.config.getfloat('DEFAULT','S2_min_config')
+        self.S2_max = fd.config.getfloat('DEFAULT','S2_max_config')
+        # energy_spectrum.py
+        self.fv_radius =  fd.config.getfloat('DEFAULT','radius_config')
+        self.fv_high = fd.config.getfloat('DEFAULT','z_top_config')
+        self.fv_low = fd.config.getfloat('DEFAULT','z_bottom_config')
+        self.drift_velocity = fd.config.getfloat('DEFAULT','drift_velocity_config')
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class defaultERSource(defaultSource):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -41,9 +66,8 @@ class defaultERSource(fd.BlockModelSource):
 
 
 @export
-class defaultNRSource(fd.BlockModelSource):
+class defaultNRSource(defaultSource):
     def __init__(self, *args, **kwargs):
-        assert fd.detector in ('default',)
         super().__init__(*args, **kwargs)
 
     model_blocks = (

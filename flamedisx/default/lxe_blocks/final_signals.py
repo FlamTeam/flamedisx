@@ -109,15 +109,8 @@ class MakeS1(MakeFinalSignals):
         'photoelectron_gain_std',
         's1_acceptance') + special_model_functions
 
-    def __init__(self, *args, **kwargs):
-        self.photoelectron_gain_mean = fd.config.getfloat('DEFAULT','photoelectron_gain_mean_config')
-        self.photoelectron_gain_std = fd.config.getfloat('DEFAULT','photoelectron_gain_std_config')
-        self.S1_min = fd.config.getfloat('DEFAULT','S1_min_config')
-        self.S1_max = fd.config.getfloat('DEFAULT','S1_max_config')
-        super().__init__(*args, **kwargs)
-
     def s1_acceptance(self, s1):
-        return tf.where((s1 < self.S1_min) | (s1 > self.S1_max),
+        return tf.where((s1 < self.source.S1_min) | (s1 > self.source.S1_max),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
@@ -152,18 +145,12 @@ class MakeS2(MakeFinalSignals):
          's2_acceptance')
         + special_model_functions)
 
-    def __init__(self, *args, **kwargs):
-        self.electron_gain_std = fd.config.getfloat('DEFAULT','electron_gain_std_config')
-        self.S2_min = fd.config.getfloat('DEFAULT','S2_min_config')
-        self.S2_max = fd.config.getfloat('DEFAULT','S2_max_config')
-        super().__init__(*args, **kwargs)
-
     @staticmethod
     def electron_gain_mean(z, *, g2=20):
         return g2 * tf.ones_like(z)
 
     def s2_acceptance(self, s2):
-        return tf.where((s2 < self.S2_min) | (s2 > self.S2_max),
+        return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 

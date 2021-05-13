@@ -15,10 +15,6 @@ class MakeS1Photoelectrons(fd.Block):
 
     model_functions = ('double_pe_fraction',)
 
-    def __init__(self, *args, **kwargs):
-        self.double_pe_fraction = fd.config.getfloat('NEST','double_pe_fraction_config')
-        super().__init__(*args, **kwargs)
-
     def _compute(self, data_tensor, ptensor,
                  photons_detected, photoelectrons_detected):
         p_dpe = self.gimme('double_pe_fraction',

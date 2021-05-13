@@ -19,15 +19,6 @@ class EnergySpectrum(fd.FirstBlock):
         'drift_velocity',
         't_start', 't_stop')
 
-    def __init__(self, *args, **kwargs):
-        # The fiducial volume bounds for a cylindrical volume
-        self.fv_radius =  fd.config.getfloat('DEFAULT','radius_config')
-        self.fv_high = fd.config.getfloat('DEFAULT','z_top_config')
-        self.fv_low = fd.config.getfloat('DEFAULT','z_bottom_config')
-
-        self.drift_velocity = fd.config.getfloat('DEFAULT','drift_velocity_config')
-        super().__init__(*args, **kwargs)
-
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
     # This will then also be true at the midpoint of these times.

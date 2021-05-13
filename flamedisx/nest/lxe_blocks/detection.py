@@ -99,14 +99,9 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
     model_functions = ('photon_detection_eff',) + special_model_functions
 
-    def __init__(self, *args, **kwargs):
-        self.photon_detection_eff = fd.config.getfloat('NEST','photon_detection_eff_config')
-        self.min_photons = fd.config.getint('NEST','min_photons_config')
-        super().__init__(*args, **kwargs)
-
     def photon_acceptance(self, photons_detected):
         return tf.where(
-            photons_detected < self.min_photons,
+            photons_detected < self.source.min_photons,
             tf.zeros_like(photons_detected, dtype=fd.float_type()),
             tf.ones_like(photons_detected, dtype=fd.float_type()))
 

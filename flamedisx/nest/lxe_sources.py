@@ -2,12 +2,70 @@ import tensorflow as tf
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
+o = tf.newaxis
+
+GAS_CONSTANT = 8.314
+N_AVAGADRO = 6.0221409e23
+A_XENON = 131.293
+
+
+class nestSource(fd.BlockModelSource):
+    def __init__(self, *args, **kwargs):
+        assert fd.detector in ('default',)
+
+        # common (known) parameters
+        self.temperature = fd.config.getfloat('NEST','temperature_config')
+        self.pressure = fd.config.getfloat('NEST','pressure_config')
+        self.drift_field = fd.config.getfloat('NEST','drift_field_config')
+        # derived (known) parameters
+        self.density = fd.calculate_density(self.temperature, self.pressure).item()
+        self.drift_velocity = fd.calculate_drift_velocity(self.drift_field,
+        self.density, self.temperature).item()
+        # detection.py
+        self.photon_detection_eff = fd.config.getfloat('NEST','photon_detection_eff_config')
+        self.min_photons = fd.config.getint('NEST','min_photons_config')
+        # double_pe.py
+        self.double_pe_fraction = fd.config.getfloat('NEST','double_pe_fraction_config')
+        # final_signals.py
+        self.spe_res = fd.config.getfloat('NEST','spe_res_config')
+        self.S1_min = fd.config.getfloat('NEST','S1_min_config')
+        self.S1_max = fd.config.getfloat('NEST','S1_max_config')
+        self.dpe_factor = 1 + fd.config.getfloat('NEST','double_pe_fraction_config')
+        self.gas_field = fd.config.getfloat('NEST','gas_field_config')
+        self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
+        self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
+        self.S2_min = fd.config.getfloat('NEST','S2_min_config')
+        self.S2_max = fd.config.getfloat('NEST','S2_max_config')
+        # energy_spectrum.py
+        self.radius =  fd.config.getfloat('NEST','radius_config')
+        self.z_top = fd.config.getfloat('NEST','z_top_config')
+        self.z_bottom = fd.config.getfloat('NEST','z_bottom_config')
+        self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
+
+        super().__init__(*args, **kwargs)
+
+    # final_signals.py
+
+    def electron_gain_mean(self):
+        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
+        A_XENON * 1e-6
+        elYield = (0.137 * self.gas_field*  1e3 - \
+        4.70e-18 * (N_AVAGADRO * rho / A_XENON)) * self.gas_gap * 0.1
+
+        return tf.cast(elYield * self.g1_gas, fd.float_type())[o]
+
+    def electron_gain_std(self):
+        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
+        A_XENON * 1e-6
+        elYield = (0.137 * self.gas_field*  1e3 - \
+        4.70e-18 * (N_AVAGADRO * rho / A_XENON)) * self.gas_gap * 0.1
+
+        return tf.sqrt(2 * elYield)[o]
 
 
 @export
-class nestERSource(fd.BlockModelSource):
+class nestERSource(nestSource):
     def __init__(self, *args, **kwargs):
-        assert fd.detector in ('default',)
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -41,9 +99,8 @@ class nestERSource(fd.BlockModelSource):
 
 
 @export
-class nestNRSource(fd.BlockModelSource):
+class nestNRSource(nestSource):
     def __init__(self, *args, **kwargs):
-        assert fd.detector in ('default',)
         super().__init__(*args, **kwargs)
 
     model_blocks = (
