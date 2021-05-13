@@ -126,11 +126,6 @@ class DetectElectrons(DetectPhotonsOrElectrons):
     special_model_functions = ('electron_acceptance',)
     model_functions = ('electron_detection_eff',) + special_model_functions
 
-    @staticmethod
-    def electron_detection_eff(drift_time, *,
-                               elife=452e3, extraction_eff=0.96):
-        return extraction_eff * tf.exp(-drift_time / elife)
-
     electron_acceptance = 1.
 
     quanta_name = 'electron'

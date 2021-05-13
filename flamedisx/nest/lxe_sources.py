@@ -7,6 +7,8 @@ o = tf.newaxis
 GAS_CONSTANT = 8.314
 N_AVAGADRO = 6.0221409e23
 A_XENON = 131.293
+XENON_LIQUID_DIELECTRIC = 1.85
+XENON_GAS_DIELECTRIC = 1.00126
 
 
 class nestSource(fd.BlockModelSource):
@@ -17,6 +19,7 @@ class nestSource(fd.BlockModelSource):
         self.temperature = fd.config.getfloat('NEST','temperature_config')
         self.pressure = fd.config.getfloat('NEST','pressure_config')
         self.drift_field = fd.config.getfloat('NEST','drift_field_config')
+        self.gas_field = fd.config.getfloat('NEST','gas_field_config')
 
         # derived (known) parameters
         self.density = fd.calculate_density(self.temperature, self.pressure).item()
@@ -27,8 +30,9 @@ class nestSource(fd.BlockModelSource):
         self.density, self.temperature).item()
 
         # detection.py
-        self.photon_detection_eff = fd.config.getfloat('NEST','photon_detection_eff_config')
+        self.g1 = fd.config.getfloat('NEST','g1_config')
         self.min_photons = fd.config.getint('NEST','min_photons_config')
+        self.elife = fd.config.getint('NEST','elife_config')
 
         # double_pe.py
         self.double_pe_fraction = fd.config.getfloat('NEST','double_pe_fraction_config')
@@ -39,7 +43,6 @@ class nestSource(fd.BlockModelSource):
         self.S1_max = fd.config.getfloat('NEST','S1_max_config')
 
         self.dpe_factor = 1 + fd.config.getfloat('NEST','double_pe_fraction_config')
-        self.gas_field = fd.config.getfloat('NEST','gas_field_config')
         self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
         self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
         self.s2Fano = fd.config.getfloat('NEST','s2Fano_config')
@@ -79,6 +82,18 @@ class nestSource(fd.BlockModelSource):
 
     def photoelectron_detection_eff(self):
         return tf.cast(1 - (1 - self.spe_eff) / self.dpe_factor, fd.float_type())[o]
+
+    # detection.py
+
+    def photon_detection_eff(self, z):
+        return self.g1 * tf.ones_like(z)
+
+    def electron_detection_eff(self, drift_time):
+        liquid_field_interface = self.gas_field / (XENON_LIQUID_DIELECTRIC / XENON_GAS_DIELECTRIC)
+        extraction_eff = -0.03754 * liquid_field_interface**2 + \
+        0.52660 * liquid_field_interface - 0.84645
+
+        return extraction_eff * tf.exp(-drift_time / self.elife)
 
 
 @export
