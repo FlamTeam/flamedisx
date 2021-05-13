@@ -3,6 +3,11 @@ import numpy as np
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
+GAS_CONSTANT = 8.31446261815324
+XENON_VDW_A = 0.4250
+XENON_VDW_B = 5.105e-5
+A_XENON = 131.293
+
 
 @export
 def calculate_density(temp, pressure):
@@ -25,6 +30,18 @@ def calculate_density(temp, pressure):
     5.4964506351743057e3 * np.exp(-((temp - 6.3688597345042672e2) / 1.1225818853661815e2)**2) + \
     8.3450538370682614e2 * np.exp(-((temp + 4.8840568924597342e1) / 7.3804147172071107e3)**2) - \
     8.3086310405942265e2
+
+    return density
+
+@export
+def calculate_density_gas(temp, pressure):
+    """Returns gaseous density in g/cm^3
+
+    """
+    p_Pa = pressure * 1e5
+    density = 1 / (pow(GAS_CONSTANT * temp, 3) / \
+    (p_Pa * pow(GAS_CONSTANT * temp, 2) + XENON_VDW_A * p_Pa * p_Pa) + \
+    XENON_VDW_B) * A_XENON * 1e-6;
 
     return density
 

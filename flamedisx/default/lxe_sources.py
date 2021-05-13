@@ -11,8 +11,10 @@ class defaultSource(fd.BlockModelSource):
         # detection.py
         self.photon_detection_eff = fd.config.getfloat('DEFAULT','photon_detection_eff_config')
         self.min_photons = fd.config.getint('DEFAULT','min_photons_config')
+
         # double_pe.py
         self.double_pe_fraction = fd.config.getfloat('DEFAULT','double_pe_fraction_config')
+
         # final_signals.py
         self.photoelectron_gain_mean = fd.config.getfloat('DEFAULT','photoelectron_gain_mean_config')
         self.photoelectron_gain_std = fd.config.getfloat('DEFAULT','photoelectron_gain_std_config')
@@ -21,6 +23,7 @@ class defaultSource(fd.BlockModelSource):
         self.electron_gain_std = fd.config.getfloat('DEFAULT','electron_gain_std_config')
         self.S2_min = fd.config.getfloat('DEFAULT','S2_min_config')
         self.S2_max = fd.config.getfloat('DEFAULT','S2_max_config')
+
         # energy_spectrum.py
         self.fv_radius =  fd.config.getfloat('DEFAULT','radius_config')
         self.fv_high = fd.config.getfloat('DEFAULT','z_top_config')
