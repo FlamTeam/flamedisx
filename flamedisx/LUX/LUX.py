@@ -23,12 +23,11 @@ class LUXSource:
         self.drift_velocity = fd.calculate_drift_velocity(
         fd.config.getfloat('NEST','drift_field_config'), self.density,
         fd.config.getfloat('NEST','temperature_config')).item()
-        dt_cntr = fd.config.getfloat('NEST','dt_cntr_config')
+        self.dt_cntr = fd.config.getfloat('NEST','dt_cntr_config')
 
         super().__init__(*args, **kwargs)
 
-    @staticmethod
-    def s1_posDependence(r, z):
+    def s1_posDependence(self, r, z):
         """
         Returns position-dependent S1 scale factor.
         Requires r/z to be in cm, and in the FV.
@@ -37,7 +36,7 @@ class LUXSource:
         z_mm = z*10
 
         amplitude = 307.9 - 0.3071*z_mm + 0.0002257*pow(z_mm,2)
-        shape = 1.1525e-7 * sqrt(abs(z_mm - 318.84))
+        shape = 1.1525e-7 * tf.sqrt(abs(z_mm - 318.84))
         finalCorr = (-shape * pow (r_mm, 3) + amplitude) / 307.9
 
         z_cntr = self.z_topDrift - self.drift_velocity*1e3 * self.dt_cntr # for normalising to the detector centre

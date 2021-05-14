@@ -98,8 +98,7 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     model_functions = ('photon_detection_eff',
                        's1_posDependence') + special_model_functions
 
-    @staticmethod
-    def s1_posDependence(r, z):
+    def s1_posDependence(self, r, z):
         """
         Override for specific detector.
         """
