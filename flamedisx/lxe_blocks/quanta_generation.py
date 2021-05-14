@@ -244,7 +244,7 @@ def calculate_dimsizes_special(self):
 
     # Want electrons and photons to have the same stepping: choose the minimum
     # of the two for each event
-    quanta_steps = (d['electrons_produced_steps'] <
+    quanta_steps = (d['electrons_produced_steps'] <=
     d['photons_produced_steps']) * d['electrons_produced_steps']
     + (d['photons_produced_steps'] <
     d['electrons_produced_steps']) * d['photons_produced_steps']
