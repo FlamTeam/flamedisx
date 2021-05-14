@@ -12,6 +12,12 @@ o = tf.newaxis
 
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
+    model_attributes = ('check_acceptances',)
+
+    # Whether to check acceptances are positive at the observed events.
+    # This is recommended, but you'll have to turn it off if your
+    # likelihood includes regions where only anomalous sources make events.
+    check_acceptances = True
 
     signal_name: str
 
@@ -22,13 +28,11 @@ class ReconstructSignals(fd.Block):
                 scale=d[self.signal_name]*self.gimme_numpy('reconstruction_smear_'+self.signal_name,
                     bonus_arg=d[self.signal_name]))
 
-        ''' Will uncomment later, don't wanna touch finals_signal.py in this commit yet
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
         # TODO: This is a bit of a kludge
         self.source.add_extra_columns(d)
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
-        '''
 
     def _annotate(self, d):
         tf.print('PASSED: Dunno what to do here.')
@@ -53,7 +57,20 @@ class ReconstructSignals(fd.Block):
             loc=recon_mean, scale=recon_std
         ).prob(s_true)
 
+        # Add detection/selection efficiency
+        result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+
         return result
+
+    def check_data(self):
+        if not self.check_acceptances:
+            return
+        s_acc = self.gimme_numpy(self.signal_name + '_acceptance')
+        if np.any(s_acc <= 0):
+            raise ValueError(f"Found event with non-positive {self.signal_name} "
+                             f"acceptance: did you apply and configure "
+                             "your cuts correctly?")
 
     
 @export
@@ -64,7 +81,13 @@ class ReconstructS1(ReconstructSignals):
     dimensions = ('s1',)
     special_model_functions = ('reconstruction_bias_s1',
             'reconstruction_smear_s1')
-    model_functions = special_model_functions
+    model_functions = ('s1_acceptance') + special_model_functions
+
+    @staticmethod
+    def s1_acceptance(s1):
+        return tf.where((s1 < 2) | (s1 > 70),
+                        tf.zeros_like(s1, dtype=fd.float_type()),
+                        tf.ones_like(s1, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_s1(sig):
@@ -91,7 +114,13 @@ class ReconstructS2(ReconstructSignals):
     dimensions = ('s2',)
     special_model_functions = ('reconstruction_bias_s2',
             'reconstruction_smear_s2')
-    model_functions = special_model_functions
+    model_functions = ('s2_acceptance') + special_model_functions
+
+    @staticmethod
+    def s2_acceptance(s2):
+        return tf.where((s2 < 200) | (s2 > 6000),
+                        tf.zeros_like(s2, dtype=fd.float_type()),
+                        tf.ones_like(s2, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_s2(sig):

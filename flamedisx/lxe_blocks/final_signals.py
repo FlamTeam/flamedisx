@@ -16,13 +16,6 @@ SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
 class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
 
-    model_attributes = ('check_acceptances',)
-
-    # Whether to check acceptances are positive at the observed events.
-    # This is recommended, but you'll have to turn it off if your
-    # likelihood includes regions where only anomalous sources make events.
-    check_acceptances = True
-
     # Prevent pycharm warnings:
     source: fd.Source
     gimme: ty.Callable
@@ -37,12 +30,6 @@ class MakeFinalSignals(fd.Block):
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
-
-        # Call add_extra_columns now, since s1 and s2 are known and derived
-        # observables from it (cs1, cs2) might be used in the acceptance.
-        # TODO: This is a bit of a kludge
-        self.source.add_extra_columns(d)
-        d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
@@ -80,19 +67,7 @@ class MakeFinalSignals(fd.Block):
             loc=mean, scale=std + 1e-10
         ).prob(s_observed)
 
-        # Add detection/selection efficiency
-        result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
         return result
-
-    def check_data(self):
-        if not self.check_acceptances:
-            return
-        s_acc = self.gimme_numpy(self.signal_name + '_acceptance')
-        if np.any(s_acc <= 0):
-            raise ValueError(f"Found event with non-positive {self.signal_name} "
-                             f"acceptance: did you apply and configure "
-                             "your cuts correctly?")
 
 
 @export
@@ -105,17 +80,10 @@ class MakeS1(MakeFinalSignals):
     special_model_functions = ()
     model_functions = (
         'photoelectron_gain_mean',
-        'photoelectron_gain_std',
-        's1_acceptance') + special_model_functions
+        'photoelectron_gain_std') + special_model_functions
 
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
-
-    @staticmethod
-    def s1_acceptance(s1):
-        return tf.where((s1 < 2) | (s1 > 70),
-                        tf.zeros_like(s1, dtype=fd.float_type()),
-                        tf.ones_like(s1, dtype=fd.float_type()))
 
     def _compute(self, data_tensor, ptensor,
                  photoelectrons_detected, s1):
@@ -135,21 +103,13 @@ class MakeS2(MakeFinalSignals):
     special_model_functions = ()
     model_functions = (
         ('electron_gain_mean',
-         'electron_gain_std',
-         's2_acceptance')
-        + special_model_functions)
+         'electron_gain_std') + special_model_functions)
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):
         return g2 * tf.ones_like(z)
 
     electron_gain_std = 5.
-
-    @staticmethod
-    def s2_acceptance(s2):
-        return tf.where((s2 < 200) | (s2 > 6000),
-                        tf.zeros_like(s2, dtype=fd.float_type()),
-                        tf.ones_like(s2, dtype=fd.float_type()))
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2):
