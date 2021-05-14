@@ -25,7 +25,7 @@ class ReconstructSignals(fd.Block):
         d[self.signal_name+'_observed'] = stats.norm.rvs(
                 loc=d[self.signal_name]*self.gimme_numpy('reconstruction_bias_'+self.signal_name,
                     bonus_arg=d[self.signal_name]),
-                scale=d[self.signal_name]*self.gimme_numpy('reconstruction_smear_'+self.signal_name,
+                scale=self.gimme_numpy('reconstruction_smear_'+self.signal_name,
                     bonus_arg=d[self.signal_name]))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
