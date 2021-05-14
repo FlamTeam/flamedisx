@@ -34,9 +34,8 @@ class DetectPhotonsOrElectrons(fd.Block):
 
         if self.quanta_name == 'photon':
             # Note *= doesn't work, p will get reshaped
-            p = p * self.gimme('penning_quenching_eff',
-                               bonus_arg=quanta_produced,
-                               data_tensor=data_tensor, ptensor=ptensor)
+            p = p * self.gimme('s1_posDependence',
+                               data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         result = tfp.distributions.Binomial(
                 total_count=quanta_produced,
@@ -52,7 +51,7 @@ class DetectPhotonsOrElectrons(fd.Block):
 
         if self.quanta_name == 'photon':
             p *= self.gimme_numpy(
-                'penning_quenching_eff', d['photons_produced'].values)
+                's1_posDependence')
 
         d[self.quanta_name + 's_detected'] = stats.binom.rvs(
             n=d[self.quanta_name + 's_produced'],
@@ -65,8 +64,7 @@ class DetectPhotonsOrElectrons(fd.Block):
         # Get efficiency
         eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
         if self.quanta_name == 'photon':
-            eff *= self.gimme_numpy('penning_quenching_eff',
-                                    d['photons_detected_mle'].values / eff)
+            eff *= self.gimme_numpy('s1_posDependence')
 
         # Check for bad efficiencies
         if self.check_efficiencies and np.any(eff <= 0):
@@ -96,8 +94,16 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     dimensions = ('photons_produced', 'photons_detected')
     extra_dimensions = ()
 
-    special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
-    model_functions = ('photon_detection_eff',) + special_model_functions
+    special_model_functions = ('photon_acceptance',)
+    model_functions = ('photon_detection_eff',
+                       's1_posDependence') + special_model_functions
+
+    @staticmethod
+    def s1_posDependence(r, z):
+        """
+        Override for specific detector.
+        """
+        return tf.ones_like(r, dtype=fd.float_type())
 
     def photon_acceptance(self, photons_detected):
         return tf.where(
@@ -106,10 +112,6 @@ class DetectPhotons(DetectPhotonsOrElectrons):
             tf.ones_like(photons_detected, dtype=fd.float_type()))
 
     quanta_name = 'photon'
-
-    @staticmethod
-    def penning_quenching_eff(nph):
-        return 1. + 0. * nph
 
     def _compute(self, data_tensor, ptensor,
                  photons_produced, photons_detected):
