@@ -102,7 +102,7 @@ class MakeS1(MakeFinalSignals):
     signal_name = 's1'
 
     dimensions = ('photoelectrons_detected', 's1')
-    special_model_functions = ('reconstruction_bias_s1',)
+    special_model_functions = ()
     model_functions = (
         'photoelectron_gain_mean',
         'photoelectron_gain_std',
@@ -116,14 +116,6 @@ class MakeS1(MakeFinalSignals):
         return tf.where((s1 < 2) | (s1 > 70),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
-
-    @staticmethod
-    def reconstruction_bias_s1(sig):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-        """
-        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return reconstruction_bias
 
     def _compute(self, data_tensor, ptensor,
                  photoelectrons_detected, s1):
@@ -140,7 +132,7 @@ class MakeS2(MakeFinalSignals):
     signal_name = 's2'
 
     dimensions = ('electrons_detected', 's2')
-    special_model_functions = ('reconstruction_bias_s2',)
+    special_model_functions = ()
     model_functions = (
         ('electron_gain_mean',
          'electron_gain_std',
@@ -158,14 +150,6 @@ class MakeS2(MakeFinalSignals):
         return tf.where((s2 < 200) | (s2 > 6000),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
-
-    @staticmethod
-    def reconstruction_bias_s2(sig):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-        """
-        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return reconstruction_bias
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2):
