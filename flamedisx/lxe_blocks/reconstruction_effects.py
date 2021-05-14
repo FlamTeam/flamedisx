@@ -81,7 +81,7 @@ class ReconstructS1(ReconstructSignals):
     dimensions = ('s1',)
     special_model_functions = ('reconstruction_bias_s1',
             'reconstruction_smear_s1')
-    model_functions = ('s1_acceptance') + special_model_functions
+    model_functions = ('s1_acceptance',) + special_model_functions
 
     @staticmethod
     def s1_acceptance(s1):
@@ -114,7 +114,7 @@ class ReconstructS2(ReconstructSignals):
     dimensions = ('s2',)
     special_model_functions = ('reconstruction_bias_s2',
             'reconstruction_smear_s2')
-    model_functions = ('s2_acceptance') + special_model_functions
+    model_functions = ('s2_acceptance',) + special_model_functions
 
     @staticmethod
     def s2_acceptance(s2):
