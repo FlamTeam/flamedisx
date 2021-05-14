@@ -14,6 +14,7 @@ from .lxe_blocks.quanta_splitting import *
 from .lxe_blocks.detection import *
 from .lxe_blocks.double_pe import *
 from .lxe_blocks.final_signals import *
+from .lxe_blocks.reconstruction_effects import *
 
 from .lxe_sources import *
 
