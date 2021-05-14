@@ -54,7 +54,7 @@ class ReconstructSignals(fd.Block):
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
-            loc=recon_mean, scale=recon_std
+            loc=recon_mean, scale=recon_std + 1e-10
         ).prob(s_true)
 
         # Add detection/selection efficiency
@@ -99,11 +99,10 @@ class ReconstructS1(ReconstructSignals):
 
     @staticmethod
     def reconstruction_smear_s1(sig):
-        """ Dummy method for pax s1 reconstruction bias mean. Overwrite
+        """ Dummy method for pax s1 reconstruction bias smear. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
-        # TODO: Find smear that's small enough to become dirac delta
-        reconstruction_smear = 0.1*tf.ones_like(sig, dtype=fd.float_type())
+        reconstruction_smear = tf.zeros_like(sig, dtype=fd.float_type())
         return reconstruction_smear
 
 
@@ -133,9 +132,8 @@ class ReconstructS2(ReconstructSignals):
 
     @staticmethod
     def reconstruction_smear_s2(sig):
-        """ Dummy method for pax s2 reconstruction smear mean. Overwrite
+        """ Dummy method for pax s2 reconstruction bias smear. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
-        # TODO: Find smear that's small enough to become dirac delta
-        reconstruction_smear = 0.1*tf.ones_like(sig, dtype=fd.float_type())
+        reconstruction_smear = tf.zeros_like(sig, dtype=fd.float_type())
         return reconstruction_smear
