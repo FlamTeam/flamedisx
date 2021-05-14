@@ -16,8 +16,9 @@ class ReconstructSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
-        d[self.signal_name] *= self.gimme_numpy('reconstruction_bias_'+self.signal_name,
-                            bonus_arg=d[self.signal_name])
+        d[self.signal_name+'_observed'] = stats.norm.rvs(
+                loc=d[self.signal_name]*self.gimme_numpy('reconstruction_bias_'+self.signal_name, bonus_arg=d[self.signal_name]),
+                scale=0.1)
 
         ''' Will uncomment later, don't wanna touch finals_signal.py in this commit yet
         # Call add_extra_columns now, since s1 and s2 are known and derived
@@ -40,13 +41,13 @@ class ReconstructSignals(fd.Block):
         recon_mean = self.gimme('reconstruction_bias_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
-        recon_std = 1.
+        recon_std = 0.1
         
         s_true = s_observed
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
-            loc=recon_mean, scale=recon_std + 1e-10
+            loc=recon_mean, scale=recon_std
         ).prob(s_true)
 
         return result
