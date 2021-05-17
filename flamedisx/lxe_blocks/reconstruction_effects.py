@@ -44,10 +44,10 @@ class ReconstructSignals(fd.Block):
         # Computing pdf given data
         # true area = reconstructed area/(bias+1)
         # reconstruction mean and smear
-        recon_mean = self.gimme('reconstruction_bias_mean_'+self.signal_name,
+        recon_mean = self.gimme('reverse_reconstruction_bias_mean_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
-        recon_std = self.gimme('reconstruction_bias_std_'+self.signal_name,
+        recon_std = self.gimme('reverse_reconstruction_bias_std_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
         s_true = s_observed
@@ -80,7 +80,9 @@ class ReconstructS1(ReconstructSignals):
 
     dimensions = ('s1',)
     special_model_functions = ('reconstruction_bias_mean_s1',
-            'reconstruction_bias_std_s1')
+            'reconstruction_bias_std_s1',
+            'reverse_reconstruction_bias_mean_s1',
+            'reverse_reconstruction_bias_std_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
 
     @staticmethod
@@ -94,8 +96,8 @@ class ReconstructS1(ReconstructSignals):
         """ Dummy method for pax s1 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
-        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return reconstruction_bias
+        reconstruction_bias_mean = tf.ones_like(sig, dtype=fd.float_type())
+        return reconstruction_bias_mean
 
     @staticmethod
     def reconstruction_bias_std_s1(sig):
@@ -105,6 +107,22 @@ class ReconstructS1(ReconstructSignals):
         reconstruction_bias_std = tf.zeros_like(sig, dtype=fd.float_type())
         return reconstruction_bias_std
 
+    @staticmethod
+    def reverse_reconstruction_bias_mean_s1(sig):
+        """ Dummy method for pax s1 reverse_reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        reverse_reconstruction_bias_mean = tf.ones_like(sig, dtype=fd.float_type())
+        return reverse_reconstruction_bias_mean
+
+    @staticmethod
+    def reverse_reconstruction_bias_std_s1(sig):
+        """ Dummy method for pax s1 reverse_reconstruction bias smear. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        reverse_reconstruction_bias_std = tf.zeros_like(sig, dtype=fd.float_type())
+        return reverse_reconstruction_bias_std
+
 
 @export
 class ReconstructS2(ReconstructSignals):
@@ -113,7 +131,9 @@ class ReconstructS2(ReconstructSignals):
 
     dimensions = ('s2',)
     special_model_functions = ('reconstruction_bias_mean_s2',
-            'reconstruction_bias_std_s2')
+            'reconstruction_bias_std_s2',
+            'reverse_reconstruction_bias_mean_s2',
+            'reverse_reconstruction_bias_std_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
 
     @staticmethod
@@ -137,3 +157,19 @@ class ReconstructS2(ReconstructSignals):
         """
         reconstruction_bias_std = tf.zeros_like(sig, dtype=fd.float_type())
         return reconstruction_bias_std
+
+    @staticmethod
+    def reverse_reconstruction_bias_mean_s2(sig):
+        """ Dummy method for pax s2 reverse_reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        reverse_reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
+        return reverse_reconstruction_bias
+
+    @staticmethod
+    def reverse_reconstruction_bias_std_s2(sig):
+        """ Dummy method for pax s2 reverse_reconstruction bias smear. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        reverse_reconstruction_bias_std = tf.zeros_like(sig, dtype=fd.float_type())
+        return reverse_reconstruction_bias_std
