@@ -10,7 +10,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-import pdb as pdb
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
     model_attributes = ('check_acceptances',)
@@ -36,11 +35,12 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
+        # Dunno how to calculate, leaving in the clip for the time being
         for bound, intify in (('_min', np.min),
                               ('_max', np.max)):
-            # Dunno how to calculate
             d[self.signal_name + bound] = intify(
-                    d[self.signal_name]).clip(0, None).astype(np.int)
+                    d[self.signal_name]).clip(0,
+                            None).astype(d[self.signal_name].dtype)
     
     def _compute(self,
                  s_observed,
