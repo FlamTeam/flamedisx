@@ -31,9 +31,11 @@ DEFAULT_SINGLE_ELECTRON_GAIN = DEFAULT_G2_TOTAL / DEFAULT_EXTRACTION_EFFICIENCY
 DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
 
 # Official numbers from BBF
-DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
-DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
-DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 
+DEFAULT_S1_RECONSTRUCTION_BIAS_MEAN_PIVOT = 0.5948841302444277 # s_rec_bias_mean
+DEFAULT_S2_RECONSTRUCTION_BIAS_MEAN_PIVOT = 0.49198507921078005 # s_rec_s2bias_mean
+DEFAULT_S1_RECONSTRUCTION_BIAS_STD_PIVOT = 0.31763472112328395 # s_rec_bias_res
+DEFAULT_S2_RECONSTRUCTION_BIAS_STD_PIVOT = 0.5272888301015638 # s_rec_s2bias_res
+DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 # s_rec_eff
 
 ##
 # Yield maps
@@ -50,6 +52,10 @@ path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json'
                                     'ReconstructionS1BiasMeanUppers_SR1_v2.json']
 path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
                                     'ReconstructionS2BiasMeanUppers_SR1_v2.json']
+path_reconstruction_bias_std_s1 = ['ReconstructionS1BiasStdLowers_SR1_v2.json',
+                                    'ReconstructionS1BiasStdUppers_SR1_v2.json']
+path_reconstruction_bias_std_s2 = ['ReconstructionS2BiasStdLowers_SR1_v2.json',
+                                    'ReconstructionS2BiasStdUppers_SR1_v2.json']
 
 ##
 # Pax reconstruction efficiencies (do not reorder: Lowers, Medians, Uppers)
@@ -166,35 +172,59 @@ class SR1Source:
         self.recon_eff_map_s1, self.domain_def_ph = \
             read_maps_tf(path_reconstruction_efficiencies_s1, is_bbf=True)
 
-        # Loading reconstruction bias map
-        self.recon_map_s1_tf, self.domain_def_s1 = \
+        # Loading reconstruction bias mean and std map
+        self.recon_mean_map_s1_tf, self.domain_def_mean_s1 = \
             read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
-        self.recon_map_s2_tf, self.domain_def_s2 = \
+        self.recon_mean_map_s2_tf, self.domain_def_mean_s2 = \
             read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
+        self.recon_std_map_s1_tf, self.domain_def_std_s1 = \
+            read_maps_tf(path_reconstruction_bias_std_s1, is_bbf=True)
+        self.recon_std_map_s2_tf, self.domain_def_std_s2 = \
+            read_maps_tf(path_reconstruction_bias_std_s2, is_bbf=True)
 
         # Loading electron lifetime map
         self.elife_tf, self.domain_def_elife = \
             read_maps_tf(path_electron_lifetimes, is_bbf=False)
 
-    def reconstruction_bias_s1(self,
+    def reconstruction_bias_mean_s1(self,
                                s1,
-                               s1_reconstruction_bias_pivot=\
-                                   DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
+                               s1_reconstruction_bias_mean_pivot=\
+                                   DEFAULT_S1_RECONSTRUCTION_BIAS_MEAN_PIVOT):
         return calculate_reconstruction_bias(
             s1,
-            self.recon_map_s1_tf,
-            self.domain_def_s1,
-            pivot_pt=s1_reconstruction_bias_pivot)
+            self.recon_mean_map_s1_tf,
+            self.domain_def_mean_s1,
+            pivot_pt=s1_reconstruction_bias_mean_pivot)
 
-    def reconstruction_bias_s2(self,
+    def reconstruction_bias_mean_s2(self,
                                s2,
-                               s2_reconstruction_bias_pivot=\
-                                   DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
+                               s2_reconstruction_bias_mean_pivot=\
+                                   DEFAULT_S2_RECONSTRUCTION_BIAS_MEAN_PIVOT):
         return calculate_reconstruction_bias(
             s2,
-            self.recon_map_s2_tf,
-            self.domain_def_s2,
-            pivot_pt=s2_reconstruction_bias_pivot)
+            self.recon_mean_map_s2_tf,
+            self.domain_def_mean_s2,
+            pivot_pt=s2_reconstruction_bias_mean_pivot)
+
+    def reconstruction_bias_std_s1(self,
+                               s1,
+                               s1_reconstruction_bias_std_pivot=\
+                                   DEFAULT_S1_RECONSTRUCTION_BIAS_STD_PIVOT):
+        return calculate_reconstruction_bias(
+            s1,
+            self.recon_std_map_s1_tf,
+            self.domain_def_std_s1,
+            pivot_pt=s1_reconstruction_bias_std_pivot)
+
+    def reconstruction_bias_std_s2(self,
+                               s2,
+                               s2_reconstruction_bias_std_pivot=\
+                                   DEFAULT_S2_RECONSTRUCTION_BIAS_STD_PIVOT):
+        return calculate_reconstruction_bias(
+            s2,
+            self.recon_std_map_s2_tf,
+            self.domain_def_std_s2,
+            pivot_pt=s2_reconstruction_bias_std_pivot)
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
