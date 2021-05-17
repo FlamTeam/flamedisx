@@ -57,6 +57,15 @@ path_reconstruction_bias_std_s1 = ['ReconstructionS1BiasStdLowers_SR1_v2.json',
 path_reconstruction_bias_std_s2 = ['ReconstructionS2BiasStdLowers_SR1_v2.json',
                                     'ReconstructionS2BiasStdUppers_SR1_v2.json']
 
+path_reverse_reconstruction_bias_mean_s1 = ['1t_maps/ReverseReconstructionS1BiasMeanLowers_SR1_v2.json',
+                                    '1t_maps/ReverseReconstructionS1BiasMeanUppers_SR1_v2.json']
+path_reverse_reconstruction_bias_mean_s2 = ['1t_maps/ReverseReconstructionS2BiasMeanLowers_SR1_v2.json',
+                                    '1t_maps/ReverseReconstructionS2BiasMeanUppers_SR1_v2.json']
+path_reverse_reconstruction_bias_std_s1 = ['1t_maps/ReverseReconstructionS1BiasStdLowers_SR1_v2.json',
+                                    '1t_maps/ReverseReconstructionS1BiasStdUppers_SR1_v2.json']
+path_reverse_reconstruction_bias_std_s2 = ['1t_maps/ReverseReconstructionS2BiasStdLowers_SR1_v2.json',
+                                    '1t_maps/ReverseReconstructionS2BiasStdUppers_SR1_v2.json']
+
 ##
 # Pax reconstruction efficiencies (do not reorder: Lowers, Medians, Uppers)
 ##
@@ -182,6 +191,16 @@ class SR1Source:
         self.recon_std_map_s2_tf, self.domain_def_std_s2 = \
             read_maps_tf(path_reconstruction_bias_std_s2, is_bbf=True)
 
+        # Loading reverse reconstruction bias mean and std map
+        self.reverse_recon_mean_map_s1_tf, self.domain_def_mean_s1 = \
+            read_maps_tf(path_reverse_reconstruction_bias_mean_s1, is_bbf=False)
+        self.reverse_recon_mean_map_s2_tf, self.domain_def_mean_s2 = \
+            read_maps_tf(path_reverse_reconstruction_bias_mean_s2, is_bbf=False)
+        self.reverse_recon_std_map_s1_tf, self.domain_def_std_s1 = \
+            read_maps_tf(path_reverse_reconstruction_bias_std_s1, is_bbf=False)
+        self.reverse_recon_std_map_s2_tf, self.domain_def_std_s2 = \
+            read_maps_tf(path_reverse_reconstruction_bias_std_s2, is_bbf=False)
+
         # Loading electron lifetime map
         self.elife_tf, self.domain_def_elife = \
             read_maps_tf(path_electron_lifetimes, is_bbf=False)
@@ -225,6 +244,46 @@ class SR1Source:
             self.recon_std_map_s2_tf,
             self.domain_def_std_s2,
             pivot_pt=s2_reconstruction_bias_std_pivot)
+
+    def reverse_reconstruction_bias_mean_s1(self,
+                               s1,
+                               s1_reverse_reconstruction_bias_mean_pivot=\
+                                   DEFAULT_S1_REVERSE_RECONSTRUCTION_BIAS_MEAN_PIVOT):
+        return calculate_reconstruction_bias(
+            s1,
+            self.reverse_recon_mean_map_s1_tf,
+            self.domain_def_mean_s1,
+            pivot_pt=s1_reverse_reconstruction_bias_mean_pivot)
+
+    def reverse_reconstruction_bias_mean_s2(self,
+                               s2,
+                               s2_reverse_reconstruction_bias_mean_pivot=\
+                                   DEFAULT_S2_REVERSE_RECONSTRUCTION_BIAS_MEAN_PIVOT):
+        return calculate_reconstruction_bias(
+            s2,
+            self.reverse_recon_mean_map_s2_tf,
+            self.domain_def_mean_s2,
+            pivot_pt=s2_reverse_reconstruction_bias_mean_pivot)
+
+    def reverse_reconstruction_bias_std_s1(self,
+                               s1,
+                               s1_reverse_reconstruction_bias_std_pivot=\
+                                   DEFAULT_S1_REVERSE_RECONSTRUCTION_BIAS_STD_PIVOT):
+        return calculate_reconstruction_bias(
+            s1,
+            self.reverse_recon_std_map_s1_tf,
+            self.domain_def_std_s1,
+            pivot_pt=s1_reverse_reconstruction_bias_std_pivot)
+
+    def reverse_reconstruction_bias_std_s2(self,
+                               s2,
+                               s2_reverse_reconstruction_bias_std_pivot=\
+                                   DEFAULT_S2_REVERSE_RECONSTRUCTION_BIAS_STD_PIVOT):
+        return calculate_reconstruction_bias(
+            s2,
+            self.reverse_recon_std_map_s2_tf,
+            self.domain_def_std_s2,
+            pivot_pt=s2_reverse_reconstruction_bias_std_pivot)
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
