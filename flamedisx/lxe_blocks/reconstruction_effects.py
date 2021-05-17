@@ -42,20 +42,20 @@ class ReconstructSignals(fd.Block):
                  s_observed,
                  data_tensor, ptensor):
         # Computing pdf given data
-        # true area = reconstructed area/(bias+1)
-        # reconstruction mean and smear
-        recon_mean = self.gimme('reverse_reconstruction_bias_mean_'+self.signal_name,
+        # true_area = reconstructed_area/(bias+1)
+        # reconstructed_area is sampled from gaussian with 
+        # mean = reconstructed_area/(bias+1), std given by file
+        recon_mean = s_observed/self.gimme('reverse_reconstruction_bias_mean_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
         recon_std = self.gimme('reverse_reconstruction_bias_std_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
-        s_true = s_observed
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=recon_mean, scale=recon_std + 1e-10
-        ).prob(s_true)
+        ).prob(s_observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
