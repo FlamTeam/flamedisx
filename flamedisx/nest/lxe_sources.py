@@ -85,6 +85,8 @@ class nestSource(fd.BlockModelSource):
 
         return extraction_eff * tf.exp(-drift_time / self.elife)
 
+    # secondary_quanta_generation.py
+
     def electron_gain_mean(self):
         rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
         A_XENON * 1e-6
@@ -116,7 +118,7 @@ class nestERSource(nestSource):
         fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
-        fd.nest.lxe_blocks.detection.DetectS2Photons,
+        fd.nest.lxe_blocks.secondary_quanta_generation.ProduceS2Photons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
 
     @staticmethod
@@ -153,7 +155,7 @@ class nestNRSource(nestSource):
         fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
-        fd.nest.lxe_blocks.detection.DetectS2Photons,
+        fd.nest.lxe_blocks.secondary_quanta_generation.ProduceS2Photons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
 
     final_dimensions = ('s1', 's2')
