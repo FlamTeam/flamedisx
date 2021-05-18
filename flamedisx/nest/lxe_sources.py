@@ -63,20 +63,10 @@ class nestSource(fd.BlockModelSource):
     # final_signals.py
 
     def electron_gain_mean(self):
-        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
-        A_XENON * 1e-6
-        elYield = (0.137 * self.gas_field*  1e3 - \
-        4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) * self.gas_gap * 0.1
-
-        return tf.cast(elYield * self.g1_gas, fd.float_type())[o]
+        return tf.cast(self.g1_gas, fd.float_type())[o]
 
     def electron_gain_std(self):
-        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
-        A_XENON * 1e-6
-        elYield = (0.137 * self.gas_field*  1e3 - \
-        4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) * self.gas_gap * 0.1
-
-        return tf.sqrt(self.s2Fano * elYield)[o]
+        return tf.cast(self.g1_gas * self.spe_res, fd.float_type())[o]
 
     # pe_detection.py
 
@@ -94,6 +84,22 @@ class nestSource(fd.BlockModelSource):
         0.52660 * liquid_field_interface - 0.84645
 
         return extraction_eff * tf.exp(-drift_time / self.elife)
+
+    # def electron_gain_mean(self):
+    #     rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
+    #     A_XENON * 1e-6
+    #     elYield = (0.137 * self.gas_field*  1e3 - \
+    #     4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) * self.gas_gap * 0.1
+    #
+    #     return tf.cast(elYield, fd.float_type())[o]
+    #
+    # def electron_gain_std(self):
+    #     rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
+    #     A_XENON * 1e-6
+    #     elYield = (0.137 * self.gas_field*  1e3 - \
+    #     4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) * self.gas_gap * 0.1
+    #
+    #     return tf.sqrt(self.s2Fano * elYield)[o]
 
 
 @export
@@ -146,6 +152,7 @@ class nestNRSource(nestSource):
         fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
+        fd.nest.lxe_blocks.detection.DetectS2Photons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
 
     final_dimensions = ('s1', 's2')
