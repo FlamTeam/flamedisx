@@ -107,13 +107,13 @@ class MakeS2(MakeFinalSignals):
 
     signal_name = 's2'
 
-    dimensions = ('electrons_detected', 's2')
+    dimensions = ('s2_photons_produced', 's2')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s2',)
     model_functions = (
         ('dpe_factor',
-         'electron_gain_mean',
-         'electron_gain_std',
+         's2_photon_gain_mean',
+         's2_photon_gain_std',
          's2_posDependence',
          's2_acceptance')
         + special_model_functions)
@@ -140,11 +140,11 @@ class MakeS2(MakeFinalSignals):
 
     def _simulate(self, d):
         d['s2'] = self.gimme_numpy('dpe_factor') * stats.norm.rvs(
-            loc=(d['electrons_detected']
-                 * self.gimme_numpy('electron_gain_mean')
+            loc=(d['s2_photons_produced']
+                 * self.gimme_numpy('s2_photon_gain_mean')
                  * self.gimme_numpy('s2_posDependence')),
-            scale=(d['electrons_detected']**0.5
-                   * self.gimme_numpy('electron_gain_std')))
+            scale=(d['s2_photons_produced']**0.5
+                   * self.gimme_numpy('s2_photon_gain_std')))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -153,12 +153,12 @@ class MakeS2(MakeFinalSignals):
         d['p_accepted'] *= self.gimme_numpy('s2_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy('electron_gain_mean') * \
+        m = self.gimme_numpy('s2_photon_gain_mean') * \
         self.gimme_numpy('s2_posDependence') * self.gimme_numpy('dpe_factor')
-        s = self.gimme_numpy('electron_gain_std') * \
+        s = self.gimme_numpy('s2_photon_gain_std') * \
         self.gimme_numpy('dpe_factor')
 
-        mle = d['electrons_detected_mle'] = \
+        mle = d['s2_photons_produced_mle'] = \
             (d['s2'] / m).clip(0, None)
 
         scale = mle**0.5 * s / m
@@ -168,27 +168,27 @@ class MakeS2(MakeFinalSignals):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d['electrons_detected_' + bound] = intify(
+            d['s2_photons_produced_' + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(np.int)
 
     def _compute(self, data_tensor, ptensor,
-                 electrons_detected, s2):
+                 s2_photons_produced, s2):
         # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme('electron_gain_mean',
+        mean_per_q = self.gimme('s2_photon_gain_mean',
                                 data_tensor=data_tensor,
                                 ptensor=ptensor)[:, o, o]
         mean_per_q *= self.gimme('s2_posDependence',
                                  data_tensor=data_tensor,
                                  ptensor=ptensor)[:, o, o]
-        std_per_q = self.gimme('electron_gain_std',
+        std_per_q = self.gimme('s2_photon_gain_std',
                                data_tensor=data_tensor,
                                ptensor=ptensor)[:, o, o]
 
         dpe_factor = self.gimme('dpe_factor',
                            data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        mean = electrons_detected * mean_per_q * dpe_factor
-        std = electrons_detected ** 0.5 * std_per_q * dpe_factor
+        mean = s2_photons_produced * mean_per_q * dpe_factor
+        std = s2_photons_produced ** 0.5 * std_per_q * dpe_factor
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(

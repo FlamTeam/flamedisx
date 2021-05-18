@@ -140,13 +140,13 @@ class DetectElectrons(DetectPhotonsOrElectrons):
 
 @export
 class DetectS2Photons(fd.Block):
-    dimensions = ('electrons_detected', 'S2_photons_produced')
+    dimensions = ('electrons_detected', 's2_photons_produced')
     extra_dimensions = ()
 
     model_functions = ('electron_gain_mean', 'electron_gain_std')
 
     def _compute(self, data_tensor, ptensor,
-                 electrons_detected, S2_photons_produced):
+                 electrons_detected, s2_photons_produced):
         mean_per_q = self.gimme('electron_gain_mean',
                                 data_tensor=data_tensor,
                                 ptensor=ptensor)[:, o, o]
@@ -160,12 +160,12 @@ class DetectS2Photons(fd.Block):
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(S2_photons_produced)
+        ).prob(s2_photons_produced)
 
         return result
 
     def _simulate(self, d):
-        d['S2_photons_produced'] = stats.norm.rvs(
+        d['s2_photons_produced'] = stats.norm.rvs(
             loc=(d['electrons_detected']
                  * self.gimme_numpy('electron_gain_mean')),
             scale=(d['electrons_detected']**0.5
@@ -176,7 +176,7 @@ class DetectS2Photons(fd.Block):
         s = self.gimme_numpy('electron_gain_std')
 
         mle = d['electrons_detected_mle'] = \
-            (d['S2_photons_produced_mle'] / m).clip(0, None)
+            (d['s2_photons_produced_mle'] / m).clip(0, None)
 
         scale = mle**0.5 * s / m
 
