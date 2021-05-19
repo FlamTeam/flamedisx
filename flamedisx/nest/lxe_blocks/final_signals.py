@@ -27,6 +27,55 @@ class MakeFinalSignals(fd.Block):
 
     signal_name: str
 
+    def _simulate(self, d):
+        d[self.signal_name] = stats.norm.rvs(
+            loc=(d[self.signal_name + '_photoelectrons_detected']),
+            scale=(d[self.signal_name + '_photoelectrons_detected']**0.5
+                   * self.gimme_numpy(self.signal_name + '_spe_smearing')))
+
+        # Call add_extra_columns now, since s1 and s2 are known and derived
+        # observables from it (cs1, cs2) might be used in the acceptance.
+        # TODO: This is a bit of a kludge
+        self.source.add_extra_columns(d)
+        d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
+
+    def _annotate(self, d):
+        s = self.gimme_numpy(self.signal_name + '_spe_smearing')
+
+        mle = d[self.signal_name + '_photoelectrons_detected_' + 'mle'] = \
+        d[self.signal_name].clip(0, None)
+        scale = mle**0.5 * s
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            # For detected quanta the MLE is quite accurate
+            # (since fluctuations are tiny)
+            # so let's just use the relative error on the MLE)
+            d[self.signal_name + '_photoelectrons_detected_' + bound] = intify(
+                mle + sign * self.source.max_sigma * scale
+            ).clip(0, None).astype(np.int)
+
+    def _compute(self,
+                 photoelectrons_detected, s_observed,
+                 data_tensor, ptensor):
+        # Lookup signal smearing per detected photoelectron
+        std_per_pe = self.gimme(self.signal_name + '_spe_smearing',
+                               data_tensor=data_tensor,
+                               ptensor=ptensor)[:, o, o]
+
+        mean = photoelectrons_detected
+        std = photoelectrons_detected ** 0.5 * std_per_pe
+
+        # add offset to std to avoid NaNs from norm.pdf if std = 0
+        result = tfp.distributions.Normal(
+            loc=mean, scale=std + 1e-10
+        ).prob(s_observed)
+
+        # Add detection/selection efficiency
+        result *= self.gimme(self.signal_name + '_acceptance',
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        return result
+
     def check_data(self):
         if not self.check_acceptances:
             return
@@ -45,7 +94,9 @@ class MakeS1(MakeFinalSignals):
     dimensions = ('s1_photoelectrons_detected', 's1')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s1',)
-    model_functions = ('spe_res', 's1_acceptance',) + special_model_functions
+    model_functions = (
+        's1_spe_smearing',
+        's1_acceptance') + special_model_functions
 
     def s1_acceptance(self, s1):
         return tf.where((s1 < self.source.S1_min) | (s1 > self.source.S1_max),
@@ -54,52 +105,18 @@ class MakeS1(MakeFinalSignals):
 
     @staticmethod
     def reconstruction_bias_s1(sig):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        """ Dummy method for pax s1 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
         reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
         return reconstruction_bias
 
-    def _simulate(self, d):
-        d['s1'] = stats.norm.rvs(
-            loc=(d['s1_photoelectrons_detected']),
-            scale=(d['s1_photoelectrons_detected']**0.5
-                   * self.gimme_numpy('spe_res')))
-
-        # Call add_extra_columns now, since s1 and s2 are known and derived
-        # observables from it (cs1, cs2) might be used in the acceptance.
-        # TODO: This is a bit of a kludge
-        self.source.add_extra_columns(d)
-        d['p_accepted'] *= self.gimme_numpy('s1_acceptance')
-
-    def _annotate(self, d):
-        mle = d['s1_photoelectrons_detected_mle'] = d['s1'].clip(0, None)
-        scale = mle**0.5 * self.gimme_numpy('spe_res')
-
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            # For detected quanta the MLE is quite accurate
-            # (since fluctuations are tiny)
-            # so let's just use the relative error on the MLE)
-            d['s1_photoelectrons_detected_' + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
-
     def _compute(self, data_tensor, ptensor,
                  s1_photoelectrons_detected, s1):
-        mean = s1_photoelectrons_detected
-        std = s1_photoelectrons_detected ** 0.5 * self.gimme('spe_res',
-                           data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-
-        # add offset to std to avoid NaNs from norm.pdf if std = 0
-        result = tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).prob(s1)
-
-        # Add detection/selection efficiency
-        result *= self.gimme('s1_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        return result
+        return super()._compute(
+            photoelectrons_detected=s1_photoelectrons_detected,
+            s_observed=s1,
+            data_tensor=data_tensor, ptensor=ptensor)
 
 
 @export
@@ -107,10 +124,12 @@ class MakeS2(MakeFinalSignals):
 
     signal_name = 's2'
 
-    dimensions = ('s2_photoelectrons_produced', 's2')
+    dimensions = ('s2_photoelectrons_detected', 's2')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s2',)
-    model_functions = ('spe_res', 's2_acceptance') + special_model_functions
+    model_functions = (
+        's2_spe_smearing',
+        's2_acceptance') + special_model_functions
 
     def s2_acceptance(self, s2):
         return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
@@ -125,43 +144,9 @@ class MakeS2(MakeFinalSignals):
         reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
         return reconstruction_bias
 
-    def _simulate(self, d):
-        d['s2'] = stats.norm.rvs(
-            loc=(d['s2_photoelectrons_produced']),
-            scale=(d['s2_photoelectrons_produced']**0.5
-                   * self.gimme_numpy('spe_res')))
-
-        # Call add_extra_columns now, since s1 and s2 are known and derived
-        # observables from it (cs1, cs2) might be used in the acceptance.
-        # TODO: This is a bit of a kludge
-        self.source.add_extra_columns(d)
-        d['p_accepted'] *= self.gimme_numpy('s2_acceptance')
-
-    def _annotate(self, d):
-        mle = d['s2_photoelectrons_produced_mle'] = d['s2'].clip(0, None)
-        scale = mle**0.5 * self.gimme_numpy('spe_res')
-
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            # For detected quanta the MLE is quite accurate
-            # (since fluctuations are tiny)
-            # so let's just use the relative error on the MLE)
-            d['s2_photoelectrons_produced_' + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
-
     def _compute(self, data_tensor, ptensor,
-                 s2_photoelectrons_produced, s2):
-        mean = s2_photoelectrons_produced
-        std = s2_photoelectrons_produced ** 0.5 * self.gimme('spe_res',
-                           data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-
-        # add offset to std to avoid NaNs from norm.pdf if std = 0
-        result = tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).prob(s2)
-
-        # Add detection/selection efficiency
-        result *= self.gimme('s2_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        return result
+                 s2_photoelectrons_detected, s2):
+        return super()._compute(
+            photoelectrons_detected=s2_photoelectrons_detected,
+            s_observed=s2,
+            data_tensor=data_tensor, ptensor=ptensor)

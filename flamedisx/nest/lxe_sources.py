@@ -100,6 +100,14 @@ class nestSource(fd.BlockModelSource):
         return tf.cast(1 - (1 - self.spe_eff) / (1 + \
         self.double_pe_fraction), fd.float_type())[o]
 
+    # final_signals.py
+
+    def s1_spe_smearing(self):
+        return tf.cast(self.spe_res, fd.float_type())[o]
+
+    def s2_spe_smearing(self):
+        return tf.cast(self.spe_res, fd.float_type())[o]
+
 
 @export
 class nestERSource(nestSource):
