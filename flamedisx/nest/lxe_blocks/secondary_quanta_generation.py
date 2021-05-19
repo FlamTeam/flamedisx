@@ -32,16 +32,19 @@ class ProduceS2Photons(fd.Block):
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s2_photons_produced)
+        ).cdf(s2_photons_produced + 0.5) - \
+        tfp.distributions.Normal(
+            loc=mean, scale=std + 1e-10
+        ).cdf(s2_photons_produced - 0.5)
 
         return result
 
     def _simulate(self, d):
-        d['s2_photons_produced'] = stats.norm.rvs(
+        d['s2_photons_produced'] = tf.cast(tf.math.round(stats.norm.rvs(
             loc=(d['electrons_detected']
                  * self.gimme_numpy('electron_gain_mean')),
             scale=(d['electrons_detected']**0.5
-                   * self.gimme_numpy('electron_gain_std')))
+                   * self.gimme_numpy('electron_gain_std')))), dtype=fd.int_type())
 
     def _annotate(self, d):
         m = self.gimme_numpy('electron_gain_mean')

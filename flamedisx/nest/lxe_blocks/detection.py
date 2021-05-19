@@ -36,6 +36,9 @@ class DetectPhotonsOrElectrons(fd.Block):
             # Note *= doesn't work, p will get reshaped
             p = p * self.gimme('s1_posDependence',
                                data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        elif self.quanta_name == 's2_photon':
+            p = p * self.gimme('s2_posDependence',
+                               data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         result = tfp.distributions.Binomial(
                 total_count=quanta_produced,
@@ -52,6 +55,9 @@ class DetectPhotonsOrElectrons(fd.Block):
         if self.quanta_name == 'photon':
             p *= self.gimme_numpy(
                 's1_posDependence')
+        elif self.quanta_name == 's2_photon':
+            p *= self.gimme_numpy(
+                's2_posDependence')
 
         d[self.quanta_name + 's_detected'] = stats.binom.rvs(
             n=d[self.quanta_name + 's_produced'],
@@ -65,6 +71,8 @@ class DetectPhotonsOrElectrons(fd.Block):
         eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
         if self.quanta_name == 'photon':
             eff *= self.gimme_numpy('s1_posDependence')
+        elif self.quanta_name == 's2_photon':
+            eff *= self.gimme_numpy('s2_posDependence')
 
         # Check for bad efficiencies
         if self.check_efficiencies and np.any(eff <= 0):
@@ -135,4 +143,30 @@ class DetectElectrons(DetectPhotonsOrElectrons):
                  electrons_produced, electrons_detected):
         return super()._compute(quanta_produced=electrons_produced,
                                 quanta_detected=electrons_detected,
+                                data_tensor=data_tensor, ptensor=ptensor)
+
+
+@export
+class DetectS2Photons(DetectPhotonsOrElectrons):
+    dimensions = ('s2_photons_produced', 's2_photons_detected')
+    extra_dimensions = ()
+
+    special_model_functions = ('s2_photon_acceptance',)
+    model_functions = ('s2_photon_detection_eff',
+                       's2_posDependence') + special_model_functions
+
+    def s2_posDependence(self, r):
+        """
+        Override for specific detector.
+        """
+        return tf.ones_like(r, dtype=fd.float_type())
+
+    s2_photon_acceptance = 1.
+
+    quanta_name = 's2_photon'
+
+    def _compute(self, data_tensor, ptensor,
+                 s2_photons_produced, s2_photons_detected):
+        return super()._compute(quanta_produced=s2_photons_produced,
+                                quanta_detected=s2_photons_detected,
                                 data_tensor=data_tensor, ptensor=ptensor)

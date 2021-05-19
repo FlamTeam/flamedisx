@@ -60,14 +60,6 @@ class nestSource(fd.BlockModelSource):
 
         super().__init__(*args, **kwargs)
 
-    # final_signals.py
-
-    def s2_photon_gain_mean(self):
-        return tf.cast(self.g1_gas, fd.float_type())[o]
-
-    def s2_photon_gain_std(self):
-        return tf.cast(self.g1_gas * self.spe_res, fd.float_type())[o]
-
     # pe_detection.py
 
     def photoelectron_detection_eff(self):
@@ -84,6 +76,9 @@ class nestSource(fd.BlockModelSource):
         0.52660 * liquid_field_interface - 0.84645
 
         return extraction_eff * tf.exp(-drift_time / self.elife)
+
+    def s2_photon_detection_eff(self, z):
+        return self.g1_gas * tf.ones_like(z)
 
     # secondary_quanta_generation.py
 
@@ -119,6 +114,7 @@ class nestERSource(nestSource):
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
         fd.nest.lxe_blocks.secondary_quanta_generation.ProduceS2Photons,
+        fd.nest.lxe_blocks.detection.DetectS2Photons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
 
     @staticmethod
@@ -156,6 +152,7 @@ class nestNRSource(nestSource):
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
         fd.nest.lxe_blocks.secondary_quanta_generation.ProduceS2Photons,
+        fd.nest.lxe_blocks.detection.DetectS2Photons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
 
     final_dimensions = ('s1', 's2')

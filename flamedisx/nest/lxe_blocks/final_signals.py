@@ -107,23 +107,14 @@ class MakeS2(MakeFinalSignals):
 
     signal_name = 's2'
 
-    dimensions = ('s2_photons_produced', 's2')
+    dimensions = ('s2_photons_detected', 's2')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s2',)
     model_functions = (
         ('dpe_factor',
-         's2_photon_gain_mean',
-         's2_photon_gain_std',
-         's2_posDependence',
+         'spe_res',
          's2_acceptance')
         + special_model_functions)
-
-    @staticmethod
-    def s2_posDependence(r):
-        """
-        Override for specific detector.
-        """
-        return tf.ones_like(r, dtype=fd.float_type())
 
     def s2_acceptance(self, s2):
         return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
@@ -140,11 +131,9 @@ class MakeS2(MakeFinalSignals):
 
     def _simulate(self, d):
         d['s2'] = self.gimme_numpy('dpe_factor') * stats.norm.rvs(
-            loc=(d['s2_photons_produced']
-                 * self.gimme_numpy('s2_photon_gain_mean')
-                 * self.gimme_numpy('s2_posDependence')),
-            scale=(d['s2_photons_produced']**0.5
-                   * self.gimme_numpy('s2_photon_gain_std')))
+            loc=(d['s2_photons_detected']),
+            scale=(d['s2_photons_detected']**0.5
+                   * self.gimme_numpy('spe_res')))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -153,42 +142,30 @@ class MakeS2(MakeFinalSignals):
         d['p_accepted'] *= self.gimme_numpy('s2_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy('s2_photon_gain_mean') * \
-        self.gimme_numpy('s2_posDependence') * self.gimme_numpy('dpe_factor')
-        s = self.gimme_numpy('s2_photon_gain_std') * \
-        self.gimme_numpy('dpe_factor')
+        m = self.gimme_numpy('dpe_factor')
+        s = self.gimme_numpy('dpe_factor')
 
-        mle = d['s2_photons_produced_mle'] = \
+        mle = d['s2_photons_detected_mle'] = \
             (d['s2'] / m).clip(0, None)
 
-        scale = mle**0.5 * s / m
+        scale = mle**0.5 * s / m * self.gimme_numpy('spe_res')
 
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d['s2_photons_produced_' + bound] = intify(
+            d['s2_photons_detected_' + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(np.int)
 
     def _compute(self, data_tensor, ptensor,
-                 s2_photons_produced, s2):
-        # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme('s2_photon_gain_mean',
-                                data_tensor=data_tensor,
-                                ptensor=ptensor)[:, o, o]
-        mean_per_q *= self.gimme('s2_posDependence',
-                                 data_tensor=data_tensor,
-                                 ptensor=ptensor)[:, o, o]
-        std_per_q = self.gimme('s2_photon_gain_std',
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)[:, o, o]
-
+                 s2_photons_detected, s2):
         dpe_factor = self.gimme('dpe_factor',
                            data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        mean = s2_photons_produced * mean_per_q * dpe_factor
-        std = s2_photons_produced ** 0.5 * std_per_q * dpe_factor
+        mean = s2_photons_detected * dpe_factor
+        std = s2_photons_detected ** 0.5 * dpe_factor * self.gimme('spe_res',
+                           data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
