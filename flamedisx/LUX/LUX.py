@@ -17,13 +17,14 @@ export, __all__ = fd.exporter()
 class LUXSource:
     def __init__(self, *args, **kwargs):
         self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
+        self.dt_cntr = fd.config.getfloat('NEST','dt_cntr_config')
+
         self.density = fd.calculate_density(
         fd.config.getfloat('NEST','temperature_config'),
         fd.config.getfloat('NEST','pressure_config')).item()
         self.drift_velocity = fd.calculate_drift_velocity(
         fd.config.getfloat('NEST','drift_field_config'), self.density,
         fd.config.getfloat('NEST','temperature_config')).item()
-        self.dt_cntr = fd.config.getfloat('NEST','dt_cntr_config')
 
         super().__init__(*args, **kwargs)
 

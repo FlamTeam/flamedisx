@@ -30,6 +30,7 @@ class MakeS2Photons(fd.Block):
         std = electrons_detected ** 0.5 * std_per_q
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
+        # Don't forget continuity correction!
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
         ).cdf(s2_photons_produced + 0.5) - \
