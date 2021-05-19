@@ -4,6 +4,7 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
+import pdb as pdb
 @export
 class ERSource(fd.BlockModelSource):
     model_blocks = (
@@ -18,6 +19,8 @@ class ERSource(fd.BlockModelSource):
         fd.MakeS2,
         fd.ReconstructS2)
 
+    final_dimensions = ('s1_observed', 's2_observed')
+    
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
                    er_pel_e0=5.):
@@ -34,7 +37,12 @@ class ERSource(fd.BlockModelSource):
             + er_pel_c)
         return fd.safe_p(qy * 13.7e-3)
 
-    final_dimensions = ('s1_observed', 's2_observed')
+    # Rmb to add this for NRSource as well, after you've made sure it works
+    def add_extra_columns(self, d):
+        for dim in self.final_dimensions:
+            pre_dim = dim.split('_')[0]
+            if (dim not in d.columns) and pre_dim in d.columns:
+                d[dim] = d[pre_dim]
 
 
 @export

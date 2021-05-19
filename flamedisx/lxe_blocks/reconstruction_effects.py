@@ -10,8 +10,10 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
+import pdb as pdb
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
+
     model_attributes = ('check_acceptances',)
 
     # Whether to check acceptances are positive at the observed events.
@@ -49,6 +51,7 @@ class ReconstructSignals(fd.Block):
         # true_area = reconstructed_area/(bias+1)
         # reconstructed_area is sampled from gaussian with 
         # mean = reconstructed_area/(bias+1), std given by file
+
         recon_mean = s_observed/self.gimme('reverse_reconstruction_bias_mean_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
@@ -62,7 +65,7 @@ class ReconstructSignals(fd.Block):
         ).prob(s_observed)
 
         # Add detection/selection efficiency
-        result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
+        result *= self.gimme(self.signal_name + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         return result
@@ -82,18 +85,24 @@ class ReconstructS1(ReconstructSignals):
 
     signal_name = 's1'
 
-    dimensions = ('s1',)
+    dimensions = ('s1_observed',)
     special_model_functions = ('reconstruction_bias_mean_s1',
             'reconstruction_bias_std_s1',
             'reverse_reconstruction_bias_mean_s1',
             'reverse_reconstruction_bias_std_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
-
+    
+    def _compute(self, data_tensor, ptensor, s1_observed):
+        tf.print('sigh')
+        return super()._compute(
+            s_observed=s1_observed,
+            data_tensor=data_tensor, ptensor=ptensor)
+            
     @staticmethod
-    def s1_acceptance(s1):
-        return tf.where((s1 < 2) | (s1 > 70),
-                        tf.zeros_like(s1, dtype=fd.float_type()),
-                        tf.ones_like(s1, dtype=fd.float_type()))
+    def s1_acceptance(s1_observed):
+        return tf.where((s1_observed < 2) | (s1_observed > 70),
+                        tf.zeros_like(s1_observed, dtype=fd.float_type()),
+                        tf.ones_like(s1_observed, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_mean_s1(sig):
@@ -133,18 +142,23 @@ class ReconstructS2(ReconstructSignals):
 
     signal_name = 's2'
 
-    dimensions = ('s2',)
+    dimensions = ('s2_observed',)
     special_model_functions = ('reconstruction_bias_mean_s2',
             'reconstruction_bias_std_s2',
             'reverse_reconstruction_bias_mean_s2',
             'reverse_reconstruction_bias_std_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
-
+    
+    def _compute(self, data_tensor, ptensor, s2_observed):
+        return super()._compute(
+            s_observed=s2_observed,
+            data_tensor=data_tensor, ptensor=ptensor)
+            
     @staticmethod
-    def s2_acceptance(s2):
-        return tf.where((s2 < 200) | (s2 > 6000),
-                        tf.zeros_like(s2, dtype=fd.float_type()),
-                        tf.ones_like(s2, dtype=fd.float_type()))
+    def s2_acceptance(s2_observed):
+        return tf.where((s2_observed < 200) | (s2_observed > 6000),
+                        tf.zeros_like(s2_observed, dtype=fd.float_type()),
+                        tf.ones_like(s2_observed, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_mean_s2(sig):
