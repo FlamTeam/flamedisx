@@ -71,3 +71,19 @@ class MakeS1Photoelectrons(MakePhotoelectrons):
             quanta_detected=photons_detected,
             quanta_produced=s1_photoelectrons_produced,
             data_tensor=data_tensor, ptensor=ptensor)
+
+
+@export
+class MakeS2Photoelectrons(MakePhotoelectrons):
+    dimensions = ('s2_photons_detected', 's2_photoelectrons_produced')
+    extra_dimensions = ()
+
+    in_quanta_name = 's2_photons'
+    out_quanta_name = 's2_photoelectrons'
+
+    def _compute(self, data_tensor, ptensor,
+                 s2_photons_detected, s2_photoelectrons_produced):
+        return super()._compute(
+            quanta_detected=s2_photons_detected,
+            quanta_produced=s2_photoelectrons_produced,
+            data_tensor=data_tensor, ptensor=ptensor)

@@ -107,14 +107,10 @@ class MakeS2(MakeFinalSignals):
 
     signal_name = 's2'
 
-    dimensions = ('s2_photons_detected', 's2')
+    dimensions = ('s2_photoelectrons_produced', 's2')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s2',)
-    model_functions = (
-        ('dpe_factor',
-         'spe_res',
-         's2_acceptance')
-        + special_model_functions)
+    model_functions = ('spe_res', 's2_acceptance') + special_model_functions
 
     def s2_acceptance(self, s2):
         return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
@@ -130,9 +126,9 @@ class MakeS2(MakeFinalSignals):
         return reconstruction_bias
 
     def _simulate(self, d):
-        d['s2'] = self.gimme_numpy('dpe_factor') * stats.norm.rvs(
-            loc=(d['s2_photons_detected']),
-            scale=(d['s2_photons_detected']**0.5
+        d['s2'] = stats.norm.rvs(
+            loc=(d['s2_photoelectrons_produced']),
+            scale=(d['s2_photoelectrons_produced']**0.5
                    * self.gimme_numpy('spe_res')))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
@@ -142,29 +138,22 @@ class MakeS2(MakeFinalSignals):
         d['p_accepted'] *= self.gimme_numpy('s2_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy('dpe_factor')
-        s = self.gimme_numpy('dpe_factor')
-
-        mle = d['s2_photons_detected_mle'] = \
-            (d['s2'] / m).clip(0, None)
-
-        scale = mle**0.5 * s / m * self.gimme_numpy('spe_res')
+        mle = d['s2_photoelectrons_produced_mle'] = d['s2'].clip(0, None)
+        scale = mle**0.5 * self.gimme_numpy('spe_res')
 
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d['s2_photons_detected_' + bound] = intify(
+            d['s2_photoelectrons_produced_' + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(np.int)
 
     def _compute(self, data_tensor, ptensor,
-                 s2_photons_detected, s2):
-        dpe_factor = self.gimme('dpe_factor',
-                           data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        mean = s2_photons_detected * dpe_factor
-        std = s2_photons_detected ** 0.5 * dpe_factor * self.gimme('spe_res',
+                 s2_photoelectrons_produced, s2):
+        mean = s2_photoelectrons_produced
+        std = s2_photoelectrons_produced ** 0.5 * self.gimme('spe_res',
                            data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0

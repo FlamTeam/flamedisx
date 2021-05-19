@@ -29,41 +29,37 @@ class nestSource(fd.BlockModelSource):
         self.drift_velocity = fd.calculate_drift_velocity(self.drift_field,
         self.density, self.temperature).item()
 
-        # detection.py
-        self.g1 = fd.config.getfloat('NEST','g1_config')
-        self.min_photons = fd.config.getint('NEST','min_photons_config')
-        self.elife = fd.config.getint('NEST','elife_config')
-
-        # double_pe.py
-        self.double_pe_fraction = fd.config.getfloat('NEST','double_pe_fraction_config')
-
-        # final_signals.py
-        self.spe_res = fd.config.getfloat('NEST','spe_res_config')
-        self.S1_min = fd.config.getfloat('NEST','S1_min_config')
-        self.S1_max = fd.config.getfloat('NEST','S1_max_config')
-
-        self.dpe_factor = 1 + fd.config.getfloat('NEST','double_pe_fraction_config')
-        self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
-        self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
-        self.s2Fano = fd.config.getfloat('NEST','s2Fano_config')
-        self.S2_min = fd.config.getfloat('NEST','S2_min_config')
-        self.S2_max = fd.config.getfloat('NEST','S2_max_config')
-
         # energy_spectrum.py
         self.radius =  fd.config.getfloat('NEST','radius_config')
         self.z_top = fd.config.getfloat('NEST','z_top_config')
         self.z_bottom = fd.config.getfloat('NEST','z_bottom_config')
         self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
 
+        # detection.py
+        self.g1 = fd.config.getfloat('NEST','g1_config')
+        self.min_photons = fd.config.getint('NEST','min_photons_config')
+        self.elife = fd.config.getint('NEST','elife_config')
+
+        # secondary_quanta_generation.py
+        self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
+        self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
+        self.s2Fano = fd.config.getfloat('NEST','s2Fano_config')
+
+        # double_pe.py
+        self.double_pe_fraction = fd.config.getfloat('NEST','double_pe_fraction_config')
+
         # pe_detection.py
         self.spe_eff = fd.config.getfloat('NEST','spe_eff_config')
 
+        # final_signals.py
+        self.spe_res = fd.config.getfloat('NEST','spe_res_config')
+
+        self.S1_min = fd.config.getfloat('NEST','S1_min_config')
+        self.S1_max = fd.config.getfloat('NEST','S1_max_config')
+        self.S2_min = fd.config.getfloat('NEST','S2_min_config')
+        self.S2_max = fd.config.getfloat('NEST','S2_max_config')
+
         super().__init__(*args, **kwargs)
-
-    # pe_detection.py
-
-    def photoelectron_detection_eff(self):
-        return tf.cast(1 - (1 - self.spe_eff) / self.dpe_factor, fd.float_type())[o]
 
     # detection.py
 
@@ -98,6 +94,12 @@ class nestSource(fd.BlockModelSource):
 
         return tf.sqrt(self.s2Fano * elYield)[o]
 
+    # pe_detection.py
+
+    def photoelectron_detection_eff(self):
+        return tf.cast(1 - (1 - self.spe_eff) / (1 + \
+        self.double_pe_fraction), fd.float_type())[o]
+
 
 @export
 class nestERSource(nestSource):
@@ -113,8 +115,9 @@ class nestERSource(nestSource):
         fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
-        fd.nest.lxe_blocks.secondary_quanta_generation.ProduceS2Photons,
+        fd.nest.lxe_blocks.secondary_quanta_generation.MakeS2Photons,
         fd.nest.lxe_blocks.detection.DetectS2Photons,
+        fd.nest.lxe_blocks.double_pe.MakeS2Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
 
     @staticmethod
@@ -151,8 +154,9 @@ class nestNRSource(nestSource):
         fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS1,
         fd.nest.lxe_blocks.detection.DetectElectrons,
-        fd.nest.lxe_blocks.secondary_quanta_generation.ProduceS2Photons,
+        fd.nest.lxe_blocks.secondary_quanta_generation.MakeS2Photons,
         fd.nest.lxe_blocks.detection.DetectS2Photons,
+        fd.nest.lxe_blocks.double_pe.MakeS2Photoelectrons,
         fd.nest.lxe_blocks.final_signals.MakeS2)
 
     final_dimensions = ('s1', 's2')
