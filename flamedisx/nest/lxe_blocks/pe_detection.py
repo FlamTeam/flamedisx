@@ -13,26 +13,26 @@ import os
 
 @export
 class DetectS1Photoelectrons(fd.Block):
-    dimensions = ('photoelectrons_produced', 'photoelectrons_detected')
+    dimensions = ('s1_photoelectrons_produced', 's1_photoelectrons_detected')
     extra_dimensions = ()
 
     model_functions = ('photoelectron_detection_eff',)
 
     def _compute(self, data_tensor, ptensor,
-                 photoelectrons_produced, photoelectrons_detected):
+                 s1_photoelectrons_produced, s1_photoelectrons_detected):
         p_det = self.gimme('photoelectron_detection_eff',
                            data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         result = tfp.distributions.Binomial(
-                total_count=photoelectrons_produced,
+                total_count=s1_photoelectrons_produced,
                 probs=tf.cast(p_det, dtype=fd.float_type())
-            ).prob(photoelectrons_detected)
+            ).prob(s1_photoelectrons_detected)
 
         return result
 
     def _simulate(self, d):
-        d['photoelectrons_detected'] = stats.binom.rvs(
-            n=d['photoelectrons_produced'],
+        d['s1_photoelectrons_detected'] = stats.binom.rvs(
+            n=d['s1_photoelectrons_produced'],
             p=self.gimme_numpy('photoelectron_detection_eff'))
 
     def _annotate(self, d):
@@ -41,6 +41,6 @@ class DetectS1Photoelectrons(fd.Block):
         for suffix, intify in (('min', np.floor),
                                ('max', np.ceil),
                                ('mle', np.round)):
-            d['photoelectrons_produced_' + suffix] = \
-                intify(d['photoelectrons_detected_' + suffix].values
+            d['s1_photoelectrons_produced_' + suffix] = \
+                intify(d['s1_photoelectrons_detected_' + suffix].values
                        / p_det)

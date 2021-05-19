@@ -42,7 +42,7 @@ class MakeS1(MakeFinalSignals):
 
     signal_name = 's1'
 
-    dimensions = ('photoelectrons_detected', 's1')
+    dimensions = ('s1_photoelectrons_detected', 's1')
     extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s1',)
     model_functions = ('spe_res', 's1_acceptance',) + special_model_functions
@@ -62,8 +62,8 @@ class MakeS1(MakeFinalSignals):
 
     def _simulate(self, d):
         d['s1'] = stats.norm.rvs(
-            loc=(d['photoelectrons_detected']),
-            scale=(d['photoelectrons_detected']**0.5
+            loc=(d['s1_photoelectrons_detected']),
+            scale=(d['s1_photoelectrons_detected']**0.5
                    * self.gimme_numpy('spe_res')))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
@@ -73,7 +73,7 @@ class MakeS1(MakeFinalSignals):
         d['p_accepted'] *= self.gimme_numpy('s1_acceptance')
 
     def _annotate(self, d):
-        mle = d['photoelectrons_detected_mle'] = d['s1'].clip(0, None)
+        mle = d['s1_photoelectrons_detected_mle'] = d['s1'].clip(0, None)
         scale = mle**0.5 * self.gimme_numpy('spe_res')
 
         for bound, sign, intify in (('min', -1, np.floor),
@@ -81,14 +81,14 @@ class MakeS1(MakeFinalSignals):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d['photoelectrons_detected_' + bound] = intify(
+            d['s1_photoelectrons_detected_' + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(np.int)
 
     def _compute(self, data_tensor, ptensor,
-                 photoelectrons_detected, s1):
-        mean = photoelectrons_detected
-        std = photoelectrons_detected ** 0.5 * self.gimme('spe_res',
+                 s1_photoelectrons_detected, s1):
+        mean = s1_photoelectrons_detected
+        std = s1_photoelectrons_detected ** 0.5 * self.gimme('spe_res',
                            data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
