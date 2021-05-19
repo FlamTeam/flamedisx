@@ -66,7 +66,7 @@ class ReconstructSignals(fd.Block):
 
         # Add detection/selection efficiency
         result *= self.gimme(self.signal_name + '_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+                             data_tensor=data_tensor, ptensor=ptensor)[:, o]
 
         return result
 
