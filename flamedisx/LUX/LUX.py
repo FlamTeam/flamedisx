@@ -40,7 +40,7 @@ class LUXSource:
         shape = 1.1525e-7 * tf.sqrt(abs(z_mm - 318.84))
         finalCorr = (-shape * pow (r_mm, 3) + amplitude) / 307.9
 
-        z_cntr = self.z_topDrift - self.drift_velocity*1e3 * self.dt_cntr # for normalising to the detector centre
+        z_cntr = self.z_topDrift - self.drift_velocity * self.dt_cntr # for normalising to the detector centre
         z_cntr_mm = z_cntr*10
 
         amplitude_0 = 307.9 - 0.3071*z_cntr_mm+ 0.0002257*pow(z_cntr_mm,2)

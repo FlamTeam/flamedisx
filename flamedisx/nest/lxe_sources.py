@@ -32,9 +32,9 @@ class nestSource(fd.BlockModelSource):
         # energy_spectrum.py
         self.radius =  fd.config.getfloat('NEST','radius_config')
         self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
-        self.z_top = self.z_topDrift - self.drift_velocity*1e3 * \
+        self.z_top = self.z_topDrift - self.drift_velocity* \
         fd.config.getfloat('NEST','dt_min_config')
-        self.z_bottom = self.z_topDrift - self.drift_velocity*1e3 * \
+        self.z_bottom = self.z_topDrift - self.drift_velocity * \
         fd.config.getfloat('NEST','dt_max_config')
 
         # detection.py
