@@ -105,11 +105,11 @@ class nestSource(fd.BlockModelSource):
     # final_signals.py
 
     def s1_spe_smearing(self, n_pe):
-        return tf.sqrt(self.spe_eff * self.spe_eff * n_pe + \
+        return tf.sqrt(self.spe_res * self.spe_res * n_pe + \
         self.S1_noise * self.S1_noise * n_pe * n_pe)
 
     def s2_spe_smearing(self, n_pe):
-        return tf.sqrt(self.spe_eff * self.spe_eff * n_pe + \
+        return tf.sqrt(self.spe_res * self.spe_res * n_pe + \
         self.S2_noise * self.S2_noise * n_pe * n_pe)
 
 
