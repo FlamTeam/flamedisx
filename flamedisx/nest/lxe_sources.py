@@ -53,6 +53,8 @@ class nestSource(fd.BlockModelSource):
 
         # final_signals.py
         self.spe_res = fd.config.getfloat('NEST','spe_res_config')
+        self.S1_noise = fd.config.getfloat('NEST','S1_noise_config')
+        self.S2_noise = fd.config.getfloat('NEST','S2_noise_config')
 
         self.S1_min = fd.config.getfloat('NEST','S1_min_config')
         self.S1_max = fd.config.getfloat('NEST','S1_max_config')
@@ -102,11 +104,13 @@ class nestSource(fd.BlockModelSource):
 
     # final_signals.py
 
-    def s1_spe_smearing(self):
-        return tf.cast(self.spe_res, fd.float_type())[o]
+    def s1_spe_smearing(self, n_pe):
+        return tf.sqrt(self.spe_eff * self.spe_eff * n_pe + \
+        self.S1_noise * self.S1_noise * n_pe * n_pe)
 
-    def s2_spe_smearing(self):
-        return tf.cast(self.spe_res, fd.float_type())[o]
+    def s2_spe_smearing(self, n_pe):
+        return tf.sqrt(self.spe_eff * self.spe_eff * n_pe + \
+        self.S2_noise * self.S2_noise * n_pe * n_pe)
 
 
 @export

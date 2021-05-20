@@ -30,8 +30,8 @@ class MakeFinalSignals(fd.Block):
     def _simulate(self, d):
         d[self.signal_name] = stats.norm.rvs(
             loc=(d[self.signal_name + '_photoelectrons_detected']),
-            scale=(d[self.signal_name + '_photoelectrons_detected']**0.5
-                   * self.gimme_numpy(self.signal_name + '_spe_smearing')))
+            scale=(self.gimme_numpy(self.signal_name + '_spe_smearing',
+                   d[self.signal_name + '_photoelectrons_detected'])))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -40,11 +40,9 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        s = self.gimme_numpy(self.signal_name + '_spe_smearing')
-
         mle = d[self.signal_name + '_photoelectrons_detected_' + 'mle'] = \
         d[self.signal_name].clip(0, None)
-        scale = mle**0.5 * s
+        scale = self.gimme_numpy(self.signal_name + '_spe_smearing', mle)
 
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
@@ -58,13 +56,11 @@ class MakeFinalSignals(fd.Block):
     def _compute(self,
                  photoelectrons_detected, s_observed,
                  data_tensor, ptensor):
-        # Lookup signal smearing per detected photoelectron
-        std_per_pe = self.gimme(self.signal_name + '_spe_smearing',
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)[:, o, o]
-
         mean = photoelectrons_detected
-        std = photoelectrons_detected ** 0.5 * std_per_pe
+        std = self.gimme(self.signal_name + '_spe_smearing',
+                               bonus_arg=photoelectrons_detected,
+                               data_tensor=data_tensor,
+                               ptensor=ptensor)
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
@@ -93,10 +89,8 @@ class MakeS1(MakeFinalSignals):
 
     dimensions = ('s1_photoelectrons_detected', 's1')
     extra_dimensions = ()
-    special_model_functions = ('reconstruction_bias_s1',)
-    model_functions = (
-        's1_spe_smearing',
-        's1_acceptance') + special_model_functions
+    special_model_functions = ('s1_spe_smearing', 'reconstruction_bias_s1')
+    model_functions = ('s1_acceptance',) + special_model_functions
 
     def s1_acceptance(self, s1):
         return tf.where((s1 < self.source.S1_min) | (s1 > self.source.S1_max),
@@ -126,10 +120,8 @@ class MakeS2(MakeFinalSignals):
 
     dimensions = ('s2_photoelectrons_detected', 's2')
     extra_dimensions = ()
-    special_model_functions = ('reconstruction_bias_s2',)
-    model_functions = (
-        's2_spe_smearing',
-        's2_acceptance') + special_model_functions
+    special_model_functions = ('s2_spe_smearing', 'reconstruction_bias_s2')
+    model_functions = ('s2_acceptance',) + special_model_functions
 
     def s2_acceptance(self, s2):
         return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
