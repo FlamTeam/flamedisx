@@ -4,7 +4,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
-import pdb as pdb
 @export
 class ERSource(fd.BlockModelSource):
     model_blocks = (

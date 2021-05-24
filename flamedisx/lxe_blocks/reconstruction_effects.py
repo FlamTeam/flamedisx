@@ -10,7 +10,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-import pdb as pdb
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
