@@ -22,7 +22,7 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
-        d[self.signal_name] = stats.norm.rvs(
+        d[self.signal_name+'_true'] = stats.norm.rvs(
             loc=(d[self.quanta_name + 's_detected']
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
@@ -33,7 +33,7 @@ class MakeFinalSignals(fd.Block):
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.signal_name] / m).clip(0, None)
+            (d[self.signal_name+'_true'] / m).clip(0, None)
         scale = mle**0.5 * s / m
 
         for bound, sign, intify in (('min', -1, np.floor),
@@ -46,7 +46,7 @@ class MakeFinalSignals(fd.Block):
             ).clip(0, None).astype(np.int)
 
     def _compute(self,
-                 quanta_detected, s_observed,
+                 quanta_detected, s_true,
                  data_tensor, ptensor):
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
@@ -62,7 +62,7 @@ class MakeFinalSignals(fd.Block):
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
-        ).prob(s_observed)
+        ).prob(s_true)
 
         return result
 
@@ -71,9 +71,9 @@ class MakeFinalSignals(fd.Block):
 class MakeS1(MakeFinalSignals):
 
     quanta_name = 'photoelectron'
-    signal_name = 's1'
+    signal_name = 's1_true'
 
-    dimensions = ('photoelectrons_detected', 's1')
+    dimensions = ('photoelectrons_detected', 's1_true')
     special_model_functions = ()
     model_functions = (
         'photoelectron_gain_mean',
@@ -83,10 +83,10 @@ class MakeS1(MakeFinalSignals):
     photoelectron_gain_std = 0.5
 
     def _compute(self, data_tensor, ptensor,
-                 photoelectrons_detected, s1):
+                 photoelectrons_detected, s1_true):
         return super()._compute(
             quanta_detected=photoelectrons_detected,
-            s_observed=s1,
+            s_true=s1_true,
             data_tensor=data_tensor, ptensor=ptensor)
 
 
@@ -94,9 +94,9 @@ class MakeS1(MakeFinalSignals):
 class MakeS2(MakeFinalSignals):
 
     quanta_name = 'electron'
-    signal_name = 's2'
+    signal_name = 's2_true'
 
-    dimensions = ('electrons_detected', 's2')
+    dimensions = ('electrons_detected', 's2_true')
     special_model_functions = ()
     model_functions = (
         ('electron_gain_mean',
@@ -109,8 +109,8 @@ class MakeS2(MakeFinalSignals):
     electron_gain_std = 5.
 
     def _compute(self, data_tensor, ptensor,
-                 electrons_detected, s2):
+                 electrons_detected, s2_true):
         return super()._compute(
             quanta_detected=electrons_detected,
-            s_observed=s2,
+            s_true=s2_true,
             data_tensor=data_tensor, ptensor=ptensor)
