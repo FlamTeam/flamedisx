@@ -10,9 +10,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
-
-
 class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
 
