@@ -40,8 +40,8 @@ class ReconstructSignals(fd.Block):
         # Dunno how to calculate, leaving in the clip for the time being
         for bound, intify in (('_min', np.min),
                               ('_max', np.max)):
-            d[self.signal_name + bound] = intify(
-                    d[self.signal_name]).clip(0,
+            d[self.signal_name+'_true'+bound] = intify(
+                    d[self.signal_name+'_true']).clip(0,
                             None).astype(d[self.signal_name].dtype)
     
     def _compute(self,
