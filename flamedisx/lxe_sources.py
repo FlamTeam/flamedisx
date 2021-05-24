@@ -19,7 +19,7 @@ class ERSource(fd.BlockModelSource):
         fd.MakeS2,
         fd.ReconstructS2)
 
-    final_dimensions = ('s1_observed', 's2_observed')
+    final_dimensions = ('s1', 's2')
     tmp_dimensions = ('s1_true', 's2_true') # rm this after. just to make things work temporarily
     
     @staticmethod
