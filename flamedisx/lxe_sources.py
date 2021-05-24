@@ -20,7 +20,6 @@ class ERSource(fd.BlockModelSource):
         fd.ReconstructS2)
 
     final_dimensions = ('s1', 's2')
-    tmp_dimensions = ('s1_true', 's2_true') # rm this after. just to make things work temporarily
     
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -40,17 +39,12 @@ class ERSource(fd.BlockModelSource):
 
     # Rmb to add this for NRSource as well, after you've made sure it works
     def add_extra_columns(self, d):
-        for dim in self.final_dimensions:
-            pre_dim = dim.split('_')[0]
-            if (dim not in d.columns) and pre_dim in d.columns:
-                d[dim] = d[pre_dim]
-
-        # filling in s1_true, s2_true but in dodgy fashion
-        for dim in self.tmp_dimensions:
-            pre_dim = dim.split('_')[0]
-            if (dim not in d.columns) and pre_dim in d.columns:
-                d[dim] = d[pre_dim]
-
+        # filling in s1_true, s2_true but dunno how to calculate so anyhow.
+        for recon_sig in self.final_dimensions:
+            true_sig = recon_sig+'_true'
+            if (true_sig not in d.columns) and (recon_sig in d.columns):
+                d[true_sig] = d[recon_sig]/self.gimme_numpy('reverse_reconstruction_bias_mean_'+recon_sig,
+                                           bonus_arg=d[recon_sig]) 
 
 
 @export
