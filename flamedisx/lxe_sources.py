@@ -20,6 +20,7 @@ class ERSource(fd.BlockModelSource):
         fd.ReconstructS2)
 
     final_dimensions = ('s1_observed', 's2_observed')
+    tmp_dimensions = ('s1_true', 's2_true') # rm this after. just to make things work temporarily
     
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -43,6 +44,13 @@ class ERSource(fd.BlockModelSource):
             pre_dim = dim.split('_')[0]
             if (dim not in d.columns) and pre_dim in d.columns:
                 d[dim] = d[pre_dim]
+
+        # filling in s1_true, s2_true but in dodgy fashion
+        for dim in self.tmp_dimensions:
+            pre_dim = dim.split('_')[0]
+            if (dim not in d.columns) and pre_dim in d.columns:
+                d[dim] = d[pre_dim]
+
 
 
 @export
