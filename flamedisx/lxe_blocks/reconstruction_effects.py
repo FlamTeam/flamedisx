@@ -24,6 +24,15 @@ class ReconstructSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
+        # Simulating events
+        # reconstruction_bias_mean = (bias+1)*true_area
+        # `bias` and `reconstruction_bias_std` are functions of true_area and are
+        # read in and interpolated from external files
+        #
+        # The actual reconstructed_area is then sampled from a Gaussian
+        # with mean = reconstructed_area_mean and 
+        # standard deviation = reconstructed_bias_std
+
         d[self.signal_name] = stats.norm.rvs(
                 loc=d[self.signal_name+'_true']*self.gimme_numpy('reconstruction_bias_mean_'+self.signal_name,
                     bonus_arg=d[self.signal_name+'_true']),
@@ -37,7 +46,8 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        # Dunno how to calculate, leaving in the clip for the time being
+        # Dunno how to calculate, just set it to be the same as
+        # reconstructed_area. leaving in the clip for the time being
         for bound, intify in (('_min', np.min),
                               ('_max', np.max)):
             d[self.signal_name+'_true'+bound] = intify(
@@ -48,9 +58,16 @@ class ReconstructSignals(fd.Block):
                  s_observed,
                  data_tensor, ptensor):
         # Computing pdf given data
-        # true_area = reconstructed_area/(bias+1)
-        # reconstructed_area is sampled from gaussian with 
-        # mean = reconstructed_area/(bias+1), std given by file
+        # true_area = reverse_reconstruction_bias_mean/(reverse_bias+1)
+        # 
+        # `reverse_bias` and `reverse_reconstruction_bias_std` are functions of
+        # reconstructed_area and are read in and interpolated from external
+        # files
+        #
+        # Computing the probability of observing signal of size
+        # reconstructed_area given that it is drawn from a Gaussian with 
+        # mean = true_area = reconstruction_bias_mean/(reverse_bias+1) and
+        # standard deviation = reverse_reconstruction_bias_std
 
         recon_mean = s_observed/self.gimme('reverse_reconstruction_bias_mean_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
@@ -64,7 +81,8 @@ class ReconstructSignals(fd.Block):
             loc=recon_mean, scale=recon_std + 1e-10
         ).prob(s_observed)
 
-        # Add detection/selection efficiency
+        # Add detection/selection efficiency, which is a function of
+        # reconstructed_area
         result *= self.gimme(self.signal_name + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o]
 
