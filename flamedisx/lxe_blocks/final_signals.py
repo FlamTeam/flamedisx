@@ -71,7 +71,7 @@ class MakeFinalSignals(fd.Block):
 class MakeS1(MakeFinalSignals):
 
     quanta_name = 'photoelectron'
-    signal_name = 's1_true'
+    signal_name = 's1'
 
     dimensions = ('photoelectrons_detected', 's1_true')
     special_model_functions = ()
@@ -94,7 +94,7 @@ class MakeS1(MakeFinalSignals):
 class MakeS2(MakeFinalSignals):
 
     quanta_name = 'electron'
-    signal_name = 's2_true'
+    signal_name = 's2'
 
     dimensions = ('electrons_detected', 's2_true')
     special_model_functions = ()
