@@ -197,6 +197,7 @@ def test_detector_response(xes: fd.ERSource):
         # so the sum over r isn't meaningful (as long as we're frequentists)
 
         # Maximum likelihood est. of detected quanta is correct
+        # NB: this test will break under sufficiently coarse stepping
         max_is = r.argmax(axis=1)
         domain = xes.domain(quanta_name + 's_detected').numpy()
         found_mle = np_lookup_axis1(domain, max_is)
@@ -206,11 +207,16 @@ def test_detector_response(xes: fd.ERSource):
 
 
 def test_detection_prob(xes: fd.ERSource):
+    # Compute the electron detection block, and convert it to numpy
     data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
-    block = fd.DetectElectrons
-    r = block(xes).compute(
-            data_tensor, ptensor,
-            **xes._domain_dict(block.dimensions, data_tensor)).numpy()
+    block = fd.DetectElectrons(xes)
+    r = xes._compute_and_weight(
+        block,
+        data_tensor=data_tensor,
+        ptensor=ptensor,
+        already_weighted=set(),
+        **xes._domain_dict(block.dimensions, data_tensor)
+    ).numpy()
 
     assert r.shape == (n_events,
                        xes.dimsizes['electrons_produced'],
@@ -228,16 +234,19 @@ def test_detection_prob(xes: fd.ERSource):
     np.testing.assert_array_less(rs, 1 + 1e-4)
     np.testing.assert_array_less(1 - rs, 1 + 1e-4)
 
-    # B) 1 at the MLE of electrons_produced,
+    # B) close to 1 at the MLE of electrons_produced,
     #    where all reasonably probable electrons_detected values
     #    should be probed
-    mle_is = np.round(
-        xes.data['electrons_produced_mle']
-        - xes.data['electrons_produced_min']).values.astype(np.int)
-    np.testing.assert_almost_equal(
-        np_lookup_axis1(rs, mle_is),
-        np.ones(n_events),
-        decimal=2)
+    for domain, mle, sum_r in zip(
+            xes.domain('electrons_produced', data_tensor),
+            xes.data['electrons_produced_mle'],
+            rs):
+        # The MLE may occur multiple times due to non-uniform domains,
+        # sum the weighted result over all occurrences
+        np.testing.assert_almost_equal(
+            sum_r[domain.numpy() == int(round(mle))].sum(),
+            1.,
+            decimal=2)
 
 
 def test_estimate_mu(xes: fd.ERSource):
@@ -332,3 +341,25 @@ def test_clip(xes):
     t_good = pd.to_datetime(xes.t_start) + timedelta(days=2)
     assert xes.model_blocks[0].clip_j2000_times(j2000(t_good)) == j2000(t_good)
     xes.simulate(10, fix_truth=dict(event_time=t_good))
+
+
+def test_stepping(xes):
+    dim = 'quanta_produced'
+    data = xes.data
+
+    # Stepping is not used when not requested
+    xes.max_dim_size = float('inf')
+    xes.set_data(data)   # set_data reinitializes internal vars
+    assert xes.domain(dim).shape == (len(xes.data), xes.dimsizes[dim])
+
+    for stepping in 'geometric', 'linear':
+        # Stepping is applied when requested
+        xes.max_dim_size = 5
+        xes.stepping = stepping
+        xes.set_data(data)
+        domain = xes.domain(dim)
+        assert domain.shape == (len(xes.data), 5)
+
+        # Stepping preserves normalization
+        assert np.all(tf.reduce_sum(xes.domain_weights(domain), axis=1).numpy()
+                      == data[dim + '_max'] - data[dim + '_min'] + 1)

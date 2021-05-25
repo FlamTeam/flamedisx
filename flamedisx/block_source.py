@@ -242,14 +242,56 @@ class BlockModelSource(fd.Source):
                     return dims, b
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
+    def _compute_and_weight(self, block, already_weighted, **kwargs):
+        """Compute a single block, correcting for non-uniform domain weighting.
+
+        :param block: block to compute
+        :param already_weighted: set of dimensions that were already weighted.
+        Other kwargs are passed to block.compute
+        :return:
+        """
+        result = block.compute(**kwargs)
+
+        # Weight results if (one of) the output dimensions have non-uniform
+        # domains i.e. have skipped or duplicated values.
+        for dim_i, dim in enumerate(block.dimensions):
+
+            # Each dimension can appear in the result of one or two blocks;
+            # we should apply weighting once.
+            if dim in already_weighted:
+                continue
+
+            # Compute weights for this dimension
+            # will be a (n_events, dimsize) tensor
+            weights = self.domain_weights(
+                self.domain(dim, kwargs['data_tensor']))
+            assert weights.shape == (len(result), self.dimsizes[dim])
+
+            # Apply the weights along the right dimension of the result
+            # i.e. insert size-1 dimensions everywhere, except for the batch
+            # dimension and the dimension we have the weights for
+            # (there is probably at most one such non-involved dimension,
+            #  but maybe we will have 3d tensors at some point...).
+            expander = [None] * len(result.shape)
+            expander[0] = slice(0, len(result))
+            expander[1 + dim_i] = slice(0, result.shape[1 + dim_i])
+            result *= weights[expander]
+
+            already_weighted.add(dim)
+
+        return result
+
     def _differential_rate(self, data_tensor, ptensor):
-        results = {}
+        results = dict()
+        # Do not weight the first / energy dimension.
+        # Its domain is fixed and non-integer by nature.
+        already_weighted = set(self.model_blocks[0].dimensions)
 
         for b in self.model_blocks:
             b_dims = b.dimensions
 
             # Gather extra compute arguments.
-            kwargs = dict()
+            kwargs = dict(data_tensor=data_tensor, ptensor=ptensor)
             for dependency_dims, dependency_name in b.depends_on:
                 if dependency_dims not in results:
                     raise ValueError(
@@ -259,7 +301,8 @@ class BlockModelSource(fd.Source):
                 kwargs.update(self._domain_dict(dependency_dims, data_tensor))
 
             # Compute the block
-            results[b_dims] = r = b.compute(data_tensor, ptensor, **kwargs)
+            results[b_dims] = r = self._compute_and_weight(
+                b, already_weighted=already_weighted, **kwargs)
 
             # Try to matrix multiply with earlier blocks, until we cannot
             # do so anymore.
@@ -328,7 +371,7 @@ class BlockModelSource(fd.Source):
                 r2 = tf.transpose(r2, [0, 2, 1])
         else:
             raise ValueError(
-                "Unsupported ranks {len(b_dims)}, {len(b2_dims)}")
+                f"Unsupported ranks {len(b_dims)}, {len(b2_dims)}")
 
         # Multiply the matching index to get a new block
         r = r @ r2

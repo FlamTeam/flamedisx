@@ -78,6 +78,8 @@ class Source:
     def __init__(self,
                  data=None,
                  batch_size=10,
+                 max_dim_size=float('inf'),
+                 stepping='linear',
                  max_sigma=3,
                  data_is_annotated=False,
                  _skip_tf_init=False,
@@ -90,6 +92,13 @@ class Source:
         :param data: Dataframe with events to use in the inference
         :param batch_size: Number of events / tensorflow batch
         :param max_sigma: Hint for hidden variable bounds computation
+        :param max_dim_size: Maximum cardinality for inner dimensions
+        :param stepping: Stepping scheme to use if bounds are further than
+            max_dim_size apart. Possible options:
+            geometric: constant multiple differences (up to rounding)
+            linear: constant differences (up to rounding)
+            dict mapping dimension name -> stepping scheme: use different
+                stepping for different dimensions.
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
@@ -99,6 +108,8 @@ class Source:
         :param params: New defaults to use
         """
         self.max_sigma = max_sigma
+        self.max_dim_size = max_dim_size
+        self.stepping = stepping
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:
@@ -117,8 +128,11 @@ class Source:
         ctc = list(set(sum(self.f_dims.values(), [])))      # Used in model functions.
         ctc += list(self.final_dimensions)                  # Final observables (e.g. S1, S2)
         ctc += self.extra_needed_columns()                  # Manually fetched columns
-        ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
-        ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
+        ctc += self.frozen_model_functions                  # Frozen methods (e.g. not tf-compatible)
+        # Bounds of domains (inclusive)
+        ctc += [x + suffix
+                for x in self.inner_dimensions
+                for suffix in ('_min', '_max')]
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
@@ -246,7 +260,9 @@ class Source:
         for dim in self.inner_dimensions:
             ma = self._fetch(dim + '_max')
             mi = self._fetch(dim + '_min')
-            self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
+            self.dimsizes[dim] = min(
+                self.max_dim_size,
+                int(tf.reduce_max(ma - mi + 1).numpy()))
         for dim in self.final_dimensions:
             self.dimsizes[dim] = 1
 
@@ -420,8 +436,10 @@ class Source:
     ##
 
     def domain(self, x, data_tensor=None):
-        """Return (n_events, |possible x values|) matrix containing all
-        possible integer values of x for each event.
+        """Return (n_events, |possible x values|) float tensor containing
+         all possible values of x for each event.
+
+        The result will consist of round integers represented as floats.
 
         If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
         tensor with observed values -- NOT a (n_events,) array!
@@ -429,16 +447,59 @@ class Source:
         if x in self.final_dimensions:
             return self._fetch(x, data_tensor=data_tensor)[:, o]
 
-        x_range = tf.cast(tf.range(self.dimsizes[x]),
-                          dtype=fd.float_type())[o, :]
-        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
-        return left_bound + x_range
+        left_bound, right_bound = [
+            self._fetch(x + suffix, data_tensor=data_tensor)
+            for suffix in ('_min', '_max')]
+
+        stepping = (self.stepping[x] if isinstance(self.stepping, dict)
+                    else self.stepping)
+        if stepping == 'geometric':
+            # Use linear stepping in log space
+            left_bound = tf.math.log(left_bound)
+            right_bound = tf.math.log(right_bound)
+        elif stepping != 'linear':
+            raise ValueError("Unsupported stepping spec")
+
+        # Linear stepping
+        # domain = left + z * (right - left), with z linspace(0, 1, maxsize)
+        domain = (
+            tf.linspace(0., 1., self.dimsizes[x])[o, :]
+            * (right_bound - left_bound)[:, o]
+            + left_bound[:, o])
+
+        if stepping == 'geometric':
+            # Return to regular space
+            domain = np.exp(domain)
+
+        # Return rounded domain. Duplicates are handled by weighting
+        # (see block source)
+        return tf.round(domain)
+
+    @staticmethod
+    def domain_weights(domain):
+        """Return weights for domain
+        :param domain: (n_events, |possible values|) tensor
+        :return: tensor of same shape
+        """
+        assert len(domain.shape) == 2
+        weight = tf.ones_like(domain)
+
+        # Add half of excess distance to previous element
+        diff = domain[:, 1:] - domain[:, :-1]
+        # weight[:, 1:] += (diff - 1) / 2
+        # ... but this is tensorflow, so we cannot in-place add to a slice ...
+        weight += tf.pad((diff - 1) / 2, [[0, 0], [1, 0]])
+
+        # Add half of excess distance to next element
+        # weight[:, :-1] += (diff - 1) / 2
+        weight += tf.pad((diff - 1) / 2, [[0, 0], [0, 1]])
+
+        return weight
 
     def cross_domains(self, x, y, data_tensor):
         """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
         containing possible integer values of x and y, respectively.
         """
-        # TODO: somehow mask unnecessary elements and save computation time
         x_domain = self.domain(x, data_tensor)
         y_domain = self.domain(y, data_tensor)
         result_x = tf.repeat(x_domain[:, :, o], y_domain.shape[1], axis=2)
