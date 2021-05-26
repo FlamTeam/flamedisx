@@ -25,6 +25,7 @@ class Block:
     array_columns: ty.Tuple[str] = tuple()
     frozen_model_functions: ty.Tuple[str] = tuple()
     model_attributes: ty.Tuple[str] = tuple()
+    stepping_exceptions: ty.Tuple[ty.Tuple[str, str]] = tuple()
 
     def __init__(self, source):
         self.source = source
@@ -152,7 +153,8 @@ class BlockModelSource(fd.Source):
             'special_model_functions',
             'model_attributes',
             'frozen_model_functions',
-            'array_columns')}
+            'array_columns',
+            'stepping_exceptions')}
 
         # Instantiate the blocks.
         self.model_blocks = tuple([b(self) for b in self.model_blocks])
@@ -223,6 +225,7 @@ class BlockModelSource(fd.Source):
             if ((d not in self.final_dimensions)
                 and (d not in self.model_blocks[0].dimensions))])
         self.initial_dimensions = self.model_blocks[0].dimensions
+        self.stepping_exceptions = tuple(collected['stepping_exceptions'])
 
         super().__init__(*args, **kwargs)
 

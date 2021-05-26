@@ -16,6 +16,11 @@ class MakePhotonsElectronsBinomial(fd.Block):
     depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)
     dimensions = ('electrons_produced', 'photons_produced')
 
+    # This block does lookups into the quanta_produced dimension.
+    # Unless we make the lookup very clever, quanta_produced must be
+    # naturally stepped.
+    stepping_exceptions = (('quanta_produced', 'force_natural'),)
+
     special_model_functions = ('p_electron',)
     model_functions = special_model_functions
 

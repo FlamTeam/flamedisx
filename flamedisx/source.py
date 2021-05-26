@@ -1,6 +1,8 @@
-from copy import copy
+from collections import defaultdict
 from contextlib import contextmanager
+from copy import copy
 import inspect
+import typing as ty
 
 import numpy as np
 import pandas as pd
@@ -30,6 +32,9 @@ class Source:
 
     # Final observable dimensions; for use in domain / cross-domain
     final_dimensions = tuple()
+
+    # tuple of (dimname, stepping scheme) tuples
+    stepping_exceptions: ty.Tuple[ty.Tuple[str, str]] = tuple()
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
@@ -94,11 +99,13 @@ class Source:
         :param max_sigma: Hint for hidden variable bounds computation
         :param max_dim_size: Maximum cardinality for inner dimensions
         :param stepping: Stepping scheme to use if bounds are further than
-            max_dim_size apart. Possible options:
-            geometric: constant multiple differences (up to rounding)
-            linear: constant differences (up to rounding)
-            dict mapping dimension name -> stepping scheme: use different
-                stepping for different dimensions.
+            max_dim_size apart. Options:
+            - geometric: constant multiple differences (up to rounding)
+            - linear: constant differences (up to rounding)
+            - force_natural: use natural (+1) stepping, ignore max_dim_size
+            - dict of mapping dimension name -> stepping scheme:
+                use different stepping for different dimensions.
+                Linear stepping is used for omitted dimensions.
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
@@ -109,7 +116,18 @@ class Source:
         """
         self.max_sigma = max_sigma
         self.max_dim_size = max_dim_size
-        self.stepping = stepping
+
+        # Collect the stepping options. By priority:
+        # stepping_exceptions > stepping argument > linear
+        self.stepping = defaultdict(lambda: 'linear')
+        if isinstance(stepping, str):
+            self.stepping = defaultdict(lambda: stepping)
+        else:
+            for k, v in stepping.items():
+                self.stepping[k] = v
+        for k, v in self.stepping_exceptions:  # 2-tuples, not dicts :-)
+            self.stepping[k] = v
+        print(stepping, self.stepping, self.stepping_exceptions)
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:
@@ -260,11 +278,11 @@ class Source:
         for dim in self.inner_dimensions:
             ma = self._fetch(dim + '_max')
             mi = self._fetch(dim + '_min')
-            self.dimsizes[dim] = min(
-                self.max_dim_size,
-                int(tf.reduce_max(ma - mi + 1).numpy()))
-        for dim in self.final_dimensions:
-            self.dimsizes[dim] = 1
+            self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
+            if self.stepping[dim] != 'force_natural':
+                self.dimsizes[dim] = min(self.max_dim_size, self.dimsizes[dim])
+            for dim in self.final_dimensions:
+                self.dimsizes[dim] = 1
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
@@ -451,13 +469,20 @@ class Source:
             self._fetch(x + suffix, data_tensor=data_tensor)
             for suffix in ('_min', '_max')]
 
-        stepping = (self.stepping[x] if isinstance(self.stepping, dict)
-                    else self.stepping)
-        if stepping == 'geometric':
-            # Use linear stepping in log space
-            left_bound = tf.math.log(left_bound)
-            right_bound = tf.math.log(right_bound)
-        elif stepping != 'linear':
+        if self.stepping[x] == 'force_natural':
+            # Simple 1-difference stepping, starting from minimum.
+            return (
+                left_bound[:, o]
+                + tf.cast(tf.range(self.dimsizes[x]),
+                          dtype=fd.float_type())[o, :])
+
+        if self.stepping[x] == 'geometric':
+            # Use linear stepping in log(1 + x).
+            # 1 + allows 0 as minimum bound (maybe useful for S2-only)
+            left_bound = tf.math.log(1 + left_bound)
+            right_bound = tf.math.log(1 + right_bound)
+
+        elif self.stepping[x] != 'linear':
             raise ValueError("Unsupported stepping spec")
 
         # Linear stepping
@@ -467,9 +492,9 @@ class Source:
             * (right_bound - left_bound)[:, o]
             + left_bound[:, o])
 
-        if stepping == 'geometric':
+        if self.stepping[x] == 'geometric':
             # Return to regular space
-            domain = np.exp(domain)
+            domain = np.exp(domain) - 1
 
         # Return rounded domain. Duplicates are handled by weighting
         # (see block source)

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import timedelta
 import numpy as np
 import pandas as pd
@@ -344,22 +345,24 @@ def test_clip(xes):
 
 
 def test_stepping(xes):
-    dim = 'quanta_produced'
+    dim = 'photons_produced'
     data = xes.data
 
     # Stepping is not used when not requested
-    xes.max_dim_size = float('inf')
-    xes.set_data(data)   # set_data reinitializes internal vars
+    xes = xes.__class__(data=data, batch_size=2, max_dim_size=float('inf'))
     assert xes.domain(dim).shape == (len(xes.data), xes.dimsizes[dim])
 
     for stepping in 'geometric', 'linear':
         # Stepping is applied when requested
-        xes.max_dim_size = 5
-        xes.stepping = stepping
-        xes.set_data(data)
+        xes = xes.__class__(data=data, batch_size=2, max_dim_size=5, stepping=stepping)
         domain = xes.domain(dim)
         assert domain.shape == (len(xes.data), 5)
 
         # Stepping preserves normalization
         assert np.all(tf.reduce_sum(xes.domain_weights(domain), axis=1).numpy()
                       == data[dim + '_max'] - data[dim + '_min'] + 1)
+
+        # Stepping still not applied to quanta_produced (stepping_exception)
+        assert xes.dimsizes['quanta_produced'] > 5
+        assert xes.domain('quanta_produced').shape == \
+               (len(xes.data), xes.dimsizes['quanta_produced'])
