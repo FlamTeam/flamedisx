@@ -189,8 +189,12 @@ def test_detector_response(xes: fd.ERSource):
         r = r.numpy()
 
         quanta_name = block.quanta_name
+        signal_name = block.signal_name
+
         assert r.shape == \
-               (n_events, xes.dimsizes[quanta_name + 's_detected'], 1)
+               (n_events, \
+               xes.dimsizes[quanta_name + 's_detected'], \
+               xes.dimsizes[signal_name + '_true'])
         r = r[:, :, 0]
 
         # r is p(S1 | detected electrons) as a function of detected electrons
