@@ -68,10 +68,18 @@ class ReconstructSignals(fd.Block):
         # mean = true_area = reconstruction_bias_mean/(reverse_bias+1) and
         # standard deviation = reverse_reconstruction_bias_std
 
+        '''
         recon_mean = s_observed/self.gimme('reverse_reconstruction_bias_mean_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
         recon_std = self.gimme('reverse_reconstruction_bias_std_'+self.signal_name,
+                             data_tensor=data_tensor, ptensor=ptensor,
+                             bonus_arg=s_observed)
+        '''
+        recon_mean = self.gimme('reconstruction_bias_mean_'+self.signal_name,
+                             data_tensor=data_tensor, ptensor=ptensor,
+                             bonus_arg=s_observed)
+        recon_std = self.gimme('reconstruction_bias_std_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
 
@@ -109,7 +117,7 @@ class ReconstructS1(ReconstructSignals):
             'reverse_reconstruction_bias_std_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
     
-    def _compute(self, data_tensor, ptensor, s1):
+    def _compute(self, data_tensor, ptensor, s1, s1_true):
         return super()._compute(
             s_observed=s1,
             data_tensor=data_tensor, ptensor=ptensor)
@@ -165,7 +173,7 @@ class ReconstructS2(ReconstructSignals):
             'reverse_reconstruction_bias_std_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
     
-    def _compute(self, data_tensor, ptensor, s2):
+    def _compute(self, data_tensor, ptensor, s2, s2_true):
         return super()._compute(
             s_observed=s2,
             data_tensor=data_tensor, ptensor=ptensor)
