@@ -26,7 +26,6 @@ class ERSource(fd.BlockModelSource):
         """Fraction of ER quanta that become electrons
         Simplified form from Jelle's thesis
         """
-        # The original model depended on energy, but in flamedisx
         # it has to be a direct function of nq.
         e_kev_sortof = nq * 13.7e-3
         eps = fd.tf_log10(e_kev_sortof / er_pel_e0 + 1e-9)
@@ -36,9 +35,8 @@ class ERSource(fd.BlockModelSource):
             + er_pel_c)
         return fd.safe_p(qy * 13.7e-3)
 
-    # Rmb to add this for NRSource as well, after you've made sure it works
     def add_extra_columns(self, d):
-        # filling in s1_true, s2_true but dunno how to calculate so anyhow.
+        # filling in s1_true, s2_true
         for recon_sig in self.final_dimensions:
             true_sig = recon_sig+'_true'
             if (true_sig not in d.columns) and (recon_sig in d.columns):
@@ -99,10 +97,11 @@ class NRSource(fd.BlockModelSource):
         return fd.safe_p(n_el / nq)
 
     def add_extra_columns(self, d):
-        # filling in s1_true, s2_true but dunno how to calculate so anyhow.
+        # filling in s1_true, s2_true
         for recon_sig in self.final_dimensions:
             true_sig = recon_sig+'_true'
             if (true_sig not in d.columns) and (recon_sig in d.columns):
+                # need to find proper way to calculate this
                 d[true_sig] = d[recon_sig]/self.gimme_numpy('reverse_reconstruction_bias_mean_'+recon_sig,
                                            bonus_arg=d[recon_sig]) 
 

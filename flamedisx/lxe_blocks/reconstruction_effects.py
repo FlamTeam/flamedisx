@@ -10,7 +10,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-import pdb as pdb
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
@@ -55,8 +54,11 @@ class ReconstructSignals(fd.Block):
                             None).astype(d[self.signal_name].dtype)
     
     def _compute(self,
+                 data_tensor, ptensor,
+                 # appears as dimension in block
                  s_observed,
-                 data_tensor, ptensor):
+                 # extra arguments
+                 s_true):
         # Computing pdf given data
         # true_area = reverse_reconstruction_bias_mean/(reverse_bias+1)
         # 
@@ -112,17 +114,20 @@ class ReconstructS1(ReconstructSignals):
 
     signal_name = 's1'
 
+    depends_on = ((('s1_true',), 's1_true'),)
     dimensions = ('s1',)
+
     special_model_functions = ('reconstruction_bias_mean_s1',
             'reconstruction_bias_std_s1',
             'reverse_reconstruction_bias_mean_s1',
             'reverse_reconstruction_bias_std_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
     
-    def _compute(self, data_tensor, ptensor, s1):
+    def _compute(self, data_tensor, ptensor, s1, s1_true):
         return super()._compute(
+            data_tensor=data_tensor, ptensor=ptensor,
             s_observed=s1,
-            data_tensor=data_tensor, ptensor=ptensor)
+            s_true=s1_true)
             
     @staticmethod
     def s1_acceptance(s1):
@@ -168,17 +173,20 @@ class ReconstructS2(ReconstructSignals):
 
     signal_name = 's2'
 
+    depends_on = ((('s2_true',), 's2_true'),)
     dimensions = ('s2',)
+
     special_model_functions = ('reconstruction_bias_mean_s2',
             'reconstruction_bias_std_s2',
             'reverse_reconstruction_bias_mean_s2',
             'reverse_reconstruction_bias_std_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
     
-    def _compute(self, data_tensor, ptensor, s2):
+    def _compute(self, data_tensor, ptensor, s2, s2_true):
         return super()._compute(
+            data_tensor=data_tensor, ptensor=ptensor,
             s_observed=s2,
-            data_tensor=data_tensor, ptensor=ptensor)
+            s_true=s2_true)
             
     @staticmethod
     def s2_acceptance(s2):
