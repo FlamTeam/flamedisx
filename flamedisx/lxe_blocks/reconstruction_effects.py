@@ -10,6 +10,7 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
+import pdb as pdb
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
@@ -76,9 +77,10 @@ class ReconstructSignals(fd.Block):
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
         '''
-        recon_mean = self.gimme('reconstruction_bias_mean_'+self.signal_name,
-                             data_tensor=data_tensor, ptensor=ptensor,
-                             bonus_arg=s_observed)
+        # so actually conceptually you should be evaluating, at s_observed, the pdf of the
+        # gaussian with mean and standard deviation from s_true. but you can't
+        # get s_true as it it, so it's more like s_true_hat.
+        recon_mean = s_observed
         recon_std = self.gimme('reconstruction_bias_std_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
                              bonus_arg=s_observed)
@@ -117,7 +119,7 @@ class ReconstructS1(ReconstructSignals):
             'reverse_reconstruction_bias_std_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
     
-    def _compute(self, data_tensor, ptensor, s1, s1_true):
+    def _compute(self, data_tensor, ptensor, s1):
         return super()._compute(
             s_observed=s1,
             data_tensor=data_tensor, ptensor=ptensor)
@@ -173,7 +175,7 @@ class ReconstructS2(ReconstructSignals):
             'reverse_reconstruction_bias_std_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
     
-    def _compute(self, data_tensor, ptensor, s2, s2_true):
+    def _compute(self, data_tensor, ptensor, s2):
         return super()._compute(
             s_observed=s2,
             data_tensor=data_tensor, ptensor=ptensor)
