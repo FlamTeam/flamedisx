@@ -43,11 +43,8 @@ class ERSource(fd.BlockModelSource):
             true_sig = recon_sig+'_true'
             if (true_sig not in d.columns) and (recon_sig in d.columns):
                 # need to find proper way of getting to s_true from s_observed
-                d[true_sig] = d[recon_sig]
-                '''
                 d[true_sig] = d[recon_sig]/self.gimme_numpy('reverse_reconstruction_bias_mean_'+recon_sig,
                                            bonus_arg=d[recon_sig]) 
-                                           '''
 
 @export
 class NRSource(fd.BlockModelSource):
