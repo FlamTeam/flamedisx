@@ -31,7 +31,7 @@ class ReconstructSignals(fd.Block):
         # The actual reconstructed_area is then sampled from a Gaussian
         # with mean = reconstructed_area_mean and 
         # standard deviation = reconstructed_bias_std
-
+    
         d[self.signal_name] = stats.norm.rvs(
                 loc=d[self.signal_name+'_true']*self.gimme_numpy('reconstruction_bias_mean_'+self.signal_name,
                     bonus_arg=d[self.signal_name+'_true']),
@@ -52,7 +52,8 @@ class ReconstructSignals(fd.Block):
 
         mle = d[self.signal_name + '_true_mle'] = \
             (d[self.signal_name] / m).clip(0, None)
-        scale = mle**0.5 * s / m
+        #scale = mle**0.5 * s / m # compare this value with s_tmp
+        scale = s
 
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
