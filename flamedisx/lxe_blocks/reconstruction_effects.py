@@ -69,32 +69,25 @@ class ReconstructSignals(fd.Block):
                  s_observed,
                  s_true):
         # Computing pdf given data
-        # true_area = reverse_reconstruction_bias_mean/(reverse_bias+1)
-        # 
-        # `reverse_bias` and `reverse_reconstruction_bias_std` are functions of
-        # reconstructed_area and are read in and interpolated from external
-        # files
         #
-        # Computing the probability of observing signal of size
-        # reconstructed_area given that it is drawn from a Gaussian with 
-        # mean = true_area = reconstruction_bias_mean/(reverse_bias+1) and
-        # standard deviation = reverse_reconstruction_bias_std
-
-        '''
-        recon_mean = s_observed/self.gimme('reverse_reconstruction_bias_mean_'+self.signal_name,
-                             data_tensor=data_tensor, ptensor=ptensor,
-                             bonus_arg=s_observed)
-        recon_std = self.gimme('reverse_reconstruction_bias_std_'+self.signal_name,
-                             data_tensor=data_tensor, ptensor=ptensor,
-                             bonus_arg=s_observed)
-        '''
         # so actually conceptually you should be evaluating, at s_observed, the pdf of the
         # gaussian with mean and standard deviation from s_true. but you can't
         # get s_true as it it, so it's more like s_true_hat.
-        recon_mean = s_observed
+        #
+        # Thinking normally (forward direction, how things would unfold in the
+        # physical world), s_observed is sampled from a Gaussian with
+        # mean = reconstruction_bias_mean*s_true and
+        # standard deviation = reconstruction_bias_std
+        # where both reconstruction_bias_mean and reconstruction_bias_std are
+        # both functions of s_true
+        #
+        # Now we are working backwards to evaluate the pdf of the above Gaussian at s_observed
+        recon_mean = s_true*self.gimme('reconstruction_bias_mean_'+self.signal_name,
+                                            data_tensor=data_tensor, ptensor=ptensor,
+                                            bonus_arg=s_true)
         recon_std = self.gimme('reconstruction_bias_std_'+self.signal_name,
                              data_tensor=data_tensor, ptensor=ptensor,
-                             bonus_arg=s_observed)
+                             bonus_arg=s_true)
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(
