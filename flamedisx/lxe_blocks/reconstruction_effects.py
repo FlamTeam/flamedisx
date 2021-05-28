@@ -45,19 +45,27 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        # Dunno how to calculate, just set it to be the same as
-        # reconstructed_area. leaving in the clip for the time being
-        for bound, intify in (('_min', np.min),
-                              ('_max', np.max)):
-            d[self.signal_name+'_true'+bound] = intify(
-                    d[self.signal_name+'_true']).clip(0,
-                            None).astype(d[self.signal_name].dtype)
+        m = self.gimme_numpy('reconstruction_bias_mean_'+self.signal_name,
+                             bonus_arg=d[self.signal_name+'_true'])
+        s = self.gimme_numpy('reconstruction_bias_std_'+self.signal_name,
+                             bonus_arg=d[self.signal_name+'_true'])
+
+        mle = d[self.signal_name + '_true_mle'] = \
+            (d[self.signal_name] / m).clip(0, None)
+        scale = mle**0.5 * s / m
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            # For detected quanta the MLE is quite accurate
+            # (since fluctuations are tiny)
+            # so let's just use the relative error on the MLE)
+            d[self.signal_name + '_true_' + bound] = intify(
+                mle + sign * self.source.max_sigma * scale
+            ).clip(0, None).astype(np.int)
     
     def _compute(self,
                  data_tensor, ptensor,
-                 # appears as dimension in block
                  s_observed,
-                 # extra arguments
                  s_true):
         # Computing pdf given data
         # true_area = reverse_reconstruction_bias_mean/(reverse_bias+1)
@@ -114,8 +122,7 @@ class ReconstructS1(ReconstructSignals):
 
     signal_name = 's1'
 
-    depends_on = ((('s1_true',), 's1_true'),)
-    dimensions = ('s1',)
+    dimensions = ('s1', 's1_true',)
 
     special_model_functions = ('reconstruction_bias_mean_s1',
             'reconstruction_bias_std_s1',
@@ -173,8 +180,7 @@ class ReconstructS2(ReconstructSignals):
 
     signal_name = 's2'
 
-    depends_on = ((('s2_true',), 's2_true'),)
-    dimensions = ('s2',)
+    dimensions = ('s2', 's2_true',)
 
     special_model_functions = ('reconstruction_bias_mean_s2',
             'reconstruction_bias_std_s2',
