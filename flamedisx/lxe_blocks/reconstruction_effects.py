@@ -122,7 +122,7 @@ class ReconstructS1(ReconstructSignals):
 
     signal_name = 's1'
 
-    dimensions = ('s1', 's1_true',)
+    dimensions = ('s1_true', 's1')
 
     special_model_functions = ('reconstruction_bias_mean_s1',
             'reconstruction_bias_std_s1',
@@ -180,7 +180,7 @@ class ReconstructS2(ReconstructSignals):
 
     signal_name = 's2'
 
-    dimensions = ('s2', 's2_true',)
+    dimensions = ('s2_true', 's2')
 
     special_model_functions = ('reconstruction_bias_mean_s2',
             'reconstruction_bias_std_s2',

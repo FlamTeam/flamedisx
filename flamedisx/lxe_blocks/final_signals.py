@@ -73,7 +73,7 @@ class MakeS1(MakeFinalSignals):
     quanta_name = 'photoelectron'
     signal_name = 's1'
 
-    dimensions = ('photoelectrons_detected', 's1_true',)
+    dimensions = ('photoelectrons_detected', 's1_true')
     special_model_functions = ()
     model_functions = (
         'photoelectron_gain_mean',
