@@ -4,6 +4,8 @@
 import numpy as np
 import tensorflow as tf
 
+import configparser, os
+
 import flamedisx as fd
 
 export, __all__ = fd.exporter()
@@ -15,16 +17,24 @@ export, __all__ = fd.exporter()
 
 
 class LUXSource:
-    def __init__(self, *args, **kwargs):
-        self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
-        self.dt_cntr = fd.config.getfloat('NEST','dt_cntr_config')
+    def __init__(self, detector='default', *args, **kwargs):
+        assert detector in ('default',)
+
+        assert os.path.exists(os.path.join(
+        os.path.dirname(__file__), '../config/', detector+'.ini'))
+
+        config = configparser.ConfigParser(inline_comment_prefixes=';')
+        config.read(os.path.join(os.path.dirname(__file__), '../config/', detector+'.ini'))
+
+        self.z_topDrift = config.getfloat('NEST','z_topDrift_config')
+        self.dt_cntr = config.getfloat('NEST','dt_cntr_config')
 
         self.density = fd.calculate_density(
-        fd.config.getfloat('NEST','temperature_config'),
-        fd.config.getfloat('NEST','pressure_config')).item()
+        config.getfloat('NEST','temperature_config'),
+        config.getfloat('NEST','pressure_config')).item()
         self.drift_velocity = fd.calculate_drift_velocity(
-        fd.config.getfloat('NEST','drift_field_config'), self.density,
-        fd.config.getfloat('NEST','temperature_config')).item()
+        config.getfloat('NEST','drift_field_config'), self.density,
+        config.getfloat('NEST','temperature_config')).item()
 
         super().__init__(*args, **kwargs)
 
@@ -65,9 +75,11 @@ class LUXSource:
 
 @export
 class LUXERSource(LUXSource, fd.nestERSource):
-    pass
+    def __init__(self, detector='default', *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 @export
 class LUXNRSource(LUXSource, fd.nestNRSource):
-    pass
+    def __init__(self, detector='default', *args, **kwargs):
+        super().__init__(*args, **kwargs)

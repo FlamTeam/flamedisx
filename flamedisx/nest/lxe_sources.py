@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+import configparser, os
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -12,14 +14,20 @@ XENON_GAS_DIELECTRIC = 1.00126
 
 
 class nestSource(fd.BlockModelSource):
-    def __init__(self, *args, **kwargs):
-        assert fd.detector in ('default',)
+    def __init__(self, detector='default', *args, **kwargs):
+        assert detector in ('default',)
+
+        assert os.path.exists(os.path.join(
+        os.path.dirname(__file__), '../config/', detector+'.ini'))
+
+        config = configparser.ConfigParser(inline_comment_prefixes=';')
+        config.read(os.path.join(os.path.dirname(__file__), '../config/', detector+'.ini'))
 
         # common (known) parameters
-        self.temperature = fd.config.getfloat('NEST','temperature_config')
-        self.pressure = fd.config.getfloat('NEST','pressure_config')
-        self.drift_field = fd.config.getfloat('NEST','drift_field_config')
-        self.gas_field = fd.config.getfloat('NEST','gas_field_config')
+        self.temperature = config.getfloat('NEST','temperature_config')
+        self.pressure = config.getfloat('NEST','pressure_config')
+        self.drift_field = config.getfloat('NEST','drift_field_config')
+        self.gas_field = config.getfloat('NEST','gas_field_config')
 
         # derived (known) parameters
         self.density = fd.calculate_density(self.temperature, self.pressure).item()
@@ -30,38 +38,38 @@ class nestSource(fd.BlockModelSource):
         self.density, self.temperature).item()
 
         # energy_spectrum.py
-        self.radius =  fd.config.getfloat('NEST','radius_config')
-        self.z_topDrift = fd.config.getfloat('NEST','z_topDrift_config')
+        self.radius =  config.getfloat('NEST','radius_config')
+        self.z_topDrift = config.getfloat('NEST','z_topDrift_config')
         self.z_top = self.z_topDrift - self.drift_velocity* \
-        fd.config.getfloat('NEST','dt_min_config')
+        config.getfloat('NEST','dt_min_config')
         self.z_bottom = self.z_topDrift - self.drift_velocity * \
-        fd.config.getfloat('NEST','dt_max_config')
+        config.getfloat('NEST','dt_max_config')
 
         # detection.py
-        self.g1 = fd.config.getfloat('NEST','g1_config')
-        self.min_photons = fd.config.getint('NEST','min_photons_config')
-        self.elife = fd.config.getint('NEST','elife_config')
+        self.g1 = config.getfloat('NEST','g1_config')
+        self.min_photons = config.getint('NEST','min_photons_config')
+        self.elife = config.getint('NEST','elife_config')
 
         # secondary_quanta_generation.py
-        self.gas_gap = fd.config.getfloat('NEST','gas_gap_config')
-        self.g1_gas = fd.config.getfloat('NEST','g1_gas_config')
-        self.s2Fano = fd.config.getfloat('NEST','s2Fano_config')
+        self.gas_gap = config.getfloat('NEST','gas_gap_config')
+        self.g1_gas = config.getfloat('NEST','g1_gas_config')
+        self.s2Fano = config.getfloat('NEST','s2Fano_config')
 
         # double_pe.py
-        self.double_pe_fraction = fd.config.getfloat('NEST','double_pe_fraction_config')
+        self.double_pe_fraction = config.getfloat('NEST','double_pe_fraction_config')
 
         # pe_detection.py
-        self.spe_eff = fd.config.getfloat('NEST','spe_eff_config')
+        self.spe_eff = config.getfloat('NEST','spe_eff_config')
 
         # final_signals.py
-        self.spe_res = fd.config.getfloat('NEST','spe_res_config')
-        self.S1_noise = fd.config.getfloat('NEST','S1_noise_config')
-        self.S2_noise = fd.config.getfloat('NEST','S2_noise_config')
+        self.spe_res = config.getfloat('NEST','spe_res_config')
+        self.S1_noise = config.getfloat('NEST','S1_noise_config')
+        self.S2_noise = config.getfloat('NEST','S2_noise_config')
 
-        self.S1_min = fd.config.getfloat('NEST','S1_min_config')
-        self.S1_max = fd.config.getfloat('NEST','S1_max_config')
-        self.S2_min = fd.config.getfloat('NEST','S2_min_config')
-        self.S2_max = fd.config.getfloat('NEST','S2_max_config')
+        self.S1_min = config.getfloat('NEST','S1_min_config')
+        self.S1_max = config.getfloat('NEST','S1_max_config')
+        self.S2_min = config.getfloat('NEST','S2_min_config')
+        self.S2_max = config.getfloat('NEST','S2_max_config')
 
         super().__init__(*args, **kwargs)
 

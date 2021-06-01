@@ -1,8 +1,5 @@
 __version__ = '1.4.0'
 
-from .configure import *
-configure_detector()
-
 from .utils import *
 from .source import *
 from .block_source import *
