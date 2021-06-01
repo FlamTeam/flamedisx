@@ -60,6 +60,7 @@ class nestSource(fd.BlockModelSource):
 
         # pe_detection.py
         self.spe_eff = config.getfloat('NEST','spe_eff_config')
+        self.num_pmts = config.getfloat('NEST', 'num_pmts_config')
 
         # final_signals.py
         self.spe_res = config.getfloat('NEST','spe_res_config')
@@ -108,9 +109,14 @@ class nestSource(fd.BlockModelSource):
 
     # pe_detection.py
 
-    def photoelectron_detection_eff(self):
-        return tf.cast(1 - (1 - self.spe_eff) / (1 + \
-        self.double_pe_fraction), fd.float_type())[o]
+    def photoelectron_detection_eff(self, pe_det):
+        eff = tf.where(self.spe_eff < 1.,
+        self.spe_eff + (1. - self.spe_eff) / (2. * self.num_pmts) * pe_det,
+        self.spe_eff)
+        eff_trunc = tf.where(eff > 1.,
+        1.,
+        eff)
+        return 1. - (1. - eff_trunc) / (1. + self.double_pe_fraction)
 
     # final_signals.py
 
