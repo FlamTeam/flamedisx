@@ -10,7 +10,6 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-import pdb as pdb
 
 ##
 # Parameters
@@ -314,7 +313,7 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, r, z, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
         F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
