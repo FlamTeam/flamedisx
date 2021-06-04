@@ -19,14 +19,6 @@ class EnergySpectrum(fd.FirstBlock):
         'drift_velocity',
         't_start', 't_stop')
 
-    # The fiducial volume bounds for a cylindrical volume
-    # default to full (2t) XENON1T dimensions
-    fv_radius = 47.9   # cm
-    fv_high = 0.  # cm
-    fv_low = -97.6  # cm
-
-    drift_velocity = 1.335 * 1e-4   # cm/ns
-
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
     # This will then also be true at the midpoint of these times.

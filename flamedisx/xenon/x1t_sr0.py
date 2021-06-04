@@ -118,17 +118,17 @@ class SR0Source:
 
 
 @export
-class SR0ERSource(SR0Source, fd.ERSource):
+class SR0ERSource(SR0Source, fd.defaultERSource):
     pass
 
 
 @export
-class SR0NRSource(SR0Source, fd.NRSource):
+class SR0NRSource(SR0Source, fd.defaultNRSource):
     pass
 
 
 @export
-class SR0WIMPSource(SR0Source, fd.WIMPSource):
+class SR0WIMPSource(SR0Source, fd.defaultWIMPSource):
     """
     This describes an SR0-like WIMP source, not THE
     SR0 source. The time range is not changed from the default.

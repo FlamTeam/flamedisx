@@ -7,15 +7,30 @@ from .likelihood import *
 from .inference import *
 
 
-# LXe model construction
-from .lxe_blocks.energy_spectrum import *
-from .lxe_blocks.quanta_generation import *
-from .lxe_blocks.quanta_splitting import *
-from .lxe_blocks.detection import *
-from .lxe_blocks.double_pe import *
-from .lxe_blocks.final_signals import *
+# LXe model construction: Defaults
+from .default.lxe_blocks import energy_spectrum
+from .default.lxe_blocks import quanta_generation
+from .default.lxe_blocks import quanta_splitting
+from .default.lxe_blocks import detection
+from .default.lxe_blocks import double_pe
+from .default.lxe_blocks import final_signals
 
-from .lxe_sources import *
+from .default.lxe_sources import *
+
+
+# LXe model construction: NEST
+from .nest.parameter_calc import *
+
+from .nest.lxe_blocks import energy_spectrum
+from .nest.lxe_blocks import quanta_generation
+from .nest.lxe_blocks import quanta_splitting
+from .nest.lxe_blocks import detection
+from .nest.lxe_blocks import secondary_quanta_generation
+from .nest.lxe_blocks import double_pe
+from .nest.lxe_blocks import pe_detection
+from .nest.lxe_blocks import final_signals
+
+from .nest.lxe_sources import *
 
 
 # XENON specifics
@@ -25,3 +40,7 @@ from .xenon.data import *
 
 from .xenon.x1t_sr0 import *
 from .xenon.x1t_sr1 import *
+
+
+# LUX specifics
+from .LUX.LUX import *

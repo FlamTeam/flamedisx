@@ -33,7 +33,7 @@ DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
 # Official numbers from BBF
 DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
-DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 
+DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036
 
 ##
 # Yield maps
@@ -74,8 +74,8 @@ def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
     have exactly the same domain definition.
-    :param path_bag: List with filenames of acceptance maps  
-    :param is_bbf: True if reading file from BBF folder. 
+    :param path_bag: List with filenames of acceptance maps
+    :param is_bbf: True if reading file from BBF folder.
     :return: List of acceptance maps and their domain definitions
     """
     data_bag = []
@@ -98,7 +98,7 @@ def interpolate_tf(sig_tf, fmap, domain):
     :return: Tensor of interpolated map values (same shape as x)
     """
     return tfp.math.interp_regular_1d_grid(x=sig_tf,
-            x_ref_min=domain[0], x_ref_max=domain[1], 
+            x_ref_min=domain[0], x_ref_max=domain[1],
             y_ref=fmap, fill_value='constant_extension')
 
 def calculate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
@@ -286,7 +286,7 @@ class SR1Source:
                               tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= interpolate_tf(s1, 
+        acceptance *= interpolate_tf(s1,
                                      self.cut_accept_map_s1[0],
                                      self.cut_accept_domain_s1)
         return acceptance
@@ -302,7 +302,7 @@ class SR1Source:
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= interpolate_tf(s2, 
+        acceptance *= interpolate_tf(s2,
                                      self.cut_accept_map_s2[0],
                                      self.cut_accept_domain_s2)
         return acceptance
@@ -310,7 +310,7 @@ class SR1Source:
 
 # ER Source for SR1
 @export
-class SR1ERSource(SR1Source, fd.ERSource):
+class SR1ERSource(SR1Source, fd.defaultERSource):
 
     @staticmethod
     def p_electron(nq, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
@@ -342,7 +342,7 @@ class SR1ERSource(SR1Source, fd.ERSource):
 
 
 @export
-class SR1NRSource(SR1Source, fd.NRSource):
+class SR1NRSource(SR1Source, fd.defaultNRSource):
     # TODO: Define the proper nr spectrum
     # TODO: Modify the SR1NRSource to fit AmBe data better
 
@@ -377,5 +377,5 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
 
 @export
-class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
+class SR1WIMPSource(SR1NRSource, fd.defaultWIMPSource):
     pass
