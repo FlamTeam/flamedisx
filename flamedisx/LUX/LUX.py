@@ -17,7 +17,7 @@ export, __all__ = fd.exporter()
 
 
 class LUXSource:
-    def __init__(self, detector='default', *args, **kwargs):
+    def __init__(self, *args, detector='default', **kwargs):
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
@@ -75,11 +75,11 @@ class LUXSource:
 
 @export
 class LUXERSource(LUXSource, fd.nestERSource):
-    def __init__(self, detector='default', *args, **kwargs):
+    def __init__(self, *args, detector='default', **kwargs):
         super().__init__(*args, **kwargs)
 
 
 @export
 class LUXNRSource(LUXSource, fd.nestNRSource):
-    def __init__(self, detector='default', *args, **kwargs):
+    def __init__(self, *args, detector='default', **kwargs):
         super().__init__(*args, **kwargs)

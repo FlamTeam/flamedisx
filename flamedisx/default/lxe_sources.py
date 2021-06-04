@@ -1,11 +1,13 @@
 import tensorflow as tf
 
+import configparser, os
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
 class defaultSource(fd.BlockModelSource):
-    def __init__(self, detector='default', *args, **kwargs):
+    def __init__(self, *args, detector='default', **kwargs):
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
