@@ -31,6 +31,12 @@ class Source:
     # Final observable dimensions; for use in domain / cross-domain
     final_dimensions = tuple()
 
+    # Avoid variable stepping over these inner_dimensions
+    no_step_dimensions = tuple()
+
+    # Any non-hidden variable extra_dimensions
+    bonus_dimensions = tuple()
+
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
@@ -79,6 +85,7 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=3,
+                 max_dim_size=70,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -90,15 +97,18 @@ class Source:
         :param data: Dataframe with events to use in the inference
         :param batch_size: Number of events / tensorflow batch
         :param max_sigma: Hint for hidden variable bounds computation
+        :param max_dim_size: Maximum bounds size for inner_dimensions,
+            excluding no_step_dimensions
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
         :param fit_params: List of parameters to fit
         :param progress: whether to show progress bars for mu estimation
-          (if data is not None)
+            (if data is not None)
         :param params: New defaults to use
         """
         self.max_sigma = max_sigma
+        self.max_dim_size = max_dim_size
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:
@@ -119,6 +129,13 @@ class Source:
         ctc += self.extra_needed_columns()                  # Manually fetched columns
         ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
+        ctc += [x + '_max' for x in self.inner_dimensions]  # Right bounds of domains
+        ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
+        ctc += [x + '_steps' for x in self.inner_dimensions]  # Step sizes
+        ctc += [x + '_steps' for x in self.bonus_dimensions]  # Step sizes
+        ctc += [x + '_dimsizes' for x in self.inner_dimensions]  # Dimension sizes
+        ctc += [x + '_dimsizes' for x in self.bonus_dimensions]  # Dimension sizes
+        ctc += [x + '_dimsizes' for x in self.final_dimensions]  # Dimension sizes
         ctc = list(set(ctc))
 
         self.column_index = fd.index_lookup_dict(ctc,
@@ -196,11 +213,11 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
+                self._calculate_dimsizes(self.max_dim_size)
 
         if not _skip_tf_init:
             self._check_data()
             self._populate_tensor_cache()
-            self._calculate_dimsizes()
 
     def _check_data(self):
         """Do any final checks on the self.data dataframe,
@@ -241,14 +258,43 @@ class Source:
             result,
             [self.n_batches, -1, self.n_columns_in_data_tensor])
 
-    def _calculate_dimsizes(self):
+    def cap_dimsizes(self, dim, cap):
+        if dim in self.no_step_dimensions:
+            pass
+        else:
+            self.dimsizes[dim] = cap * np.greater(self.dimsizes[dim], cap) + \
+                self.dimsizes[dim] * np.less_equal(self.dimsizes[dim], cap)
+
+    def _calculate_dimsizes(self, max_dim_size):
         self.dimsizes = dict()
+        d = self.data
         for dim in self.inner_dimensions:
-            ma = self._fetch(dim + '_max')
-            mi = self._fetch(dim + '_min')
-            self.dimsizes[dim] = int(tf.reduce_max(ma - mi + 1).numpy())
+            ma = d[dim + '_max'].to_numpy()
+            mi = d[dim + '_min'].to_numpy()
+            self.dimsizes[dim] = ma - mi + 1
+            # Ensure we don't go over max_dim_size in a domain
+            self.cap_dimsizes(dim, max_dim_size)
+
+            # Calculate steps if we have cappeed the dimesize
+            steps = tf.where((ma-mi+1) > self.dimsizes[dim],
+                             tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
+                             1).numpy()  # Cover to at least the upper bound
+            # Store the steps in the dataframe
+            d[dim + '_steps'] = steps
+
         for dim in self.final_dimensions:
-            self.dimsizes[dim] = 1
+            self.dimsizes[dim] = np.ones(len(d))
+
+        # Calculate all custom dimsizes
+        self.calculate_dimsizes_special()
+
+        # Store the dimsizes in the dataframe
+        for dim in self.inner_dimensions:
+            d[dim + "_dimsizes"] = self.dimsizes[dim]
+        for dim in self.bonus_dimensions:
+            d[dim + "_dimsizes"] = self.dimsizes[dim]
+        for dim in self.final_dimensions:
+            d[dim + "_dimsizes"] = self.dimsizes[dim]
 
     @contextmanager
     def _set_temporarily(self, data, **kwargs):
@@ -429,9 +475,10 @@ class Source:
         if x in self.final_dimensions:
             return self._fetch(x, data_tensor=data_tensor)[:, o]
 
-        x_range = tf.cast(tf.range(self.dimsizes[x]),
-                          dtype=fd.float_type())[o, :]
+        # Cover the bounds range in integer steps not necessarily of 1
         left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        steps = self._fetch(x + '_steps', data_tensor=data_tensor)[:, o]
+        x_range = tf.range(tf.reduce_max(self._fetch(x + '_dimsizes', data_tensor=data_tensor))) * steps
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
@@ -441,8 +488,8 @@ class Source:
         # TODO: somehow mask unnecessary elements and save computation time
         x_domain = self.domain(x, data_tensor)
         y_domain = self.domain(y, data_tensor)
-        result_x = tf.repeat(x_domain[:, :, o], y_domain.shape[1], axis=2)
-        result_y = tf.repeat(y_domain[:, o, :], x_domain.shape[1], axis=1)
+        result_x = tf.repeat(x_domain[:, :, o], tf.shape(y_domain)[1], axis=2)
+        result_y = tf.repeat(y_domain[:, o, :], tf.shape(x_domain)[1], axis=1)
         return result_x, result_y
 
     ##
@@ -614,3 +661,6 @@ class ColumnSource(Source):
     def random_truth(self, n_events, fix_truth=None, **params):
         print(f"{self.__class__.__name__} cannot generate events, skipping")
         return pd.DataFrame()
+
+    def calculate_dimsizes_special(self):
+        pass

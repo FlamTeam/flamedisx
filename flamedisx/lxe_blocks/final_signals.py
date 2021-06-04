@@ -102,6 +102,7 @@ class MakeS1(MakeFinalSignals):
     signal_name = 's1'
 
     dimensions = ('photoelectrons_detected', 's1')
+    extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s1',)
     model_functions = (
         'photoelectron_gain_mean',
@@ -140,6 +141,7 @@ class MakeS2(MakeFinalSignals):
     signal_name = 's2'
 
     dimensions = ('electrons_detected', 's2')
+    extra_dimensions = ()
     special_model_functions = ('reconstruction_bias_s2',)
     model_functions = (
         ('electron_gain_mean',
