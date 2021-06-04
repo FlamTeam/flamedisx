@@ -661,3 +661,6 @@ class ColumnSource(Source):
     def random_truth(self, n_events, fix_truth=None, **params):
         print(f"{self.__class__.__name__} cannot generate events, skipping")
         return pd.DataFrame()
+
+    def calculate_dimsizes_special(self):
+        pass
