@@ -10,6 +10,8 @@ from multihist import Histdd
 import flamedisx as fd
 quanta_types = ('photon', 'electron')
 
+o = tf.newaxis
+
 
 def np_lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
@@ -61,6 +63,12 @@ def xes(request):
 
         x = ERSpatial(data.copy(), batch_size=2, max_sigma=8)
     return x
+
+
+def test_test(xes):
+    # All size tests written assuming we have just one batch: due to variable
+    # tensor sizes! (determined per batch)
+    assert xes.n_batches == 1
 
 
 def test_fetch(xes):
@@ -159,8 +167,8 @@ def test_domains(xes: fd.ERSource):
 
     assert (n_det.shape == n_prod.shape
             == (n_events,
-                xes.dimsizes['electrons_detected'],
-                xes.dimsizes['electrons_produced']))
+                max(xes.dimsizes['electrons_detected']),
+                max(xes.dimsizes['electrons_produced'])))
 
     np.testing.assert_equal(
         np.amin(n_det, axis=(1, 2)),
@@ -190,7 +198,7 @@ def test_detector_response(xes: fd.ERSource):
 
         quanta_name = block.quanta_name
         assert r.shape == \
-               (n_events, xes.dimsizes[quanta_name + 's_detected'], 1)
+               (n_events, max(xes.dimsizes[quanta_name + 's_detected']), 1)
         r = r[:, :, 0]
 
         # r is p(S1 | detected electrons) as a function of detected electrons
@@ -213,11 +221,17 @@ def test_detection_prob(xes: fd.ERSource):
             **xes._domain_dict(block.dimensions, data_tensor)).numpy()
 
     assert r.shape == (n_events,
-                       xes.dimsizes['electrons_produced'],
-                       xes.dimsizes['electrons_detected'])
+                       max(xes.dimsizes['electrons_produced']),
+                       max(xes.dimsizes['electrons_detected']))
 
     # Test below was written assuming a (batch, detected, produced) tensor
     r = np.transpose(r, [0, 2, 1])
+    # We need to weight the block by the electrons detected steppings
+    steps = xes._fetch('electrons_detected_steps', data_tensor=data_tensor)
+    step_mul = tf.repeat(steps[:,o], tf.shape(r)[1], axis=1)
+    step_mul = tf.repeat(step_mul[:,:,o],
+    tf.shape(r)[2], axis=2)
+    r *= step_mul.numpy()
 
     # Sum of probability over detected electrons must be
     #  A) in [0, 1] for any value of electrons_produced
@@ -231,9 +245,11 @@ def test_detection_prob(xes: fd.ERSource):
     # B) 1 at the MLE of electrons_produced,
     #    where all reasonably probable electrons_detected values
     #    should be probed
+    # Account for stepping when finding the mle
     mle_is = np.round(
-        xes.data['electrons_produced_mle']
-        - xes.data['electrons_produced_min']).values.astype(np.int)
+        (xes.data['electrons_produced_mle']
+        - xes.data['electrons_produced_min']) /
+        xes.data['electrons_produced_steps']).values.astype(np.int)
     np.testing.assert_almost_equal(
         np_lookup_axis1(rs, mle_is),
         np.ones(n_events),

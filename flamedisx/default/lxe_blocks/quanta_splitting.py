@@ -37,10 +37,12 @@ class MakePhotonsElectronsBinomial(fd.Block):
         # ... numbers of total quanta produced
         nq = electrons_produced + photons_produced
         # ... indices in nq arrays: make sure stepping is accounted for!
-        _nq_ind = tf.round((nq - self.source._fetch(
-            'quanta_produced_min', data_tensor=data_tensor)[:, o, o]) \
-        / self.source._fetch('quanta_produced_steps',
-        data_tensor=data_tensor)[:, o, o])
+        _nq_ind = tf.round(
+            (nq - self.source._fetch(
+                'quanta_produced_min', data_tensor=data_tensor
+            )[:, o, o]) / self.source._fetch(
+                'quanta_produced_steps', data_tensor=data_tensor
+            )[:, o, o])
         # ... differential rate
         rate_nq = fd.lookup_axis1(rate_vs_quanta, _nq_ind)
         # ... probability of a quantum to become an electron

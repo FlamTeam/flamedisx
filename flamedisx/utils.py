@@ -63,7 +63,7 @@ def lookup_axis1(x, indices, fill_value=0):
     # Convert indices to legal indices in flat array
     indices = tf.clip_by_value(indices, 0., tf.cast(b, dtype=float_type())-1.)
     indices = indices + tf.cast(b, dtype=float_type()) * \
-    tf.range(a, dtype=float_type())[:, o, o]
+        tf.range(a, dtype=float_type())[:, o, o]
     indices = tf.reshape(indices, shape=(-1,))
     indices = tf.dtypes.cast(indices, dtype=int_type())
 
