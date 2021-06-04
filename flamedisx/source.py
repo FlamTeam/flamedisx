@@ -262,7 +262,8 @@ class Source:
         if dim in self.no_step_dimensions:
             pass
         else:
-            self.dimsizes[dim] = cap * np.greater(self.dimsizes[dim], cap) + self.dimsizes[dim] * np.less_equal(self.dimsizes[dim], cap)
+            self.dimsizes[dim] = cap * np.greater(self.dimsizes[dim], cap) + \
+                self.dimsizes[dim] * np.less_equal(self.dimsizes[dim], cap)
 
     def _calculate_dimsizes(self, max_dim_size):
         self.dimsizes = dict()
@@ -277,8 +278,7 @@ class Source:
             # Calculate steps if we have cappeed the dimesize
             steps = tf.where((ma-mi+1) > self.dimsizes[dim],
                              tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
-                             1).numpy() # We want to ceil this to ensure we cover to at
-                             # least the upper bound
+                             1).numpy()  # Cover to at least the upper bound
             # Store the steps in the dataframe
             d[dim + '_steps'] = steps
 

@@ -17,7 +17,7 @@ class Block:
     For example, P(electrons_detected | electrons_produced).
     """
     dimensions: ty.Tuple[str]
-    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]] # Any extra dimensions
+    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]]  # Any extra dimensions
     # treated differently. Label true if they represent an internally
     # contracted hidden variable (will be added to inner_dimenions, domain
     # tensors will automatically be calculated), label false otherwise (will be
@@ -40,7 +40,6 @@ class Block:
         assert len(self.extra_dimensions) <= 1, \
             f"{self} has >1 extra dimension!"
 
-
     def setup(self):
         """Do any necessary initialization.
 
@@ -59,13 +58,13 @@ class Block:
     def compute(self, data_tensor, ptensor, **kwargs):
         if len(self.extra_dimensions) == 0:
             kwargs.update(self.source._domain_dict(
-            self.dimensions, data_tensor))
+                self.dimensions, data_tensor))
         else:
-            if self.extra_dimensions[0][1]==True:
+            if self.extra_dimensions[0][1] is True:
                 raise NotImplementedError
             else:
                 kwargs.update(self.source._domain_dict(
-                self.dimensions, data_tensor))
+                    self.dimensions, data_tensor))
                 kwargs.update(self._domain_dict_bonus(data_tensor))
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
@@ -249,15 +248,15 @@ class BlockModelSource(fd.Source):
                 continue
             setattr(self, k, tuple(set(v)))
 
-        self.inner_dimensions = tuple([
-            d for d in collected['dimensions']
-            if ((d not in self.final_dimensions)
-                and (d not in self.model_blocks[0].dimensions))]
+        self.inner_dimensions = tuple(
+            [d for d in collected['dimensions']
+                if ((d not in self.final_dimensions)
+                    and (d not in self.model_blocks[0].dimensions))]
             + [d[0] for d in collected['extra_dimensions']
-            if d[1]==True])
+                if d[1] is True])
         self.initial_dimensions = self.model_blocks[0].dimensions
         self.bonus_dimensions = tuple([
-            d[0] for d in collected['extra_dimensions'] if d[1]==False])
+            d[0] for d in collected['extra_dimensions'] if d[1] is False])
 
         super().__init__(*args, **kwargs)
 
@@ -279,7 +278,7 @@ class BlockModelSource(fd.Source):
 
     def _differential_rate(self, data_tensor, ptensor):
         results = {}
-        already_stepped = () # Avoid double-multiplying to account for stepping
+        already_stepped = ()  # Avoid double-multiplying to account for stepping
 
         for b in self.model_blocks:
             b_dims = b.dimensions
@@ -297,16 +296,16 @@ class BlockModelSource(fd.Source):
             # Compute the block
             r = b.compute(data_tensor, ptensor, **kwargs)
 
-            # Scale the block by stepped dimenions, if not already done in
+            # Scale the block by stepped dimensions, if not already done in
             # another block
             for dim in b_dims:
                 if (dim in self.inner_dimensions) and \
-                (dim not in self.no_step_dimensions) and \
-                (dim not in already_stepped):
+                        (dim not in self.no_step_dimensions) and \
+                        (dim not in already_stepped):
                     steps = self._fetch(dim+'_steps', data_tensor=data_tensor)
-                    step_mul = tf.repeat(steps[:,o], tf.shape(r)[1], axis=1)
-                    step_mul = tf.repeat(step_mul[:,:,o],
-                    tf.shape(r)[2], axis=2)
+                    step_mul = tf.repeat(steps[:, o], tf.shape(r)[1], axis=1)
+                    step_mul = tf.repeat(step_mul[:, :, o],
+                                         tf.shape(r)[2], axis=2)
                     r *= step_mul
                     already_stepped += (dim,)
 
