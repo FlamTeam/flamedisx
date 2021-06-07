@@ -21,14 +21,14 @@ from .default.lxe_sources import *
 # LXe model construction: NEST
 from .nest.parameter_calc import *
 
-from .nest.lxe_blocks import energy_spectrum
-from .nest.lxe_blocks import quanta_generation
-from .nest.lxe_blocks import quanta_splitting
-from .nest.lxe_blocks import detection
+from .nest.lxe_blocks import energy_spectrum  # noqa: F811
+from .nest.lxe_blocks import quanta_generation  # noqa: F811
+from .nest.lxe_blocks import quanta_splitting  # noqa: F811
+from .nest.lxe_blocks import detection  # noqa: F811
 from .nest.lxe_blocks import secondary_quanta_generation
-from .nest.lxe_blocks import double_pe
+from .nest.lxe_blocks import double_pe  # noqa: F811
 from .nest.lxe_blocks import pe_detection
-from .nest.lxe_blocks import final_signals
+from .nest.lxe_blocks import final_signals  # noqa: F811
 
 from .nest.lxe_sources import *
 

@@ -1,5 +1,3 @@
-import typing as ty
-
 import numpy as np
 from scipy import stats
 import tensorflow as tf
@@ -34,9 +32,8 @@ class MakeS2Photons(fd.Block):
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
         ).cdf(s2_photons_produced + 0.5) - \
-        tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).cdf(s2_photons_produced - 0.5)
+            tfp.distributions.Normal(loc=mean, scale=std + 1e-10).cdf(
+                s2_photons_produced - 0.5)
 
         return result
 

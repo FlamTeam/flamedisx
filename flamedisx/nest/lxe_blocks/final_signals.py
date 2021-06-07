@@ -41,7 +41,7 @@ class MakeFinalSignals(fd.Block):
 
     def _annotate(self, d):
         mle = d[self.signal_name + '_photoelectrons_detected_' + 'mle'] = \
-        d[self.signal_name].clip(0, None)
+            d[self.signal_name].clip(0, None)
         scale = self.gimme_numpy(self.signal_name + '_spe_smearing', mle)
 
         for bound, sign, intify in (('min', -1, np.floor),
@@ -57,10 +57,11 @@ class MakeFinalSignals(fd.Block):
                  photoelectrons_detected, s_observed,
                  data_tensor, ptensor):
         mean = photoelectrons_detected
-        std = self.gimme(self.signal_name + '_spe_smearing',
-                               bonus_arg=photoelectrons_detected,
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)
+        std = self.gimme(
+            self.signal_name + '_spe_smearing',
+            bonus_arg=photoelectrons_detected,
+            data_tensor=data_tensor,
+            ptensor=ptensor)
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         result = tfp.distributions.Normal(

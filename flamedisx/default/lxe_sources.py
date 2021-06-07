@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-import configparser, os
+import configparser
+import os
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -11,32 +12,38 @@ class defaultSource(fd.BlockModelSource):
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
-        os.path.dirname(__file__), '../config/', detector+'.ini'))
+            os.path.dirname(__file__), '../config/', detector+'.ini'))
 
         config = configparser.ConfigParser(inline_comment_prefixes=';')
         config.read(os.path.join(os.path.dirname(__file__), '../config/', detector+'.ini'))
 
         # detection.py
-        self.photon_detection_eff = config.getfloat('DEFAULT','photon_detection_eff_config')
-        self.min_photons = config.getint('DEFAULT','min_photons_config')
+        self.photon_detection_eff = config.getfloat(
+            'DEFAULT', 'photon_detection_eff_config')
+        self.min_photons = config.getint('DEFAULT', 'min_photons_config')
 
         # double_pe.py
-        self.double_pe_fraction = config.getfloat('DEFAULT','double_pe_fraction_config')
+        self.double_pe_fraction = config.getfloat(
+            'DEFAULT', 'double_pe_fraction_config')
 
         # final_signals.py
-        self.photoelectron_gain_mean = config.getfloat('DEFAULT','photoelectron_gain_mean_config')
-        self.photoelectron_gain_std = config.getfloat('DEFAULT','photoelectron_gain_std_config')
-        self.S1_min = config.getfloat('DEFAULT','S1_min_config')
-        self.S1_max = config.getfloat('DEFAULT','S1_max_config')
-        self.electron_gain_std = config.getfloat('DEFAULT','electron_gain_std_config')
-        self.S2_min = config.getfloat('DEFAULT','S2_min_config')
-        self.S2_max = config.getfloat('DEFAULT','S2_max_config')
+        self.photoelectron_gain_mean = config.getfloat(
+            'DEFAULT', 'photoelectron_gain_mean_config')
+        self.photoelectron_gain_std = config.getfloat(
+            'DEFAULT', 'photoelectron_gain_std_config')
+        self.S1_min = config.getfloat('DEFAULT', 'S1_min_config')
+        self.S1_max = config.getfloat('DEFAULT', 'S1_max_config')
+        self.electron_gain_std = config.getfloat(
+            'DEFAULT', 'electron_gain_std_config')
+        self.S2_min = config.getfloat('DEFAULT', 'S2_min_config')
+        self.S2_max = config.getfloat('DEFAULT', 'S2_max_config')
 
         # energy_spectrum.py
-        self.fv_radius =  config.getfloat('DEFAULT','radius_config')
-        self.fv_high = config.getfloat('DEFAULT','z_top_config')
-        self.fv_low = config.getfloat('DEFAULT','z_bottom_config')
-        self.drift_velocity = config.getfloat('DEFAULT','drift_velocity_config')
+        self.fv_radius = config.getfloat('DEFAULT', 'radius_config')
+        self.fv_high = config.getfloat('DEFAULT', 'z_top_config')
+        self.fv_low = config.getfloat('DEFAULT', 'z_bottom_config')
+        self.drift_velocity = config.getfloat(
+            'DEFAULT', 'drift_velocity_config')
 
         super().__init__(*args, **kwargs)
 

@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-import configparser, os
+import configparser
+import os
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -18,59 +19,62 @@ class nestSource(fd.BlockModelSource):
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
-        os.path.dirname(__file__), '../config/', detector+'.ini'))
+            os.path.dirname(__file__), '../config/', detector+'.ini'))
 
         config = configparser.ConfigParser(inline_comment_prefixes=';')
         config.read(os.path.join(os.path.dirname(__file__), '../config/', detector+'.ini'))
 
         # common (known) parameters
-        self.temperature = config.getfloat('NEST','temperature_config')
-        self.pressure = config.getfloat('NEST','pressure_config')
-        self.drift_field = config.getfloat('NEST','drift_field_config')
-        self.gas_field = config.getfloat('NEST','gas_field_config')
+        self.temperature = config.getfloat('NEST', 'temperature_config')
+        self.pressure = config.getfloat('NEST', 'pressure_config')
+        self.drift_field = config.getfloat('NEST', 'drift_field_config')
+        self.gas_field = config.getfloat('NEST', 'gas_field_config')
 
         # derived (known) parameters
-        self.density = fd.calculate_density(self.temperature, self.pressure).item()
-        ### NOTE: BE CAREFUL WITH THE BELOW, ONLY VALID NEAR VAPOUR PRESSURE!!!
-        self.density_gas = fd.calculate_density_gas(self.temperature, self.pressure)
-        ###
-        self.drift_velocity = fd.calculate_drift_velocity(self.drift_field,
-        self.density, self.temperature).item()
+        self.density = fd.calculate_density(self.temperature,
+                                            self.pressure)
+        # NOTE: BE CAREFUL WITH THE BELOW, ONLY VALID NEAR VAPOUR PRESSURE!!!
+        self.density_gas = fd.calculate_density_gas(self.temperature,
+                                                    self.pressure)
+        #
+        self.drift_velocity = fd.calculate_drift_velocity(
+            self.drift_field, self.density, self.temperature)
 
         # energy_spectrum.py
-        self.radius =  config.getfloat('NEST','radius_config')
-        self.z_topDrift = config.getfloat('NEST','z_topDrift_config')
-        self.z_top = self.z_topDrift - self.drift_velocity* \
-        config.getfloat('NEST','dt_min_config')
+        self.radius = config.getfloat('NEST', 'radius_config')
+        self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
+        self.z_top = self.z_topDrift - self.drift_velocity * \
+            config.getfloat('NEST', 'dt_min_config')
         self.z_bottom = self.z_topDrift - self.drift_velocity * \
-        config.getfloat('NEST','dt_max_config')
+            config.getfloat('NEST', 'dt_max_config')
 
         # detection.py
-        self.g1 = config.getfloat('NEST','g1_config')
-        self.min_photons = config.getint('NEST','min_photons_config')
-        self.elife = config.getint('NEST','elife_config')
+        self.g1 = config.getfloat('NEST', 'g1_config')
+        self.min_photons = config.getint('NEST', 'min_photons_config')
+        self.elife = config.getint('NEST', 'elife_config')
 
         # secondary_quanta_generation.py
-        self.gas_gap = config.getfloat('NEST','gas_gap_config')
-        self.g1_gas = config.getfloat('NEST','g1_gas_config')
-        self.s2Fano = config.getfloat('NEST','s2Fano_config')
+        self.gas_gap = config.getfloat('NEST', 'gas_gap_config')
+        self.g1_gas = config.getfloat('NEST', 'g1_gas_config')
+        self.s2Fano = config.getfloat('NEST', 's2Fano_config')
 
         # double_pe.py
-        self.double_pe_fraction = config.getfloat('NEST','double_pe_fraction_config')
+        self.double_pe_fraction = config.getfloat(
+            'NEST', 'double_pe_fraction_config')
 
         # pe_detection.py
-        self.spe_eff = config.getfloat('NEST','spe_eff_config')
+        self.spe_eff = config.getfloat('NEST', 'spe_eff_config')
         self.num_pmts = config.getfloat('NEST', 'num_pmts_config')
 
         # final_signals.py
-        self.spe_res = config.getfloat('NEST','spe_res_config')
-        self.S1_noise = config.getfloat('NEST','S1_noise_config')
-        self.S2_noise = config.getfloat('NEST','S2_noise_config')
+        self.spe_res = config.getfloat('NEST', 'spe_res_config')
+        self.S1_noise = config.getfloat('NEST', 'S1_noise_config')
+        self.S2_noise = config.getfloat('NEST', 'S2_noise_config')
 
-        self.S1_min = config.getfloat('NEST','S1_min_config')
-        self.S1_max = config.getfloat('NEST','S1_max_config')
-        self.S2_min = config.getfloat('NEST','S2_min_config')
-        self.S2_max = config.getfloat('NEST','S2_max_config')
+        self.S1_min = config.getfloat('NEST', 'S1_min_config')
+        self.S1_max = config.getfloat('NEST', 'S1_max_config')
+        self.S2_min = config.getfloat('NEST', 'S2_min_config')
+        self.S2_max = config.getfloat('NEST', 'S2_max_config')
 
         super().__init__(*args, **kwargs)
 
@@ -80,9 +84,10 @@ class nestSource(fd.BlockModelSource):
         return self.g1 * tf.ones_like(z)
 
     def electron_detection_eff(self, drift_time):
-        liquid_field_interface = self.gas_field / (XENON_LIQUID_DIELECTRIC / XENON_GAS_DIELECTRIC)
+        liquid_field_interface = self.gas_field / \
+            (XENON_LIQUID_DIELECTRIC / XENON_GAS_DIELECTRIC)
         extraction_eff = -0.03754 * liquid_field_interface**2 + \
-        0.52660 * liquid_field_interface - 0.84645
+            0.52660 * liquid_field_interface - 0.84645
 
         return extraction_eff * tf.exp(-drift_time / self.elife)
 
@@ -92,41 +97,47 @@ class nestSource(fd.BlockModelSource):
     # secondary_quanta_generation.py
 
     def electron_gain_mean(self):
-        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
         A_XENON * 1e-6
-        elYield = (0.137 * self.gas_field * 1e3 - \
-        4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) * self.gas_gap * 0.1
+        elYield = (
+            0.137 * self.gas_field * 1e3 -
+            4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
+            * self.gas_gap * 0.1
 
         return tf.cast(elYield, fd.float_type())[o]
 
     def electron_gain_std(self):
-        rho = self.pressure * 1e5 / (self.temperature * GAS_CONSTANT) * \
         A_XENON * 1e-6
-        elYield = (0.137 * self.gas_field * 1e3 - \
-        4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) * self.gas_gap * 0.1
+        elYield = (
+            0.137 * self.gas_field * 1e3 -
+            4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
+            * self.gas_gap * 0.1
 
         return tf.sqrt(self.s2Fano * elYield)[o]
 
     # pe_detection.py
 
     def photoelectron_detection_eff(self, pe_det):
-        eff = tf.where(self.spe_eff < 1.,
-        self.spe_eff + (1. - self.spe_eff) / (2. * self.num_pmts) * pe_det,
-        self.spe_eff)
-        eff_trunc = tf.where(eff > 1.,
-        1.,
-        eff)
+        eff = tf.where(
+            self.spe_eff < 1.,
+            self.spe_eff + (1. - self.spe_eff) / (2. * self.num_pmts) * pe_det,
+            self.spe_eff)
+        eff_trunc = tf.where(
+            eff > 1.,
+            1.,
+            eff)
         return 1. - (1. - eff_trunc) / (1. + self.double_pe_fraction)
 
     # final_signals.py
 
     def s1_spe_smearing(self, n_pe):
-        return tf.sqrt(self.spe_res * self.spe_res * n_pe + \
-        self.S1_noise * self.S1_noise * n_pe * n_pe)
+        return tf.sqrt(
+            self.spe_res * self.spe_res * n_pe +
+            self.S1_noise * self.S1_noise * n_pe * n_pe)
 
     def s2_spe_smearing(self, n_pe):
-        return tf.sqrt(self.spe_res * self.spe_res * n_pe + \
-        self.S2_noise * self.S2_noise * n_pe * n_pe)
+        return tf.sqrt(
+            self.spe_res * self.spe_res * n_pe +
+            self.S2_noise * self.S2_noise * n_pe * n_pe)
 
 
 @export

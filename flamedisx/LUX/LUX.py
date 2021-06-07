@@ -1,10 +1,10 @@
 """LUX detector implementation
 
 """
-import numpy as np
 import tensorflow as tf
 
-import configparser, os
+import configparser
+import os
 
 import flamedisx as fd
 
@@ -21,20 +21,22 @@ class LUXSource:
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
-        os.path.dirname(__file__), '../config/', detector+'.ini'))
+            os.path.dirname(__file__), '../config/', detector+'.ini'))
 
         config = configparser.ConfigParser(inline_comment_prefixes=';')
-        config.read(os.path.join(os.path.dirname(__file__), '../config/', detector+'.ini'))
+        config.read(os.path.join(os.path.dirname(__file__), '../config/',
+                                 detector+'.ini'))
 
-        self.z_topDrift = config.getfloat('NEST','z_topDrift_config')
-        self.dt_cntr = config.getfloat('NEST','dt_cntr_config')
+        self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
+        self.dt_cntr = config.getfloat('NEST', 'dt_cntr_config')
 
         self.density = fd.calculate_density(
-        config.getfloat('NEST','temperature_config'),
-        config.getfloat('NEST','pressure_config')).item()
+            config.getfloat('NEST', 'temperature_config'),
+            config.getfloat('NEST', 'pressure_config')).item()
         self.drift_velocity = fd.calculate_drift_velocity(
-        config.getfloat('NEST','drift_field_config'), self.density,
-        config.getfloat('NEST','temperature_config')).item()
+         config.getfloat('NEST', 'drift_field_config'),
+         self.density,
+         config.getfloat('NEST', 'temperature_config')).item()
 
         super().__init__(*args, **kwargs)
 
@@ -46,14 +48,15 @@ class LUXSource:
         r_mm = r*10
         z_mm = z*10
 
-        amplitude = 307.9 - 0.3071*z_mm + 0.0002257*pow(z_mm,2)
+        amplitude = 307.9 - 0.3071 * z_mm + 0.0002257 * pow(z_mm, 2)
         shape = 1.1525e-7 * tf.sqrt(abs(z_mm - 318.84))
-        finalCorr = (-shape * pow (r_mm, 3) + amplitude) / 307.9
+        finalCorr = (-shape * pow(r_mm, 3) + amplitude) / 307.9
 
-        z_cntr = self.z_topDrift - self.drift_velocity * self.dt_cntr # for normalising to the detector centre
-        z_cntr_mm = z_cntr*10
+        # We want to normalise to the detector centre
+        z_cntr = self.z_topDrift - self.drift_velocity * self.dt_cntr
+        z_cntr_mm = z_cntr * 10
 
-        amplitude_0 = 307.9 - 0.3071*z_cntr_mm+ 0.0002257*pow(z_cntr_mm,2)
+        amplitude_0 = 307.9 - 0.3071 * z_cntr_mm + 0.0002257 * pow(z_cntr_mm, 2)
         finalCorr_0 = amplitude_0 / 307.9
 
         return finalCorr / finalCorr_0
@@ -65,10 +68,10 @@ class LUXSource:
         """
         r_mm = r*10
 
-        finalCorr =  9156.3 + 6.22750*pow(r_mm,1) + 0.38126*pow(r_mm,2) \
-        - 0.017144*pow(r_mm,3) + 0.0002474*pow(r_mm,4) \
-        - 1.6953e-6*pow(r_mm,5) + 5.6513e-9*pow(r_mm,6) \
-        - 7.3989e-12*pow(r_mm,7)
+        finalCorr = 9156.3 + 6.22750 * pow(r_mm, 1) + 0.38126 * pow(r_mm, 2) \
+            - 0.017144 * pow(r_mm, 3) + 0.0002474 * pow(r_mm, 4) \
+            - 1.6953e-6 * pow(r_mm, 5) + 5.6513e-9 * pow(r_mm, 6) \
+            - 7.3989e-12 * pow(r_mm, 7)
 
         return finalCorr / 9156.3
 

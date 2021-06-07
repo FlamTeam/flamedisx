@@ -7,9 +7,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-import configparser
-import os
-
 
 @export
 class DetectS1Photoelectrons(fd.Block):
@@ -35,14 +32,16 @@ class DetectS1Photoelectrons(fd.Block):
     def _simulate(self, d):
         d['s1_photoelectrons_detected'] = stats.binom.rvs(
             n=d['s1_photoelectrons_produced'],
-            p=self.gimme_numpy('photoelectron_detection_eff',
-            d['s1_photoelectrons_produced']))
+            p=self.gimme_numpy(
+                'photoelectron_detection_eff',
+                d['s1_photoelectrons_produced']))
 
     def _annotate(self, d):
         # Estimate the mle of the detection probability via interpolation
         _nprod_temp = np.logspace(-1., 8., 1000)
-        _pdet_temp = self.gimme_numpy('photoelectron_detection_eff',
-        _nprod_temp)
+        _pdet_temp = self.gimme_numpy(
+            'photoelectron_detection_eff',
+            _nprod_temp)
         p_det_mle = np.interp(
             d['s1_photoelectrons_detected_mle'],
             _nprod_temp * _pdet_temp,
