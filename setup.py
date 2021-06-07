@@ -19,6 +19,10 @@ setuptools.setup(
     author='Jelle Aalbers, Bart Pelssers, Cristian Antochi',
     url='https://github.com/FlamTeam/flamedisx',
     python_requires=">=3.6",
+    include_package_data=True,
+    package_data={
+        'flamedisx': ['config/*.ini'],
+    },
     setup_requires=['pytest-runner'],
     install_requires=requires,
     tests_require=['pytest'],
