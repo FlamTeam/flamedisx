@@ -10,9 +10,8 @@ class defaultSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
         assert detector in ('default',)
 
-        print(os.path.dirname(__file__))
-        print(os.path.join(
-        os.path.dirname(__file__), '../config/', detector+'.ini'))
+        print(os.stat(os.path.join(
+        os.path.dirname(__file__), '../config/', detector+'.ini')))
         assert os.path.exists(os.path.join(
         os.path.dirname(__file__), '../config/', detector+'.ini'))
 
