@@ -310,7 +310,7 @@ class SR1Source:
 
 # ER Source for SR1
 @export
-class SR1ERSource(SR1Source, fd.defaultERSource):
+class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
     def p_electron(nq, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
@@ -342,7 +342,7 @@ class SR1ERSource(SR1Source, fd.defaultERSource):
 
 
 @export
-class SR1NRSource(SR1Source, fd.defaultNRSource):
+class SR1NRSource(SR1Source, fd.NRSource):
     # TODO: Define the proper nr spectrum
     # TODO: Modify the SR1NRSource to fit AmBe data better
 
@@ -377,5 +377,5 @@ class SR1NRSource(SR1Source, fd.defaultNRSource):
 
 
 @export
-class SR1WIMPSource(SR1NRSource, fd.defaultWIMPSource):
+class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
     pass

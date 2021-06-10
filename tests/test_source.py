@@ -41,11 +41,11 @@ def xes(request):
                               x=1.12, y=0.35, z=-59., r=1., theta=0.3,
                               event_time=1579784956000000000)])
     if request.param == 'ER':
-        x = fd.defaultERSource(data.copy(), batch_size=2, max_sigma=8)
+        x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'NR':
-        x = fd.defaultNRSource(data.copy(), batch_size=2, max_sigma=8)
+        x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'WIMP':
-        x = fd.defaultWIMPSource(data.copy(), batch_size=2, max_sigma=8)
+        x = fd.WIMPSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'ER_spatial':
         nbins = 100
         r = np.linspace(0, 47.9, nbins + 1)
@@ -58,7 +58,7 @@ def xes(request):
         h = Histdd(bins=[r, theta, z], axis_names=['r', 'theta', 'z'])
         h.histogram = h.histogram * 0 + h.bin_centers('r')[:, None, None]
 
-        class ERSpatial(fd.defaultSpatialRateERSource):
+        class ERSpatial(fd.SpatialRateERSource):
             spatial_hist = h
 
         x = ERSpatial(data.copy(), batch_size=2, max_sigma=8)
@@ -80,7 +80,7 @@ def test_fetch(xes):
         xes.data['s1'].values)
 
 
-def test_gimme(xes: fd.defaultERSource):
+def test_gimme(xes: fd.ERSource):
     x = xes.gimme('photoelectron_gain_mean',
                   data_tensor=None, ptensor=None)
     assert isinstance(x, tf.Tensor)
@@ -111,7 +111,7 @@ def test_gimme(xes: fd.defaultERSource):
     assert tf.reduce_all(tf.equal(x, z))
 
 
-def test_simulate(xes: fd.defaultERSource):
+def test_simulate(xes: fd.ERSource):
     """Test the simulator with and without fix_truth"""
     n_ev = int(1e3)
 
@@ -143,7 +143,7 @@ def test_simulate(xes: fd.defaultERSource):
     assert simd['energy'].values[0] == e_test
 
 
-def test_bounds(xes: fd.defaultERSource):
+def test_bounds(xes: fd.ERSource):
     """Test bounds on nq_produced and _detected"""
     data = xes.data
     ##
@@ -159,7 +159,7 @@ def test_bounds(xes: fd.defaultERSource):
                 data['%ss_%s_max' % (qn, p)].values + 1e-5)
 
 
-def test_domains(xes: fd.defaultERSource):
+def test_domains(xes: fd.ERSource):
     n_det, n_prod = xes.cross_domains('electrons_detected', 'electrons_produced',
                                       xes.data_tensor[0])
     n_det = n_det.numpy()
@@ -179,18 +179,18 @@ def test_domains(xes: fd.defaultERSource):
         np.floor(xes.data['electrons_produced_min']))
 
 
-def test_domain_detected(xes: fd.defaultERSource):
+def test_domain_detected(xes: fd.ERSource):
     dd = xes.domain('photons_detected').numpy()
     np.testing.assert_equal(
         dd.min(axis=1),
         np.floor(xes.data['photons_detected_min']).values)
 
 
-def test_detector_response(xes: fd.defaultERSource):
+def test_detector_response(xes: fd.ERSource):
     data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
 
-    for block in fd.default.lxe_blocks.final_signals.MakeS1, \
-        fd.default.lxe_blocks.final_signals.MakeS2:
+    for block in fd.MakeS1, \
+        fd.MakeS2:
 
         r = block(xes).compute(
             data_tensor, ptensor,
@@ -214,9 +214,9 @@ def test_detector_response(xes: fd.defaultERSource):
             0.5)
 
 
-def test_detection_prob(xes: fd.defaultERSource):
+def test_detection_prob(xes: fd.ERSource):
     data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
-    block = fd.default.lxe_blocks.detection.DetectElectrons
+    block = fd.DetectElectrons
     r = block(xes).compute(
             data_tensor, ptensor,
             **xes._domain_dict(block.dimensions, data_tensor)).numpy()
@@ -257,11 +257,11 @@ def test_detection_prob(xes: fd.defaultERSource):
         decimal=2)
 
 
-def test_estimate_mu(xes: fd.defaultERSource):
+def test_estimate_mu(xes: fd.ERSource):
     xes.estimate_mu()
 
 
-def test_underscore_diff_rate(xes: fd.defaultERSource):
+def test_underscore_diff_rate(xes: fd.ERSource):
 
     x = xes._differential_rate(data_tensor=xes.data_tensor[0],
                                ptensor=xes.ptensor_from_kwargs())
@@ -294,7 +294,7 @@ def test_diff_rate_grad(xes):
     np.testing.assert_almost_equal(dr, dr3, decimal=4)
 
 
-def test_set_data(xes: fd.defaultERSource):
+def test_set_data(xes: fd.ERSource):
     assert xes.n_batches == 1
     assert xes.n_padding == 0
     assert xes.batch_size == 2
@@ -316,7 +316,7 @@ def test_set_data(xes: fd.defaultERSource):
     # Setting defaults temporarily (see PR #110)
     with xes._set_temporarily(data2, elife=100e3):
         pass
-    assert xes.defaults['elife'] == fd.defaultERSource().defaults['elife']
+    assert xes.defaults['elife'] == fd.ERSource().defaults['elife']
 
     # Setting for real
     xes.set_data(data2)
@@ -339,11 +339,11 @@ def test_set_data(xes: fd.defaultERSource):
 
 
 def test_clip(xes):
-    if not isinstance(xes, fd.defaultWIMPSource):
+    if not isinstance(xes, fd.WIMPSource):
         return
 
     t_bad = pd.to_datetime(xes.t_start) - timedelta(days=2)
-    with pytest.raises(fd.default.lxe_blocks.energy_spectrum.InvalidEventTimes):
+    with pytest.raises(fd.InvalidEventTimes):
         xes.simulate(10, fix_truth=dict(event_time=t_bad))
 
     t_good = pd.to_datetime(xes.t_start) + timedelta(days=2)
