@@ -1,4 +1,4 @@
-"""LUX detector implementation
+"""lux detector implementation
 
 """
 import tensorflow as tf
