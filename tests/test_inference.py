@@ -1,7 +1,7 @@
 import numpy as np
 
 import flamedisx as fd
-from test_source import xes   # Yes, it is used through pytest magic
+from .test_source import xes   # Yes, it is used through pytest magic
 
 
 n_events = 2
