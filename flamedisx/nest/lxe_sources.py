@@ -21,10 +21,10 @@ class nestSource(fd.BlockModelSource):
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
-            os.path.dirname(__file__), '../config/', detector+'.ini'))
+            os.path.dirname(__file__), 'config/', detector + '.ini'))
 
         config = configparser.ConfigParser(inline_comment_prefixes=';')
-        config.read(os.path.join(os.path.dirname(__file__), '../config/', detector+'.ini'))
+        config.read(os.path.join(os.path.dirname(__file__), 'config/', detector + '.ini'))
 
         # common (known) parameters
         self.temperature = config.getfloat('NEST', 'temperature_config')
