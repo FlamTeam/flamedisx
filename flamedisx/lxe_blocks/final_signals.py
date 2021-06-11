@@ -109,8 +109,11 @@ class MakeS1(MakeFinalSignals):
         'photoelectron_gain_std',
         's1_acceptance') + special_model_functions
 
-    def s1_acceptance(self, s1):
-        return tf.where((s1 < self.source.S1_min) | (s1 > self.source.S1_max),
+    photoelectron_gain_mean = 1.
+    photoelectron_gain_std = 0.5
+
+    def s1_acceptance(self, s1, s1_min=2, s1_max=70):
+        return tf.where((s1 < s1_min) | (s1 > s1_max),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
@@ -149,8 +152,10 @@ class MakeS2(MakeFinalSignals):
     def electron_gain_mean(z, *, g2=20):
         return g2 * tf.ones_like(z)
 
-    def s2_acceptance(self, s2):
-        return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
+    electron_gain_std = 5.
+
+    def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
+        return tf.where((s2 < s2_min) | (s2 > s2_max),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
