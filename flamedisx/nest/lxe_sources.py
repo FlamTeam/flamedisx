@@ -35,11 +35,11 @@ class nestSource(fd.BlockModelSource):
         self.gas_field = config.getfloat('NEST', 'gas_field_config')
 
         # derived (known) parameters
-        self.density = fd_nest.calculate_density(self.temperature,
-                                            self.pressure)
+        self.density = fd_nest.calculate_density(
+            self.temperature, self.pressure)
         # NOTE: BE CAREFUL WITH THE BELOW, ONLY VALID NEAR VAPOUR PRESSURE!!!
-        self.density_gas = fd_nest.calculate_density_gas(self.temperature,
-                                                    self.pressure)
+        self.density_gas = fd_nest.calculate_density_gas(
+            self.temperature, self.pressure)
         #
         self.drift_velocity = fd_nest.calculate_drift_velocity(
             self.drift_field, self.density, self.temperature)

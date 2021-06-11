@@ -194,8 +194,7 @@ def test_domain_detected(xes: fd.ERSource):
 def test_detector_response(xes: fd.ERSource):
     data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
 
-    for block in fd.MakeS1, \
-        fd.MakeS2:
+    for block in fd.MakeS1, fd.MakeS2:
 
         r = block(xes).compute(
             data_tensor, ptensor,

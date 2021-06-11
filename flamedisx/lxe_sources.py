@@ -6,7 +6,6 @@ export, __all__ = fd.exporter()
 
 @export
 class ERSource(fd.BlockModelSource):
-
     model_blocks = (
         fd.FixedShapeEnergySpectrum,
         fd.MakeERQuanta,
@@ -39,7 +38,6 @@ class ERSource(fd.BlockModelSource):
 
 @export
 class NRSource(fd.BlockModelSource):
-
     model_blocks = (
         fd.FixedShapeEnergySpectrum,
         fd.MakeNRQuanta,

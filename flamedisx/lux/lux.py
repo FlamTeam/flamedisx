@@ -25,7 +25,7 @@ class LUXSource:
 
         config = configparser.ConfigParser(inline_comment_prefixes=';')
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
-                                 detector +'.ini'))
+                                 detector + '.ini'))
 
         self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
         self.dt_cntr = config.getfloat('NEST', 'dt_cntr_config')
