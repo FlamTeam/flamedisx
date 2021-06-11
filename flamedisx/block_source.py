@@ -303,6 +303,20 @@ class BlockModelSource(fd.Source):
 
         super().__init__(*args, **kwargs)
 
+    def setup_copy(self):
+        """Do any necessary initialization after a copy.
+        """
+        for b in self.model_blocks:
+            attributes = set(b.model_functions
+                             + b.special_model_functions
+                             + b.model_attributes)
+
+            for x in attributes:
+                # If a source attribute has been updated in a copy
+                # update the block's attribute.
+                if hasattr(self, x):
+                    setattr(b, x, getattr(self, x))
+
     @staticmethod
     def _find_block(blocks,
                     has_dim: ty.Union[list, tuple, set],
