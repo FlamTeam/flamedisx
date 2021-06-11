@@ -1,4 +1,5 @@
 from copy import copy
+from copy import deepcopy
 from contextlib import contextmanager
 import inspect
 import typing as ty
@@ -729,6 +730,16 @@ class Source:
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
 
+    def MC_bounds(self):
+        """"""
+        test_copy = deepcopy(self)
+        test_copy.energies = tf.cast(tf.linspace(0., 5., 1000),
+                                     fd.float_type())
+        test_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
+        test_copy.setup_copy()
+        df_test = test_copy.simulate(10)
+        print(df_test)
+
     ##
     # Functions you have to override
     ##
@@ -740,6 +751,9 @@ class Source:
         """Return mean expected number of events BEFORE efficiencies/response
         using data for the evaluation of the energy spectra
         """
+        raise NotImplementedError
+
+    def setup_copy():
         raise NotImplementedError
 
     ##
