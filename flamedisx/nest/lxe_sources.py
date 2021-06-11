@@ -17,6 +17,8 @@ XENON_GAS_DIELECTRIC = 1.00126
 
 
 class nestSource(fd.BlockModelSource):
+    default_max_sigma = 12
+
     def __init__(self, *args, detector='default', **kwargs):
         assert detector in ('default',)
 

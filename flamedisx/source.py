@@ -20,6 +20,7 @@ class Source:
     n_batches = None
     n_padding = None
     trace_difrate = True
+    default_max_sigma = 3
 
     model_functions = tuple()
     special_model_functions = tuple()
@@ -84,7 +85,7 @@ class Source:
     def __init__(self,
                  data=None,
                  batch_size=10,
-                 max_sigma=12,
+                 max_sigma=None,
                  max_dim_size=120,
                  data_is_annotated=False,
                  _skip_tf_init=False,
@@ -97,6 +98,7 @@ class Source:
         :param data: Dataframe with events to use in the inference
         :param batch_size: Number of events / tensorflow batch
         :param max_sigma: Hint for hidden variable bounds computation
+            If omitted, set to default_max_sigma
         :param max_dim_size: Maximum bounds size for inner_dimensions,
             excluding no_step_dimensions
         :param data_is_annotated: If True, skip annotation
@@ -107,6 +109,8 @@ class Source:
             (if data is not None)
         :param params: New defaults to use
         """
+        if max_sigma is None:
+            max_sigma = self.default_max_sigma
         self.max_sigma = max_sigma
         self.max_dim_size = max_dim_size
 

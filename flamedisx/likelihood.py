@@ -51,7 +51,7 @@ class LogLikelihood:
                 ty.Dict[str, pd.DataFrame]] = None,
             free_rates=None,
             batch_size=10,
-            max_sigma=12,
+            max_sigma=None,
             max_dim_size=120,
             n_trials=int(1e5),
             log_constraint=None,
@@ -77,6 +77,7 @@ class LogLikelihood:
 
         :param max_sigma: Maximum sigma to use in bounds estimation.
             Higher numbers give better accuracy, at the cost of performance.
+            If not specified, each source will use its own default.
 
         :param max_dim_size: Maximum bounds size for inner_dimensions,
             excluding no_step_dimensions
