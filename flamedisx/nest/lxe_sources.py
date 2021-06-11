@@ -4,6 +4,8 @@ import configparser
 import os
 
 import flamedisx as fd
+from .. import nest as fd_nest
+
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
@@ -31,13 +33,13 @@ class nestSource(fd.BlockModelSource):
         self.gas_field = config.getfloat('NEST', 'gas_field_config')
 
         # derived (known) parameters
-        self.density = fd.calculate_density(self.temperature,
+        self.density = fd_nest.calculate_density(self.temperature,
                                             self.pressure)
         # NOTE: BE CAREFUL WITH THE BELOW, ONLY VALID NEAR VAPOUR PRESSURE!!!
-        self.density_gas = fd.calculate_density_gas(self.temperature,
+        self.density_gas = fd_nest.calculate_density_gas(self.temperature,
                                                     self.pressure)
         #
-        self.drift_velocity = fd.calculate_drift_velocity(
+        self.drift_velocity = fd_nest.calculate_drift_velocity(
             self.drift_field, self.density, self.temperature)
 
         # energy_spectrum.py
@@ -146,18 +148,18 @@ class nestERSource(nestSource):
         super().__init__(*args, **kwargs)
 
     model_blocks = (
-        fd.nest.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum,
-        fd.nest.lxe_blocks.quanta_generation.MakeERQuanta,
-        fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsBetaBinomial,
-        fd.nest.lxe_blocks.detection.DetectPhotons,
-        fd.nest.lxe_blocks.double_pe.MakeS1Photoelectrons,
-        fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
-        fd.nest.lxe_blocks.final_signals.MakeS1,
-        fd.nest.lxe_blocks.detection.DetectElectrons,
-        fd.nest.lxe_blocks.secondary_quanta_generation.MakeS2Photons,
-        fd.nest.lxe_blocks.detection.DetectS2Photons,
-        fd.nest.lxe_blocks.double_pe.MakeS2Photoelectrons,
-        fd.nest.lxe_blocks.final_signals.MakeS2)
+        fd_nest.FixedShapeEnergySpectrum,
+        fd_nest.MakeERQuanta,
+        fd_nest.MakePhotonsElectronsBetaBinomial,
+        fd_nest.DetectPhotons,
+        fd_nest.MakeS1Photoelectrons,
+        fd_nest.DetectS1Photoelectrons,
+        fd_nest.MakeS1,
+        fd_nest.DetectElectrons,
+        fd_nest.MakeS2Photons,
+        fd_nest.DetectS2Photons,
+        fd_nest.MakeS2Photoelectrons,
+        fd_nest.MakeS2)
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -185,18 +187,18 @@ class nestNRSource(nestSource):
         super().__init__(*args, **kwargs)
 
     model_blocks = (
-        fd.nest.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum,
-        fd.nest.lxe_blocks.quanta_generation.MakeNRQuanta,
-        fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsBinomial,
-        fd.nest.lxe_blocks.detection.DetectPhotons,
-        fd.nest.lxe_blocks.double_pe.MakeS1Photoelectrons,
-        fd.nest.lxe_blocks.pe_detection.DetectS1Photoelectrons,
-        fd.nest.lxe_blocks.final_signals.MakeS1,
-        fd.nest.lxe_blocks.detection.DetectElectrons,
-        fd.nest.lxe_blocks.secondary_quanta_generation.MakeS2Photons,
-        fd.nest.lxe_blocks.detection.DetectS2Photons,
-        fd.nest.lxe_blocks.double_pe.MakeS2Photoelectrons,
-        fd.nest.lxe_blocks.final_signals.MakeS2)
+        fd_nest.FixedShapeEnergySpectrum,
+        fd_nest.MakeNRQuanta,
+        fd_nest.MakePhotonsElectronsBinomial,
+        fd_nest.DetectPhotons,
+        fd_nest.MakeS1Photoelectrons,
+        fd_nest.DetectS1Photoelectrons,
+        fd_nest.MakeS1,
+        fd_nest.DetectElectrons,
+        fd_nest.MakeS2Photons,
+        fd_nest.DetectS2Photons,
+        fd_nest.MakeS2Photoelectrons,
+        fd_nest.MakeS2)
 
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ()
@@ -240,14 +242,14 @@ class nestNRSource(nestSource):
 
 @export
 class nestSpatialRateERSource(nestERSource):
-    model_blocks = (fd.nest.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + nestERSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestERSource.model_blocks[1:]
 
 
 @export
 class nestSpatialRateNRSource(nestNRSource):
-    model_blocks = (fd.nest.lxe_blocks.energy_spectrum.SpatialRateEnergySpectrum,) + nestNRSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestNRSource.model_blocks[1:]
 
 
 @export
 class nestWIMPSource(nestNRSource):
-    model_blocks = (fd.nest.lxe_blocks.energy_spectrum.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
+    model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
