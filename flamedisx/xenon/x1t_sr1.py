@@ -38,10 +38,11 @@ DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036
 ##
 # Yield maps
 ##
-s1_map, s2_map = [
-    fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
-    for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
-              'XENON1T_s2_xy_ly_SR1_v2.2.json')]
+s1_map_path_nt = 'nt_maps/XnT_S1_xyz_MLP_v0.1_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_v0d677.json'
+s2_map_path_nt = 'nt_maps/XENONnT_s2_xy_map_v1_20210503_mlp.json'
+
+s1_map, s2_map = [fd.InterpolatingMap(fd.get_nt_file(x))
+        for x in (s1_map_path_nt, s2_map_path_nt)]
 
 ##
 # Loading Pax reconstruction bias
@@ -67,7 +68,7 @@ path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
 ##
 # Loading elife maps
 ##
-variable_elife = True
+variable_elife = False
 path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
