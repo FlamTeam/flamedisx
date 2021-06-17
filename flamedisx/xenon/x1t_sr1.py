@@ -294,7 +294,7 @@ class SR1Source:
     def s2_acceptance(self,
                       s2,
                       cs2,
-                      s2_min=200,
+                      s2_min=200.,
                       # Needed for future sources i.e. wall
                       cs2b_min=50.1,
                       cs2b_max=7940.):
