@@ -294,10 +294,13 @@ class SR1Source:
     def s2_acceptance(self,
                       s2,
                       cs2,
+                      s2_min=200,
+                      # Needed for future sources i.e. wall
                       cs2b_min=50.1,
                       cs2b_max=7940.):
         cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
-        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max),
+        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max) 
+                                                & (s2 > s2_min),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
