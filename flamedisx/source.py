@@ -386,13 +386,13 @@ class Source:
         :param fname: Name of the model function to compute
         :param bonus_arg: If fname takes a bonus argument, the data for it
         :param numpy_out: If True, return (tuple of) numpy arrays,
-        otherwise (tuple of) tensors.
+            otherwise (tuple of) tensors.
         :param data_tensor: Data tensor, columns as self.column_index
-        If not given, use self.data (used in annotate)
+            If not given, use self.data (used in annotate)
         :param ptensor: Parameter tensor, columns as self.param_id
-        If not give, use defaults dictionary (used in annotate)
-        Before using gimme, you must use set_data to
-        populate the internal caches.
+            If not given, use defaults dictionary (used in annotate)
+            Before using gimme, you must use set_data to
+            populate the internal caches.
         """
         assert (bonus_arg is not None) == (fname in self.special_model_functions)
         assert isinstance(fname, str), \
@@ -492,7 +492,7 @@ class Source:
     ##
 
     def domain(self, x, data_tensor=None):
-        """Return (n_events, |possible x values|) matrix containing all
+        """Return (n_events, n_x) matrix containing all
         possible integer values of x for each event.
 
         If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
@@ -508,7 +508,7 @@ class Source:
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
-        """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
+        """Return (x, y) two-tuple of (n_events, n_x, n_y) tensors
         containing possible integer values of x and y, respectively.
         """
         # TODO: somehow mask unnecessary elements and save computation time
@@ -560,7 +560,7 @@ class Source:
 
         Careful: ensure mutual constraints are accounted for first!
         (e.g. fixing energy for a modulating WIMP has consequences for the
-         time distribution.)
+        time distribution.)
         """
         if fix_truth is not None:
             for k, v in fix_truth.items():

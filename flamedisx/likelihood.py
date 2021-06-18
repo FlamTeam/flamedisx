@@ -502,22 +502,22 @@ class LogLikelihood:
         """Return best-fit parameter dict
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
-        Any omitted parameters will be guessed at LogLikelihood.defaults()
+            Any omitted parameters will be guessed at LogLikelihood.defaults()
         :param fix: dict {param: value} of parameters to keep fixed
-        during the minimzation.
+            during the minimzation.
         :param optimizer: 'tf', 'minuit' or 'scipy'
         :param get_lowlevel_result: Returns the full optimizer result instead
-        of the best fit parameters. Bool.
+            of the best fit parameters. Bool.
         :param get_history: Returns the history of optimizer calls instead
-        of the best fit parameters. Bool.
+            of the best fit parameters. Bool.
         :param use_hessian: If True, uses flamedisxs' exact Hessian
-        in the optimizer. Otherwise, most optimizers estimate it by finite-
-        difference calculations.
+            in the optimizer. Otherwise, most optimizers estimate it by finite-
+            difference calculations.
         :param return_errors: If using the minuit minimizer, instead return
-        a 2-tuple of (bestfit dict, error dict).
-        In case optimizer is minuit, you can also pass 'hesse' or 'minos' here.
+            a 2-tuple of (bestfit dict, error dict).
+            If the optimizer is minuit, you can also pass 'hesse' or 'minos'.
         :param allow_failure: If True, raise a warning instead of an exception
-        if there is an optimizer failure.
+            if there is an optimizer failure.
         """
         if bounds is None:
             bounds = dict()
@@ -605,36 +605,36 @@ class LogLikelihood:
             use_hessian=True,
             allow_failure=False,
     ):
-        """Return frequentist limit or confidence interval
+        """Return frequentist limit or confidence interval.
+
+        Returns a float (for upper or lower limits) or a 2-tuple of floats
+        (for a central interval)
 
         :param parameter: string, the parameter to set the interval on
         :param bestfit: {parameter: value} dictionary, global best-fit.
-        If omitted, will compute it using bestfit.
+            If omitted, will compute it using bestfit.
         :param guess: {param: value} guess of the result, or None.
-        If omitted, nuisance parameters will be guessed equal to bestfit.
-        If omitted, guess for target parameters will be based on asymptotic
-        parabolic computation.
+            If omitted, nuisance parameters will be guessed equal to bestfit.
+            If omitted, guess for target parameters will be based on asymptotic
+            parabolic computation.
         :param fix: {param: value} to fix during interval computation.
-        Result is only valid if same parameters were fixed for bestfit.
+            Result is only valid if same parameters were fixed for bestfit.
         :param confidence_level: Requried confidence level of the interval
         :param kind: Type of interval, 'upper', 'lower' or 'central'
         :param sigma_guess: Guess for one sigma uncertainty on the target
-        parameter. If not provided, will be computed from Hessian.
+            parameter. If not provided, will be computed from Hessian.
         :param t_ppf: returns critical value as function of parameter
-        Use Wilks' theorem if omitted.
+            Use Wilks' theorem if omitted.
         :param t_ppf_grad: return derivative of t_ppf
         :param t_ppf_hess: return second derivative of t_ppf
         :param tilt_overshoot: Set tilt so the limit's log likelihood will
-        overshoot the target value by roughly this much.
+            overshoot the target value by roughly this much.
         :param optimizer_kwargs: dict of additional arguments for optimizer
         :param allow_failure: If True, raise a warning instead of an exception
-        if there is an optimizer failure.
+            if there is an optimizer failure.
         :param use_hessian: If True, uses flamedisxs' exact Hessian
-        in the optimizer. Otherwise, most optimizers estimate it by finite-
-        difference calculations.
-
-        Returns a float (for upper or lower limits)
-        or a 2-tuple of floats (for a central interval)
+            in the optimizer. Otherwise, most optimizers estimate it by finite-
+            difference calculations.
         """
         if optimizer_kwargs is None:
             optimizer_kwargs = dict()

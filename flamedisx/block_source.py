@@ -287,9 +287,8 @@ class BlockModelSource(fd.Source):
     def _find_block(blocks,
                     has_dim: ty.Union[list, tuple, set],
                     exclude: Block = None):
-        """Find a block with a dimension in allowed
-        Return (dimensions, b), or
-         raises BlockNotFoundError if no such block found.
+        """Find a block with a dimension in has_dim, other than the block in
+        exclude. Return (dimensions, b), or raises BlockNotFoundError.
         """
         for dims, b in blocks.items():
             if b is exclude:
