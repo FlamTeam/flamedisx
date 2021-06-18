@@ -29,11 +29,11 @@ class Source:
     #: rate computation
     trace_difrate = True
 
-    #: Names of model functions that take NO additional first argument
+    #: Names of model functions
     model_functions: ty.Tuple[str] = tuple()
 
-    #: Names of model functions that take one additional first argument
-    #: ('bonus arg')
+    #: Names of model functions that take an additional first argument
+    #: ('bonus arg'). This must be a subset of model_functions.
     special_model_functions: ty.Tuple[str] = tuple()
 
     #: Model functions whose results should be evaluated once per event,
@@ -464,6 +464,7 @@ class Source:
         return [self.batch_size, self.n_columns_in_data_tensor]
 
     def trace_differential_rate(self):
+        """Compile the differential rate computation to a tensorflow graph"""
         input_signature = (
             tf.TensorSpec(shape=self._batch_data_tensor_shape(),
                           dtype=fd.float_type()),
@@ -668,7 +669,11 @@ class ColumnSource(Source):
     """Source that expects precomputed differential rate in a column,
     and precomputed mu in an attribute
     """
+
+    #: Name of the data column containing the precomputed differential rate
     column = 'rename_me!'
+
+    #: Expected events for this source
     mu = 42.
 
     def extra_needed_columns(self):

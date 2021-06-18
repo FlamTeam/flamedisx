@@ -19,21 +19,31 @@ class EnergySpectrum(fd.FirstBlock):
         'drift_velocity',
         't_start', 't_stop')
 
-    # The fiducial volume bounds for a cylindrical volume
-    # default to full (2t) XENON1T dimensions
+    #: Maximum radius at which events are allowed in cm
+    #: Fiducial volume defaults to  full (2t) XENON1T dimensions.
     fv_radius = 47.9   # cm
+
+    #: Maximum z value (-depth) at which events are allowed in cm
     fv_high = 0.  # cm
+
+    #: Minimum z value (-depth) at which events are allowed in cm
+    #: Fiducial volume defaults to  full (2t) XENON1T dimensions.
     fv_low = -97.6  # cm
 
-    drift_velocity = 1.335 * 1e-4   # cm/ns
+    #: Electron drift velocity in cm/ns
+    drift_velocity = 1.335 * 1e-4
 
-    # The default boundaries are at points where the WIMP wind is at its
-    # average speed.
-    # This will then also be true at the midpoint of these times.
+    #: Earliest time at which events are allowed, datetime.datetime
+    #: The default time boundaries are one year apart, starting and ending at
+    #: Sept. 1, when the WIMP speed is average.
+    #: The WIMP speed is also average at the halfway point.
     t_start = pd.to_datetime('2019-09-01T08:28:00')
+
+    #: Last time at which events are allowed, datetime.datetime
     t_stop = pd.to_datetime('2020-09-01T08:28:00')
 
-    # Just a dummy 0-10 keV spectrum
+    #: Tensor listing energies this source can produce.
+    #: Approximate the energy spectrum as a sequence of delta functions.
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
 
@@ -156,8 +166,12 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     model_attributes = ('rates_vs_energy',) + EnergySpectrum.model_attributes
     model_functions = ('energy_spectrum_rate_multiplier',)
 
+    #: Tensor listing the number of events for each energy the souce produces
+    #: Recall we approximate energy spectra by a sequence of delta functions.
     rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
 
+    #: Model function describing a rate multiplier to the energy spectrum.
+    #: You probably have to update random_truth when modifying this!
     energy_spectrum_rate_multiplier = 1.
 
     def _compute(self, data_tensor, ptensor, *, energy):
@@ -178,6 +192,10 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
                         + FixedShapeEnergySpectrum.model_attributes)
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
+    #: multihist.Histdd of events/bin produced by this source.
+    #: Axes can be either (r, theta, z) or (x, y, z).
+    #: Do not apply any normalization yourself, flamedisx will multiply by
+    #: appropriate physical bin volume factors.
     spatial_hist: Histdd
 
     def setup(self):
@@ -277,16 +295,22 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
                         'n_time_bins',
                         'energy_edges') + VariableEnergySpectrum.model_attributes
 
-    # If set to True, the energy spectrum at each time will be set to its
-    # average over the data taking period.
+    #: If set to True, the energy spectrum at each time will be set to its
+    #: average over the data taking period.
     pretend_wimps_dont_modulate = False
 
-    mw = 1e3  # GeV
-    sigma_nucleon = 1e-45  # cm^2
+    #: WIMP Mass in GeV/c^2
+    mw = 1e3
+
+    #: WIMP-nucleon cross-section in cm^2
+    sigma_nucleon = 1e-45
+
+    #: Number of time bins to use for annual modulation computation
     n_time_bins = 24
 
-    # We can't use energies here, it is used already in the base classes
-    # for other purposes
+
+    #: Bin *edges* to use for energy histogram. Centers of the bins correspond
+    #: to allowed energies.
     energy_edges = np.geomspace(0.7, 50, 100)
 
     frozen_model_functions = ('energy_spectrum',)
