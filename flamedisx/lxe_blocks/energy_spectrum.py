@@ -308,7 +308,6 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     #: Number of time bins to use for annual modulation computation
     n_time_bins = 24
 
-
     #: Bin *edges* to use for energy histogram. Centers of the bins correspond
     #: to allowed energies.
     energy_edges = np.geomspace(0.7, 50, 100)
