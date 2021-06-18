@@ -82,6 +82,46 @@ class Source:
                     defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
 
+    def print_config(self, format='table', column_widths=(40, 10)):
+        """Print the defaults of all parameters (from Source.defaults), and of
+        model functions that have been set to constants (from Source.f_dims)
+
+        :param format: 'table' to print a fixed-width table, 'config' to print
+        as a configuration file
+        :param column_widths: 2-tuple of column widths to use for table format
+        """
+
+        def print_row(*cols, header=False):
+            cols = [str(c) for c in cols]
+            if format == 'table':
+                print(''.join([
+                    col.ljust(w)
+                    for col, w in zip(cols, column_widths)]))
+            else:
+                result = '# ' if header else ''
+                result += ' = '.join(cols)
+                print(result)
+
+        def print_line(marker='-'):
+            if format == 'table':
+                print(marker * sum(column_widths))
+            else:
+                print()
+
+        print_row('Parameter', 'Default', header=True)
+        print_line()
+        for pname, default in sorted(self.defaults.items()):
+            print_row(pname, default.numpy())
+        print()
+
+        print_row("Constant", 'Default', header=True)
+        print_line()
+        for fname in sorted(self.model_functions):
+            f = getattr(self, fname)
+            if not callable(f):
+                print_row(fname, f)
+        print()
+
     def __init__(self,
                  data=None,
                  batch_size=10,
