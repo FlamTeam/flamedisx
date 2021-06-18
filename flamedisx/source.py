@@ -1,6 +1,7 @@
 from copy import copy
 from contextlib import contextmanager
 import inspect
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -172,11 +173,26 @@ class Source:
         if not _skip_tf_init:
             self.trace_differential_rate()
 
-    def set_defaults(self, **params):
+    def set_defaults(self, *, **params):
+        unused = dict()
         for k, v in params.items():
             if k in self.defaults:
+                # Change a default
                 self.defaults[k] = tf.convert_to_tensor(
                     v, dtype=fd.float_type())
+            elif k in self.model_functions:
+                # Change a model function, only allowed if it is a constant
+                # (otherwise, just subclass the source)
+                f = getattr(self, k)
+                if callable(f):
+                    raise AttributeError(
+                        f"Use source subclassing to override the non-constant "
+                        f"model function {k}")
+                setattr(self, f, k)
+            else:
+                unused[k] = v
+        if unused:
+            warnings.warn(f"Defaults for unused options ignored: {unused}")
 
     def set_data(self,
                  data=None,
