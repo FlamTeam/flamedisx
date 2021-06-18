@@ -3,7 +3,7 @@
 # You can use these files to store common detector defaults, or fit results.
 # Load them by passing a path to the `config` argument of `Source.__init__`,
 # or `Source.set_data`, or `Source.set_defaults`,
-# or the `defaults` argument of `Likelihood.__init__`.
+# or by setting 'config' key in the `defaults` argument of `Likelihood.__init__`
 #
 # Any parameter or model function with constant default can be overridden here.
 #
