@@ -1,6 +1,7 @@
 from copy import copy
 from contextlib import contextmanager
 import inspect
+import typing as ty
 
 import numpy as np
 import pandas as pd
@@ -17,25 +18,48 @@ o = tf.newaxis
 
 @export
 class Source:
+    #: Number of event batches to use in differential rate computations
     n_batches = None
+
+    #: Number of fake events that were padded to the final batch
+    #: to make it match the batch size
     n_padding = None
+
+    #: Whether to trace (compile into a tensorflow graph) the differential
+    #: rate computation
     trace_difrate = True
 
-    model_functions = tuple()
-    special_model_functions = tuple()
-    inner_dimensions = tuple()
+    #: Names of model functions that take NO additional first argument
+    model_functions: ty.Tuple[str] = tuple()
 
-    frozen_model_functions = tuple()
-    array_columns = tuple()
+    #: Names of model functions that take one additional first argument
+    #: ('bonus arg')
+    special_model_functions: ty.Tuple[str] = tuple()
 
-    # Final observable dimensions; for use in domain / cross-domain
-    final_dimensions = tuple()
+    #: Model functions whose results should be evaluated once per event,
+    #: then stored with the data. For example, non-tensorflow functions.
+    #: Note these cannot have any fittable parameters.
+    frozen_model_functions: ty.Tuple[str] = tuple()
 
-    # Avoid variable stepping over these inner_dimensions
-    no_step_dimensions = tuple()
+    #: Names of final observable dimensions (e.g. s1, s2)
+    #: for use in domain / cross-domain
+    final_dimensions: ty.Tuple[str] = tuple()
 
-    # Any non-hidden variable extra_dimensions
-    bonus_dimensions = tuple()
+    #: Names of dimensions of hidden variables (e.g. produced electrons)
+    #: for which domain computations and dimsize calculations are to be done
+    inner_dimensions: ty.Tuple[str] = tuple()
+
+    #: inner_dimensions excluded from variable stepping logic, i.e.
+    #: for which the domain is always a single interval of integers
+    no_step_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of dimensions of hidden variables for which
+    #: dimsize calculations are NOT done here (but in user-defined code)
+    #: but for which we DO track _min and _dimsizes
+    bonus_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of array-valued data columns
+    array_columns: ty.Tuple[str] = tuple()
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
@@ -43,7 +67,8 @@ class Source:
     def extra_needed_columns(self):
         return []
 
-    data = None
+    #: The fully annotated event data
+    data: pd.DataFrame = None
 
     ##
     # Initialization and helpers

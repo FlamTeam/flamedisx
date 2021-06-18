@@ -16,20 +16,40 @@ class Block:
 
     For example, P(electrons_detected | electrons_produced).
     """
+    #: Names of dimensions of the block's compute result
     dimensions: ty.Tuple[str]
-    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]]  # Any extra dimensions
-    # treated differently. Label true if they represent an internally
-    # contracted hidden variable (will be added to inner_dimenions, domain
-    # tensors will automatically be calculated), label false otherwise (will be
-    # added to bonus_dimensions, any additional domain tensors utilising them
-    # will need calculating via the block overriding _domain_dict_bonus())
 
-    depends_on: ty.Tuple[str] = tuple()
+    #: Additional dimensions used in the block computation.
+    #: Label True if they represent an internally contracted hidden variable;
+    #: these will be added to inner_dimensions so domain tensors are calculated
+    #: automatically.
+    #: Label False otherwise; these will be added to bonus_dimensions. Thus,
+    #: any additional domain tensors utilising them will need calculating via
+    #: the block overriding _domain_dict_bonus())
+    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]]
 
+    #: Blocks whose result this block expects as an extra keyword
+    #: argument to compute. Specify as ((block_dims, argument_name), ...),
+    #: where block_dims is the dimensions-tuple of the block, and argument_name
+    #: the expected name of the compute keyword argument.
+    depends_on: ty.Tuple[ty.Tuple[ty.Tuple[str], str]] = tuple()
+
+    #: Names of model functions defined in this block
     model_functions: ty.Tuple[str] = tuple()
+
+    #: Names of model functions that take an additional first argument
+    #: ('bonus arg') defined in this block; must be a subset of model_functions
     special_model_functions: ty.Tuple[str] = tuple()
+
+    #: Names of columns this block expects to be array-valued
     array_columns: ty.Tuple[str] = tuple()
+
+    #: Frozen model functions defined in this block
     frozen_model_functions: ty.Tuple[str] = tuple()
+
+    #: Static attributes this Block will furnish the source with.
+    #: The can be overriden by Source subclassing just like model functions;
+    #: they should NOT be altered during block/source instantiation!
     model_attributes: ty.Tuple[str] = tuple()
 
     def __init__(self, source):
@@ -160,8 +180,11 @@ class BlockModelSource(fd.Source):
     """Source whose model is split over different Blocks
     """
 
+    #: Blocks the source is built from.
+    #: simulate will be called from first to last, annotate from last to first.
     model_blocks: tuple
-    final_dimensions: tuple
+
+    #: Dimensions provided by the first block
     initial_dimensions: tuple
 
     def __init__(self, *args, **kwargs):
