@@ -1,3 +1,7 @@
+from ast import literal_eval
+import configparser
+import importlib
+from pathlib import Path
 import subprocess
 
 import numpy as np
@@ -251,3 +255,60 @@ def run_command(command):
             stderr=subprocess.STDOUT) as p:
         for line in iter(p.stdout.readline, ''):
             print(line.rstrip())
+
+
+@export
+def load_config(config_py=None, config_ini=None):
+    """Return dictionary of configuration options from python and ini files"""
+    config = dict()
+
+    for ini_path in _config_path_list(config_ini, fmt='ini'):
+        parser = configparser.ConfigParser()
+        parser.read(ini_path)
+        # Read values from all sections.
+        for section in parser.sections():
+            for key in section:
+                # literal_eval allows you to specify any python literal
+                # as ini values
+                config[key] = literal_eval(parser[section][key])
+
+    for py_path in _config_path_list(config_py, fmt='py'):
+        module = _load_py_file(py_path, Path(py_path).name)
+        # Use all names in __all__. If __all__ is not defined,
+        # use all non-underscore attributes except those in __exclude__
+        if not hasattr(module, '__all__'):
+            if not hasattr(module, '__exclude__'):
+                module.__exclude__ = []
+            module.__all__ = [x for x in dir(module)
+                              if not x.startswith('_')
+                              and x not in module.__exclude]
+        for key in module.__all__:
+            config[key] = getattr(module, key)
+
+    return config
+
+
+def _load_py_file(path, module_name):
+    """Load .py file from path, return as a module named module_name"""
+    # From https://stackoverflow.com/questions/67631
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _config_path_list(configs, fmt='py'):
+    """Convert 'configs' to list of paths to config files"""
+    if configs is None:
+        return ()
+    if isinstance(configs, str):
+        # Support one config
+        configs = (configs,)
+
+    paths = []
+    for path in configs:
+        if not path.endswith('.' + fmt):
+            path = Path(__file__).parent / 'configs' / (filename + '.' + fmt)
+        assert Path(path).exists(), f"Config file {str(path)} does not exist"
+        paths.append(path)
+    return paths

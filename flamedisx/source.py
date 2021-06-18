@@ -173,7 +173,13 @@ class Source:
         if not _skip_tf_init:
             self.trace_differential_rate()
 
-    def set_defaults(self, *, **params):
+    def set_defaults(self, *, config=None, **params):
+        # Load new params from configuration files
+        params = {
+            **fd.load_config(config),
+            **params}
+
+        # Apply new defaults
         unused = dict()
         for k, v in params.items():
             if k in self.defaults:
