@@ -68,6 +68,10 @@ class Source:
             for pname, p in inspect.signature(f).parameters.items():
                 if pname == 'self':
                     continue
+                if pname in self.model_functions:
+                    raise AttributeError(
+                        f"{pname} is used both as a model function and "
+                        f"as a parameter of a model function, {fname}")
                 if p.default is inspect.Parameter.empty:
                     if fname in self.special_model_functions and not seen_special:
                         seen_special = True
@@ -146,7 +150,8 @@ class Source:
         :param fit_params: List of parameters to fit
         :param progress: whether to show progress bars for mu estimation
             (if data is not None)
-        :param params: New defaults to use
+        :param params: New defaults to for parameters, and new values for
+        constant-valued model functions.
         """
         self.max_sigma = max_sigma
         self.max_dim_size = max_dim_size
