@@ -175,9 +175,7 @@ class Source:
 
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files
-        params = {
-            **fd.load_config(config),
-            **params}
+        params = {**fd.load_config(config), **params}
 
         # Apply new defaults
         unused = dict()
@@ -194,7 +192,7 @@ class Source:
                     raise AttributeError(
                         f"Use source subclassing to override the non-constant "
                         f"model function {k}")
-                setattr(self, f, k)
+                setattr(self, k, v)
             else:
                 unused[k] = v
         if unused:

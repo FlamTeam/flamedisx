@@ -258,57 +258,27 @@ def run_command(command):
 
 
 @export
-def load_config(config_py=None, config_ini=None):
-    """Return dictionary of configuration options from python and ini files"""
+def load_config(config_files=None):
+    """Return dictionary of configuration options from (a) python file(s)"""
+    if config_files is None:
+        return {}
+    if isinstance(config_files, str):
+        # Support one or multiple files
+        config_files = (config_files,)
+
     config = dict()
+    for filename in config_files:
+        if not filename.endswith('.py'):
+            # This is (hopefully) a named config shipped with flamedisx
+            filename = Path(__file__).parent / 'configs' / (filename + '.py')
 
-    for ini_path in _config_path_list(config_ini, fmt='ini'):
-        parser = configparser.ConfigParser()
-        parser.read(ini_path)
-        # Read values from all sections.
-        for section in parser.sections():
-            for key in section:
-                # literal_eval allows you to specify any python literal
-                # as ini values
-                config[key] = literal_eval(parser[section][key])
-
-    for py_path in _config_path_list(config_py, fmt='py'):
-        module = _load_py_file(py_path, Path(py_path).name)
-        # Use all names in __all__. If __all__ is not defined,
-        # use all non-underscore attributes except those in __exclude__
-        if not hasattr(module, '__all__'):
-            if not hasattr(module, '__exclude__'):
-                module.__exclude__ = []
-            module.__all__ = [x for x in dir(module)
-                              if not x.startswith('_')
-                              and x not in module.__exclude]
-        for key in module.__all__:
-            config[key] = getattr(module, key)
+        # Adapted from https://stackoverflow.com/a/37611448
+        with open(filename) as f:
+            code = compile(f.read(), filename, 'exec')
+        captured_locals = dict()
+        exec(code, globals(), captured_locals)
+        config.update({
+            k: v for k, v in captured_locals.items()
+            if not k.startswith('_')})
 
     return config
-
-
-def _load_py_file(path, module_name):
-    """Load .py file from path, return as a module named module_name"""
-    # From https://stackoverflow.com/questions/67631
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _config_path_list(configs, fmt='py'):
-    """Convert 'configs' to list of paths to config files"""
-    if configs is None:
-        return ()
-    if isinstance(configs, str):
-        # Support one config
-        configs = (configs,)
-
-    paths = []
-    for path in configs:
-        if not path.endswith('.' + fmt):
-            path = Path(__file__).parent / 'configs' / (filename + '.' + fmt)
-        assert Path(path).exists(), f"Config file {str(path)} does not exist"
-        paths.append(path)
-    return paths
