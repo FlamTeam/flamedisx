@@ -38,6 +38,9 @@ class Source:
     # Any non-hidden variable extra_dimensions
     bonus_dimensions = tuple()
 
+    #: Any additional source attributes that should be configurable.
+    model_attributes = tuple()
+
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
@@ -86,7 +89,7 @@ class Source:
                     defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
 
-    def print_config(self, format='table', column_widths=(40, 10)):
+    def print_config(self, format='table', column_widths=(40, 20)):
         """Print the defaults of all parameters (from Source.defaults), and of
         model functions that have been set to constants (from Source.f_dims)
 
@@ -96,10 +99,10 @@ class Source:
         """
 
         def print_row(*cols, header=False):
-            cols = [str(c) for c in cols]
+            cols = [str(c).replace('\n', '') for c in cols]
             if format == 'table':
                 print(''.join([
-                    col.ljust(w)
+                    col.ljust(w) if len(col) < w else col[:w - 3] + '...'
                     for col, w in zip(cols, column_widths)]))
             else:
                 result = '# ' if header else ''
@@ -118,12 +121,18 @@ class Source:
             print_row(pname, default.numpy())
         print()
 
-        print_row("Constant", 'Default', header=True)
+        print_row("Constant (could be made a function)", 'Default', header=True)
         print_line()
         for fname in sorted(self.model_functions):
             f = getattr(self, fname)
             if not callable(f):
                 print_row(fname, f)
+        print()
+
+        print_row("Other attribute", 'Default', header=True)
+        print_line()
+        for fname in sorted(self.model_attributes):
+            print_row(fname, getattr(self, fname))
         print()
 
     def __init__(self,
@@ -161,6 +170,12 @@ class Source:
             l_ = getattr(self, attrname)
             if len(set(l_)) != len(l_):
                 raise ValueError(f"{attrname} contains duplicates: {l_}")
+        # Check all special model functions are actually model functions
+        for fname in self.special_model_functions:
+            if fname not in self.model_functions:
+                raise ValueError(
+                    f"{attrname} is listed as a special model function, "
+                    f"but not as a model function")
 
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
@@ -238,10 +253,13 @@ class Source:
                         f"Use source subclassing to override the non-constant "
                         f"model function {k}")
                 setattr(self, k, v)
+            elif k in self.model_attributes:
+                # Change a generic model attribute
+                setattr(self, k, v)
             else:
                 unused[k] = v
         if unused:
-            warnings.warn(f"Defaults for unused options ignored: {unused}")
+            warnings.warn(f"Defaults for unused settings ignored: {unused}")
 
     def set_data(self,
                  data=None,

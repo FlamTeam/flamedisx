@@ -185,9 +185,10 @@ class BlockModelSource(fd.Source):
     """Source whose model is split over different Blocks
     """
 
-    model_blocks: tuple
-    final_dimensions: tuple
-    initial_dimensions: tuple
+    model_blocks = ()
+    final_dimensions = ()
+    initial_dimensions = ()
+    extra_dimensions = ()
 
     def __init__(self, *args, **kwargs):
         if isinstance(self.model_blocks[0], FirstBlock):
@@ -262,7 +263,7 @@ class BlockModelSource(fd.Source):
             if k == 'dimensions':
                 # Dimensions is a special case, see below
                 continue
-            setattr(self, k, tuple(set(v)))
+            setattr(self, k, getattr(self, k) + tuple(set(v)))
 
         self.inner_dimensions = tuple(
             [d for d in collected['dimensions']

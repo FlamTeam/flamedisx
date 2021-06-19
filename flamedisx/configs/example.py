@@ -5,7 +5,8 @@
 # or `Source.set_data`, or `Source.set_defaults`,
 # or by setting 'config' key in the `defaults` argument of `Likelihood.__init__`
 #
-# Any parameter or model function with constant default can be overridden here.
+# Any parameter, model attribute, or model function with constant default
+# can be overridden here.
 #
 
 elife = 987_654.
