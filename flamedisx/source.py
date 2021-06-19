@@ -89,17 +89,23 @@ class Source:
                     defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
 
-    def print_config(self, format='table', column_widths=(40, 20)):
+    def print_config(self,
+                     format='table',
+                     column_widths=(40, 20),
+                     omit=tuple()):
         """Print the defaults of all parameters (from Source.defaults), and of
         model functions that have been set to constants (from Source.f_dims)
 
         :param format: 'table' to print a fixed-width table, 'config' to print
-        as a configuration file
+            as a configuration file
         :param column_widths: 2-tuple of column widths to use for table format
+        :param omit: settings to omit from printout. Useful for format='config',
+            since some things (like arrays and tensors) cannot be evaluated
+            from their string representation.
         """
 
         def print_row(*cols, header=False):
-            cols = [str(c).replace('\n', '') for c in cols]
+            cols = [str(x).replace('\n', '') for x in cols]
             if format == 'table':
                 print(''.join([
                     col.ljust(w) if len(col) < w else col[:w - 3] + '...'
@@ -108,6 +114,8 @@ class Source:
                 result = '# ' if header else ''
                 result += ' = '.join(cols)
                 print(result)
+
+        format_value = str if format == 'table' else repr
 
         def print_line(marker='-'):
             if format == 'table':
@@ -118,21 +126,27 @@ class Source:
         print_row('Parameter', 'Default', header=True)
         print_line()
         for pname, default in sorted(self.defaults.items()):
-            print_row(pname, default.numpy())
+            if pname in omit:
+                continue
+            print_row(pname, format_value(default.numpy()))
         print()
 
         print_row("Constant (could be made a function)", 'Default', header=True)
         print_line()
         for fname in sorted(self.model_functions):
+            if fname in omit:
+                continue
             f = getattr(self, fname)
             if not callable(f):
-                print_row(fname, f)
+                print_row(fname, format_value(f))
         print()
 
         print_row("Other attribute", 'Default', header=True)
         print_line()
         for fname in sorted(self.model_attributes):
-            print_row(fname, getattr(self, fname))
+            if fname in omit:
+                continue
+            print_row(fname, format_value(getattr(self, fname)))
         print()
 
     def __init__(self,
