@@ -145,7 +145,7 @@ For example, the :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEner
 
 to change the energy spectrum. This is simply another form of 'common customization', just like the more common model function overriding.
 
-Do not try to change model attributes after a source is initialized! (Such changes will not be propagated from the `Source` to the `Block`; code in the `Block` will still see the old attribute, and you will get a headache.)
+Behind the scenes, any attempt to get or set a Block's model attribute or model function will be redirected to the `Source` to which the block belongs. So you can safely do `self.some_attribute` rather than `self.source_some_attribute`; these are equivalent.
 
 
 Block dependencies
