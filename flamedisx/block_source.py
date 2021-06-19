@@ -16,6 +16,8 @@ class Block:
 
     For example, P(electrons_detected | electrons_produced).
     """
+    source: fd.Source = None
+
     dimensions: ty.Tuple[str]
     extra_dimensions: ty.Tuple[ty.Tuple[str, bool]]  # Any extra dimensions
     # treated differently. Label true if they represent an internally
@@ -39,6 +41,29 @@ class Block:
         # Currently only support 1 extra_dimension per block
         assert len(self.extra_dimensions) <= 1, \
             f"{self} has >1 extra dimension!"
+
+    # Redirect all model attribute queries to the linked source,
+    # as soon as one exists, and has the relevant attribute.
+    # We need __getattribute__, not __getattr__, to catch access
+    # to attributes that exist.
+    def __getattribute__(self, name):
+        # Can't use self.something here without recursion...
+        linked_attributes = (
+            super().__getattribute__('model_functions')
+            + super().__getattribute__('model_attributes'))
+        source = super().__getattribute__('source')
+
+        if (name in linked_attributes and hasattr(source, name)):
+            return getattr(source, name)
+        else:
+            return super().__getattribute__(name)
+
+    def __setattr__(self, name, value):
+        if (name in (self.model_functions + self.model_attributes)
+                and self.source is not None):
+            setattr(self.source, name, value)
+        else:
+            super().__setattr__(name, value)
 
     def setup(self):
         """Do any necessary initialization.
@@ -194,29 +219,20 @@ class BlockModelSource(fd.Source):
                     raise ValueError(
                         f"{k} in {b} should be a tuple, not a {type(k)}")
 
-            attributes = set(b.model_functions
-                             + b.special_model_functions
-                             + b.model_attributes)
-
-            for x in attributes:
-                # If a source attribute was specified,
-                # override the block's attribute.
-                if hasattr(self, x):
-                    setattr(b, x, getattr(self, x))
-
-            # Now that the block is properly furnished with all attributes,
-            # call the block setup.
+            # Call the setup method. This method is not really needed anymore;
+            # blocks can simply override __init__ for setup, as long as they
+            # call super().__init__ *first* (else self.source would not be set)
             b.setup()
 
             # Set the source attributes from the block's attributes.
-            # If we did this before b.setup(), the source and block attributes
-            # could diverge, causing potential confusion.
-            for x in attributes:
+            # From here on, block attributes become invisible and irrelevant,
+            # since get/setattr on the blocks will redirect to the source.
+            for x in set(b.model_functions + b.model_attributes):
                 setattr(self, x, getattr(b, x))
 
             # Collect all information from the block.
-            # We also do this after the setup; the array columns field in
-            # particular is nice to change in the block setup
+            # We do this after the setup; the array columns field in
+            # particular is nice to change in the block setup code
             for k in collected:
                 collected[k] += getattr(b, k)
 

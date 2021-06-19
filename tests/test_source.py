@@ -353,11 +353,18 @@ def test_clip(xes):
 
 
 def test_config(xes):
+    # Test the use of config files to set source attributes
     xes.set_defaults(config='example')
     assert xes.defaults['elife'].numpy() == 987_654.
     assert xes.photon_detection_eff == 0.11
 
+    # Trying to set unused attributes should trigger a warnings
     with warnings.catch_warnings(record=True) as w:
         xes.set_defaults(grumbl=42)
         assert len(w) == 1
         assert issubclass(w[-1].category, UserWarning)
+
+    # Blocks should also see the attributes changed
+    b = [_b for _b in xes.model_blocks
+         if isinstance(_b, fd.DetectPhotons)][0]
+    assert b.photon_detection_eff == 0.11
