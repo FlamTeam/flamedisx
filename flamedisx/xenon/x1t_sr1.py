@@ -320,7 +320,7 @@ class SR1Source:
                       cs1,
                       # Only used here, DEFAULT_.. would be super verbose
                       cs1_min=3.,
-                      cs1_max=150.):
+                      cs1_max=70.):
         acceptance = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
                               tf.ones_like(s1, dtype=fd.float_type()),
                               tf.zeros_like(s1, dtype=fd.float_type()))
