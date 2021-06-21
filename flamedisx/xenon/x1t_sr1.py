@@ -169,7 +169,7 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
   z_edges = np.linspace(-100, 0, 101)
   r_edges = np.sqrt(np.linspace(0, 50**2,51))
   # For SR1 FV
-   for i in range(len(r)):
+  for i in range(len(r)):
     rr = max_r - stats.expon.rvs(loc = 0, scale = exp_const, size = 1)
     zr = np.random.uniform(-94., -8.)
     while  ((-94 > zr) | (zr > -8) | (rr > max_r) | \
