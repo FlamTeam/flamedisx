@@ -1,6 +1,6 @@
 numpy==1.19.5
 scipy==1.7.0
-pandas==1.2.4
+pandas==1.2.5
 multihist==0.6.4
 wimprates==0.3.2
 tqdm==4.61.1
