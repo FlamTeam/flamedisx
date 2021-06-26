@@ -47,9 +47,8 @@ class Block:
     #: Frozen model functions defined in this block
     frozen_model_functions: ty.Tuple[str] = tuple()
 
-    #: Static attributes this Block will furnish the source with.
-    #: The can be overriden by Source subclassing just like model functions;
-    #: they should NOT be altered during block/source instantiation!
+    #: Additional attributes this Block will furnish the source with.
+    #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
     def __init__(self, source):
