@@ -118,6 +118,7 @@ def calculate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
 ##
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
+    default_elife = DEFAULT_ELECTRON_LIFETIME
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
@@ -127,6 +128,7 @@ class SR1Source:
                         'path_reconstruction_bias_mean_s2',
                         'path_reconstruction_efficiencies_s1',
                         'variable_elife',
+                        'default_elife',
                         'path_electron_lifetimes',
                         )
 
@@ -229,7 +231,7 @@ class SR1Source:
                 d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
                                         self.domain_def_elife)
             else:
-                d['elife'] = DEFAULT_ELECTRON_LIFETIME
+                d['elife'] = self.default_elife
 
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
