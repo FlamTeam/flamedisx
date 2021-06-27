@@ -158,6 +158,9 @@ class SR1Source:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def set_defaults(*args, **kwargs):
+        super().set_defaults(*args, **kwargs)
+
         # Yield maps
         self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
         self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
