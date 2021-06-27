@@ -133,34 +133,34 @@ class SR1Source:
                         )
 
     # Light yield maps
-    path_s1_rly = ['1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json']
-    path_s2_rly = ['1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json']
+    path_s1_rly = ('1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json')
+    path_s2_rly = ('1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json')
 
     # Combined cuts acceptances
-    path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
-    path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
+    path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
+    path_cut_accept_s2 = ('S2AcceptanceSR1_v7_Median.json',)
 
     # Pax reconstruction bias maps
-    path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
-                                    'ReconstructionS1BiasMeanUppers_SR1_v2.json']
-    path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
-                                    'ReconstructionS2BiasMeanUppers_SR1_v2.json']
+    path_reconstruction_bias_mean_s1 = ('ReconstructionS1BiasMeanLowers_SR1_v2.json',
+                                    'ReconstructionS1BiasMeanUppers_SR1_v2.json')
+    path_reconstruction_bias_mean_s2 = ('ReconstructionS2BiasMeanLowers_SR1_v2.json',
+                                    'ReconstructionS2BiasMeanUppers_SR1_v2.json')
 
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
-    path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
+    path_reconstruction_efficiencies_s1 = ('RecEfficiencyLowers_SR1_70phd_v1.json',
                                        'RecEfficiencyMedians_SR1_70phd_v1.json',
-                                       'RecEfficiencyUppers_SR1_70phd_v1.json']
+                                       'RecEfficiencyUppers_SR1_70phd_v1.json')
 
     # Elife maps
     variable_elife = True
-    path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
+    path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Yield maps
-        self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly[0]))
-        self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly[0]))
+        self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
+        self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
