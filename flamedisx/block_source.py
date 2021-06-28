@@ -204,14 +204,14 @@ class FirstBlock(Block):
 class BlockModelSource(fd.Source):
     """Source whose model is split over different Blocks
     """
-    
+
     #: Blocks the source is built from.
     #: simulate will be called from first to last, annotate from last to first.
     model_blocks: tuple
-    
+
     #: Dimensions provided by the first block
     initial_dimensions: tuple
-      
+
     #: Additional dimensions used in the block computation;
     #: see Block.extra_dimensions for info
     extra_dimensions = ()
