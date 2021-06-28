@@ -1,6 +1,4 @@
 """XENON1T SR1 implementation"""
-import json
-
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -35,40 +33,6 @@ DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036
 
-##
-# Yield maps
-##
-s1_map, s2_map = [
-    fd.InterpolatingMap(fd.get_resource(fd.pax_file(x)))
-    for x in ('XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json',
-              'XENON1T_s2_xy_ly_SR1_v2.2.json')]
-
-##
-# Loading Pax reconstruction bias
-##
-path_reconstruction_bias_mean_s1 = ['ReconstructionS1BiasMeanLowers_SR1_v2.json',
-                                    'ReconstructionS1BiasMeanUppers_SR1_v2.json']
-path_reconstruction_bias_mean_s2 = ['ReconstructionS2BiasMeanLowers_SR1_v2.json',
-                                    'ReconstructionS2BiasMeanUppers_SR1_v2.json']
-
-##
-# Pax reconstruction efficiencies (do not reorder: Lowers, Medians, Uppers)
-##
-path_reconstruction_efficiencies_s1 = ['RecEfficiencyLowers_SR1_70phd_v1.json',
-                                       'RecEfficiencyMedians_SR1_70phd_v1.json',
-                                       'RecEfficiencyUppers_SR1_70phd_v1.json']
-
-##
-# Loading combined cuts acceptances
-##
-path_cut_accept_s1 = ['S1AcceptanceSR1_v7_Median.json']
-path_cut_accept_s2 = ['S2AcceptanceSR1_v7_Median.json']
-
-##
-# Loading elife maps
-##
-variable_elife = True
-path_electron_lifetimes = ['1t_maps/electron_lifetimes_sr1.json']
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
@@ -152,29 +116,72 @@ def calculate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
 ##
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
+    default_elife = DEFAULT_ELECTRON_LIFETIME
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    model_attributes = ('path_cut_accept_s1',
+                        'path_cut_accept_s2',
+                        'path_s1_rly',
+                        'path_s2_rly',
+                        'path_reconstruction_bias_mean_s1',
+                        'path_reconstruction_bias_mean_s2',
+                        'path_reconstruction_efficiencies_s1',
+                        'variable_elife',
+                        'default_elife',
+                        'path_electron_lifetimes',
+                        )
+
+    # Light yield maps
+    path_s1_rly = '1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json'
+    path_s2_rly = '1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json'
+
+    # Combined cuts acceptances
+    path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
+    path_cut_accept_s2 = ('S2AcceptanceSR1_v7_Median.json',)
+
+    # Pax reconstruction bias maps
+    path_reconstruction_bias_mean_s1 = (
+        'ReconstructionS1BiasMeanLowers_SR1_v2.json',
+        'ReconstructionS1BiasMeanUppers_SR1_v2.json')
+    path_reconstruction_bias_mean_s2 = (
+        'ReconstructionS2BiasMeanLowers_SR1_v2.json',
+        'ReconstructionS2BiasMeanUppers_SR1_v2.json')
+
+    # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
+    path_reconstruction_efficiencies_s1 = (
+        'RecEfficiencyLowers_SR1_70phd_v1.json',
+        'RecEfficiencyMedians_SR1_70phd_v1.json',
+        'RecEfficiencyUppers_SR1_70phd_v1.json')
+
+    # Elife maps
+    variable_elife = True
+    path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
+
+    def set_defaults(self, *args, **kwargs):
+        super().set_defaults(*args, **kwargs)
+
+        # Yield maps
+        self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
+        self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
-            read_maps_tf(path_cut_accept_s1, is_bbf=True)
+            read_maps_tf(self.path_cut_accept_s1, is_bbf=True)
         self.cut_accept_map_s2, self.cut_accept_domain_s2 = \
-            read_maps_tf(path_cut_accept_s2, is_bbf=True)
+            read_maps_tf(self.path_cut_accept_s2, is_bbf=True)
 
         # Loading reconstruction efficiencies map
         self.recon_eff_map_s1, self.domain_def_ph = \
-            read_maps_tf(path_reconstruction_efficiencies_s1, is_bbf=True)
+            read_maps_tf(self.path_reconstruction_efficiencies_s1, is_bbf=True)
 
         # Loading reconstruction bias map
         self.recon_map_s1_tf, self.domain_def_s1 = \
-            read_maps_tf(path_reconstruction_bias_mean_s1, is_bbf=True)
+            read_maps_tf(self.path_reconstruction_bias_mean_s1, is_bbf=True)
         self.recon_map_s2_tf, self.domain_def_s2 = \
-            read_maps_tf(path_reconstruction_bias_mean_s2, is_bbf=True)
+            read_maps_tf(self.path_reconstruction_bias_mean_s2, is_bbf=True)
 
         # Loading electron lifetime map
         self.elife_tf, self.domain_def_elife = \
-            read_maps_tf(path_electron_lifetimes, is_bbf=False)
+            read_maps_tf(self.path_electron_lifetimes, is_bbf=False)
 
     def reconstruction_bias_s1(self,
                                s1,
@@ -209,10 +216,10 @@ class SR1Source:
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
-        d['s2_relative_ly'] = s2_map(
+        d['s2_relative_ly'] = self.s2_map(
              np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
-        d['s1_relative_ly'] = s1_map(
+        d['s1_relative_ly'] = self.s1_map(
             np.transpose([d['x'].values,
                           d['y'].values,
                           d['z'].values]))
@@ -220,12 +227,12 @@ class SR1Source:
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
         if 'elife' not in d.columns:
-            if variable_elife:
+            if self.variable_elife:
                 d['event_time'] = d['event_time'].astype('float32')
                 d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
                                         self.domain_def_elife)
             else:
-                d['elife'] = DEFAULT_ELECTRON_LIFETIME
+                d['elife'] = self.default_elife
 
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
@@ -294,10 +301,13 @@ class SR1Source:
     def s2_acceptance(self,
                       s2,
                       cs2,
+                      s2_min=200.,
+                      # Needed for future sources i.e. wall
                       cs2b_min=50.1,
                       cs2b_max=7940.):
         cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
-        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max),
+        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max) 
+                                                & (s2 > s2_min),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
 

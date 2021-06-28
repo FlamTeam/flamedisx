@@ -1,9 +1,9 @@
 numpy==1.19.5
-scipy==1.6.3
-pandas==1.2.4
+scipy==1.7.0
+pandas==1.2.5
 multihist==0.6.4
 wimprates==0.3.2
-tqdm==4.60.0
+tqdm==4.61.1
 tensorflow==2.5.0
-tensorflow_probability==0.12.2
+tensorflow_probability==0.13.0
 iminuit==2.6.1

@@ -1,3 +1,4 @@
+from pathlib import Path
 import subprocess
 
 import numpy as np
@@ -203,7 +204,7 @@ def index_lookup_dict(names, column_widths=None):
      (tf.constant integers.)
 
     :param column_widths: dictionary mapping names to column width.
-    For columns with width > 1, the result contains a tensor slice.
+        For columns with width > 1, the result contains a tensor slice.
     """
     names = list(names)
     if column_widths is None:
@@ -251,3 +252,30 @@ def run_command(command):
             stderr=subprocess.STDOUT) as p:
         for line in iter(p.stdout.readline, ''):
             print(line.rstrip())
+
+
+@export
+def load_config(config_files=None):
+    """Return dictionary of configuration options from (a) python file(s)"""
+    if config_files is None:
+        return {}
+    if isinstance(config_files, str):
+        # Support one or multiple files
+        config_files = (config_files,)
+
+    config = dict()
+    for filename in config_files:
+        if not filename.endswith('.py'):
+            # This is (hopefully) a named config shipped with flamedisx
+            filename = Path(__file__).parent / 'configs' / (filename + '.py')
+
+        # Adapted from https://stackoverflow.com/a/37611448
+        with open(filename) as f:
+            code = compile(f.read(), filename, 'exec')
+        captured_locals = dict()
+        exec(code, globals(), captured_locals)
+        config.update({
+            k: v for k, v in captured_locals.items()
+            if not k.startswith('_')})
+
+    return config

@@ -28,7 +28,7 @@ class InterpolateAndExtrapolate:
         averaging. Default is 2 * dimensions of points.
         """
         self.kdtree = cKDTree(points)
-        self.values = values
+        self.values = values.astype(np.float)
         if neighbours_to_use is None:
             neighbours_to_use = points.shape[1] * 2
         self.neighbours_to_use = neighbours_to_use

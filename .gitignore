@@ -33,6 +33,9 @@ docs/_build
 # Pycharm
 .idea
 
+# Visual studio code
+.vscode
+
 # coverage
 .coverage
 

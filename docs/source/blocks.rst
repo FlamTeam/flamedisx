@@ -52,7 +52,14 @@ Flamedisx's sources are built from units called **blocks**. Each block takes car
 
 Each block is represented by a :py:class:`~flamedisx.block_source.Block` class, which has three main methods:
 
-* :py:meth:`~flamedisx.block_source.Block._compute` is a block's main method. This returns a factor in the deterministic differential rate computation; for example, the probability of seeing the observed S2 for a range of possible number of detected electrons.
+* :py:meth:`~flamedisx.block_source.Block._compute` is a block's main method. This returns a factor in the deterministic differential rate computation; for example, the probability of seeing the observed S2 for a range of possible number of detected electrons. :py:meth:`~flamedisx.block_source.Block._compute` gets several arguments:
+
+  * `data_tensor` and `ptensor`: don't worry about these, just pass them to `gimme` when you call model functions -- see `Model functions`_ below.
+
+  * Keyword arguments with the (cross-)domains of the block -- see `Block dimensions`_ below.
+
+  * For blocks with dependencies, keyword arguments of the dependency's domain and result -- see `Block dependencies`_ below.
+
 * The :py:meth:`~flamedisx.block_source.Block._simulate` method performs a Monte Carlo simulation of the block's process. For example, drawing one possible S2 integral value, given a simulated event of a certain number of detected electrons.
 
   * Simulated events have a special `p_accepted` column, starting out at 1.0 for each event. Blocks can multiply this with probabilities for passing various selections. At the end of the simulation, a random number will be drawn to determine whether each event actually passes the selections.
@@ -62,7 +69,7 @@ Each block is represented by a :py:class:`~flamedisx.block_source.Block` class, 
 Think of `_simulate` as going in the physical/causal direction, `_annotate` as going backwards, and `_compute` as a (usually) direction-independent description of the process.
 
 Most blocks in a source can be computed independently of the other blocks. The results of different blocks are matrix-multiplied together, representing convolution over hidden variables (such as number of produced electrons).
- 
+
 A few blocks instead directly take the result of another block and turn it into something else in the compute step. For example, `MakeNRQuanta` takes in an energy spectrum and converts it into a spectrum vs. number of produced quanta in the nuclear recoil process.
 
 
@@ -74,18 +81,57 @@ This is the easy part: inherit from :py:class:`~flamedisx.block_source.BlockMode
 
 The source will operate as follows:
  * When **computing** differential rates, we run a tensorflow graph that includes the `_compute` of all the blocks. If a block has dependencies, it's compute will of course be later in the graph than that of its dependents.
-  * During **simulation**, we run `_simulate` of the blocks in the order you specified in `model_blocks`, starting with the first block. This is usually the block that creates the energy spectrum.
-  * When **setting data** (e.g. when you create the source), we run `_annotate` of the blocks in reverse order. This way, you can first estimate hidden variables close to observables, then use those estimates for guessing deeper hidden variables. For example, you can use the estimated number of detected electrons to estimate the number of produced electrons.
+ * During **simulation**, we run `_simulate` of the blocks in the order you specified in `model_blocks`, starting with the first block. This is usually the block that creates the energy spectrum.
+ * When **setting data** (e.g. when you create the source), we run `_annotate` of the blocks in reverse order. This way, you can first estimate hidden variables close to observables, then use those estimates for guessing deeper hidden variables. For example, you can use the estimated number of detected electrons to estimate the number of produced electrons.
 
-
-Blocks in detail
--------------------
 
 Besides the main three methods, blocks usually specify additional attributes that describe their behavior to the source.
 
-Static attributes
-=================
-`model_attributes` is a tuple of strings of Block attributes that should be exposed in the source. Setting one of these attributes in the Source will override their value.
+
+
+Block dimensions
+----------------
+
+The `dimensions` tuple names the dimensions of the `_compute` output. Without this we wouldn't know how to combine the results of blocks. The batch/event dimension is not named.
+
+`_compute` will get a keyword argument for each of the dimensions you list here, containing a tensor with all possible values (the domain) of the dimension. If your block has two dimensions, each will be a 2d tensor; see :py:meth:`~flamedisx.source.Source.cross_domains`.
+
+For example:
+  * For :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum`, this is `('deposited_energy',)`, since `_compute` outputs a one-dimensional array per event, the differential rate as a function of deposited energy.
+  * For :py:class:`~flamedisx.lxe_blocks.quanta_generation.MakePhotonsElectronsBinomial`, this is `('electrons_produced', 'photons_produced')`, since it outputs a two-dimensional array per event, the differential rate as a function of the produced number of photons and electrons.
+
+
+
+Model functions
+---------------
+
+The `model_functions` and `special_model_functions` attributes list Block methods that should become part of the `Source`. Users can override these in their custom sources without having to worry about which block provided which function.
+
+As an example, the :py:class:`~flamedisx.lxe_blocks.quanta_generation.MakeNRQuanta` block exposes a :py:meth:`~flamedisx.lxe_blocks.quanta_generation.MakeNRQuanta.lindhard_l` model function that parametrizes the Lindhard process (nuclear recoil energy losses as heat) as a function of energy. Sources using this block can define a new `lindhard_l` method to override this. The modelling sections of the tutorial illustrate model function overriding in detail.
+
+You can find string-tuples of all regular and special model functions for a source in the `.model_functions` attribute. (Special model functions are also listed here, and separately in `.special_model_functions`.)
+
+As illustrated in the tutorial, positional arguments to model functions represent columns from the data, and keyword arguments represent parameters for which users can change the defaults and float in their fits.
+
+Never call a model function directly from your block's code! Instead, call model functions as follows:
+  * In `_compute`, call `self.gimme('your_model_function', data_tensor=data_tensor, ptensor=ptensor)`.
+  * In `_simulate` and `_annotate`, call `self.gimme_numpy('your_model_function')`.
+
+This takes care of several things:
+  * Positional arguments are filled in with columns from the data;
+  * Keyword arguments are filled in with inference parameters.
+  * For `gimme_numpy`, you will get back a numpy array (rather than a TensorFlow tensor).
+
+`special_model_functions` take an extra positional argument when they are called. It's up to you what this represents; usually this is used to pass hidden variables. The extra argument (called `bonus_arg` in flamedisx code) is passed as the first argument after `self`.
+
+If a model function is 'special' in this way, you must list it in **both** model_functions and special_model_functions
+
+
+
+Model attributes
+----------------
+
+`model_attributes` is a tuple of strings of Block attributes that should become part of the source. Just like model functions, users can override these attributes in custom sources.
 
 For example, the :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum` block has the `energies` and `rates_vs_energy` attributes to specify the the source's discretized energy spectrum. The `ERSource` and `NRSource` both use this block, so you can write::
 
@@ -99,47 +145,13 @@ For example, the :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEner
 
 to change the energy spectrum. This is simply another form of 'common customization', just like the more common model function overriding.
 
-Do not try to change static attributes after a source is initialized. They are called static for a reason. (If you change them despite this warning, the change will not be propagated from the `Source` to the `Block`, and code in the `Block` will still see the old attribute and cause you a headache.)
-
-You can find a string-tuple of all static attributes for a source in the `.model_attributes` attribute.
+Behind the scenes, any attempt to get or set a Block's model attribute or model function will be redirected to the `Source` to which the block belongs. So you can safely do `self.some_attribute` rather than `self.source_some_attribute`; these are equivalent.
 
 
-Model functions
-=================
+Block dependencies
+------------------
 
-Just like `model_attributes` exposes attributes, `model_functions` and `special_model_functions` expose methods to the source. Each are a tuple of strings of method names.
-
-In your block, you call model functions in different ways:
-  * In `_compute`, call `self.gimme('your_model_function', data_tensor=data_tensor, ptensor=ptensor)`.
-  * In `_simulate` and `_annotate`, call `self.gimme_numpy('your_model_function')`.
-
-This takes care of several things:
-  * Positional arguments are filled in with columns from the data;
-  * Keyword arguments are filled in with inference parameters.
-  * For `gimme_numpy`, you will get back a numpy array (rather than a TensorFlow tensor).
-Never call a model function directly from your block's code!
-
-`special_model_functions` take an extra positional argument when they are called. It's up to you what this represents; usually this is used to pass variables. The extra argument (called `bonus_arg` in flamedisx code) is passed as the first argument after `self`.
-
-If a model function is 'special' in this way, you must list it in **both** model_functions and special_model_functions
-
-As an example, the :py:class:`~flamedisx.lxe_blocks.quanta_generation.MakeNRQuanta` block exposes a :py:meth:`~flamedisx.lxe_blocks.quanta_generation.MakeNRQuanta.lindhard_l` model function that parametrizes the Lindhard process (nuclear recoil energy losses as heat) as a function of energy. Sources using this block can define a new `lindhard_l` method to override this. The modelling sections of the tutorial illustrate model function overriding in detail.
-
-You can find string-tuples of all regular and special model functions for a source in the `.model_functions` attribute. (Special model functions are also listed here, and separately in `.special_model_functions`.)
-
-Dimensions
-=================
-
-The `dimensions` tuple names the dimensions of the `_compute` output. Without this we wouldn't know how to combine the results of blocks. The batch/event dimension is not named.
-
-For example:
-  * For :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEnergySpectrum`, this is `('deposited_energy',)`, since `_compute` outputs a one-dimensional array per event, the differential rate as a function of deposited energy.
-  * For :py:class:`~flamedisx.lxe_blocks.quanta_generation.MakePhotonsElectronsBinomial`, this is `('electrons_produced', 'photons_produced')`, since it outputs a two-dimensional array per event, the differential rate as a function of the produced number of photons and electrons.
-
-Dependencies
-=================
-
-Sometimes you can only compute a block once you know the result of another block. If so, specify this block in the `depends_on` tuple.
+In some cases you can only compute a block once you know the full result of another block. If so, specify this block in the `depends_on` tuple.
 
 For example, `depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)` means the block needs the result of some block with `dimensions = ('quanta_produced',)`. Depending on the source, this could be provided by :py:class:`~flamedisx.lxe_blocks.quanta_generation.MakeNRQuanta` or :py:class:`~flamedisx.lxe_blocks.quanta_generation.MakeERQuanta`.
 
@@ -147,7 +159,7 @@ The dependency result and its domain (i.e. the x-values corresponding to the y-v
 
 
 Block initialization / setup
-============================
+----------------------------
 
 Define a `setup` method if you want to do something when the block is initialized. You can:
 
@@ -158,8 +170,9 @@ You can not:
 
 * Use self.source and expect its attributes to already reflect their final states. The source is only fully functional after the block setup phase.
 
+
 Frozen functions and array columns
-===================================
+----------------------------------
 
 To be written -- see :py:class:`~flamedisx.lxe_sources.WIMPsource` for an example in the meantime.
 
@@ -168,7 +181,7 @@ To be written -- see :py:class:`~flamedisx.lxe_sources.WIMPsource` for an exampl
 The first block of a source
 -----------------------------
 
-This is usually the block specifying the energy spectrum. It is special in several ways. 
+This is usually the block specifying the energy spectrum. It is special in several ways.
 
 Some restrictions are relaxed:
   * It does not have a `_simulate` method.

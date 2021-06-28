@@ -1,6 +1,8 @@
 from copy import copy
 from contextlib import contextmanager
 import inspect
+import typing as ty
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -17,26 +19,52 @@ o = tf.newaxis
 
 @export
 class Source:
+    #: Number of event batches to use in differential rate computations
     n_batches = None
+
+    #: Number of fake events that were padded to the final batch
+    #: to make it match the batch size
     n_padding = None
+
+    #: Whether to trace (compile into a tensorflow graph) the differential
+    #: rate computation
     trace_difrate = True
     default_max_sigma = 3
 
-    model_functions = tuple()
-    special_model_functions = tuple()
-    inner_dimensions = tuple()
+    #: Names of model functions
+    model_functions: ty.Tuple[str] = tuple()
 
-    frozen_model_functions = tuple()
-    array_columns = tuple()
+    #: Names of model functions that take an additional first argument
+    #: ('bonus arg'). This must be a subset of model_functions.
+    special_model_functions: ty.Tuple[str] = tuple()
 
-    # Final observable dimensions; for use in domain / cross-domain
-    final_dimensions = tuple()
+    #: Model functions whose results should be evaluated once per event,
+    #: then stored with the data. For example, non-tensorflow functions.
+    #: Note these cannot have any fittable parameters.
+    frozen_model_functions: ty.Tuple[str] = tuple()
 
-    # Avoid variable stepping over these inner_dimensions
-    no_step_dimensions = tuple()
+    #: Names of final observable dimensions (e.g. s1, s2)
+    #: for use in domain / cross-domain
+    final_dimensions: ty.Tuple[str] = tuple()
 
-    # Any non-hidden variable extra_dimensions
-    bonus_dimensions = tuple()
+    #: Names of dimensions of hidden variables (e.g. produced electrons)
+    #: for which domain computations and dimsize calculations are to be done
+    inner_dimensions: ty.Tuple[str] = tuple()
+
+    #: inner_dimensions excluded from variable stepping logic, i.e.
+    #: for which the domain is always a single interval of integers
+    no_step_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of dimensions of hidden variables for which
+    #: dimsize calculations are NOT done here (but in user-defined code)
+    #: but for which we DO track _min and _dimsizes
+    bonus_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of array-valued data columns
+    array_columns: ty.Tuple[str] = tuple()
+
+    #: Any additional source attributes that should be configurable.
+    model_attributes = tuple()
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
@@ -44,7 +72,8 @@ class Source:
     def extra_needed_columns(self):
         return []
 
-    data = None
+    #: The fully annotated event data
+    data: pd.DataFrame = None
 
     ##
     # Initialization and helpers
@@ -68,6 +97,10 @@ class Source:
             for pname, p in inspect.signature(f).parameters.items():
                 if pname == 'self':
                     continue
+                if pname in self.model_functions:
+                    raise AttributeError(
+                        f"{pname} is used both as a model function and "
+                        f"as a parameter of a model function, {fname}")
                 if p.default is inspect.Parameter.empty:
                     if fname in self.special_model_functions and not seen_special:
                         seen_special = True
@@ -81,6 +114,66 @@ class Source:
                         raise ValueError(f"Inconsistent defaults for {pname}")
                     defaults[pname] = tf.convert_to_tensor(
                         p.default, dtype=fd.float_type())
+
+    def print_config(self,
+                     format='table',
+                     column_widths=(40, 20),
+                     omit=tuple()):
+        """Print the defaults of all parameters (from Source.defaults), and of
+        model functions that have been set to constants (from Source.f_dims)
+
+        :param format: 'table' to print a fixed-width table, 'config' to print
+            as a configuration file
+        :param column_widths: 2-tuple of column widths to use for table format
+        :param omit: settings to omit from printout. Useful for format='config',
+            since some things (like arrays and tensors) cannot be evaluated
+            from their string representation.
+        """
+
+        def print_row(*cols, header=False):
+            cols = [str(x).replace('\n', '') for x in cols]
+            if format == 'table':
+                print(''.join([
+                    col.ljust(w) if len(col) < w else col[:w - 3] + '...'
+                    for col, w in zip(cols, column_widths)]))
+            else:
+                result = '# ' if header else ''
+                result += ' = '.join(cols)
+                print(result)
+
+        format_value = str if format == 'table' else repr
+
+        def print_line(marker='-'):
+            if format == 'table':
+                print(marker * sum(column_widths))
+            else:
+                print()
+
+        print_row('Parameter', 'Default', header=True)
+        print_line()
+        for pname, default in sorted(self.defaults.items()):
+            if pname in omit:
+                continue
+            print_row(pname, format_value(default.numpy()))
+        print()
+
+        print_row("Constant (could be made a function)", 'Default', header=True)
+        print_line()
+        for fname in sorted(self.model_functions):
+            if fname in omit:
+                continue
+            f = getattr(self, fname)
+            if not callable(f):
+                print_row(fname, format_value(f))
+        print()
+
+        print_row("Other attribute", 'Default', header=True)
+        print_line()
+        for fname in sorted(self.model_attributes):
+            if fname in omit:
+                continue
+            print_row(fname, format_value(getattr(self, fname)))
+        print()
 
     def __init__(self,
                  data=None,
@@ -107,7 +200,8 @@ class Source:
         :param fit_params: List of parameters to fit
         :param progress: whether to show progress bars for mu estimation
             (if data is not None)
-        :param params: New defaults to use
+        :param params: New defaults to for parameters, and new values for
+        constant-valued model functions.
         """
         if max_sigma is None:
             max_sigma = self.default_max_sigma
@@ -119,6 +213,12 @@ class Source:
             l_ = getattr(self, attrname)
             if len(set(l_)) != len(l_):
                 raise ValueError(f"{attrname} contains duplicates: {l_}")
+        # Check all special model functions are actually model functions
+        for fname in self.special_model_functions:
+            if fname not in self.model_functions:
+                raise ValueError(
+                    f"{attrname} is listed as a special model function, "
+                    f"but not as a model function")
 
         # Discover which functions need which arguments / dimensions
         # Discover possible parameters.
@@ -176,11 +276,33 @@ class Source:
         if not _skip_tf_init:
             self.trace_differential_rate()
 
-    def set_defaults(self, **params):
+    def set_defaults(self, *, config=None, **params):
+        # Load new params from configuration files
+        params = {**fd.load_config(config), **params}
+
+        # Apply new defaults
+        unused = dict()
         for k, v in params.items():
             if k in self.defaults:
+                # Change a default
                 self.defaults[k] = tf.convert_to_tensor(
                     v, dtype=fd.float_type())
+            elif k in self.model_functions:
+                # Change a model function, only allowed if it is a constant
+                # (otherwise, just subclass the source)
+                f = getattr(self, k)
+                if callable(f):
+                    raise AttributeError(
+                        f"Use source subclassing to override the non-constant "
+                        f"model function {k}")
+                setattr(self, k, v)
+            elif k in self.model_attributes:
+                # Change a generic model attribute
+                setattr(self, k, v)
+            else:
+                unused[k] = v
+        if unused:
+            warnings.warn(f"Defaults for unused settings ignored: {unused}")
 
     def set_data(self,
                  data=None,
@@ -365,13 +487,13 @@ class Source:
         :param fname: Name of the model function to compute
         :param bonus_arg: If fname takes a bonus argument, the data for it
         :param numpy_out: If True, return (tuple of) numpy arrays,
-        otherwise (tuple of) tensors.
+            otherwise (tuple of) tensors.
         :param data_tensor: Data tensor, columns as self.column_index
-        If not given, use self.data (used in annotate)
+            If not given, use self.data (used in annotate)
         :param ptensor: Parameter tensor, columns as self.param_id
-        If not give, use defaults dictionary (used in annotate)
-        Before using gimme, you must use set_data to
-        populate the internal caches.
+            If not given, use defaults dictionary (used in annotate)
+            Before using gimme, you must use set_data to
+            populate the internal caches.
         """
         assert (bonus_arg is not None) == (fname in self.special_model_functions)
         assert isinstance(fname, str), \
@@ -443,6 +565,7 @@ class Source:
         return [self.batch_size, self.n_columns_in_data_tensor]
 
     def trace_differential_rate(self):
+        """Compile the differential rate computation to a tensorflow graph"""
         input_signature = (
             tf.TensorSpec(shape=self._batch_data_tensor_shape(),
                           dtype=fd.float_type()),
@@ -470,7 +593,7 @@ class Source:
     ##
 
     def domain(self, x, data_tensor=None):
-        """Return (n_events, |possible x values|) matrix containing all
+        """Return (n_events, n_x) matrix containing all
         possible integer values of x for each event.
 
         If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
@@ -486,7 +609,7 @@ class Source:
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
-        """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
+        """Return (x, y) two-tuple of (n_events, n_x, n_y) tensors
         containing possible integer values of x and y, respectively.
         """
         # TODO: somehow mask unnecessary elements and save computation time
@@ -538,7 +661,7 @@ class Source:
 
         Careful: ensure mutual constraints are accounted for first!
         (e.g. fixing energy for a modulating WIMP has consequences for the
-         time distribution.)
+        time distribution.)
         """
         if fix_truth is not None:
             for k, v in fix_truth.items():
@@ -647,7 +770,11 @@ class ColumnSource(Source):
     """Source that expects precomputed differential rate in a column,
     and precomputed mu in an attribute
     """
+
+    #: Name of the data column containing the precomputed differential rate
     column = 'rename_me!'
+
+    #: Expected events for this source
     mu = 42.
 
     def extra_needed_columns(self):

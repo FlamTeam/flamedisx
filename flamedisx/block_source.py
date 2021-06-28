@@ -16,20 +16,42 @@ class Block:
 
     For example, P(electrons_detected | electrons_produced).
     """
+    #: Source the block belongs to
+    source: fd.Source = None
+
+    #: Names of dimensions of the block's compute result
     dimensions: ty.Tuple[str]
-    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]]  # Any extra dimensions
-    # treated differently. Label true if they represent an internally
-    # contracted hidden variable (will be added to inner_dimenions, domain
-    # tensors will automatically be calculated), label false otherwise (will be
-    # added to bonus_dimensions, any additional domain tensors utilising them
-    # will need calculating via the block overriding _domain_dict_bonus())
 
-    depends_on: ty.Tuple[str] = tuple()
+    #: Additional dimensions used in the block computation.
+    #: Label True if they represent an internally contracted hidden variable;
+    #: these will be added to inner_dimensions so domain tensors are calculated
+    #: automatically.
+    #: Label False otherwise; these will be added to bonus_dimensions. Thus,
+    #: any additional domain tensors utilising them will need calculating via
+    #: the block overriding _domain_dict_bonus())
+    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]]
 
+    #: Blocks whose result this block expects as an extra keyword
+    #: argument to compute. Specify as ((block_dims, argument_name), ...),
+    #: where block_dims is the dimensions-tuple of the block, and argument_name
+    #: the expected name of the compute keyword argument.
+    depends_on: ty.Tuple[ty.Tuple[ty.Tuple[str], str]] = tuple()
+
+    #: Names of model functions defined in this block
     model_functions: ty.Tuple[str] = tuple()
+
+    #: Names of model functions that take an additional first argument
+    #: ('bonus arg') defined in this block; must be a subset of model_functions
     special_model_functions: ty.Tuple[str] = tuple()
+
+    #: Names of columns this block expects to be array-valued
     array_columns: ty.Tuple[str] = tuple()
+
+    #: Frozen model functions defined in this block
     frozen_model_functions: ty.Tuple[str] = tuple()
+
+    #: Additional attributes this Block will furnish the source with.
+    #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
     def __init__(self, source):
@@ -39,6 +61,29 @@ class Block:
         # Currently only support 1 extra_dimension per block
         assert len(self.extra_dimensions) <= 1, \
             f"{self} has >1 extra dimension!"
+
+    # Redirect all model attribute queries to the linked source,
+    # as soon as one exists, and has the relevant attribute.
+    # We need __getattribute__, not __getattr__, to catch access
+    # to attributes that exist.
+    def __getattribute__(self, name):
+        # Can't use self.something here without recursion...
+        linked_attributes = (
+            super().__getattribute__('model_functions')
+            + super().__getattribute__('model_attributes'))
+        source = super().__getattribute__('source')
+
+        if (name in linked_attributes and hasattr(source, name)):
+            return getattr(source, name)
+        else:
+            return super().__getattribute__(name)
+
+    def __setattr__(self, name, value):
+        if (name in (self.model_functions + self.model_attributes)
+                and self.source is not None):
+            setattr(self.source, name, value)
+        else:
+            super().__setattr__(name, value)
 
     def setup(self):
         """Do any necessary initialization.
@@ -160,9 +205,16 @@ class BlockModelSource(fd.Source):
     """Source whose model is split over different Blocks
     """
 
+    #: Blocks the source is built from.
+    #: simulate will be called from first to last, annotate from last to first.
     model_blocks: tuple
-    final_dimensions: tuple
+
+    #: Dimensions provided by the first block
     initial_dimensions: tuple
+
+    #: Additional dimensions used in the block computation;
+    #: see Block.extra_dimensions for info
+    extra_dimensions = ()
 
     def __init__(self, *args, **kwargs):
         if isinstance(self.model_blocks[0], FirstBlock):
@@ -194,29 +246,20 @@ class BlockModelSource(fd.Source):
                     raise ValueError(
                         f"{k} in {b} should be a tuple, not a {type(k)}")
 
-            attributes = set(b.model_functions
-                             + b.special_model_functions
-                             + b.model_attributes)
-
-            for x in attributes:
-                # If a source attribute was specified,
-                # override the block's attribute.
-                if hasattr(self, x):
-                    setattr(b, x, getattr(self, x))
-
-            # Now that the block is properly furnished with all attributes,
-            # call the block setup.
+            # Call the setup method. This method is not really needed anymore;
+            # blocks can simply override __init__ for setup, as long as they
+            # call super().__init__ *first* (else self.source would not be set)
             b.setup()
 
             # Set the source attributes from the block's attributes.
-            # If we did this before b.setup(), the source and block attributes
-            # could diverge, causing potential confusion.
-            for x in attributes:
+            # From here on, block attributes become invisible and irrelevant,
+            # since get/setattr on the blocks will redirect to the source.
+            for x in set(b.model_functions + b.model_attributes):
                 setattr(self, x, getattr(b, x))
 
             # Collect all information from the block.
-            # We also do this after the setup; the array columns field in
-            # particular is nice to change in the block setup
+            # We do this after the setup; the array columns field in
+            # particular is nice to change in the block setup code
             for k in collected:
                 collected[k] += getattr(b, k)
 
@@ -246,7 +289,7 @@ class BlockModelSource(fd.Source):
             if k == 'dimensions':
                 # Dimensions is a special case, see below
                 continue
-            setattr(self, k, tuple(set(v)))
+            setattr(self, k, getattr(self, k) + tuple(set(v)))
 
         self.inner_dimensions = tuple(
             [d for d in collected['dimensions']
@@ -264,9 +307,8 @@ class BlockModelSource(fd.Source):
     def _find_block(blocks,
                     has_dim: ty.Union[list, tuple, set],
                     exclude: Block = None):
-        """Find a block with a dimension in allowed
-        Return (dimensions, b), or
-         raises BlockNotFoundError if no such block found.
+        """Find a block with a dimension in has_dim, other than the block in
+        exclude. Return (dimensions, b), or raises BlockNotFoundError.
         """
         for dims, b in blocks.items():
             if b is exclude:
