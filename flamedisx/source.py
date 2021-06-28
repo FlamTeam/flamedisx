@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+import sklearn.neighbors
 
 from tqdm import tqdm
 
@@ -730,15 +731,44 @@ class Source:
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
 
-    def MC_bounds(self):
+    def MC_bounds_simple(self):
         """"""
-        test_copy = deepcopy(self)
-        test_copy.energies = tf.cast(tf.linspace(0., 5., 1000),
-                                     fd.float_type())
-        test_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
-        test_copy.setup_copy()
-        df_test = test_copy.simulate(10)
-        print(df_test)
+        MC_data = self.simulate(int(1e6))
+
+        df_full = pd.concat([self.data, MC_data])
+
+        s1_scale = (self.data['s1'] - np.mean(self.data['s1'])) / \
+            np.std(self.data['s1'])
+        s2_scale = (self.data['s2'] - np.mean(self.data['s2'])) / \
+            np.std(self.data['s2'])
+
+        data = np.array(list(zip(s1_scale, s2_scale)))
+
+        s1_scale_MC = (MC_data['s1'] - np.mean(MC_data['s1'])) / \
+            np.std(MC_data['s1'])
+        s2_scale_MC = (MC_data['s2'] - np.mean(MC_data['s2'])) / \
+            np.std(MC_data['s2'])
+
+        data_full = np.array(list(zip(s1_scale_MC.append(s1_scale),
+                                      s2_scale_MC.append(s2_scale))))
+
+        tree = sklearn.neighbors.KDTree(data_full)
+        dist, ind = tree.query(data[::], k=int(1e4))
+
+        for i in range(len(self.data)):
+            for x in self.inner_dimensions:
+                data_x = df_full[x]
+                mean_x = data_x.iloc[ind[i, :]].mean()
+                std_x = data_x.iloc[ind[i, :]].std()
+
+                self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
+                self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
+
+        # test_copy = deepcopy(self)
+        # test_copy.energies = tf.cast(tf.linspace(0., 5., 1000),
+        #                              fd.float_type())
+        # test_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
+        # test_copy.setup_copy()
 
     ##
     # Functions you have to override

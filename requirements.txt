@@ -7,3 +7,4 @@ tqdm==4.61.2
 tensorflow==2.5.0
 tensorflow_probability==0.13.0
 iminuit==2.7.0
+sklearn=0.24.2
