@@ -1,4 +1,4 @@
-"""LUX detector implementation
+"""lux detector implementation
 
 """
 import tensorflow as tf
@@ -21,11 +21,11 @@ class LUXSource:
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
-            os.path.dirname(__file__), '../config/', detector+'.ini'))
+            os.path.dirname(__file__), '../nest/config/', detector + '.ini'))
 
         config = configparser.ConfigParser(inline_comment_prefixes=';')
-        config.read(os.path.join(os.path.dirname(__file__), '../config/',
-                                 detector+'.ini'))
+        config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
+                                 detector + '.ini'))
 
         self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
         self.dt_cntr = config.getfloat('NEST', 'dt_cntr_config')
@@ -77,12 +77,12 @@ class LUXSource:
 
 
 @export
-class LUXERSource(LUXSource, fd.nestERSource):
+class LUXERSource(LUXSource, fd.nest.nestERSource):
     def __init__(self, *args, detector='default', **kwargs):
         super().__init__(*args, **kwargs)
 
 
 @export
-class LUXNRSource(LUXSource, fd.nestNRSource):
+class LUXNRSource(LUXSource, fd.nest.nestNRSource):
     def __init__(self, *args, detector='default', **kwargs):
         super().__init__(*args, **kwargs)

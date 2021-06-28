@@ -15,6 +15,8 @@ class MakeS1Photoelectrons(fd.Block):
 
     model_functions = ('double_pe_fraction',)
 
+    double_pe_fraction = 0.219
+
     def _compute(self, data_tensor, ptensor,
                  photons_detected, photoelectrons_detected):
         p_dpe = self.gimme('double_pe_fraction',

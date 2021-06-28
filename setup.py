@@ -21,7 +21,7 @@ setuptools.setup(
     python_requires=">=3.6",
     include_package_data=True,
     package_data={
-        'flamedisx': ['config/*.ini'],
+        'flamedisx': ['nest/config/*.ini'],
     },
     setup_requires=['pytest-runner'],
     install_requires=requires,
