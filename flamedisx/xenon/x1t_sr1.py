@@ -432,8 +432,8 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
       # TODO: The parameters here will need to be polished. 
       # They are fitted parameters and give a reasonable result.
       @staticmethod
-      def p_electron(nq, *, w_er_pel_a = -66.50 , w_er_pel_b = -77.78, 
-                    w_er_pel_c = 64.4, w_er_pel_e0 = 10.5):
+      def p_electron(nq, *, w_er_pel_a = -123. , w_er_pel_b = -47.7, 
+                    w_er_pel_c = 68., w_er_pel_e0 = 9.95):
       
           """Fraction of ER quanta that become electrons
           Simplified form from Jelle's thesis
@@ -452,11 +452,11 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
       def electron_detection_eff(drift_time,
                                  elife,
                                  *,
-                                 w_extraction_eff=0.0206):
+                                 w_extraction_eff=0.0169):
           return w_extraction_eff * tf.exp(-drift_time / elife)
           
       @staticmethod
-      def p_electron_fluctuation(nq, w_q2 = 0.0483, w_q3_nq = 123.): 
+      def p_electron_fluctuation(nq, w_q2 = 0.0237, w_q3_nq = 123.): 
         return tf.clip_by_value(
             w_q2 * (tf.constant(1., dtype=fd.float_type()) - \
             tf.exp(-nq / w_q3_nq)),
