@@ -1,6 +1,4 @@
 """XENON1T SR1 implementation"""
-import json
-
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -33,15 +31,15 @@ DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
 # Official numbers from BBF
 DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
-DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036 
+DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036
 
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
     Note that this implementation fundamentally assumes upper and lower bounds
     have exactly the same domain definition.
-    :param path_bag: List with filenames of acceptance maps  
-    :param is_bbf: True if reading file from BBF folder. 
+    :param path_bag: List with filenames of acceptance maps
+    :param is_bbf: True if reading file from BBF folder.
     :return: List of acceptance maps and their domain definitions
     """
     data_bag = []
@@ -64,7 +62,7 @@ def interpolate_tf(sig_tf, fmap, domain):
     :return: Tensor of interpolated map values (same shape as x)
     """
     return tfp.math.interp_regular_1d_grid(x=sig_tf,
-            x_ref_min=domain[0], x_ref_max=domain[1], 
+            x_ref_min=domain[0], x_ref_max=domain[1],
             y_ref=fmap, fill_value='constant_extension')
 
 def calculate_reconstruction_bias(sig, fmap, domain_def, pivot_pt):
@@ -122,7 +120,7 @@ class SR1Source:
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
-                        'path_s1_rly', 
+                        'path_s1_rly',
                         'path_s2_rly',
                         'path_reconstruction_bias_mean_s1',
                         'path_reconstruction_bias_mean_s2',
@@ -133,30 +131,30 @@ class SR1Source:
                         )
 
     # Light yield maps
-    path_s1_rly = ('1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json')
-    path_s2_rly = ('1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json')
+    path_s1_rly = '1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json'
+    path_s2_rly = '1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json'
 
     # Combined cuts acceptances
     path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
     path_cut_accept_s2 = ('S2AcceptanceSR1_v7_Median.json',)
 
     # Pax reconstruction bias maps
-    path_reconstruction_bias_mean_s1 = ('ReconstructionS1BiasMeanLowers_SR1_v2.json',
-                                    'ReconstructionS1BiasMeanUppers_SR1_v2.json')
-    path_reconstruction_bias_mean_s2 = ('ReconstructionS2BiasMeanLowers_SR1_v2.json',
-                                    'ReconstructionS2BiasMeanUppers_SR1_v2.json')
+    path_reconstruction_bias_mean_s1 = (
+        'ReconstructionS1BiasMeanLowers_SR1_v2.json',
+        'ReconstructionS1BiasMeanUppers_SR1_v2.json')
+    path_reconstruction_bias_mean_s2 = (
+        'ReconstructionS2BiasMeanLowers_SR1_v2.json',
+        'ReconstructionS2BiasMeanUppers_SR1_v2.json')
 
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
-    path_reconstruction_efficiencies_s1 = ('RecEfficiencyLowers_SR1_70phd_v1.json',
-                                       'RecEfficiencyMedians_SR1_70phd_v1.json',
-                                       'RecEfficiencyUppers_SR1_70phd_v1.json')
+    path_reconstruction_efficiencies_s1 = (
+        'RecEfficiencyLowers_SR1_70phd_v1.json',
+        'RecEfficiencyMedians_SR1_70phd_v1.json',
+        'RecEfficiencyUppers_SR1_70phd_v1.json')
 
     # Elife maps
     variable_elife = True
     path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     def set_defaults(self, *args, **kwargs):
         super().set_defaults(*args, **kwargs)
@@ -295,7 +293,7 @@ class SR1Source:
                               tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= interpolate_tf(s1, 
+        acceptance *= interpolate_tf(s1,
                                      self.cut_accept_map_s1[0],
                                      self.cut_accept_domain_s1)
         return acceptance
@@ -311,7 +309,7 @@ class SR1Source:
                               tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= interpolate_tf(s2, 
+        acceptance *= interpolate_tf(s2,
                                      self.cut_accept_map_s2[0],
                                      self.cut_accept_domain_s2)
         return acceptance
