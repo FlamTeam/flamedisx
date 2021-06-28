@@ -753,16 +753,16 @@ class Source:
                                       s2_scale_MC.append(s2_scale))))
 
         tree = sklearn.neighbors.KDTree(data_full)
-        dist, ind = tree.query(data[::], k=int(1e4))
+        dist, ind = tree.query(data[::], k=1000)
 
         for i in range(len(self.data)):
             for x in self.inner_dimensions:
+                if (x=='electrons_detected' or x=='photoelectrons_detected'):
+                    continue
                 data_x = df_full[x]
-                mean_x = data_x.iloc[ind[i, :]].mean()
-                std_x = data_x.iloc[ind[i, :]].std()
 
-                self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
-                self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
+                self.data.at[i, x + '_min'] = min(data_x.iloc[ind[i, :]])
+                self.data.at[i, x + '_max'] = max(data_x.iloc[ind[i, :]])
 
         # test_copy = deepcopy(self)
         # test_copy.energies = tf.cast(tf.linspace(0., 5., 1000),
