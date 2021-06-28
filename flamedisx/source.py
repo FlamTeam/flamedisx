@@ -1,6 +1,7 @@
 from copy import copy
 from contextlib import contextmanager
 import inspect
+import typing as ty
 import warnings
 
 import numpy as np
@@ -18,25 +19,48 @@ o = tf.newaxis
 
 @export
 class Source:
+    #: Number of event batches to use in differential rate computations
     n_batches = None
+
+    #: Number of fake events that were padded to the final batch
+    #: to make it match the batch size
     n_padding = None
+
+    #: Whether to trace (compile into a tensorflow graph) the differential
+    #: rate computation
     trace_difrate = True
 
-    model_functions = tuple()
-    special_model_functions = tuple()
-    inner_dimensions = tuple()
+    #: Names of model functions
+    model_functions: ty.Tuple[str] = tuple()
 
-    frozen_model_functions = tuple()
-    array_columns = tuple()
+    #: Names of model functions that take an additional first argument
+    #: ('bonus arg'). This must be a subset of model_functions.
+    special_model_functions: ty.Tuple[str] = tuple()
 
-    # Final observable dimensions; for use in domain / cross-domain
-    final_dimensions = tuple()
+    #: Model functions whose results should be evaluated once per event,
+    #: then stored with the data. For example, non-tensorflow functions.
+    #: Note these cannot have any fittable parameters.
+    frozen_model_functions: ty.Tuple[str] = tuple()
 
-    # Avoid variable stepping over these inner_dimensions
-    no_step_dimensions = tuple()
+    #: Names of final observable dimensions (e.g. s1, s2)
+    #: for use in domain / cross-domain
+    final_dimensions: ty.Tuple[str] = tuple()
 
-    # Any non-hidden variable extra_dimensions
-    bonus_dimensions = tuple()
+    #: Names of dimensions of hidden variables (e.g. produced electrons)
+    #: for which domain computations and dimsize calculations are to be done
+    inner_dimensions: ty.Tuple[str] = tuple()
+
+    #: inner_dimensions excluded from variable stepping logic, i.e.
+    #: for which the domain is always a single interval of integers
+    no_step_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of dimensions of hidden variables for which
+    #: dimsize calculations are NOT done here (but in user-defined code)
+    #: but for which we DO track _min and _dimsizes
+    bonus_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of array-valued data columns
+    array_columns: ty.Tuple[str] = tuple()
 
     #: Any additional source attributes that should be configurable.
     model_attributes = tuple()
@@ -47,7 +71,8 @@ class Source:
     def extra_needed_columns(self):
         return []
 
-    data = None
+    #: The fully annotated event data
+    data: pd.DataFrame = None
 
     ##
     # Initialization and helpers
@@ -458,13 +483,13 @@ class Source:
         :param fname: Name of the model function to compute
         :param bonus_arg: If fname takes a bonus argument, the data for it
         :param numpy_out: If True, return (tuple of) numpy arrays,
-        otherwise (tuple of) tensors.
+            otherwise (tuple of) tensors.
         :param data_tensor: Data tensor, columns as self.column_index
-        If not given, use self.data (used in annotate)
+            If not given, use self.data (used in annotate)
         :param ptensor: Parameter tensor, columns as self.param_id
-        If not give, use defaults dictionary (used in annotate)
-        Before using gimme, you must use set_data to
-        populate the internal caches.
+            If not given, use defaults dictionary (used in annotate)
+            Before using gimme, you must use set_data to
+            populate the internal caches.
         """
         assert (bonus_arg is not None) == (fname in self.special_model_functions)
         assert isinstance(fname, str), \
@@ -536,6 +561,7 @@ class Source:
         return [self.batch_size, self.n_columns_in_data_tensor]
 
     def trace_differential_rate(self):
+        """Compile the differential rate computation to a tensorflow graph"""
         input_signature = (
             tf.TensorSpec(shape=self._batch_data_tensor_shape(),
                           dtype=fd.float_type()),
@@ -563,7 +589,7 @@ class Source:
     ##
 
     def domain(self, x, data_tensor=None):
-        """Return (n_events, |possible x values|) matrix containing all
+        """Return (n_events, n_x) matrix containing all
         possible integer values of x for each event.
 
         If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
@@ -579,7 +605,7 @@ class Source:
         return left_bound + x_range
 
     def cross_domains(self, x, y, data_tensor):
-        """Return (x, y) two-tuple of (n_events, |x|, |y|) tensors
+        """Return (x, y) two-tuple of (n_events, n_x, n_y) tensors
         containing possible integer values of x and y, respectively.
         """
         # TODO: somehow mask unnecessary elements and save computation time
@@ -631,7 +657,7 @@ class Source:
 
         Careful: ensure mutual constraints are accounted for first!
         (e.g. fixing energy for a modulating WIMP has consequences for the
-         time distribution.)
+        time distribution.)
         """
         if fix_truth is not None:
             for k, v in fix_truth.items():
@@ -740,7 +766,11 @@ class ColumnSource(Source):
     """Source that expects precomputed differential rate in a column,
     and precomputed mu in an attribute
     """
+
+    #: Name of the data column containing the precomputed differential rate
     column = 'rename_me!'
+
+    #: Expected events for this source
     mu = 42.
 
     def extra_needed_columns(self):

@@ -204,7 +204,7 @@ def index_lookup_dict(names, column_widths=None):
      (tf.constant integers.)
 
     :param column_widths: dictionary mapping names to column width.
-    For columns with width > 1, the result contains a tensor slice.
+        For columns with width > 1, the result contains a tensor slice.
     """
     names = list(names)
     if column_widths is None:
