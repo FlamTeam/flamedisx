@@ -158,7 +158,7 @@ class SR1Source:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def set_defaults(*args, **kwargs):
+    def set_defaults(self, *args, **kwargs):
         super().set_defaults(*args, **kwargs)
 
         # Yield maps
