@@ -758,6 +758,29 @@ class Source:
                 self.data.at[i, x + '_min'] = min(data_x.iloc[ind[i]])
                 self.data.at[i, x + '_max'] = max(data_x.iloc[ind[i]])
 
+    def MC_bounds_complex(self):
+        """"""
+        MC_data = self.simulate(int(1e6))
+
+        df_full = pd.concat([MC_data, self.data])
+
+        s1_scale = (df_full['s1'] - np.mean(df_full['s1'])) / \
+            np.std(df_full['s1'])
+        s2_scale = (df_full['s2'] - np.mean(df_full['s2'])) / \
+            np.std(df_full['s2'])
+
+        data_full = np.array(list(zip(s1_scale, s2_scale)))
+
+        data = data_full[len(MC_data)::]
+
+        tree = sklearn.neighbors.KDTree(data_full)
+        dist, ind = tree.query(data[::], k=10)
+
+        energies_full = df_full['energy']
+
+        for i in range(len(self.data)):
+            self.data.at[i, 'energy_mle'] = energies_full.iloc[ind[i]].mean()
+
         # test_copy = deepcopy(self)
         # test_copy.energies = tf.cast(tf.linspace(0., 5., 1000),
         #                              fd.float_type())
