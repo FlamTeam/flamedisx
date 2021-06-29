@@ -735,22 +735,16 @@ class Source:
         """"""
         MC_data = self.simulate(int(1e6))
 
-        df_full = pd.concat([self.data, MC_data])
+        df_full = pd.concat([MC_data, self.data])
 
-        s1_scale = (self.data['s1'] - np.mean(self.data['s1'])) / \
-            np.std(self.data['s1'])
-        s2_scale = (self.data['s2'] - np.mean(self.data['s2'])) / \
-            np.std(self.data['s2'])
+        s1_scale = (df_full['s1'] - np.mean(df_full['s1'])) / \
+            np.std(df_full['s1'])
+        s2_scale = (df_full['s2'] - np.mean(df_full['s2'])) / \
+            np.std(df_full['s2'])
 
-        data = np.array(list(zip(s1_scale, s2_scale)))
+        data_full = np.array(list(zip(s1_scale, s2_scale)))
 
-        s1_scale_MC = (MC_data['s1'] - np.mean(MC_data['s1'])) / \
-            np.std(MC_data['s1'])
-        s2_scale_MC = (MC_data['s2'] - np.mean(MC_data['s2'])) / \
-            np.std(MC_data['s2'])
-
-        data_full = np.array(list(zip(s1_scale_MC.append(s1_scale),
-                                      s2_scale_MC.append(s2_scale))))
+        data = data_full[len(MC_data)::]
 
         tree = sklearn.neighbors.KDTree(data_full)
         dist, ind = tree.query(data[::], k=1000)
@@ -761,8 +755,8 @@ class Source:
                     continue
                 data_x = df_full[x]
 
-                self.data.at[i, x + '_min'] = min(data_x.iloc[ind[i, :]])
-                self.data.at[i, x + '_max'] = max(data_x.iloc[ind[i, :]])
+                self.data.at[i, x + '_min'] = min(data_x.iloc[ind[i]])
+                self.data.at[i, x + '_max'] = max(data_x.iloc[ind[i]])
 
         # test_copy = deepcopy(self)
         # test_copy.energies = tf.cast(tf.linspace(0., 5., 1000),
