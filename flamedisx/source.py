@@ -753,10 +753,20 @@ class Source:
             for x in self.inner_dimensions:
                 if (x=='electrons_detected' or x=='photoelectrons_detected'):
                     continue
-                data_x = df_full[x]
 
-                self.data.at[i, x + '_min'] = min(data_x.iloc[ind[i]])
-                self.data.at[i, x + '_max'] = max(data_x.iloc[ind[i]])
+                data_x = df_full[x]
+                mean_x = data_x.iloc[ind[i, :]].mean()
+                std_x = data_x.iloc[ind[i, :]].std()
+
+                if (x=='photons_detected'):
+                    self.data.at[i, x + '_min'] = np.floor(mean_x - 5 * std_x)
+                    self.data.at[i, x + '_max'] = np.ceil(mean_x + 5 * std_x)
+                elif (x=='electrons_produced'):
+                    self.data.at[i, x + '_min'] = np.floor(mean_x - std_x)
+                    self.data.at[i, x + '_max'] = np.ceil(mean_x + std_x)
+                else:
+                    self.data.at[i, x + '_min'] = np.floor(mean_x - 2 * std_x)
+                    self.data.at[i, x + '_max'] = np.ceil(mean_x + 2 * std_x)
 
     def MC_bounds_complex(self):
         """"""
