@@ -761,9 +761,6 @@ class Source:
                 if (x=='photons_detected'):
                     self.data.at[i, x + '_min'] = np.floor(mean_x - 5 * std_x)
                     self.data.at[i, x + '_max'] = np.ceil(mean_x + 5 * std_x)
-                elif (x=='electrons_produced'):
-                    self.data.at[i, x + '_min'] = np.floor(mean_x - std_x)
-                    self.data.at[i, x + '_max'] = np.ceil(mean_x + std_x)
                 else:
                     self.data.at[i, x + '_min'] = np.floor(mean_x - 2 * std_x)
                     self.data.at[i, x + '_max'] = np.ceil(mean_x + 2 * std_x)
@@ -789,13 +786,28 @@ class Source:
         energies_full = df_full['energy']
 
         for i in range(len(self.data)):
-            self.data.at[i, 'energy_mle'] = energies_full.iloc[ind[i]].mean()
+            energy_mle = self.data.at[i, 'energy_mle'] = energies_full.iloc[ind[i]].mean()
+            x = self.data['x'].iloc[i]
+            y = self.data['y'].iloc[i]
+            z = self.data['z'].iloc[i]
 
-        # test_copy = deepcopy(self)
-        # test_copy.energies = tf.cast(tf.linspace(0., 5., 1000),
-        #                              fd.float_type())
-        # test_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
-        # test_copy.setup_copy()
+            source_copy = deepcopy(self)
+            source_copy.energies = tf.cast(tf.linspace(energy_mle, energy_mle, 1000),
+                                         fd.float_type())
+            source_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
+            source_copy.setup_copy()
+
+            MC_data_small = source_copy.simulate(10000, fix_truth=dict(x=x,y=y,z=z))
+
+            for x in self.inner_dimensions:
+                if (x=='electrons_detected' or x=='photoelectrons_detected'):
+                    continue
+
+                mean_x = MC_data_small[x].mean()
+                std_x = MC_data_small[x].std()
+
+                self.data.at[i, x + '_min'] = np.floor(mean_x - 3 * std_x)
+                self.data.at[i, x + '_max'] = np.ceil(mean_x + 3 * std_x)
 
     ##
     # Functions you have to override
