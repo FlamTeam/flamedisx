@@ -1,3 +1,11 @@
+1.5.0 / 2021-06-29
+------------------
+- Variable stepping, support for high-energy models (#127)
+- NEST models for post-quanta processes (#136)
+- Configuration system (#140, #147)
+- XENON1T: Fix S2 acceptance (#138) and unused imports (#128)
+- Update block system documentation (#139)
+
 1.4.1 / 2021-04-20
 ------------------
 - Stabilize default optimizer with better parameter scaling (#114)
@@ -10,7 +18,7 @@
 - Fix 'sticky defaults' bug (#110)
 - Enable GitHub Actions and Dependabot (#109)
 - Documentation updates (#92, [notebooks#3](https://github.com/FlamTeam/flamedisx-notebooks/pull/3))
-- Likelihood `defaults` support, simulate argument fixes (#103) 
+- Likelihood `defaults` support, simulate argument fixes (#103)
 - SpatialRateEnergySpectrum: Simplify API (#100) and fix draw_positions (#105)
 - WIMPEnergySpectrum: Accept event times slightly out of range (#99)
 - Do not round photons_detected_mle (#91)
@@ -46,7 +54,7 @@
 0.5.0 / 2020-01-31
 ------------------
 - Autographed Hessian; use Hessian in the optimizer (#62)
-- Check for optimizer failures (#61) 
+- Check for optimizer failures (#61)
 - Trace single-batch likelihood, but use numpy thereafter (#61)
 - Fix simulation/data discrepancy in recombination fluctuation
 - Adjust optimizer defaults
