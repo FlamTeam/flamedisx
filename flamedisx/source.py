@@ -765,14 +765,19 @@ class Source:
             source_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
             source_copy.setup_copy()
 
-            MC_data_small = source_copy.simulate(1000, fix_truth=dict(x=x,y=y,z=z))
+            sufficient_stats = False
+            while(not sufficient_stats):
+                MC_data_small = source_copy.simulate(1000, fix_truth=dict(x=x,y=y,z=z))
 
-            electrons_detected_max = self.data['electrons_detected_max'].iloc[i]
-            electrons_detected_min = self.data['electrons_detected_min'].iloc[i]
-            photoelectrons_detected_max = self.data['photoelectrons_detected_max'].iloc[i]
-            photoelectrons_detected_min = self.data['photoelectrons_detected_min'].iloc[i]
-            condition = (MC_data_small['electrons_detected'] >= electrons_detected_min) & (MC_data_small['electrons_detected'] <= electrons_detected_max) & (MC_data_small['photoelectrons_detected'] >= photoelectrons_detected_min) & (MC_data_small['photoelectrons_detected'] <= photoelectrons_detected_max)
-            MC_data_small_filter = MC_data_small.loc[condition]
+                electrons_detected_max = self.data['electrons_detected_max'].iloc[i]
+                electrons_detected_min = self.data['electrons_detected_min'].iloc[i]
+                photoelectrons_detected_max = self.data['photoelectrons_detected_max'].iloc[i]
+                photoelectrons_detected_min = self.data['photoelectrons_detected_min'].iloc[i]
+                condition = (MC_data_small['electrons_detected'] >= electrons_detected_min) & (MC_data_small['electrons_detected'] <= electrons_detected_max) & (MC_data_small['photoelectrons_detected'] >= photoelectrons_detected_min) & (MC_data_small['photoelectrons_detected'] <= photoelectrons_detected_max)
+                MC_data_small_filter = MC_data_small.loc[condition]
+
+                if (len(MC_data_small_filter > 10)):
+                    sufficient_stats = True
 
             for x in self.inner_dimensions:
                 if (x=='electrons_detected' or x=='photoelectrons_detected'):
