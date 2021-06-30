@@ -734,7 +734,8 @@ class Source:
 
     def MC_bounds(self):
         """"""
-        MC_data = self.simulate(int(1e6))
+        source_copy = deepcopy(self)
+        MC_data = source_copy.simulate(int(1e6))
 
         df_full = pd.concat([MC_data, self.data])
 
@@ -760,7 +761,6 @@ class Source:
             y = self.data['y'].iloc[i]
             z = self.data['z'].iloc[i]
 
-            source_copy = deepcopy(self)
             source_copy.energies = tf.cast(tf.linspace(energy_mle, energy_mle, 1000),
                                          fd.float_type())
             source_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
