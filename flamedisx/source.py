@@ -278,6 +278,8 @@ class Source:
         if not _skip_tf_init:
             self.trace_differential_rate()
 
+        self.source_copy = deepcopy(self)
+
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files
         params = {**fd.load_config(config), **params}
@@ -341,7 +343,7 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
-                self.MC_bounds()
+                # self.MC_bounds(self.source_copy)
                 self._calculate_dimsizes(self.max_dim_size)
 
         if not _skip_tf_init:
@@ -732,9 +734,8 @@ class Source:
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
 
-    def MC_bounds(self):
+    def MC_bounds(self, source_copy):
         """"""
-        source_copy = deepcopy(self)
         MC_data = source_copy.simulate(int(1e6))
 
         df_full = pd.concat([MC_data, self.data])
