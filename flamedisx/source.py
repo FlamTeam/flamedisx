@@ -341,7 +341,7 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
-                # self.MC_bounds_complex()
+                # self.MC_bounds()
                 self._calculate_dimsizes(self.max_dim_size)
 
         if not _skip_tf_init:
@@ -732,7 +732,7 @@ class Source:
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
 
-    def MC_bounds_simple(self):
+    def MC_bounds(self):
         """"""
         MC_data = self.simulate(int(1e6))
 
@@ -746,47 +746,15 @@ class Source:
         data_full = np.array(list(zip(s1_scale, s2_scale, df_full['r'], df_full['z'])))
 
         data = data_full[len(MC_data)::]
+        data_MC = data_full[0:len(MC_data)]
 
-        tree = sklearn.neighbors.KDTree(data_full)
-        dist, ind = tree.query(data[::], k=1000)
-
-        for i in range(len(self.data)):
-            for x in self.inner_dimensions:
-                if (x=='electrons_detected' or x=='photoelectrons_detected'):
-                    continue
-
-                data_x = df_full[x]
-                mean_x = data_x.iloc[ind[i, :]].mean()
-                std_x = data_x.iloc[ind[i, :]].std()
-
-                self.data.at[i, x + '_min'] = np.floor(mean_x - 2 * std_x)
-                self.data.at[i, x + '_max'] = np.ceil(mean_x + 2 * std_x)
-
-        for x in self.inner_dimensions:
-            self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
-
-    def MC_bounds_complex(self):
-        """"""
-        MC_data = self.simulate(int(1e6))
-
-        df_full = pd.concat([MC_data, self.data])
-
-        s1_scale = (df_full['s1'] - np.mean(df_full['s1'])) / \
-            np.std(df_full['s1'])
-        s2_scale = (df_full['s2'] - np.mean(df_full['s2'])) / \
-            np.std(df_full['s2'])
-
-        data_full = np.array(list(zip(s1_scale, s2_scale, df_full['r'], df_full['z'])))
-
-        data = data_full[len(MC_data)::]
-
-        tree = sklearn.neighbors.KDTree(data_full)
+        tree = sklearn.neighbors.KDTree(data_MC)
         dist, ind = tree.query(data[::], k=10)
 
-        energies_full = df_full['energy']
+        energies_MC = MC_data['energy']
 
         for i in range(len(self.data)):
-            energy_mle = self.data.at[i, 'energy_mle'] = energies_full.iloc[ind[i]].mean()
+            energy_mle = self.data.at[i, 'energy_mle'] = energies_MC.iloc[ind[i]].mean()
             x = self.data['x'].iloc[i]
             y = self.data['y'].iloc[i]
             z = self.data['z'].iloc[i]
@@ -813,12 +781,8 @@ class Source:
                 mean_x = MC_data_small_filter[x].mean()
                 std_x = MC_data_small_filter[x].std()
 
-                if (x=='photons_produced'):
-                    self.data.at[i, x + '_min'] = np.floor(mean_x - 8 * std_x)
-                    self.data.at[i, x + '_max'] = np.ceil(mean_x + 8 * std_x)
-                else:
-                    self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
-                    self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
+                self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
+                self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
 
         for x in self.inner_dimensions:
             self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
