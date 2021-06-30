@@ -341,6 +341,7 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
+                # self.MC_bounds_complex()
                 self._calculate_dimsizes(self.max_dim_size)
 
         if not _skip_tf_init:
@@ -742,7 +743,7 @@ class Source:
         s2_scale = (df_full['s2'] - np.mean(df_full['s2'])) / \
             np.std(df_full['s2'])
 
-        data_full = np.array(list(zip(s1_scale, s2_scale)))
+        data_full = np.array(list(zip(s1_scale, s2_scale, df_full['r'], df_full['z'])))
 
         data = data_full[len(MC_data)::]
 
@@ -758,12 +759,11 @@ class Source:
                 mean_x = data_x.iloc[ind[i, :]].mean()
                 std_x = data_x.iloc[ind[i, :]].std()
 
-                if (x=='photons_detected'):
-                    self.data.at[i, x + '_min'] = np.floor(mean_x - 5 * std_x)
-                    self.data.at[i, x + '_max'] = np.ceil(mean_x + 5 * std_x)
-                else:
-                    self.data.at[i, x + '_min'] = np.floor(mean_x - 2 * std_x)
-                    self.data.at[i, x + '_max'] = np.ceil(mean_x + 2 * std_x)
+                self.data.at[i, x + '_min'] = np.floor(mean_x - 2 * std_x)
+                self.data.at[i, x + '_max'] = np.ceil(mean_x + 2 * std_x)
+
+        for x in self.inner_dimensions:
+            self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
 
     def MC_bounds_complex(self):
         """"""
@@ -776,7 +776,7 @@ class Source:
         s2_scale = (df_full['s2'] - np.mean(df_full['s2'])) / \
             np.std(df_full['s2'])
 
-        data_full = np.array(list(zip(s1_scale, s2_scale)))
+        data_full = np.array(list(zip(s1_scale, s2_scale, df_full['r'], df_full['z'])))
 
         data = data_full[len(MC_data)::]
 
@@ -797,17 +797,31 @@ class Source:
             source_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
             source_copy.setup_copy()
 
-            MC_data_small = source_copy.simulate(10000, fix_truth=dict(x=x,y=y,z=z))
+            MC_data_small = source_copy.simulate(1000, fix_truth=dict(x=x,y=y,z=z))
+
+            electrons_detected_max = self.data['electrons_detected_max'].iloc[i]
+            electrons_detected_min = self.data['electrons_detected_min'].iloc[i]
+            photoelectrons_detected_max = self.data['photoelectrons_detected_max'].iloc[i]
+            photoelectrons_detected_min = self.data['photoelectrons_detected_min'].iloc[i]
+            condition = (MC_data_small['electrons_detected'] >= electrons_detected_min) & (MC_data_small['electrons_detected'] <= electrons_detected_max) & (MC_data_small['photoelectrons_detected'] >= photoelectrons_detected_min) & (MC_data_small['photoelectrons_detected'] <= photoelectrons_detected_max)
+            MC_data_small_filter = MC_data_small.loc[condition]
 
             for x in self.inner_dimensions:
                 if (x=='electrons_detected' or x=='photoelectrons_detected'):
                     continue
 
-                mean_x = MC_data_small[x].mean()
-                std_x = MC_data_small[x].std()
+                mean_x = MC_data_small_filter[x].mean()
+                std_x = MC_data_small_filter[x].std()
 
-                self.data.at[i, x + '_min'] = np.floor(mean_x - 3 * std_x)
-                self.data.at[i, x + '_max'] = np.ceil(mean_x + 3 * std_x)
+                if (x=='photons_produced'):
+                    self.data.at[i, x + '_min'] = np.floor(mean_x - 8 * std_x)
+                    self.data.at[i, x + '_max'] = np.ceil(mean_x + 8 * std_x)
+                else:
+                    self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
+                    self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
+
+        for x in self.inner_dimensions:
+            self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
 
     ##
     # Functions you have to override
