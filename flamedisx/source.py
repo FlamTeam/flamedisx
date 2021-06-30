@@ -341,7 +341,7 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
-                # self.MC_bounds()
+                self.MC_bounds()
                 self._calculate_dimsizes(self.max_dim_size)
 
         if not _skip_tf_init:
@@ -754,6 +754,7 @@ class Source:
         energies_MC = MC_data['energy']
 
         for i in range(len(self.data)):
+            print(i)
             energy_mle = self.data.at[i, 'energy_mle'] = energies_MC.iloc[ind[i]].mean()
             x = self.data['x'].iloc[i]
             y = self.data['y'].iloc[i]
@@ -766,7 +767,15 @@ class Source:
             source_copy.setup_copy()
 
             sufficient_stats = False
+            ignore_event = False
+            count = 0
+
             while(not sufficient_stats):
+                if (count > 10):
+                    sufficient_stats = True
+                    ignore_event = True
+                    continue
+
                 MC_data_small = source_copy.simulate(1000, fix_truth=dict(x=x,y=y,z=z))
 
                 electrons_detected_max = self.data['electrons_detected_max'].iloc[i]
@@ -776,11 +785,18 @@ class Source:
                 condition = (MC_data_small['electrons_detected'] >= electrons_detected_min) & (MC_data_small['electrons_detected'] <= electrons_detected_max) & (MC_data_small['photoelectrons_detected'] >= photoelectrons_detected_min) & (MC_data_small['photoelectrons_detected'] <= photoelectrons_detected_max)
                 MC_data_small_filter = MC_data_small.loc[condition]
 
-                if (len(MC_data_small_filter > 10)):
+                count += 1
+                if (len(MC_data_small_filter) > 10):
                     sufficient_stats = True
 
+            if (ignore_event):
+                for x in self.inner_dimensions:
+                    self.data.at[i, x + '_min'] = 0
+                    self.data.at[i, x + '_max'] = 1
+                continue
+
             for x in self.inner_dimensions:
-                if (x=='electrons_detected' or x=='photoelectrons_detected'):
+                if (x=='electrons_detected' or x=='photoelectrons_detected' or x=='quanta_produced'):
                     continue
 
                 mean_x = MC_data_small_filter[x].mean()
