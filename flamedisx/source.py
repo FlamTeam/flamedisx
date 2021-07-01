@@ -734,8 +734,9 @@ class Source:
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
 
-    def MC_bounds(self, source_copy):
+    def MC_bounds(self, source_copy_original):
         """"""
+        source_copy = deepcopy(source_copy_original)
         MC_data = source_copy.simulate(int(1e6))
 
         df_full = pd.concat([MC_data, self.data])
@@ -758,11 +759,13 @@ class Source:
         for i in range(len(self.data)):
             print(i)
             energy_mle = self.data.at[i, 'energy_mle'] = energies_MC.iloc[ind[i]].mean()
+            energy_min = self.data.at[i, 'energy_min'] = min(energies_MC.iloc[ind[i]])
+            energy_max = self.data.at[i, 'energy_max'] = max(energies_MC.iloc[ind[i]])
             x = self.data['x'].iloc[i]
             y = self.data['y'].iloc[i]
             z = self.data['z'].iloc[i]
 
-            source_copy.energies = tf.cast(tf.linspace(energy_mle, energy_mle, 1000),
+            source_copy.energies = tf.cast(tf.linspace(energy_min, energy_max, 1000),
                                          fd.float_type())
             source_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
             source_copy.setup_copy()
