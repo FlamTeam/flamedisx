@@ -745,8 +745,12 @@ class Source:
             np.std(df_full['s1'])
         s2_scale = (df_full['s2'] - np.mean(df_full['s2'])) / \
             np.std(df_full['s2'])
+        r_scale = (df_full['r'] - np.mean(df_full['r'])) / \
+            np.std(df_full['r'])
+        z_scale = (df_full['z'] - np.mean(df_full['z'])) / \
+            np.std(df_full['z'])
 
-        data_full = np.array(list(zip(s1_scale, s2_scale, df_full['r'], df_full['z'])))
+        data_full = np.array(list(zip(s1_scale, s2_scale, r_scale, z_scale)))
 
         data = data_full[len(MC_data)::]
         data_MC = data_full[0:len(MC_data)]
@@ -756,9 +760,9 @@ class Source:
 
         energies_MC = MC_data['energy']
 
+        take_nearest_event = []
+
         for i in range(len(self.data)):
-            print(i)
-            energy_mle = self.data.at[i, 'energy_mle'] = energies_MC.iloc[ind[i]].mean()
             energy_min = self.data.at[i, 'energy_min'] = min(energies_MC.iloc[ind[i]])
             energy_max = self.data.at[i, 'energy_max'] = max(energies_MC.iloc[ind[i]])
             x = self.data['x'].iloc[i]
@@ -771,13 +775,12 @@ class Source:
             source_copy.setup_copy()
 
             sufficient_stats = False
-            ignore_event = False
             count = 0
 
             while(not sufficient_stats):
                 if (count > 10):
                     sufficient_stats = True
-                    ignore_event = True
+                    take_nearest_event.append(True)
                     continue
 
                 MC_data_small = source_copy.simulate(1000, fix_truth=dict(x=x,y=y,z=z))
@@ -792,11 +795,9 @@ class Source:
                 count += 1
                 if (len(MC_data_small_filter) > 10):
                     sufficient_stats = True
+                    take_nearest_event.append(False)
 
-            if (ignore_event):
-                for x in self.inner_dimensions:
-                    self.data.at[i, x + '_min'] = 0
-                    self.data.at[i, x + '_max'] = 1
+            if(take_nearest_event[i] == True):
                 continue
 
             for x in self.inner_dimensions:
@@ -808,6 +809,23 @@ class Source:
 
                 self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
                 self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
+
+        data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
+        data_no_bounds = data[[i for i, x in enumerate(take_nearest_event) if x]]
+
+        take_nearest_event_indicies = [i for i, x in enumerate(take_nearest_event) if x]
+
+        if(len(take_nearest_event_indicies) > 0):
+            tree = sklearn.neighbors.KDTree(data_bounds)
+            dist, ind = tree.query(data_no_bounds[::], k=1)
+
+        for i in range(len(take_nearest_event_indicies)):
+            for x in self.inner_dimensions:
+                if (x=='electrons_detected' or x=='photoelectrons_detected' or x=='quanta_produced'):
+                    continue
+
+                self.data.at[take_nearest_event_indicies[i], x + '_min'] = self.data.at[ind[i][0], x + '_min']
+                self.data.at[take_nearest_event_indicies[i], x + '_max'] = self.data.at[ind[i][0], x + '_max']
 
         for x in self.inner_dimensions:
             self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
