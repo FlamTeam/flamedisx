@@ -11,7 +11,6 @@ o = tf.newaxis
 @export
 class MakeS2Photons(fd.Block):
     dimensions = ('electrons_detected', 's2_photons_produced')
-    extra_dimensions = ()
 
     model_functions = ('electron_gain_mean', 'electron_gain_std')
 

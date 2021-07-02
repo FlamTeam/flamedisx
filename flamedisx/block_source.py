@@ -56,6 +56,7 @@ class Block:
 
     MC_annotate: bool = False
     post_MC_annotate: bool = False
+    MC_annotate_dimensions: ty.Tuple[str] = tuple()
 
     def __init__(self, source):
         self.source = source
@@ -479,11 +480,8 @@ class BlockModelSource(fd.Source):
             if not b.MC_annotate and not b.post_MC_annotate:
                 b.annotate(d)
             elif b.MC_annotate:
-                for dim in b.dimensions:
-                    if dim in self.final_dimensions \
-                            or dim in self.initial_dimensions:
-                        continue
-                    elif dim not in self.MC_bound_dimensions:
+                for dim in b.MC_annotate_dimensions:
+                    if dim not in self.MC_bound_dimensions:
                         self.MC_bound_dimensions += (dim,)
 
         self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy', 'energies',
