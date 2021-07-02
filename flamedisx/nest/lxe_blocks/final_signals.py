@@ -89,7 +89,6 @@ class MakeS1(MakeFinalSignals):
     signal_name = 's1'
 
     dimensions = ('s1_photoelectrons_detected', 's1')
-    extra_dimensions = ()
     special_model_functions = ('s1_spe_smearing', 'reconstruction_bias_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
 
@@ -120,7 +119,6 @@ class MakeS2(MakeFinalSignals):
     signal_name = 's2'
 
     dimensions = ('s2_photoelectrons_detected', 's2')
-    extra_dimensions = ()
     special_model_functions = ('s2_spe_smearing', 'reconstruction_bias_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
 

@@ -814,7 +814,6 @@ class Source:
 
         for i in range(len(take_nearest_event_indicies)):
             for x in self.MC_bound_dimensions:
-
                 self.data.at[take_nearest_event_indicies[i], x + '_min'] = self.data.at[ind[i][0], x + '_min']
                 self.data.at[take_nearest_event_indicies[i], x + '_max'] = self.data.at[ind[i][0], x + '_max']
 

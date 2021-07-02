@@ -59,7 +59,6 @@ class MakePhotoelectrons(fd.Block):
 @export
 class MakeS1Photoelectrons(MakePhotoelectrons):
     dimensions = ('photons_detected', 's1_photoelectrons_produced')
-    extra_dimensions = ()
 
     quanta_in_name = 'photons_detected'
     quanta_out_name = 's1_photoelectrons_produced'
@@ -75,7 +74,6 @@ class MakeS1Photoelectrons(MakePhotoelectrons):
 @export
 class MakeS2Photoelectrons(MakePhotoelectrons):
     dimensions = ('s2_photons_detected', 's2_photoelectrons_detected')
-    extra_dimensions = ()
 
     quanta_in_name = 's2_photons_detected'
     quanta_out_name = 's2_photoelectrons_detected'
