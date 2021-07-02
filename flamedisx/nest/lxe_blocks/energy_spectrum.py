@@ -12,7 +12,6 @@ o = tf.newaxis
 @export
 class EnergySpectrum(fd.FirstBlock):
     dimensions = ('energy',)
-    extra_dimensions = ()
     model_attributes = (
         'energies',
         'radius', 'z_top', 'z_bottom', 'z_topDrift',

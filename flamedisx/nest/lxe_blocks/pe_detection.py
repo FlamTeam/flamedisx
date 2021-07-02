@@ -11,7 +11,6 @@ o = tf.newaxis
 @export
 class DetectS1Photoelectrons(fd.Block):
     dimensions = ('s1_photoelectrons_produced', 's1_photoelectrons_detected')
-    extra_dimensions = ()
 
     special_model_functions = ('photoelectron_detection_eff',)
     model_functions = special_model_functions
