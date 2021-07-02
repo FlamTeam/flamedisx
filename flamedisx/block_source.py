@@ -54,6 +54,9 @@ class Block:
     #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
+    MC_annotate: bool = False
+    post_MC_annotate: bool = False
+
     def __init__(self, source):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
@@ -471,7 +474,24 @@ class BlockModelSource(fd.Source):
         # on hidden variables closer to the final signals (easy to compute)
         # for estimating the bounds on deeper hidden variables.
         for b in self.model_blocks[::-1]:
-            b.annotate(d)
+            assert not (b.MC_annotate and b.post_MC_annotate), \
+                "Block can't be both MC_annotate and post_MC_annotate"
+            if not b.MC_annotate and not b.post_MC_annotate:
+                b.annotate(d)
+            elif b.MC_annotate:
+                for dim in b.dimensions:
+                    if dim in self.final_dimensions \
+                            or dim in self.initial_dimensions:
+                        continue
+                    elif dim not in self.MC_bound_dimensions:
+                        self.MC_bound_dimensions += (dim,)
+
+        self.MC_bounds(self.source_copy)
+
+        for b in self.model_blocks[::-1]:
+            if b.post_MC_annotate:
+                b.annotate(d)
+
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)

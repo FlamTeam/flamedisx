@@ -19,6 +19,8 @@ class MakeERQuanta(fd.Block):
     depends_on = ((('energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
+    post_MC_annotate = True
+
     work = DEFAULT_WORK_PER_QUANTUM
 
     def _compute(self,
@@ -98,7 +100,6 @@ class MakeERQuanta(fd.Block):
         d['quanta_produced_noStep_min'] = (
                 d['electrons_produced_min']
                 + d['photons_produced_min'])
-        annotate_ces(self, d)
 
     def _domain_dict_bonus(self, d):
         return domain_dict_bonus(self, d)
@@ -213,30 +214,12 @@ class MakeNRQuanta(fd.Block):
         d['quanta_produced_noStep_min'] = (
                 d['electrons_produced_min']
                 + d['photons_produced_min'])
-        annotate_ces(self, d)
 
     def _domain_dict_bonus(self, d):
         return domain_dict_bonus(self, d)
 
     def _calculate_dimsizes_special(self):
         return calculate_dimsizes_special(self)
-
-
-def annotate_ces(self, d):
-    # No bounds need to be estimated; we will consider the entire
-    # energy spectrum for each event.
-
-    # Nonetheless, it's useful to reconstruct the 'visible' energy
-    # via the combined energy scale (CES
-    work = self.gimme_numpy('work')
-    d['e_charge_vis'] = work * d['electrons_produced_mle']
-    d['e_light_vis'] = work * d['photons_produced_mle']
-    d['e_vis'] = d['e_charge_vis'] + d['e_light_vis']
-
-    for bound in ('min', 'max'):
-        d['quanta_produced_' + bound] = (
-                d['electrons_produced_' + bound]
-                + d['photons_produced_' + bound])
 
 
 def domain_dict_bonus(self, d):
