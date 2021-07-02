@@ -486,7 +486,8 @@ class BlockModelSource(fd.Source):
                     elif dim not in self.MC_bound_dimensions:
                         self.MC_bound_dimensions += (dim,)
 
-        self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy')
+        self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy', 'energies',
+                       (('rates_vs_energy', 1000),), ('photoelectrons_detected', 'electrons_detected'))
 
         for b in self.model_blocks[::-1]:
             if b.post_MC_annotate:
