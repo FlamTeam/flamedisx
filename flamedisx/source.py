@@ -68,6 +68,8 @@ class Source:
     #: Any additional source attributes that should be configurable.
     model_attributes = tuple()
 
+    MC_bound_dimensions = tuple()
+
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
@@ -343,7 +345,6 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
-                # self.MC_bounds(self.source_copy)
                 self._calculate_dimsizes(self.max_dim_size)
 
         if not _skip_tf_init:
@@ -800,9 +801,7 @@ class Source:
             if(take_nearest_event[i] == True):
                 continue
 
-            for x in self.inner_dimensions:
-                if (x=='electrons_detected' or x=='photoelectrons_detected' or x=='quanta_produced'):
-                    continue
+            for x in self.MC_bound_dimensions:
 
                 mean_x = MC_data_small_filter[x].mean()
                 std_x = MC_data_small_filter[x].std()
@@ -820,14 +819,12 @@ class Source:
             dist, ind = tree.query(data_no_bounds[::], k=1)
 
         for i in range(len(take_nearest_event_indicies)):
-            for x in self.inner_dimensions:
-                if (x=='electrons_detected' or x=='photoelectrons_detected' or x=='quanta_produced'):
-                    continue
+            for x in self.MC_bound_dimensions:
 
                 self.data.at[take_nearest_event_indicies[i], x + '_min'] = self.data.at[ind[i][0], x + '_min']
                 self.data.at[take_nearest_event_indicies[i], x + '_max'] = self.data.at[ind[i][0], x + '_max']
 
-        for x in self.inner_dimensions:
+        for x in self.MC_bound_dimensions:
             self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
 
     ##
