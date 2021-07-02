@@ -735,23 +735,17 @@ class Source:
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
 
-    def MC_bounds(self, source_copy_original):
+    def MC_bounds(self, source_copy_original, kd_tree_observables,
+                  bounded_dimension):
         """"""
         source_copy = deepcopy(source_copy_original)
         MC_data = source_copy.simulate(int(1e6))
 
         df_full = pd.concat([MC_data, self.data])
 
-        s1_scale = (df_full['s1'] - np.mean(df_full['s1'])) / \
-            np.std(df_full['s1'])
-        s2_scale = (df_full['s2'] - np.mean(df_full['s2'])) / \
-            np.std(df_full['s2'])
-        r_scale = (df_full['r'] - np.mean(df_full['r'])) / \
-            np.std(df_full['r'])
-        z_scale = (df_full['z'] - np.mean(df_full['z'])) / \
-            np.std(df_full['z'])
-
-        data_full = np.array(list(zip(s1_scale, s2_scale, r_scale, z_scale)))
+        observables_scaled = [(lambda x: (df_full[x] - np.mean(df_full[x])) / \
+            np.std(df_full[x]))(x) for x in kd_tree_observables]
+        data_full = np.array(list(zip(*observables_scaled)))
 
         data = data_full[len(MC_data)::]
         data_MC = data_full[0:len(MC_data)]
@@ -759,18 +753,17 @@ class Source:
         tree = sklearn.neighbors.KDTree(data_MC)
         dist, ind = tree.query(data[::], k=10)
 
-        energies_MC = MC_data['energy']
+        bounded_dimension_MC = MC_data[bounded_dimension]
 
         take_nearest_event = []
 
         for i in range(len(self.data)):
-            energy_min = self.data.at[i, 'energy_min'] = min(energies_MC.iloc[ind[i]])
-            energy_max = self.data.at[i, 'energy_max'] = max(energies_MC.iloc[ind[i]])
-            x = self.data['x'].iloc[i]
-            y = self.data['y'].iloc[i]
-            z = self.data['z'].iloc[i]
+            bounded_dimension_min = self.data.at[i, bounded_dimension + '_min'] = min(bounded_dimension_MC.iloc[ind[i]])
+            bounded_dimension_max = self.data.at[i, bounded_dimension + '_max'] = max(bounded_dimension_MC.iloc[ind[i]])
 
-            source_copy.energies = tf.cast(tf.linspace(energy_min, energy_max, 1000),
+            fix_truth_df = self.data.iloc[i]
+
+            source_copy.energies = tf.cast(tf.linspace(bounded_dimension_min, bounded_dimension_max, 1000),
                                          fd.float_type())
             source_copy.rates_vs_energy = tf.ones(1000, fd.float_type())
             source_copy.setup_copy()
@@ -784,7 +777,7 @@ class Source:
                     take_nearest_event.append(True)
                     continue
 
-                MC_data_small = source_copy.simulate(1000, fix_truth=dict(x=x,y=y,z=z))
+                MC_data_small = source_copy.simulate(1000, fix_truth=fix_truth_df)
 
                 electrons_detected_max = self.data['electrons_detected_max'].iloc[i]
                 electrons_detected_min = self.data['electrons_detected_min'].iloc[i]
