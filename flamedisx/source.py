@@ -804,7 +804,7 @@ class Source:
                 self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
 
         data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
-        df_bounds = self.data.iloc[[i for i, x in enumerate(take_nearest_event) if not x]]
+        df_bounds = self.data.iloc[[i for i, x in enumerate(take_nearest_event) if not x]].reset_index(drop=True)
         data_no_bounds = data[[i for i, x in enumerate(take_nearest_event) if x]]
 
         take_nearest_event_indicies = [i for i, x in enumerate(take_nearest_event) if x]
