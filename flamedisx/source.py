@@ -804,6 +804,7 @@ class Source:
                 self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
 
         data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
+        df_bounds = self.data.iloc[[i for i, x in enumerate(take_nearest_event) if not x]]
         data_no_bounds = data[[i for i, x in enumerate(take_nearest_event) if x]]
 
         take_nearest_event_indicies = [i for i, x in enumerate(take_nearest_event) if x]
@@ -814,8 +815,8 @@ class Source:
 
         for i in range(len(take_nearest_event_indicies)):
             for x in self.MC_bound_dimensions:
-                self.data.at[take_nearest_event_indicies[i], x + '_min'] = self.data.at[ind[i][0], x + '_min']
-                self.data.at[take_nearest_event_indicies[i], x + '_max'] = self.data.at[ind[i][0], x + '_max']
+                self.data.at[take_nearest_event_indicies[i], x + '_min'] = df_bounds.at[ind[i][0], x + '_min']
+                self.data.at[take_nearest_event_indicies[i], x + '_max'] = df_bounds.at[ind[i][0], x + '_max']
 
         for x in self.MC_bound_dimensions:
             self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
