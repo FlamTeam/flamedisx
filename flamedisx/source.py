@@ -2,13 +2,11 @@ from copy import copy
 from copy import deepcopy
 from contextlib import contextmanager
 import inspect
-import operator
 import typing as ty
 import warnings
 
 import numpy as np
 import pandas as pd
-import sklearn.neighbors
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -68,8 +66,6 @@ class Source:
 
     #: Any additional source attributes that should be configurable.
     model_attributes = tuple()
-
-    MC_bound_dimensions = tuple()
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
@@ -735,91 +731,6 @@ class Source:
         d_simulated = self.simulate(n_trials, **params)
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
-
-    def MC_bounds(self, source_copy_original, kd_tree_observables,
-                  initial_dimension, initial_attribute,
-                  flat_attributes: ty.Tuple[ty.Tuple[str, int]] = (),
-                  small_MC_filter_dimenions = ()):
-        """"""
-        source_copy = deepcopy(source_copy_original)
-        MC_data = source_copy.simulate(int(1e6))
-
-        df_full = pd.concat([MC_data, self.data])
-
-        observables_scaled = [(lambda x: (df_full[x] - np.mean(df_full[x])) / \
-            np.std(df_full[x]))(x) for x in kd_tree_observables]
-        data_full = np.array(list(zip(*observables_scaled)))
-
-        data = data_full[len(MC_data)::]
-        data_MC = data_full[0:len(MC_data)]
-
-        tree = sklearn.neighbors.KDTree(data_MC)
-        dist, ind = tree.query(data[::], k=10)
-
-        initial_dimension_MC = MC_data[initial_dimension]
-
-        take_nearest_event = []
-
-        for i in range(len(self.data)):
-            initial_dimension_min = self.data.at[i, initial_dimension + '_min'] = min(initial_dimension_MC.iloc[ind[i]])
-            initial_dimension_max = self.data.at[i, initial_dimension + '_max'] = max(initial_dimension_MC.iloc[ind[i]])
-
-            fix_truth_df = self.data.iloc[i]
-
-            setattr(source_copy, initial_attribute, tf.cast(tf.linspace(initial_dimension_min, initial_dimension_max, 1000),
-                                                            fd.float_type()))
-            for flat_attribute in flat_attributes:
-                setattr(source_copy, flat_attribute[0], tf.ones(flat_attribute[1], fd.float_type()))
-            source_copy.setup_copy()
-
-            sufficient_stats = False
-            count = 0
-
-            while(not sufficient_stats):
-                if (count > 10):
-                    sufficient_stats = True
-                    take_nearest_event.append(True)
-                    continue
-
-                MC_data_small = source_copy.simulate(1000, fix_truth=fix_truth_df)
-                for filter_dim in small_MC_filter_dimenions:
-                    for suffix, comp in (('_min', operator.ge), ('_max', operator.le)):
-                        assert (filter_dim + suffix in self.data), \
-                            f"Bounds on filter dimensions {filter_dim} not computed before MC_bounds"
-                        MC_data_small = MC_data_small.loc[comp(MC_data_small[filter_dim],
-                            self.data[filter_dim + suffix].iloc[i])]
-
-                count += 1
-                if (len(MC_data_small) > 10):
-                    sufficient_stats = True
-                    take_nearest_event.append(False)
-
-            if(take_nearest_event[i] == True):
-                continue
-
-            for x in self.MC_bound_dimensions:
-                mean_x = MC_data_small[x].mean()
-                std_x = MC_data_small[x].std()
-                self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
-                self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
-
-        data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
-        df_bounds = self.data.iloc[[i for i, x in enumerate(take_nearest_event) if not x]].reset_index(drop=True)
-        data_no_bounds = data[[i for i, x in enumerate(take_nearest_event) if x]]
-
-        take_nearest_event_indicies = [i for i, x in enumerate(take_nearest_event) if x]
-
-        if(len(take_nearest_event_indicies) > 0):
-            tree = sklearn.neighbors.KDTree(data_bounds)
-            dist, ind = tree.query(data_no_bounds[::], k=1)
-
-        for i in range(len(take_nearest_event_indicies)):
-            for x in self.MC_bound_dimensions:
-                self.data.at[take_nearest_event_indicies[i], x + '_min'] = df_bounds.at[ind[i][0], x + '_min']
-                self.data.at[take_nearest_event_indicies[i], x + '_max'] = df_bounds.at[ind[i][0], x + '_max']
-
-        for x in self.MC_bound_dimensions:
-            self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
 
     ##
     # Functions you have to override
