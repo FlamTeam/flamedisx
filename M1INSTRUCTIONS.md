@@ -38,19 +38,34 @@ and then Tensorflow itself with
 
 `python -m pip install tensorflow-macos`
 
+and then tensorflow-metal which will let tensorflow use the gpu
+
+`python -m pip install tensorflow-metal`
+
 ### Step 4: Dependencies and Flamedisx
 
-Start by installing all of the various dependencies that flamedisx will require, plus Jupyter notebook and the package required to make it play nicely with Conda environments.
+Start by installing all of the various dependencies that flamedisx will require, plus Jupyter notebook and the package required to make it play nicely with Conda environments, and matplotlib.
 
 `conda install -c conda-forge notebook`
+
 `conda install -c conda-forge nb_conda_kernels`
+
 `conda install -c conda-forge pandas`
+
 `conda install -c conda-forge numpy`
+
 `conda install -c conda-forge tensorflow-probability`
+
 `conda install -c conda-forge cloudpickle`
+
 `conda install -c conda-forge tqdm`
+
 `conda install -c conda-forge iminuit`
+
+`conda install -c conda-forge matplotlib`
+
 `pip install git+https://github.com/JelleAalbers/multihist.git`
+
 `pip install git+https://github.com/JelleAalbers/wimprates.git`
 
 Then find somewhere you want to put the git clone of flamedisx and download it.
