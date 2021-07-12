@@ -118,6 +118,8 @@ class MakeNRQuanta(fd.Block):
     special_model_functions = ('lindhard_l',)
     model_functions = ('work',) + special_model_functions
 
+    post_MC_annotate = True
+
     work = DEFAULT_WORK_PER_QUANTUM
 
     @staticmethod
