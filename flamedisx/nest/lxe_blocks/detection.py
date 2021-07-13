@@ -15,8 +15,6 @@ class DetectPhotonsOrElectrons(fd.Block):
 
     model_attributes = ('check_efficiencies',)
 
-    MC_annotate = True
-
     # Whether to check if all events have a positive detection efficiency.
     # As with check_acceptances in MakeFinalSignals, you may have to
     # turn this off, depending on your application.
@@ -107,6 +105,8 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     model_functions = ('photon_detection_eff',
                        's1_posDependence') + special_model_functions
 
+    MC_annotate = True
+
     MC_annotate_dimensions = ('photons_produced',)
 
     def s1_posDependence(self, r, z):
@@ -136,6 +136,8 @@ class DetectElectrons(DetectPhotonsOrElectrons):
 
     special_model_functions = ('electron_acceptance',)
     model_functions = ('electron_detection_eff',) + special_model_functions
+
+    MC_annotate = True
 
     MC_annotate_dimensions = ('electrons_produced',)
 
