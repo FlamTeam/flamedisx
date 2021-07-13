@@ -146,7 +146,10 @@ class nestSource(fd.BlockModelSource):
 
 @export
 class nestERSource(nestSource):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, energy_min=0., energy_max=10., num_energies=1000, **kwargs):
+        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                fd.float_type())
+        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -162,6 +165,9 @@ class nestERSource(nestSource):
         fd_nest.DetectS2Photons,
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
+
+    final_dimensions = ('s1', 's2')
+    no_step_dimensions = ()
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -186,7 +192,10 @@ class nestERSource(nestSource):
 
 @export
 class nestNRSource(nestSource):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, energy_min=0.7, energy_max=150., num_energies=1000, **kwargs):
+        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                fd.float_type())
+        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -206,12 +215,6 @@ class nestNRSource(nestSource):
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
-
-    # Use a larger default energy range, since most energy is lost
-    # to heat.
-    energies = tf.cast(tf.linspace(0.7, 150., 100),
-                       fd.float_type())
-    rates_vs_energy = tf.ones(100, fd.float_type())
 
     @staticmethod
     def p_electron(nq, *,
