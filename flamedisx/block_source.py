@@ -489,7 +489,7 @@ class BlockModelSource(fd.Source):
                         MC_bound_dimensions += (dim,)
 
         self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy', 'energies',
-                       (('rates_vs_energy', 1000),), ('photoelectrons_detected', 'electrons_detected'),
+                       (('rates_vs_energy', 1000),), ('s1_photoelectrons_detected', 's2_photoelectrons_detected'),
                        MC_bound_dimensions)
 
         for b in self.model_blocks[::-1]:
@@ -546,7 +546,7 @@ class BlockModelSource(fd.Source):
                 for filter_dim in small_MC_filter_dimenions:
                     for suffix, comp in (('_min', operator.ge), ('_max', operator.le)):
                         assert (filter_dim + suffix in self.data), \
-                            f"Bounds on filter dimensions {filter_dim} not computed before MC_bounds"
+                            f"Bounds on filter dimension {filter_dim} not computed before MC_bounds"
                         MC_data_small = MC_data_small.loc[comp(MC_data_small[filter_dim],
                             self.data[filter_dim + suffix].iloc[i])]
 
