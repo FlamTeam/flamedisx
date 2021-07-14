@@ -167,7 +167,8 @@ class nestERSource(nestSource):
         fd_nest.MakeS2)
 
     final_dimensions = ('s1', 's2')
-    no_step_dimensions = ()
+    no_step_dimensions = ('s1_photoelectrons_produced',
+                           's1_photoelectrons_detected')
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
