@@ -38,11 +38,11 @@ class MakeS2Photons(fd.Block):
         return result
 
     def _simulate(self, d):
-        d['s2_photons_produced'] = tf.cast(tf.math.round(stats.norm.rvs(
+        d['s2_photons_produced'] = np.round(stats.norm.rvs(
             loc=(d['electrons_detected']
                  * self.gimme_numpy('electron_gain_mean')),
             scale=(d['electrons_detected']**0.5
-                   * self.gimme_numpy('electron_gain_std')))), dtype=fd.int_type())
+                   * self.gimme_numpy('electron_gain_std')))).astype(int)
 
     def _annotate(self, d):
         m = self.gimme_numpy('electron_gain_mean')

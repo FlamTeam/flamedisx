@@ -7,6 +7,7 @@ import configparser
 import os
 
 import flamedisx as fd
+from .. import nest as fd_nest
 
 export, __all__ = fd.exporter()
 
@@ -30,10 +31,10 @@ class LUXSource:
         self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
         self.dt_cntr = config.getfloat('NEST', 'dt_cntr_config')
 
-        self.density = fd.calculate_density(
+        self.density = fd_nest.calculate_density(
             config.getfloat('NEST', 'temperature_config'),
             config.getfloat('NEST', 'pressure_config')).item()
-        self.drift_velocity = fd.calculate_drift_velocity(
+        self.drift_velocity = fd_nest.calculate_drift_velocity(
          config.getfloat('NEST', 'drift_field_config'),
          self.density,
          config.getfloat('NEST', 'temperature_config')).item()
