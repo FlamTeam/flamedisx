@@ -32,7 +32,7 @@ class Block:
     #: Label False otherwise; these will be added to bonus_dimensions. Thus,
     #: any additional domain tensors utilising them will need calculating via
     #: the block overriding _domain_dict_bonus())
-    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]]
+    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
 
     #: Blocks whose result this block expects as an extra keyword
     #: argument to compute. Specify as ((block_dims, argument_name), ...),
