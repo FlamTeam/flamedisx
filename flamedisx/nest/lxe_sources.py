@@ -168,7 +168,7 @@ class nestERSource(nestSource):
 
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ('s1_photoelectrons_produced',
-                           's1_photoelectrons_detected')
+                          's1_photoelectrons_detected')
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -185,10 +185,6 @@ class nestERSource(nestSource):
             + er_pel_b * eps
             + er_pel_c)
         return fd.safe_p(qy * 13.7e-3)
-
-    final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('s1_photoelectrons_produced',
-                          's1_photoelectrons_detected')
 
 
 @export
