@@ -63,6 +63,10 @@ class MakeS1Photoelectrons(MakePhotoelectrons):
     quanta_in_name = 'photons_detected'
     quanta_out_name = 's1_photoelectrons_produced'
 
+    MC_annotate = True
+
+    MC_annotate_dimensions = ('photons_detected',)
+
     def _compute(self, data_tensor, ptensor,
                  photons_detected, s1_photoelectrons_produced):
         return super()._compute(
@@ -77,6 +81,10 @@ class MakeS2Photoelectrons(MakePhotoelectrons):
 
     quanta_in_name = 's2_photons_detected'
     quanta_out_name = 's2_photoelectrons_detected'
+
+    MC_annotate = True
+
+    MC_annotate_dimensions = ('s2_photons_detected',)
 
     def _compute(self, data_tensor, ptensor,
                  s2_photons_detected, s2_photoelectrons_detected):
