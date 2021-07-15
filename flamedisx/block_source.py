@@ -563,6 +563,7 @@ class BlockModelSource(fd.Source):
                 std_x = MC_data_small[x].std()
                 self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
                 self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
+                self.data.at[i, x + '_mle'] = np.round(mean_x)
 
         data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
         df_bounds = self.data.iloc[[i for i, x in enumerate(take_nearest_event) if not x]].reset_index(drop=True)
@@ -578,6 +579,7 @@ class BlockModelSource(fd.Source):
             for x in MC_bound_dimensions:
                 self.data.at[take_nearest_event_indicies[i], x + '_min'] = df_bounds.at[ind[i][0], x + '_min']
                 self.data.at[take_nearest_event_indicies[i], x + '_max'] = df_bounds.at[ind[i][0], x + '_max']
+                self.data.at[take_nearest_event_indicies[i], x + '_mle'] = df_bounds.at[ind[i][0], x + '_mle']
 
         for x in MC_bound_dimensions:
             self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
