@@ -14,6 +14,10 @@ class MakeS2Photons(fd.Block):
 
     model_functions = ('electron_gain_mean', 'electron_gain_std')
 
+    MC_annotate = True
+
+    MC_annotate_dimensions = ('electrons_detected',)
+
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2_photons_produced):
         mean_per_q = self.gimme('electron_gain_mean',

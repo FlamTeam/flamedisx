@@ -564,6 +564,9 @@ class BlockModelSource(fd.Source):
                 self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
                 self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
                 self.data.at[i, x + '_mle'] = np.round(mean_x)
+                if (x == 'photons_produced' or x == 'electrons_produced'):
+                    self.data.at[i, x + '_min'] = np.floor(mean_x - 7 * std_x)
+                    self.data.at[i, x + '_max'] = np.ceil(mean_x + 7 * std_x)
 
         data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
         df_bounds = self.data.iloc[[i for i, x in enumerate(take_nearest_event) if not x]].reset_index(drop=True)
