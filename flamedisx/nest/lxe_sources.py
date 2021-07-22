@@ -14,6 +14,7 @@ N_AVAGADRO = 6.0221409e23
 A_XENON = 131.293
 XENON_LIQUID_DIELECTRIC = 1.85
 XENON_GAS_DIELECTRIC = 1.00126
+XENON_REF_DENSITY = 2.90
 
 
 class nestSource(fd.BlockModelSource):
@@ -94,7 +95,7 @@ class nestSource(fd.BlockModelSource):
     def electron_detection_eff(self, drift_time):
         liquid_field_interface = self.gas_field / \
             (XENON_LIQUID_DIELECTRIC / XENON_GAS_DIELECTRIC)
-        extraction_eff = -0.03754 * liquid_field_interface**2 + \
+        extraction_eff = -0.03754 * pow(liquid_field_interface, 2) + \
             0.52660 * liquid_field_interface - 0.84645
 
         return extraction_eff * tf.exp(-drift_time / self.elife)
@@ -261,6 +262,52 @@ class nestNRSource(nestSource):
         fd_nest.DetectS2Photons,
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
+
+    final_dimensions = ('s1', 's2')
+    no_step_dimensions = ('s1_photoelectrons_produced',
+                          's1_photoelectrons_detected')
+
+    def mean_yield_electron(self, energy, *,
+                            nr_nuis_c=0.0480,
+                            nr_nuis_d=-0.0533,
+                            nr_nuis_e=12.6,
+                            nr_nuis_f=0.3,
+                            nr_nuis_g=2.,
+                            nr_nuis_j=0.5,
+                            nr_nuis_k=1.):
+        TIB = nr_nuis_c * pow(self.drift_field, nr_nuis_d) * pow(self.density / XENON_REF_DENSITY, 0.3)
+        Qy = 1. / (TIB * pow(energy + nr_nuis_e, nr_nuis_j))
+        Qy *= (1. - (1. / pow(1. + pow(energy / nr_nuis_f, nr_nuis_g), nr_nuis_k)))
+
+        nel_temp = Qy * energy
+        # Don't let number of electrons go negative
+        nel = tf.where(nel_temp < 0,
+                       0 * nel_temp,
+                       nel_temp)
+
+        return nel
+
+    @staticmethod
+    def mean_yield_quanta(*args,
+                          nr_nuis_a=11.,
+                          nr_nuis_b=1.1,
+                          nr_nuis_h=0.3,
+                          nr_nuis_i=2,
+                          nr_nuis_l=1.):
+        energy = args[0]
+        nel_mean = args[1]
+
+        nq_temp = nr_nuis_a * pow(energy, nr_nuis_b)
+
+        nph_temp = (nq_temp - nel_mean) * (1. - (1. / pow(1. + pow(energy / nr_nuis_h, nr_nuis_i), nr_nuis_l)))
+        # Don't let number of photons go negative
+        nph = tf.where(nph_temp < 0,
+                       tf.zeros_like(nph_temp, dtype=fd.float_type()),
+                       nph_temp)
+
+        nq = nel_mean + nph
+
+        return nq
 
     @staticmethod
     def p_electron(nq, *,
