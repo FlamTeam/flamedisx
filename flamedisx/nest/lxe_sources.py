@@ -105,7 +105,6 @@ class nestSource(fd.BlockModelSource):
     # secondary_quanta_generation.py
 
     def electron_gain_mean(self):
-        A_XENON * 1e-6
         elYield = (
             0.137 * self.gas_field * 1e3 -
             4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
@@ -114,7 +113,6 @@ class nestSource(fd.BlockModelSource):
         return tf.cast(elYield, fd.float_type())[o]
 
     def electron_gain_std(self):
-        A_XENON * 1e-6
         elYield = (
             0.137 * self.gas_field * 1e3 -
             4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
@@ -133,6 +131,7 @@ class nestSource(fd.BlockModelSource):
             eff > 1.,
             1.,
             eff)
+
         return 1. - (1. - eff_trunc) / (1. + self.double_pe_fraction)
 
     # final_signals.py
@@ -194,6 +193,7 @@ class nestERSource(nestSource):
         nel = tf.where(nel_temp < 0,
                        0 * nel_temp,
                        nel_temp)
+
         return nel
 
     def mean_yield_quanta(self, *args):
@@ -209,7 +209,20 @@ class nestERSource(nestSource):
                        nph_temp)
 
         nq = nel_mean + nph
+
         return nq
+
+    def fano_factor(self, nq):
+        Fano = 0.12707 - 0.029623 * self.density - 0.0057042 * pow(self.density, 2.) + 0.0015957 * pow(self.density, 3.)
+
+        return Fano + 0.0015 * tf.sqrt(nq) * pow(self.drift_field, 0.5)
+
+    def alpha(self, energy):
+        alf = 0.067366 + self.density * 0.039693
+        excitonR = alf * tf.math.erf(0.05 * energy)
+
+        return 1. / (1. + excitonR)
+
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
