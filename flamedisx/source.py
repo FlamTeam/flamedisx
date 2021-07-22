@@ -542,7 +542,10 @@ class Source:
         if callable(f):
             args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
             if bonus_arg is not None:
-                args = [bonus_arg] + args
+                if isinstance(bonus_arg, (list, tuple)):
+                    args = list(bonus_arg) + args
+                else:
+                    args = [bonus_arg] + args
             kwargs = {pname: self._fetch_param(pname, ptensor)
                       for pname in self.f_params[fname]}
             res = f(*args, **kwargs)
