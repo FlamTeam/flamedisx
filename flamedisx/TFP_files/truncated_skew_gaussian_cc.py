@@ -1,6 +1,6 @@
 # Copyright 2021 Robert James
 # ============================================================================
-"""The Skew Gaussian distribution class."""
+"""The discretised Truncated Skew Gaussian distribution, with continuity correction, class."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -30,19 +30,7 @@ __all__ = [
 
 
 class TruncatedSkewGaussianCC(distribution.Distribution):
-  """The Skew Gaussian distribution with `loc`, `scale` and `skewness` parameters.
-
-  #### Mathematical details
-
-  The probability density function (pdf) is,
-
-  ```none
-  pdf(x; alpha, mu, sigma) = exp(-0.5 (x - mu)**2 / sigma**2) / Z * (1 + erf(alpha * (x - mu) / (sigma * sqrt(2))))
-  Z = (2 pi sigma**2)**0.5
-  ```
-
-  where `loc = mu` is the mean, `scale = sigma` is the std. deviation, `skewness = alpha` is the skewness, and, `Z`
-  is the normalization constant.
+  """
 
   """
 
@@ -54,7 +42,9 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
                validate_args=False,
                allow_nan_stats=True,
                name='TruncatedSkewGaussianCC'):
-    """Construct Skew Gaussian distributions with mean, stddev and skewness `loc`, `scale` and `skewness`.
+    """Construct Truncated Skew Gaussian distributions with mean, stddev and skewness `loc`, `scale` and `skewness`.
+    Distribition is truncated at `limit`.
+    Designed to be used for discrete random variables, with an in-built continuity correction.
 
     The parameters must be shaped in a way that supports
     broadcasting (e.g. `loc + scale` is a valid operation).
@@ -64,6 +54,9 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
       scale: Floating point tensor; the stddevs of the distribution(s).
         Must contain only positive values.
       skewness: Floating point tensor; the skewness of the distribution(s).
+      limit: Floating point tensor; the point above which all probability
+        mass is zero-ed out and re-dumped into the the probability mass of
+        limit.
       validate_args: Python `bool`, default `False`. When `True` distribution
         parameters are checked for validity despite possibly degrading runtime
         performance. When `False` invalid inputs may silently render incorrect
@@ -75,7 +68,7 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
       name: Python `str` name prefixed to Ops created by this class.
 
     Raises:
-      TypeError: if `loc`, `scale` or `skewness` have different `dtype`.
+      TypeError: if `loc`, `scale`, `skewness` or `limit` have different `dtype`.
     """
     parameters = dict(locals())
     with tf.name_scope(name) as name:
@@ -123,7 +116,7 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
 
   @property
   def limit(self):
-    """"""
+    """Distribution parameter for limit"""
     return self._limit
 
   def _batch_shape_tensor(self, loc=None, scale=None, skewness=None, limit=None):

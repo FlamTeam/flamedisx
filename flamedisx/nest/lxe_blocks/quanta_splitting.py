@@ -9,103 +9,80 @@ o = tf.newaxis
 
 
 @export
-class MakePhotonsElectronsBinomial(fd.Block):
+class MakePhotonsElectronsNR(fd.Block):
+    is_ER = False
 
-    do_pel_fluct = False
-
-    depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)
-    dimensions = ('electrons_produced', 'photons_produced')
-
-    special_model_functions = ('p_electron',)
+    special_model_functions = ('mean_yield_electron','mean_yield_quanta','alpha','exciton_ratio',
+                               'recomb_prob','skewness','variance','width_correction','mu_correction','omega',)
     model_functions = special_model_functions
 
-    p_electron = 0.5   # Nonsense, ER and NR sources provide specifics
-
-    def _compute(self,
-                 data_tensor, ptensor,
-                 # Domain
-                 electrons_produced, photons_produced,
-                 # Dependency domain and value
-                 quanta_produced, rate_vs_quanta):
-        pel = self.source.gimme('p_electron', bonus_arg=quanta_produced,
-                                data_tensor=data_tensor, ptensor=ptensor)
-
-        # Create tensors with the dimensions of our final result
-        # i.e. (n_events, |photons_produced|, |electrons_produced|),
-        # containing:
-        # ... numbers of total quanta produced
-        nq = electrons_produced + photons_produced
-        # ... indices in nq arrays: make sure stepping is accounted for!
-        _nq_ind = tf.round(
-            (nq - self.source._fetch(
-                'quanta_produced_min', data_tensor=data_tensor
-            )[:, o, o]) / self.source._fetch(
-                'quanta_produced_steps', data_tensor=data_tensor
-            )[:, o, o])
-        # ... differential rate
-        rate_nq = fd.lookup_axis1(rate_vs_quanta, _nq_ind)
-        # ... probability of a quantum to become an electron
-        pel = fd.lookup_axis1(pel, _nq_ind)
-        # Finally, the main computation is simple:
-        pel = tf.where(tf.math.is_nan(pel),
-                       tf.zeros_like(pel, dtype=fd.float_type()),
-                       pel)
-        pel = tf.clip_by_value(pel, 1e-6, 1. - 1e-6)
-
-        if self.do_pel_fluct:
-            pel_fluct = self.gimme('p_electron_fluctuation',
-                                   bonus_arg=quanta_produced,
-                                   data_tensor=data_tensor,
-                                   ptensor=ptensor)
-            pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
-            # See issue #37 for why we use 1 - p and photons here
-            return rate_nq * fd.beta_binom_pmf(
-                photons_produced,
-                n=nq,
-                p_mean=1. - pel,
-                p_sigma=pel_fluct)
-
-        else:
-            return rate_nq * tfp.distributions.Binomial(
-                total_count=nq, probs=pel).prob(electrons_produced)
-
     def _simulate(self, d):
-        d['p_el_mean'] = self.gimme_numpy('p_electron',
-                                          d['quanta_produced'].values)
+        # If you forget the .values here, you may get a Python core dump...
+        if self.is_ER:
+            nel = self.gimme_numpy('mean_yield_electron', bonus_arg=d['energy'].values)
+            nq = self.gimme_numpy('mean_yield_quanta', bonus_arg=d['energy'].values)
 
-        if self.do_pel_fluct:
-            d['p_el_fluct'] = self.gimme_numpy(
-                'p_electron_fluctuation', d['quanta_produced'].values)
-            d['p_el_actual'] = 1. - stats.beta.rvs(
-                *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
+            fano = self.gimme_numpy('fano_factor', bonus_arg=nq)
+            nq_actual_temp = np.math.round(stats.norm.rvs(nq, np.sqrt(fano*nq))).astype(int)
+            # Don't let number of quanta go negative
+            nq_actual = np.where(nq_actual_temp < 0,
+                                 nq_actual_temp * 0),
+                                 nq_actual_temp)
+
+            alf = self.gimme_numpy('alpha', bonus_arg=d['energy'].values)
+            d['ions_produced'] = stats.binom.rvs(n=nq_actual, p=alf)
+
+            nex = nq_actual - d['ions_produced']
+
         else:
-            d['p_el_fluct'] = 0.
-            d['p_el_actual'] = d['p_el_mean']
+            nel = self.gimme_numpy('mean_yield_electron', bonus_arg=d['energy'].values)
+            nq = self.gimme_numpy('mean_yield_quanta', bonus_arg=d['energy'].values)
 
-        d['p_el_actual'] = np.nan_to_num(d['p_el_actual']).clip(0, 1)
-        d['electrons_produced'] = stats.binom.rvs(
-            n=d['quanta_produced'],
-            p=d['p_el_actual'])
-        d['photons_produced'] = d['quanta_produced'] - d['electrons_produced']
+            alf = self.gimme_numpy('alpha', bonus_arg=(nel,nq))
+            ni_temp = np.round(stats.norm.rvs(nq*alf, np.sqrt(nq*alf))).astype(int)
+            # Don't let number of ions go negative
+            d['ions_produced'] = np.where(ni_temp < 0,
+                                         ni_temp * 0,
+                                         ni_temp)
 
-    def _annotate(self, d):
-        for suffix in ('min', 'max'):
-            d['quanta_produced_' + suffix] = (
-                d['photons_produced_' + suffix]
-                + d['electrons_produced_' + suffix])
+            ex_ratio = self.gimme_numpy('exciton_ratio', bonus_arg=(nel,nq))
+            nex_temp = np.round(stats.norm.rvs(nq*alf*ex_ratio, np.sqrt(nq*alf*ex_ratio))).astype(int)
+            # Don't let number of excitons go negative
+            n_ex = np.where(nex_temp < 0,
+                            nex_temp * 0,
+                            nex_temp)
+
+            nq_actual = d['ion_produced'] + n_ex
+
+        recomb_p = self.gimme_numpy('recomb_prob', bonus_arg=(nel, nq, d['energy'].values))
+        skew = self.gimme_numpy('skewness', bonus_arg=nq)
+        var = self.gimme_numpy('variance', bonus_arg=(nel, nq, d['energy'].values, d['ion_produced'].values))
+        width_corr = self.gimme_numpy('width_correction', bonus_arg=nq)
+        mu_corr= self.gimme_numpy('mu_correction', bonus_arg=(nel, nq, d['energy'].values, d['ion_produced'].values))
+
+        el_prod_temp1 = np.round(stats.skewnorm.rvs(skewness, (1 - recombP) * d['ion_produced'] - muCorrection,
+                                 np.sqrt(Variance) / widthCorrection)).astype(int)
+        # Don't let number of electrons go negative
+        el_prod_temp2 = np.where(el_prod_temp1 < 0,
+                                 el_prod_temp1 * 0,
+                                 el_prod_temp1)
+        # Don't let number of electrons be greater than number of ions
+        d['electrons_produced'] = np.where(el_prod_temp2 > d['ions_produced'],
+                                           d['ions_produced'],
+                                           el_prod_temp2)
+
+        ph_prod_temp = nq_actual - d['electrons_produced']
+        # Don't let number of photons be less than number of excitons
+        d['photons_produced'] = np.where(ph_prod_temp < n_ex,
+                                         n_ex,
+                                         ph_prod_temp)
 
 
 @export
-class MakePhotonsElectronsBetaBinomial(MakePhotonsElectronsBinomial):
-    do_pel_fluct = True
+class MakePhotonsElectronER(MakePhotonsElectronsNR):
+    is_ER = True
 
     special_model_functions = tuple(
-        list(MakePhotonsElectronsBinomial.special_model_functions)
-        + ['p_electron_fluctuation'])
+        [x for x in MakePhotonsElectronsNR.special_model_functions if x != 'exciton_ratio']
+         + ['fano_factor'])
     model_functions = special_model_functions
-
-    @staticmethod
-    def p_electron_fluctuation(nq):
-        # From SR0, BBF model, right?
-        # q3 = 1.7 keV ~= 123 quanta
-        return 0.041 * (1. - tf.exp(-nq / 123.))
