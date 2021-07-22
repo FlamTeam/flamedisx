@@ -12,21 +12,27 @@ o = tf.newaxis
 class MakePhotonsElectronsNR(fd.Block):
     is_ER = False
 
-    special_model_functions = ('mean_yield_electron','mean_yield_quanta','alpha','exciton_ratio',
-                               'recomb_prob','skewness','variance','width_correction','mu_correction','omega',)
+    dimensions = ('electrons_produced', 'photons_produced')
+
+    special_model_functions = ('mean_yield_electron','mean_yield_quanta')
+    # special_model_functions = ('mean_yield_electron','mean_yield_quanta','alpha','exciton_ratio',
+    #                            'recomb_prob','skewness','variance','width_correction','mu_correction','omega')
     model_functions = special_model_functions
 
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
         if self.is_ER:
             nel = self.gimme_numpy('mean_yield_electron', bonus_arg=d['energy'].values)
-            nq = self.gimme_numpy('mean_yield_quanta', bonus_arg=d['energy'].values)
+            nq = self.gimme_numpy('mean_yield_quanta', bonus_arg=(d['energy'].values, nel))
+
+            print(nel)
+            print(nq)
 
             fano = self.gimme_numpy('fano_factor', bonus_arg=nq)
             nq_actual_temp = np.math.round(stats.norm.rvs(nq, np.sqrt(fano*nq))).astype(int)
             # Don't let number of quanta go negative
             nq_actual = np.where(nq_actual_temp < 0,
-                                 nq_actual_temp * 0),
+                                 nq_actual_temp * 0,
                                  nq_actual_temp)
 
             alf = self.gimme_numpy('alpha', bonus_arg=d['energy'].values)
@@ -82,7 +88,7 @@ class MakePhotonsElectronsNR(fd.Block):
 class MakePhotonsElectronER(MakePhotonsElectronsNR):
     is_ER = True
 
-    special_model_functions = tuple(
-        [x for x in MakePhotonsElectronsNR.special_model_functions if x != 'exciton_ratio']
-         + ['fano_factor'])
-    model_functions = special_model_functions
+    # special_model_functions = tuple(
+    #     [x for x in MakePhotonsElectronsNR.special_model_functions if x != 'exciton_ratio']
+    #      + ['fano_factor'])
+    # model_functions = special_model_functions

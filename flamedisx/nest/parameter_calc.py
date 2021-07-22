@@ -6,9 +6,11 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 GAS_CONSTANT = 8.31446261815324
+N_AVAGADRO = 6.0221409e23
 XENON_VDW_A = 0.4250
 XENON_VDW_B = 5.105e-5
 A_XENON = 131.293
+Z_XENON = 54
 
 
 @export
@@ -115,3 +117,12 @@ def calculate_drift_velocity(drift_field, density, temp):
         raise ValueError("Negative drift velocity!")
 
     return speed*1e-4
+
+
+@export
+def calculate_work(density):
+    eDensity = density * N_AVAGADRO * Z_XENON / A_XENON
+    Wq_eV = (18.7263 - 1.01e-23 * eDensity) * 1.1716263232
+    Wq_keV = Wq_eV * 1e-3
+
+    return Wq_keV
