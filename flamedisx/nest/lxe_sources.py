@@ -213,16 +213,16 @@ class nestERSource(nestSource):
 
         return nq
 
-    def fano_factor(self, nq):
+    def fano_factor(self, nq_mean):
         Fano = 0.12707 - 0.029623 * self.density - 0.0057042 * pow(self.density, 2.) + 0.0015957 * pow(self.density, 3.)
 
-        return Fano + 0.0015 * tf.sqrt(nq) * pow(self.drift_field, 0.5)
+        return Fano + 0.0015 * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
 
     def alpha(self, energy):
         alf = 0.067366 + self.density * 0.039693
-        excitonR = alf * tf.math.erf(0.05 * energy)
+        ex_ratio = alf * tf.math.erf(0.05 * energy)
 
-        return 1. / (1. + excitonR)
+        return 1. / (1. + ex_ratio)
 
 
     @staticmethod
@@ -267,14 +267,19 @@ class nestNRSource(nestSource):
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
 
-    def mean_yield_electron(self, energy, *,
-                            nr_nuis_c=0.0480,
-                            nr_nuis_d=-0.0533,
-                            nr_nuis_e=12.6,
-                            nr_nuis_f=0.3,
-                            nr_nuis_g=2.,
-                            nr_nuis_j=0.5,
-                            nr_nuis_k=1.):
+    def mean_yields(self, energy, *,
+                    nr_nuis_a=11.,
+                    nr_nuis_b=1.1,
+                    nr_nuis_c=0.0480,
+                    nr_nuis_d=-0.0533,
+                    nr_nuis_e=12.6,
+                    nr_nuis_f=0.3,
+                    nr_nuis_g=2.,
+                    nr_nuis_h=0.3,
+                    nr_nuis_i=2,
+                    nr_nuis_j=0.5,
+                    nr_nuis_k=1.,
+                    nr_nuis_l=1.):
         TIB = nr_nuis_c * pow(self.drift_field, nr_nuis_d) * pow(self.density / XENON_REF_DENSITY, 0.3)
         Qy = 1. / (TIB * pow(energy + nr_nuis_e, nr_nuis_j))
         Qy *= (1. - (1. / pow(1. + pow(energy / nr_nuis_f, nr_nuis_g), nr_nuis_k)))
@@ -285,29 +290,35 @@ class nestNRSource(nestSource):
                        0 * nel_temp,
                        nel_temp)
 
-        return nel
-
-    @staticmethod
-    def mean_yield_quanta(*args,
-                          nr_nuis_a=11.,
-                          nr_nuis_b=1.1,
-                          nr_nuis_h=0.3,
-                          nr_nuis_i=2,
-                          nr_nuis_l=1.):
-        energy = args[0]
-        nel_mean = args[1]
-
         nq_temp = nr_nuis_a * pow(energy, nr_nuis_b)
 
-        nph_temp = (nq_temp - nel_mean) * (1. - (1. / pow(1. + pow(energy / nr_nuis_h, nr_nuis_i), nr_nuis_l)))
+        nph_temp = (nq_temp - nel) * (1. - (1. / pow(1. + pow(energy / nr_nuis_h, nr_nuis_i), nr_nuis_l)))
         # Don't let number of photons go negative
         nph = tf.where(nph_temp < 0,
                        tf.zeros_like(nph_temp, dtype=fd.float_type()),
                        nph_temp)
 
-        nq = nel_mean + nph
+        nq = nel + nph
 
-        return nq
+        ni = (4. / TIB) * (tf.exp(nel * TIB / 4.) - 1.)
+
+        nex = nq - ni
+
+        ex_ratio = nex / ni
+
+        alf = 0.067366 + self.density * 0.039693
+
+        ex_ratio = tf.where(tf.logical_and(ex_ratio < alf, energy > 100.),
+                            alf * tf.ones_like(ex_ratio, dtype=fd.float_type()),
+                            ex_ratio)
+        ex_ratio = tf.where(tf.logical_and(ex_ratio > 1., energy < 1.),
+                            tf.ones_like(ex_ratio, dtype=fd.float_type()),
+                            ex_ratio)
+        ex_ratio = tf.where(tf.math.is_nan(ex_ratio),
+                            tf.zeros_like(ex_ratio, dtype=fd.float_type()),
+                            ex_ratio)
+
+        return nel, nq, ex_ratio
 
     @staticmethod
     def p_electron(nq, *,
