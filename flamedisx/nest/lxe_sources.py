@@ -103,7 +103,7 @@ class nestSource(fd.BlockModelSource):
         recomb_p = 1. - (ex_ratio + 1.) * elec_frac
 
         return tf.where(tf.logical_or(nq_mean == 0, recomb_p < 0),
-                        0 * recomb_p,
+                        tf.zeros_like(recomb_p, dtype=fd.float_type()),
                         recomb_p)
 
     @staticmethod

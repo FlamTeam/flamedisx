@@ -53,11 +53,11 @@ class MakePhotonsElectronsNR(fd.Block):
 
             nex_temp = np.round(stats.norm.rvs(nq*alpha*ex_ratio, np.sqrt(nq*alpha*ex_ratio))).astype(int)
             # Don't let number of excitons go negative
-            n_ex = np.where(nex_temp < 0,
+            nex = np.where(nex_temp < 0,
                             nex_temp * 0,
                             nex_temp)
 
-            nq_actual = d['ions_produced'] + n_ex
+            nq_actual = d['ions_produced'] + nex
 
         recomb_p = self.gimme_numpy('recomb_prob', bonus_arg=(nel, nq, ex_ratio))
         skew = self.gimme_numpy('skewness', bonus_arg=nq)
@@ -65,8 +65,8 @@ class MakePhotonsElectronsNR(fd.Block):
         width_corr = self.gimme_numpy('width_correction', bonus_arg=skew)
         mu_corr= self.gimme_numpy('mu_correction', bonus_arg=(skew, var, width_corr))
 
-        el_prod_temp1 = np.round(stats.skewnorm.rvs(skewness, (1 - recombP) * d['ion_produced'] - muCorrection,
-                                 np.sqrt(Variance) / widthCorrection)).astype(int)
+        el_prod_temp1 = np.round(stats.skewnorm.rvs(skew, (1 - recomb_p) * d['ions_produced'] - mu_corr,
+                                 np.sqrt(var) / width_corr)).astype(int)
         # Don't let number of electrons go negative
         el_prod_temp2 = np.where(el_prod_temp1 < 0,
                                  el_prod_temp1 * 0,
@@ -78,8 +78,8 @@ class MakePhotonsElectronsNR(fd.Block):
 
         ph_prod_temp = nq_actual - d['electrons_produced']
         # Don't let number of photons be less than number of excitons
-        d['photons_produced'] = np.where(ph_prod_temp < n_ex,
-                                         n_ex,
+        d['photons_produced'] = np.where(ph_prod_temp < nex,
+                                         nex,
                                          ph_prod_temp)
 
 
