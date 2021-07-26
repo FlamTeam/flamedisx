@@ -396,6 +396,34 @@ class nestNRSource(nestSource):
         return nel, nq, ex_ratio
 
     @staticmethod
+    def skewness(nq_mean, *,
+                 nr_free_f=2.25):
+        mask = tf.less(nq_mean, 1e4 * tf.ones_like(nq_mean))
+        skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_f
+        skewness_masked = tf.multiply(skewness, tf.cast(mask, fd.float_type()))
+
+        return skewness_masked
+
+    @staticmethod
+    def variance(*args,
+                 nr_free_c=0.1,
+                 nr_free_d=0.5,
+                 nr_free_e=0.19):
+        nel_mean = args[0]
+        nq_mean = args[1]
+        recomb_p = args[2]
+        ni = args[3]
+
+        elec_frac = nel_mean / nq_mean
+
+        omega = nr_free_c * tf.exp(-0.5 * pow(elec_frac - nr_free_d, 2.) / (nr_free_e * nr_free_e))
+        omega = tf.where(nq_mean == 0,
+                         tf.zeros_like(omega, dtype=fd.float_type()),
+                         omega)
+
+        return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
+
+    @staticmethod
     def p_electron(nq, *,
                    alpha=1.280, zeta=0.045, beta=273 * .9e-4,
                    gamma=0.0141, delta=0.062,
