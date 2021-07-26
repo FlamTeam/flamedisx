@@ -9,6 +9,9 @@ from .. import nest as fd_nest
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+import math as m
+pi = tf.constant(m.pi)
+
 GAS_CONSTANT = 8.314
 N_AVAGADRO = 6.0221409e23
 A_XENON = 131.293
@@ -86,6 +89,34 @@ class nestSource(fd.BlockModelSource):
                               's2_photoelectrons_detected')
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
+
+
+    # quanta_splitting.py
+
+    @staticmethod
+    def recomb_prob(*args):
+        nel_mean = args[0]
+        nq_mean = args[1]
+        ex_ratio = args[2]
+
+        elec_frac = nel_mean / nq_mean
+        recomb_p = 1. - (ex_ratio + 1.) * elec_frac
+
+        return tf.where(tf.logical_or(nq_mean == 0, recomb_p < 0),
+                        0 * recomb_p,
+                        recomb_p)
+
+    @staticmethod
+    def width_correction(skew):
+        return tf.sqrt(1. - (2. / pi) * skew * skew / (1. + skew * skew))
+
+    @staticmethod
+    def mu_correction(*args):
+        skew = args[0]
+        var = args[1]
+        width_corr = args[2]
+
+        return (tf.sqrt(var) / width_corr) * (skew / tf.sqrt(1. + skew * skew)) * tf.sqrt(2. / pi)
 
     # detection.py
 
@@ -177,6 +208,8 @@ class nestERSource(nestSource):
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
 
+    # quanta_splitting.py
+
     def mean_yield_electron(self, energy):
         Wq_eV = self.Wq_keV * 1e3
 
@@ -218,12 +251,52 @@ class nestERSource(nestSource):
 
         return Fano + 0.0015 * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
 
-    def alpha(self, energy):
+    def exciton_ratio(self, energy):
         alf = 0.067366 + self.density * 0.039693
-        ex_ratio = alf * tf.math.erf(0.05 * energy)
 
-        return 1. / (1. + ex_ratio)
+        return alf * tf.math.erf(0.05 * energy)
 
+    def skewness(self, nq_mean):
+        energy = self.Wq_keV * 1e3 * nq_mean
+
+        alpha0 = tf.cast(1.39, fd.float_type())
+        cc0 = tf.cast(4., fd.float_type())
+        cc1 = tf.cast(22.1, fd.float_type())
+        E0 = tf.cast(7.7, fd.float_type())
+        E1 = tf.cast(54., fd.float_type())
+        E2 = tf.cast(26.7, fd.float_type())
+        E3 = tf.cast(6.4, fd.float_type())
+        F0 = tf.cast(225., fd.float_type())
+        F1 = tf.cast(71., fd.float_type())
+
+        skew = 1. / (1. + tf.exp((energy - E2) / E3)) * (alpha0 + cc0 * tf.exp(-1. * self.drift_field / F0) * (1. - tf.exp(-1. * energy / E0))) + \
+               1. / (1. + tf.exp(-1. * (energy - E2) / E3)) * cc1 * tf.exp(-1. * energy / E1) * tf.exp(-1. * tf.sqrt(self.drift_field) / tf.sqrt(F1))
+
+        mask = tf.less(nq_mean, 1e4*tf.ones_like(nq_mean))
+        skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
+        skewness_masked = tf.multiply(skewness, tf.cast(mask, fd.float_type()))
+
+        return skewness_masked
+
+    def variance(self, *args):
+        nel_mean = args[0]
+        nq_mean = args[1]
+        recomb_p = args[2]
+        ni = args[3]
+
+        elec_frac = nel_mean / nq_mean
+        ampl = 0.14 + (0.043 - 0.14) / (1. + pow(self.drift_field / 1210., 1.25))
+        wide = tf.cast(0.205, fd.float_type())
+        cntr = 0.5
+        skew = -0.2
+        norm = 0.988
+
+        omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * (1. + tf.math.erf(skew * (elec_frac - cntr) / (wide*  tf.sqrt(2.))))
+        omega = tf.where(nq_mean == 0,
+                         tf.zeros_like(omega, dtype=fd.float_type()),
+                         omega)
+
+        return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -267,6 +340,8 @@ class nestNRSource(nestSource):
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
 
+    # quanta_splitting.py
+
     def mean_yields(self, energy, *,
                     nr_nuis_a=11.,
                     nr_nuis_b=1.1,
@@ -295,7 +370,7 @@ class nestNRSource(nestSource):
         nph_temp = (nq_temp - nel) * (1. - (1. / pow(1. + pow(energy / nr_nuis_h, nr_nuis_i), nr_nuis_l)))
         # Don't let number of photons go negative
         nph = tf.where(nph_temp < 0,
-                       tf.zeros_like(nph_temp, dtype=fd.float_type()),
+                       0 * nph_temp,
                        nph_temp)
 
         nq = nel + nph
