@@ -14,9 +14,8 @@ class MakePhotonsElectronsNR(fd.Block):
 
     dimensions = ('electrons_produced', 'photons_produced')
 
-    special_model_functions = ('mean_yields',)
-    # special_model_functions = ('mean_yield_electron','mean_yield_quanta','alpha','exciton_ratio',
-    #                            'recomb_prob','skewness','variance','width_correction','mu_correction','omega')
+    special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
+                                'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
     def _simulate(self, d):
@@ -32,26 +31,27 @@ class MakePhotonsElectronsNR(fd.Block):
                                  nq_actual_temp * 0,
                                  nq_actual_temp)
 
-            alf = self.gimme_numpy('alpha', bonus_arg=d['energy'].values)
+            ex_ratio = self.gimme_numpy('exciton_ratio', bonus_arg=d['energy'].values)
+            alpha = 1. / (1. + ex_ratio)
 
-            d['ions_produced'] = stats.binom.rvs(n=nq_actual, p=alf)
+            d['ions_produced'] = stats.binom.rvs(n=nq_actual, p=alpha)
 
             nex = nq_actual - d['ions_produced']
 
         else:
-            result = self.gimme_numpy('mean_yields', bonus_arg=d['energy'].values)
-            nel = result[0]
-            nq = result[1]
-            ex_ratio = result[2]
-            alf = 1. / (1. + ex_ratio)
+            yields = self.gimme_numpy('mean_yields', bonus_arg=d['energy'].values)
+            nel = yields[0]
+            nq = yields[1]
+            ex_ratio = yields[2]
+            alpha = 1. / (1. + ex_ratio)
 
-            ni_temp = np.round(stats.norm.rvs(nq*alf, np.sqrt(nq*alf))).astype(int)
+            ni_temp = np.round(stats.norm.rvs(nq*alpha, np.sqrt(nq*alpha))).astype(int)
             # Don't let number of ions go negative
             d['ions_produced'] = np.where(ni_temp < 0,
                                           ni_temp * 0,
                                           ni_temp)
 
-            nex_temp = np.round(stats.norm.rvs(nq*alf*ex_ratio, np.sqrt(nq*alf*ex_ratio))).astype(int)
+            nex_temp = np.round(stats.norm.rvs(nq*alpha*ex_ratio, np.sqrt(nq*alpha*ex_ratio))).astype(int)
             # Don't let number of excitons go negative
             n_ex = np.where(nex_temp < 0,
                             nex_temp * 0,
@@ -59,11 +59,11 @@ class MakePhotonsElectronsNR(fd.Block):
 
             nq_actual = d['ions_produced'] + n_ex
 
-        recomb_p = self.gimme_numpy('recomb_prob', bonus_arg=(nel, nq, d['energy'].values))
+        recomb_p = self.gimme_numpy('recomb_prob', bonus_arg=(nel, nq, ex_ratio))
         skew = self.gimme_numpy('skewness', bonus_arg=nq)
-        var = self.gimme_numpy('variance', bonus_arg=(nel, nq, d['energy'].values, d['ion_produced'].values))
-        width_corr = self.gimme_numpy('width_correction', bonus_arg=nq)
-        mu_corr= self.gimme_numpy('mu_correction', bonus_arg=(nel, nq, d['energy'].values, d['ion_produced'].values))
+        var = self.gimme_numpy('variance', bonus_arg=(nel, nq, recomb_p, d['ions_produced'].values))
+        width_corr = self.gimme_numpy('width_correction', bonus_arg=skew)
+        mu_corr= self.gimme_numpy('mu_correction', bonus_arg=(skew, var, width_corr))
 
         el_prod_temp1 = np.round(stats.skewnorm.rvs(skewness, (1 - recombP) * d['ion_produced'] - muCorrection,
                                  np.sqrt(Variance) / widthCorrection)).astype(int)
@@ -89,5 +89,5 @@ class MakePhotonsElectronER(MakePhotonsElectronsNR):
 
     special_model_functions = tuple(
         [x for x in MakePhotonsElectronsNR.special_model_functions if x != 'mean_yields']
-         + ['mean_yield_electron', 'mean_yield_quanta', 'fano_factor', 'alpha'])
+         + ['mean_yield_electron', 'mean_yield_quanta', 'fano_factor', 'exciton_ratio'])
     model_functions = special_model_functions
