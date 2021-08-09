@@ -18,6 +18,94 @@ class MakePhotonsElectronsNR(fd.Block):
                                 'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
+    MC_annotate = True
+
+    MC_annotate_dimensions = ()
+
+    def _compute(self,
+                 data_tensor, ptensor,
+                 # Domain
+                 electrons_produced, photons_produced,
+                 # Dependency domain and value
+                 energy, rate_vs_energy,
+                 # Bonus dimension
+                 ions_produced):
+
+        def compute_single_energy(args):
+
+            energy = args[0]
+            rate_vs_energy = args[1]
+
+            if self.is_ER:
+                nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=energy)
+                nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
+                                     bonus_arg=(energy,nel_mean))
+                fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=nq_mean)
+
+                p_nq = tfp.distributions.Normal(
+                    loc=nq_mean, scale=tf.sqrt(nq_mean*FanoF) + 1e-10).cdf(nq + 0.5) \
+                - tfp.distributions.Normal(
+                    loc=nq_mean, scale=tf.sqrt(nq_mean*FanoF) + 1e-10).cdf(nq - 0.5)
+
+                ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=energy)
+                alpha = 1. / (1. + ex_ratio)
+
+                p_ni = tfp.distributions.Binomial(
+                    total_count=nq, probs=alpha).prob(ions_produced)
+
+            else:
+                yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
+                                     bonus_arg=energy)
+                nel_mean = yields[0]
+                nq_mean = yields[1]
+                ex_ratio = yields[2]
+                alpha = 1. / (1. + ex_ratio)
+
+                p_ni = tfp.distributions.Normal(
+                    loc=nq_mean*alf, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced + 0.5) \
+                -  tfp.distributions.Normal(
+                    loc=nq_mean*alf, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced - 0.5)
+
+                p_nq = tfp.distributions.Normal(
+                    loc=nq_mean*alf*excitonR, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced + 0.5) \
+                - tfp.distributions.Normal(
+                    loc=nq_mean*alf*excitonR, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced - 0.5)
+
+            recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=(nel_mean, nq_mean, ex_ratio))
+            skew = self.gimme('skewness', data_tensor=data_tensor, ptensor=ptensor,
+                              bonus_arg=nq_mean)
+            var = self.gimme('variance', data_tensor=data_tensor, ptensor=ptensor,
+                             bonus_arg=(nel_mean, nq_mean, recomb_p, ions_produced))
+            width_corr = self.gimme('width_correction', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=skew)
+            mu_correction = self.gimme('get_muCorrection', data_tensor=data_tensor, ptensor=ptensor,
+                                       bonus_arg=(skew, var, width_corr))
+
+            mean = (tf.ones_like(ions_produced, dtype=fd.float_type()) - recomb_p) * ions_produced - mu_corr
+            std_dev = tf.sqrt(variance) / width_corr
+            p_nel = tfp.distributions.TruncatedSkewGaussianCC(
+                    loc=mean, scale=std_dev, skewness=skew, limit=ions_produced).prob(electrons_produced)
+
+            p_mult = p_nq * p_ni * p_nel
+
+            p_final = tf.reduce_sum(p_mult, 3)
+
+            r_final = p_final * rate_vs_energy
+
+            r_final = tf.where(tf.math.is_nan(r_final),
+                                   tf.zeros_like(r_final, dtype=fd.float_type()),
+                                   r_final)
+
+            return r_final
+
+        result = tf.reduce_sum(tf.vectorized_map(compute_single_energy, elems=[energy[:,0],rate_vs_energy[:,0]]), 0)
+
+        return result
+
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
         if self.is_ER:
