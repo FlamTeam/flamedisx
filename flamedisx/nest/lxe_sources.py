@@ -45,6 +45,7 @@ class nestSource(fd.BlockModelSource):
         #
         self.drift_velocity = fd_nest.calculate_drift_velocity(
             self.drift_field, self.density, self.temperature)
+        self.Wq_keV = fd_nest.calculate_work(self.density)
 
         # energy_spectrum.py
         self.radius = config.getfloat('NEST', 'radius_config')
@@ -185,11 +186,7 @@ class nestERSource(nestSource):
         self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
                                 fd.float_type())
         self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
-
         super().__init__(*args, **kwargs)
-
-        # quanta_splitting.py
-        self.Wq_keV = fd_nest.calculate_work(self.density)
 
     model_blocks = (
         fd_nest.FixedShapeEnergySpectrum,
