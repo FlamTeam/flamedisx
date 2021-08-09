@@ -45,7 +45,7 @@ class LogLikelihood:
             sources: ty.Union[
                 ty.Dict[str, fd.Source.__class__],
                 ty.Dict[str, ty.Dict[str, fd.Source.__class__]]],
-            arguments: ty.Dict[str, ty.List[ty.Union[int, float]]],
+            arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]],
             data: ty.Union[
                 None,
                 pd.DataFrame,
@@ -67,7 +67,7 @@ class LogLikelihood:
         or just {sourcename: class} in case you have one dataset
         Every source name must be unique.
 
-        :param arguments: Dictionary {sourcename: [arg1, arg2, ...]}
+        :param arguments: Dictionary {sourcename: {kwarg1: value, ...}, ...}
 
         :param data: Dictionary {datasetname: pd.DataFrame}
         or just pd.DataFrame if you have one dataset or None if you
@@ -143,7 +143,7 @@ class LogLikelihood:
 
         # Create sources
         self.sources = {
-            sname: sclass(*(arguments.get(sname)),
+            sname: sclass(**(arguments.get(sname)),
                           data=None,
                           max_sigma=max_sigma,
                           max_dim_size=max_dim_size,
