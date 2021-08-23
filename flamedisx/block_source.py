@@ -107,7 +107,8 @@ class Block:
                 self.dimensions, data_tensor))
         else:
             if self.extra_dimensions[0][1] is True:
-                raise NotImplementedError
+                kwargs.update(self.source._domain_dict_extra(
+                    self.dimensions, self.extra_dimensions[0][0], data_tensor))
             else:
                 kwargs.update(self.source._domain_dict(
                     self.dimensions, data_tensor))
@@ -484,6 +485,13 @@ class BlockModelSource(fd.Source):
         return dict(zip(dimensions,
                         self.cross_domains(*dimensions,
                                            data_tensor=data_tensor)))
+
+    def _domain_dict_extra(self, dimensions, internal_dimension, data_tensor):
+        all_dimensions = list(dimensions) + list((internal_dimension,))
+        assert len(all_dimensions) == 3
+        return dict(zip(all_dimensions,
+                        self.cross_domains_extra(*all_dimensions,
+                                                 data_tensor=data_tensor)))
 
     def add_derived_observables(self, d):
         pass
