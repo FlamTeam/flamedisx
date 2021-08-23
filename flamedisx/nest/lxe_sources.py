@@ -210,13 +210,13 @@ class nestERSource(nestSource):
     def mean_yield_electron(self, energy):
         Wq_eV = self.Wq_keV * 1e3
 
-        QyLvllowE = 1e3 / Wq_eV + 6.5 * (1. - 1. / (1. + pow(self.drift_field / 47.408, 1.9851)))
-        HiFieldQy = 1. + 0.4607 / pow(1. + pow(self.drift_field / 621.74, -2.2717), 53.502)
-        QyLvlmedE = 32.988 -  32.988 / (1. + pow(self.drift_field / (0.026715 * tf.exp(self.density / 0.33926)), 0.6705))
+        QyLvllowE = tf.cast(1e3 / Wq_eV + 6.5 * (1. - 1. / (1. + pow(self.drift_field / 47.408, 1.9851))), fd.float_type())
+        HiFieldQy = tf.cast(1. + 0.4607 / pow(1. + pow(self.drift_field / 621.74, -2.2717), 53.502), fd.float_type())
+        QyLvlmedE = tf.cast(32.988 -  32.988 / (1. + pow(self.drift_field / (0.026715 * tf.exp(self.density / 0.33926)), 0.6705)), fd.float_type())
         QyLvlmedE *= HiFieldQy
-        DokeBirks = 1652.264 + (1.415935e10 - 1652.264) / (1. + pow(self.drift_field / 0.02673144, 1.564691))
-        LET_power = -2.
-        QyLvlhighE = 28.
+        DokeBirks = tf.cast(1652.264 + (1.415935e10 - 1652.264) / (1. + pow(self.drift_field / 0.02673144, 1.564691)), fd.float_type())
+        LET_power = tf.cast(-2., fd.float_type())
+        QyLvlhighE = tf.cast(28., fd.float_type())
         Qy = QyLvlmedE + (QyLvllowE - QyLvlmedE) / pow(1. + 1.304 * pow(energy, 2.1393), 0.35535) + QyLvlhighE / (1. + DokeBirks * pow(energy, LET_power))
 
         nel_temp = Qy * energy

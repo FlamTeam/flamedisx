@@ -13,6 +13,8 @@ class MakePhotonsElectronsNR(fd.Block):
     is_ER = False
 
     dimensions = ('electrons_produced', 'photons_produced')
+    extra_dimensions = (('ions_produced', True),)
+    depends_on = ((('energy',), 'rate_vs_energy'),)
 
     special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
                                 'width_correction', 'mu_correction')
@@ -20,7 +22,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
     MC_annotate = True
 
-    MC_annotate_dimensions = ()
+    MC_annotate_dimensions = ('ions_produced',)
 
     def _compute(self,
                  data_tensor, ptensor,
@@ -45,9 +47,9 @@ class MakePhotonsElectronsNR(fd.Block):
                                   bonus_arg=nq_mean)
 
                 p_nq = tfp.distributions.Normal(
-                    loc=nq_mean, scale=tf.sqrt(nq_mean*FanoF) + 1e-10).cdf(nq + 0.5) \
+                    loc=nq_mean, scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq + 0.5) \
                 - tfp.distributions.Normal(
-                    loc=nq_mean, scale=tf.sqrt(nq_mean*FanoF) + 1e-10).cdf(nq - 0.5)
+                    loc=nq_mean, scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq - 0.5)
 
                 ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
@@ -101,6 +103,8 @@ class MakePhotonsElectronsNR(fd.Block):
                                    r_final)
 
             return r_final
+
+        nq = electrons_produced + photons_produced
 
         result = tf.reduce_sum(tf.vectorized_map(compute_single_energy, elems=[energy[:,0],rate_vs_energy[:,0]]), 0)
 
