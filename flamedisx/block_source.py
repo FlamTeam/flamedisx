@@ -326,6 +326,7 @@ class BlockModelSource(fd.Source):
 
         for b in self.model_blocks:
             b_dims = b.dimensions
+            scaling_dims = b.dimensions + tuple([extra_dimension[0] for extra_dimension in b.extra_dimensions if extra_dimension[1] is True])
 
             # Gather extra compute arguments.
             kwargs = dict()
@@ -342,7 +343,7 @@ class BlockModelSource(fd.Source):
 
             # Scale the block by stepped dimensions, if not already done in
             # another block
-            for dim in b_dims:
+            for dim in scaling_dims:
                 if (dim in self.inner_dimensions) and \
                         (dim not in self.no_step_dimensions) and \
                         (dim not in already_stepped):
