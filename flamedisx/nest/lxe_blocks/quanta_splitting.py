@@ -84,11 +84,11 @@ class MakePhotonsElectronsNR(fd.Block):
                              bonus_arg=(nel_mean, nq_mean, recomb_p, ions_produced))
             width_corr = self.gimme('width_correction', data_tensor=data_tensor, ptensor=ptensor,
                                     bonus_arg=skew)
-            mu_correction = self.gimme('get_muCorrection', data_tensor=data_tensor, ptensor=ptensor,
+            mu_corr = self.gimme('mu_correction', data_tensor=data_tensor, ptensor=ptensor,
                                        bonus_arg=(skew, var, width_corr))
 
             mean = (tf.ones_like(ions_produced, dtype=fd.float_type()) - recomb_p) * ions_produced - mu_corr
-            std_dev = tf.sqrt(variance) / width_corr
+            std_dev = tf.sqrt(var) / width_corr
             p_nel = tfp.distributions.TruncatedSkewGaussianCC(
                     loc=mean, scale=std_dev, skewness=skew, limit=ions_produced).prob(electrons_produced)
 
