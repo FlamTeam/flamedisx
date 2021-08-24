@@ -254,7 +254,7 @@ class nestERSource(nestSource):
         return alf * tf.math.erf(0.05 * energy)
 
     def skewness(self, nq_mean):
-        energy = self.Wq_keV * 1e3 * nq_mean
+        energy = self.Wq_keV * nq_mean
 
         alpha0 = tf.cast(1.39, fd.float_type())
         cc0 = tf.cast(4., fd.float_type())
@@ -282,11 +282,11 @@ class nestERSource(nestSource):
         ni = args[3]
 
         elec_frac = nel_mean / nq_mean
-        ampl = 0.14 + (0.043 - 0.14) / (1. + pow(self.drift_field / 1210., 1.25))
+        ampl = tf.cast(0.14 + (0.043 - 0.14) / (1. + pow(self.drift_field / 1210., 1.25)), fd.float_type())
         wide = tf.cast(0.205, fd.float_type())
-        cntr = 0.5
-        skew = -0.2
-        norm = 0.988
+        cntr = tf.cast(0.5, fd.float_type())
+        skew = tf.cast(-0.2, fd.float_type())
+        norm = tf.cast(0.988, fd.float_type())
 
         omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * (1. + tf.math.erf(skew * (elec_frac - cntr) / (wide*  tf.sqrt(2.))))
         omega = tf.where(nq_mean == 0,
