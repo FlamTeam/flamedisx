@@ -1,7 +1,6 @@
 from .parameter_calc import *
 
 from .lxe_blocks.energy_spectrum import *
-from .lxe_blocks.quanta_generation import *
 from .lxe_blocks.secondary_quanta_generation import *
 from .lxe_blocks.quanta_splitting import *
 from .lxe_blocks.detection import *
