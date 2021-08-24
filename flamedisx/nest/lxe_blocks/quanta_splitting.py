@@ -106,7 +106,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
         nq = electrons_produced + photons_produced
 
-        result = tf.reduce_sum(tf.vectorized_map(compute_single_energy, elems=[energy[:,0],rate_vs_energy[:,0]]), 0)
+        result = tf.reduce_sum(tf.vectorized_map(compute_single_energy, elems=[energy[0,:],rate_vs_energy[0,:]]), 0)
 
         return result
 
