@@ -6,6 +6,7 @@ import numpy as np
 import sklearn.neighbors
 import tensorflow as tf
 import pandas as pd
+import math
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -488,6 +489,8 @@ class BlockModelSource(fd.Source):
                     if dim not in MC_bound_dimensions:
                         MC_bound_dimensions += (dim,)
 
+        d['take_nearest_event'] = False
+        d['MC_bounds_validated'] = False
         self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy', 'energies',
                        (('rates_vs_energy', 1000),), ('s1_photoelectrons_detected', 's2_photoelectrons_detected'),
                        MC_bound_dimensions)
@@ -496,16 +499,19 @@ class BlockModelSource(fd.Source):
             if b.post_MC_annotate:
                 b.annotate(d)
 
-    def MC_bounds(self, source_copy_original, kd_tree_observables,
-                  initial_dimension, initial_attribute,
+    def MC_bounds(self, source_copy_original, kd_tree_observables: ty.Tuple[str],
+                  initial_dimension: str, initial_attribute: str,
                   flat_attributes: ty.Tuple[ty.Tuple[str, int]] = (),
                   small_MC_filter_dimenions = (),
-                  MC_bound_dimensions: ty.Tuple[str] = ()):
+                  MC_bound_dimensions: ty.Tuple[str] = (),
+                  first_iteration: bool):
         """"""
         source_copy = deepcopy(source_copy_original)
         MC_data = source_copy.simulate(int(1e6))
 
-        df_full = pd.concat([MC_data, self.data])
+        do_computation = self.data.loc[(self.data['take_nearest_event'] == False) and (self.data['MC_bounds_validated'] == False)]
+
+        df_full = pd.concat([MC_data, do_computation])
 
         observables_scaled = [(lambda x: (df_full[x] - np.mean(df_full[x])) / \
             np.std(df_full[x]))(x) for x in kd_tree_observables]
@@ -519,9 +525,10 @@ class BlockModelSource(fd.Source):
 
         initial_dimension_MC = MC_data[initial_dimension]
 
-        take_nearest_event = []
-
         for i in range(len(self.data)):
+            if (self.data.at[i, 'take_nearest_event'] == True) or (self.data.at[i, 'MC_bounds_validated'] == True):
+                continue
+
             initial_dimension_min = self.data.at[i, initial_dimension + '_min'] = min(initial_dimension_MC.iloc[ind[i]])
             initial_dimension_max = self.data.at[i, initial_dimension + '_max'] = max(initial_dimension_MC.iloc[ind[i]])
 
@@ -539,7 +546,7 @@ class BlockModelSource(fd.Source):
             while(not sufficient_stats):
                 if (count > 3):
                     sufficient_stats = True
-                    take_nearest_event.append(True)
+                    self.data.at[i, 'take_nearest_event'] = True
                     continue
 
                 MC_data_small = source_copy.simulate(1000, fix_truth=fix_truth_df)
@@ -553,36 +560,43 @@ class BlockModelSource(fd.Source):
                 count += 1
                 if (len(MC_data_small) > 10):
                     sufficient_stats = True
-                    take_nearest_event.append(False)
-
-            if(take_nearest_event[i] == True):
-                continue
 
             for x in MC_bound_dimensions:
-                mean_x = MC_data_small[x].mean()
-                std_x = MC_data_small[x].std()
-                self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
-                self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
-                self.data.at[i, x + '_mle'] = np.round(mean_x)
+                if first_iteration:
+                    self.data.at[i, x + '_mean_1'] = MC_data_small[x].mean()
+                    self.data.at[i, x + '_std_1'] = MC_data_small[x].std()
+                else:
+                    self.data.at[i, x + '_mean_2'] = MC_data_small[x].mean()
+                    self.data.at[i, x + '_std_2'] = MC_data_small[x].std()
+                    if (math.isclose(self.data.at[i, x + '_mean_1'], self.data.at[i, x + '_mean_2'])) \
+                    and (math.isclose(self.data.at[i, x + '_std_1'], self.data.at[i, x + '_std_2'])):
+                        self.data.at[i, x + '_min'] = 0
+                        self.data.at[i, x + '_mle'] = 1
+                        self.data.at[i, x + '_max'] = 2
+                        self.data.at[i, 'MC_bounds_validated'] = True
 
-        data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
-        df_bounds = self.data.iloc[[i for i, x in enumerate(take_nearest_event) if not x]].reset_index(drop=True)
-        data_no_bounds = data[[i for i, x in enumerate(take_nearest_event) if x]]
+        # data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
+        # data_no_bounds = data[[i for i, x in enumerate(take_nearest_event) if x]]
+        #
+        # df_storage_reset_index = df_storage[[i for i, x in enumerate(take_nearest_event) if not x]].reset_index(drop=True)
+        #
+        # take_nearest_event_indicies = [i for i, x in enumerate(take_nearest_event) if x]
+        #
+        # if(len(take_nearest_event_indicies) > 0):
+        #     tree = sklearn.neighbors.KDTree(data_bounds)
+        #     dist, ind = tree.query(data_no_bounds[::], k=1)
+        #
+        # for i in range(len(take_nearest_event_indicies)):
+        #     for x in MC_bound_dimensions:
+        #         if first_iteration:
+        #             df_storage.at[take_nearest_event_indicies[i], x + '_mean_1'] = df_storage_rest_index.at[ind[i][0], x + '_mean_1']
+        #             df_storage.at[take_nearest_event_indicies[i], x + '_std_1'] = df_storage_rest_index.at[ind[i][0], x + '_std_1']
+        #         else:
+        #             df_storage.at[take_nearest_event_indicies[i], x + '_mean_2'] = df_storage_rest_index.at[ind[i][0], x + '_mean_2']
+        #             df_storage.at[take_nearest_event_indicies[i], x + '_std_2'] = df_storage_rest_index.at[ind[i][0], x + '_std_2']
 
-        take_nearest_event_indicies = [i for i, x in enumerate(take_nearest_event) if x]
-
-        if(len(take_nearest_event_indicies) > 0):
-            tree = sklearn.neighbors.KDTree(data_bounds)
-            dist, ind = tree.query(data_no_bounds[::], k=1)
-
-        for i in range(len(take_nearest_event_indicies)):
-            for x in MC_bound_dimensions:
-                self.data.at[take_nearest_event_indicies[i], x + '_min'] = df_bounds.at[ind[i][0], x + '_min']
-                self.data.at[take_nearest_event_indicies[i], x + '_max'] = df_bounds.at[ind[i][0], x + '_max']
-                self.data.at[take_nearest_event_indicies[i], x + '_mle'] = df_bounds.at[ind[i][0], x + '_mle']
-
-        for x in MC_bound_dimensions:
-            self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
+        # for x in MC_bound_dimensions:
+        #     self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
 
 
     def mu_before_efficiencies(self, **params):
