@@ -492,8 +492,14 @@ class BlockModelSource(fd.Source):
         d['take_nearest_event'] = False
         d['MC_bounds_validated'] = False
         self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy', 'energies',
+                       True,
                        (('rates_vs_energy', 1000),), ('s1_photoelectrons_detected', 's2_photoelectrons_detected'),
                        MC_bound_dimensions)
+        while not all (d['MC_bounds_validated']):
+            self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy', 'energies',
+                           False,
+                           (('rates_vs_energy', 1000),), ('s1_photoelectrons_detected', 's2_photoelectrons_detected'),
+                           MC_bound_dimensions)
 
         for b in self.model_blocks[::-1]:
             if b.post_MC_annotate:
@@ -501,17 +507,15 @@ class BlockModelSource(fd.Source):
 
     def MC_bounds(self, source_copy_original, kd_tree_observables: ty.Tuple[str],
                   initial_dimension: str, initial_attribute: str,
+                  first_iteration: bool,
                   flat_attributes: ty.Tuple[ty.Tuple[str, int]] = (),
                   small_MC_filter_dimenions = (),
-                  MC_bound_dimensions: ty.Tuple[str] = (),
-                  first_iteration: bool):
+                  MC_bound_dimensions: ty.Tuple[str] = ()):
         """"""
         source_copy = deepcopy(source_copy_original)
         MC_data = source_copy.simulate(int(1e6))
 
-        do_computation = self.data.loc[(self.data['take_nearest_event'] == False) and (self.data['MC_bounds_validated'] == False)]
-
-        df_full = pd.concat([MC_data, do_computation])
+        df_full = pd.concat([MC_data, self.data[self.data['MC_bounds_validated'] == False]])
 
         observables_scaled = [(lambda x: (df_full[x] - np.mean(df_full[x])) / \
             np.std(df_full[x]))(x) for x in kd_tree_observables]
@@ -526,7 +530,7 @@ class BlockModelSource(fd.Source):
         initial_dimension_MC = MC_data[initial_dimension]
 
         for i in range(len(self.data)):
-            if (self.data.at[i, 'take_nearest_event'] == True) or (self.data.at[i, 'MC_bounds_validated'] == True):
+            if self.data.at[i, 'MC_bounds_validated'] == True:
                 continue
 
             initial_dimension_min = self.data.at[i, initial_dimension + '_min'] = min(initial_dimension_MC.iloc[ind[i]])
@@ -547,6 +551,7 @@ class BlockModelSource(fd.Source):
                 if (count > 3):
                     sufficient_stats = True
                     self.data.at[i, 'take_nearest_event'] = True
+                    self.data.at[i, 'MC_bounds_validated'] = True
                     continue
 
                 MC_data_small = source_copy.simulate(1000, fix_truth=fix_truth_df)
@@ -568,12 +573,19 @@ class BlockModelSource(fd.Source):
                 else:
                     self.data.at[i, x + '_mean_2'] = MC_data_small[x].mean()
                     self.data.at[i, x + '_std_2'] = MC_data_small[x].std()
-                    if (math.isclose(self.data.at[i, x + '_mean_1'], self.data.at[i, x + '_mean_2'])) \
-                    and (math.isclose(self.data.at[i, x + '_std_1'], self.data.at[i, x + '_std_2'])):
-                        self.data.at[i, x + '_min'] = 0
-                        self.data.at[i, x + '_mle'] = 1
-                        self.data.at[i, x + '_max'] = 2
+                    if (math.isclose(self.data.at[i, x + '_mean_1'], self.data.at[i, x + '_mean_2'],
+                        rel_tol = 0.2)) \
+                    and (math.isclose(self.data.at[i, x + '_std_1'], self.data.at[i, x + '_std_2'],
+                        rel_tol = 0.2)):
+                        mean_x = 0.5 * (self.data.at[i, x + '_mean_1'] + self.data.at[i, x + '_mean_2'])
+                        std_x = 0.5 * (self.data.at[i, x + '_std_1'] + self.data.at[i, x + '_std_2'])
+                        self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
+                        self.data.at[i, x + '_max'] = np.ceil(mean_x + self.max_sigma * std_x)
+                        self.data.at[i, x + '_mle'] = np.round(mean_x)
                         self.data.at[i, 'MC_bounds_validated'] = True
+                    else:
+                        self.data.at[i, x + '_mean_1'] = self.data.at[i, x + '_mean_2']
+                        self.data.at[i, x + '_std_1'] = self.data.at[i, x + '_std_2']
 
         # data_bounds = data[[i for i, x in enumerate(take_nearest_event) if not x]]
         # data_no_bounds = data[[i for i, x in enumerate(take_nearest_event) if x]]
