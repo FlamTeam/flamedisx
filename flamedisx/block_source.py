@@ -504,7 +504,6 @@ class BlockModelSource(fd.Source):
 
             if any (d['take_nearest_event']):
                 self.MC_bounds_nearest_events(('s1', 's2', 'r', 'z'), MC_bound_dimensions)
-                print(d['take_nearest_event'])
 
             for x in MC_bound_dimensions:
                 self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
@@ -536,6 +535,8 @@ class BlockModelSource(fd.Source):
 
         df_full = pd.concat([MC_data, self.data[self.data['MC_bounds_validated'] == False]])
         data_full = np.array(list(zip(*self.scale_observables(df_full, kd_tree_observables))))
+
+        print(len(self.data[self.data['MC_bounds_validated'] == False]))
 
         data = data_full[len(MC_data)::]
         data_MC = data_full[0:len(MC_data)]
@@ -588,9 +589,9 @@ class BlockModelSource(fd.Source):
                     self.data.at[i, x + '_mean_2'] = MC_data_small[x].mean()
                     self.data.at[i, x + '_std_2'] = MC_data_small[x].std()
                     if (math.isclose(self.data.at[i, x + '_mean_1'], self.data.at[i, x + '_mean_2'],
-                        rel_tol = 0.2)) \
+                        rel_tol = 0.5)) \
                     and (math.isclose(self.data.at[i, x + '_std_1'], self.data.at[i, x + '_std_2'],
-                        rel_tol = 0.2)):
+                        rel_tol = 0.5)):
                         mean_x = 0.5 * (self.data.at[i, x + '_mean_1'] + self.data.at[i, x + '_mean_2'])
                         std_x = 0.5 * (self.data.at[i, x + '_std_1'] + self.data.at[i, x + '_std_2'])
                         self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
@@ -606,8 +607,8 @@ class BlockModelSource(fd.Source):
     def MC_bounds_nearest_events(self, kd_tree_observables: ty.Tuple[str],
                                  MC_bound_dimensions: ty.Tuple[str] = ()):
         """"""
-        df_bounds = self.data[self.data['take_nearest_event'] == False]
-        df_no_bounds = self.data[self.data['take_nearest_event'] == True]
+        df_bounds = self.data[self.data['take_nearest_event'] == False].reset_index(drop=True)
+        df_no_bounds = self.data[self.data['take_nearest_event'] == True].reset_index(drop=True)
 
         df_full = pd.concat([df_bounds, df_no_bounds])
         data_full = np.array(list(zip(*self.scale_observables(df_full, kd_tree_observables))))
