@@ -602,7 +602,7 @@ class BlockModelSource(fd.Source):
                         self.data.at[i, x + '_mean_1'] = self.data.at[i, x + '_mean_2']
                         self.data.at[i, x + '_std_1'] = self.data.at[i, x + '_std_2']
                         self.data.at[i, 'MC_bounds_validated'] = False
-                        continue
+                        break
 
     def MC_bounds_nearest_events(self, kd_tree_observables: ty.Tuple[str],
                                  MC_bound_dimensions: ty.Tuple[str] = ()):
