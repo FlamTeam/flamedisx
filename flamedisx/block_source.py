@@ -504,11 +504,10 @@ class BlockModelSource(fd.Source):
 
             if any (d['take_nearest_event']):
                 self.MC_bounds_nearest_events(('s1', 's2', 'r', 'z'), MC_bound_dimensions)
+                print(d['take_nearest_event'])
 
             for x in MC_bound_dimensions:
                 self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
-                print(self.data[x + '_min'])
-                print(self.data[x + '_max'])
 
         for b in self.model_blocks[::-1]:
             if b.post_MC_annotate:
@@ -519,7 +518,7 @@ class BlockModelSource(fd.Source):
         observables_scaled = []
         for x in observables:
             if np.std(df[x]) < 1e-10:
-                observables_scaled.append(df[x])
+                observables_scaled.append(df[x] - df[x].mean())
             else:
                 observables_scaled.append((df[x] - df[x].mean()) / df[x].std())
 
@@ -540,9 +539,6 @@ class BlockModelSource(fd.Source):
 
         data = data_full[len(MC_data)::]
         data_MC = data_full[0:len(MC_data)]
-
-        print(len(data))
-        print(len(data_MC))
 
         tree = sklearn.neighbors.KDTree(data_MC)
         dist, ind = tree.query(data[::], k=10)
@@ -604,6 +600,8 @@ class BlockModelSource(fd.Source):
                     else:
                         self.data.at[i, x + '_mean_1'] = self.data.at[i, x + '_mean_2']
                         self.data.at[i, x + '_std_1'] = self.data.at[i, x + '_std_2']
+                        self.data.at[i, 'MC_bounds_validated'] = False
+                        continue
 
     def MC_bounds_nearest_events(self, kd_tree_observables: ty.Tuple[str],
                                  MC_bound_dimensions: ty.Tuple[str] = ()):
