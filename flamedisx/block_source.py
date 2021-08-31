@@ -559,39 +559,40 @@ class BlockModelSource(fd.Source):
                 setattr(source_copy, flat_attribute[0], tf.ones(flat_attribute[1], fd.float_type()))
             source_copy.setup_copy()
 
-            sufficient_stats = False
-            count = 0
+            MC_data_small = source_copy.simulate(1000, fix_truth=self.data.iloc[i])
+            for filter_dim in small_MC_filter_dimenions:
+                for suffix, comp in (('_min', operator.ge), ('_max', operator.le)):
+                    assert (filter_dim + suffix in self.data), \
+                        f"Bounds on filter dimension {filter_dim} not computed before MC_bounds"
+                    MC_data_small = MC_data_small.loc[comp(MC_data_small[filter_dim],
+                        self.data[filter_dim + suffix].iloc[i])]
 
-            while(not sufficient_stats):
-                if (count > 3):
-                    sufficient_stats = True
-                    self.data.at[i, 'take_nearest_event'] = True
-                    self.data.at[i, 'MC_bounds_validated'] = True
-                    continue
-
-                MC_data_small = source_copy.simulate(1000, fix_truth=self.data.iloc[i])
+            if (len(MC_data_small) < 10):
+                MC_data_small = source_copy.simulate(10000, fix_truth=self.data.iloc[i])
                 for filter_dim in small_MC_filter_dimenions:
                     for suffix, comp in (('_min', operator.ge), ('_max', operator.le)):
-                        assert (filter_dim + suffix in self.data), \
-                            f"Bounds on filter dimension {filter_dim} not computed before MC_bounds"
                         MC_data_small = MC_data_small.loc[comp(MC_data_small[filter_dim],
                             self.data[filter_dim + suffix].iloc[i])]
 
-                count += 1
-                if (len(MC_data_small) > 10):
-                    sufficient_stats = True
+                if (len(MC_data_small) < 10):
+                    self.data.at[i, 'take_nearest_event'] = True
+                    self.data.at[i, 'MC_bounds_validated'] = True
 
             for x in MC_bound_dimensions:
+                if self.data.at[i, 'take_nearest_event'] == True:
+                    break
+
                 if first_iteration:
                     self.data.at[i, x + '_mean_1'] = MC_data_small[x].mean()
                     self.data.at[i, x + '_std_1'] = MC_data_small[x].std()
                 else:
                     self.data.at[i, x + '_mean_2'] = MC_data_small[x].mean()
                     self.data.at[i, x + '_std_2'] = MC_data_small[x].std()
-                    if (math.isclose(self.data.at[i, x + '_mean_1'], self.data.at[i, x + '_mean_2'],
-                        rel_tol = 0.5)) \
-                    and (math.isclose(self.data.at[i, x + '_std_1'], self.data.at[i, x + '_std_2'],
-                        rel_tol = 0.5)):
+                    # if (math.isclose(self.data.at[i, x + '_mean_1'], self.data.at[i, x + '_mean_2'],
+                    #     rel_tol = 0.5)) \
+                    # and (math.isclose(self.data.at[i, x + '_std_1'], self.data.at[i, x + '_std_2'],
+                    #     rel_tol = 0.5)):
+                    if True:
                         mean_x = 0.5 * (self.data.at[i, x + '_mean_1'] + self.data.at[i, x + '_mean_2'])
                         std_x = 0.5 * (self.data.at[i, x + '_std_1'] + self.data.at[i, x + '_std_2'])
                         self.data.at[i, x + '_min'] = np.floor(mean_x - self.max_sigma * std_x)
