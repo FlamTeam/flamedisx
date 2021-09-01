@@ -50,10 +50,10 @@ class MakeS1Photoelectrons(fd.Block):
 
     def _annotate(self, d):
         out_mles = np.round(d['photoelectrons_detected_mle']).astype(int)
-        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
         ps = self.gimme_numpy('double_pe_fraction')
+        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
 
-        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, x, p in zip(out_mles, xs, ps)]
+        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
