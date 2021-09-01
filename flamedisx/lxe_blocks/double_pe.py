@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import stats
+import scipy.special as sp
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -48,11 +49,17 @@ class MakeS1Photoelectrons(fd.Block):
             p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
 
     def _annotate(self, d):
-        # TODO: this assumes the spread from the double PE effect is subdominant
-        dpe_fraction = self.gimme_numpy('double_pe_fraction')
-        for suffix, intify in (('min', np.floor),
-                               ('max', np.ceil),
-                               ('mle', lambda x: x)):
-            d['photons_detected_' + suffix] = \
-                intify(d['photoelectrons_detected_' + suffix].values
-                       / (1 + dpe_fraction))
+        out_mles = np.round(d['photoelectrons_detected_mle']).astype(int)
+        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
+        ps = self.gimme_numpy('double_pe_fraction')
+
+        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, x, p in zip(out_mles, xs, ps)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else np.ceil(out_mle / 2.).astype(int) for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+
+        d['photons_detected_mle'] = d['photoelectrons_detected_mle'].values / (1 + ps)
+        d['photons_detected_min'] = lower_lims
+        d['photons_detected_max'] = upper_lims
