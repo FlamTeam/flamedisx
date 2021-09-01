@@ -49,7 +49,7 @@ class MakeS1Photoelectrons(fd.Block):
             p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
 
     def _annotate(self, d):
-        out_mles = np.round(d['photoelectrons_detected_mle']).astype(int)
+        out_mles = np.round(d['photoelectrons_detected_min']).astype(int)
         ps = self.gimme_numpy('double_pe_fraction')
         xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
 
@@ -58,6 +58,15 @@ class MakeS1Photoelectrons(fd.Block):
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
         lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else np.ceil(out_mle / 2.).astype(int) for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+
+        out_mles = np.round(d['photoelectrons_detected_max']).astype(int)
+        ps = self.gimme_numpy('double_pe_fraction')
+        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
+
+        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
         upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
 
         d['photons_detected_mle'] = d['photoelectrons_detected_mle'].values / (1 + ps)
