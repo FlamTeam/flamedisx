@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import stats
+import scipy.special as sp
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -14,9 +15,9 @@ class MakeS2Photons(fd.Block):
 
     model_functions = ('electron_gain_mean', 'electron_gain_std')
 
-    MC_annotate = True
-
-    MC_annotate_dimensions = ('electrons_detected',)
+    # MC_annotate = True
+    #
+    # MC_annotate_dimensions = ('electrons_detected',)
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2_photons_produced):
@@ -48,16 +49,34 @@ class MakeS2Photons(fd.Block):
                    * self.gimme_numpy('electron_gain_std')))).astype(int)
 
     def _annotate(self, d):
-        m = self.gimme_numpy('electron_gain_mean')
-        s = self.gimme_numpy('electron_gain_std')
+        out_mles = np.round(d['s2_photons_produced_min']).astype(int)
+        means = self.gimme_numpy('electron_gain_mean') * np.ones(len(out_mles))
+        stds = self.gimme_numpy('electron_gain_std') * np.ones(len(out_mles))
+        xs = [np.arange(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1)).astype(int) for out_mle, mean in zip(out_mles, means)]
 
-        mle = d['electrons_detected_mle'] = \
-            (d['s2_photons_produced_mle'] / m).clip(0, None)
+        mus = [x * mean for x, mean in zip(xs, means)]
+        sigmas = [np.sqrt(x * std * std) for x, std in zip(xs, stds)]
 
-        scale = mle**0.5 * s / m
+        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            d['electrons_detected_' + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
+        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+
+        out_mles = np.round(d['s2_photons_produced_max']).astype(int)
+        means = self.gimme_numpy('electron_gain_mean') * np.ones(len(out_mles))
+        stds = self.gimme_numpy('electron_gain_std') * np.ones(len(out_mles))
+        xs = [np.arange(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1)).astype(int) for out_mle, mean in zip(out_mles, means)]
+
+        mus = [x * mean for x, mean in zip(xs, means)]
+        sigmas = [np.sqrt(x * std * std) for x, std in zip(xs, stds)]
+
+        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / mean * 10).astype(int) for x, cdf, out_mle, mean in zip(xs, cdfs, out_mles, means)]
+
+        d['electrons_detected_mle'] = d['s2_photons_produced_mle'] / means
+        d['electrons_detected_min'] = lower_lims
+        d['electrons_detected_max'] = upper_lims
