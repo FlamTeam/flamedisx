@@ -93,7 +93,7 @@ class DetectPhotonsOrElectrons(fd.Block):
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle, p in zip(xs, cdfs, out_mles, ps)]
 
         d[self.quanta_name + 's_produced_mle'] = d[self.quanta_name + 's_detected_mle'] / eff
         d[self.quanta_name + 's_produced_min'] = lower_lims
