@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import stats
+import scipy.special as sp
 import tensorflow as tf
 import tensorflow_probability as tfp
 
