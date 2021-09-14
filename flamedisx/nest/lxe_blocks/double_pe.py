@@ -49,7 +49,7 @@ class MakePhotoelectrons(fd.Block):
     def _annotate(self, d):
         out_mles = np.round(d[self.quanta_out_name + '_min']).astype(int)
         ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
+        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
 
         pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
@@ -59,7 +59,7 @@ class MakePhotoelectrons(fd.Block):
 
         out_mles = np.round(d[self.quanta_out_name + '_max']).astype(int)
         ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
+        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
 
         pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
@@ -112,7 +112,7 @@ class MakeS2Photoelectrons(MakePhotoelectrons):
     def _annotate(self, d):
         out_mles = np.round(d[self.quanta_out_name + '_min']).astype(int)
         ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
+        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
 
         mus = [x * p for x, p in zip(xs, ps)]
         sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]
@@ -125,7 +125,7 @@ class MakeS2Photoelectrons(MakePhotoelectrons):
 
         out_mles = np.round(d[self.quanta_out_name + '_max']).astype(int)
         ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
+        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
 
         mus = [x * p for x, p in zip(xs, ps)]
         sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]

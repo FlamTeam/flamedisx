@@ -52,7 +52,7 @@ class MakeS2Photons(fd.Block):
         out_mles = np.round(d['s2_photons_produced_min']).astype(int)
         means = self.gimme_numpy('electron_gain_mean') * np.ones(len(out_mles))
         stds = self.gimme_numpy('electron_gain_std') * np.ones(len(out_mles))
-        xs = [np.arange(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1)).astype(int) for out_mle, mean in zip(out_mles, means)]
+        xs = [np.linspace(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1), 1000).astype(int) for out_mle, mean in zip(out_mles, means)]
 
         mus = [x * mean for x, mean in zip(xs, means)]
         sigmas = [np.sqrt(x * std * std) for x, std in zip(xs, stds)]
@@ -66,7 +66,7 @@ class MakeS2Photons(fd.Block):
         out_mles = np.round(d['s2_photons_produced_max']).astype(int)
         means = self.gimme_numpy('electron_gain_mean') * np.ones(len(out_mles))
         stds = self.gimme_numpy('electron_gain_std') * np.ones(len(out_mles))
-        xs = [np.arange(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1)).astype(int) for out_mle, mean in zip(out_mles, means)]
+        xs = [np.linspace(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1), 1000).astype(int) for out_mle, mean in zip(out_mles, means)]
 
         mus = [x * mean for x, mean in zip(xs, means)]
         sigmas = [np.sqrt(x * std * std) for x, std in zip(xs, stds)]
