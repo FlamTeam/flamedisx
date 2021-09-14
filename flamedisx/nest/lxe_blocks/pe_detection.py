@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import stats
+import scipy.special as sp
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -40,19 +41,28 @@ class DetectS1Photoelectrons(fd.Block):
                 d['s1_photoelectrons_produced']))
 
     def _annotate(self, d):
-        # Estimate the mle of the detection probability via interpolation
-        _nprod_temp = np.logspace(-1., 8., 1000)
-        _pdet_temp = self.gimme_numpy(
-            'photoelectron_detection_eff',
-            _nprod_temp)
-        p_det_mle = np.interp(
-            d['s1_photoelectrons_detected_mle'],
-            _nprod_temp * _pdet_temp,
-            _pdet_temp)
-        # TODO: this assumes the spread from the PE detection efficiency is subdominant
-        # TODO: come back and fix thing with p_det_mle
-        for suffix, intify in (('min', np.floor),
-                               ('max', np.ceil),
-                               ('mle', np.round)):
-            d['s1_photoelectrons_produced_' + suffix] = \
-                intify(d['s1_photoelectrons_detected_' + suffix].values)
+        out_mles = np.round(d['s1_photoelectrons_detected_min']).astype(int)
+        xs = [np.arange(out_mle, out_mle * 10).astype(int) for out_mle in out_mles]
+
+        eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
+        ps = eff
+
+        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+
+        out_mles = np.round(d['s1_photoelectrons_detected_max']).astype(int)
+        ps = eff
+        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
+
+        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle, p in zip(xs, cdfs, out_mles, ps)]
+
+        d['s1_photoelectrons_produced_mle'] = d['s1_photoelectrons_detected_mle'] / eff
+        d['s1_photoelectrons_produced_min'] = lower_lims
+        d['s1_photoelectrons_produced_max'] = upper_lims
