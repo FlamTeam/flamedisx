@@ -54,15 +54,29 @@ class DetectS1Photoelectrons(fd.Block):
         lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
 
         out_mles = np.round(d['s1_photoelectrons_detected_max']).astype(int)
+        xs = [np.arange(out_mle, out_mle * 10).astype(int) for out_mle in out_mles]
+
+        eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
         ps = eff
-        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
 
         pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle, p in zip(xs, cdfs, out_mles, ps)]
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle * 10 for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
 
-        d['s1_photoelectrons_produced_mle'] = d['s1_photoelectrons_detected_mle'] / eff
+        out_mles = np.round(d['s1_photoelectrons_detected_mle']).astype(int)
+        xs = [np.arange(out_mle, out_mle * 10).astype(int) for out_mle in out_mles]
+
+        eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
+        ps = eff
+
+        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        mles = [x[np.argmin(np.abs(cdf - 0.5))] for x, cdf in zip(xs, cdfs)]
+
+        d['s1_photoelectrons_produced_mle'] = mles
         d['s1_photoelectrons_produced_min'] = lower_lims
         d['s1_photoelectrons_produced_max'] = upper_lims
