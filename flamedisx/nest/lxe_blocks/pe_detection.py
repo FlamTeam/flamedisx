@@ -42,7 +42,7 @@ class DetectS1Photoelectrons(fd.Block):
 
     def _annotate(self, d):
         out_mles = np.round(d['s1_photoelectrons_detected_min']).astype(int)
-        xs = [np.arange(out_mle, out_mle * 10).astype(int) for out_mle in out_mles]
+        xs = [np.linspace(out_mle, out_mle * 2, 1000).astype(int) for out_mle in out_mles]
 
         eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
         ps = eff
@@ -54,7 +54,7 @@ class DetectS1Photoelectrons(fd.Block):
         lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
 
         out_mles = np.round(d['s1_photoelectrons_detected_max']).astype(int)
-        xs = [np.arange(out_mle, out_mle * 10).astype(int) for out_mle in out_mles]
+        xs = [np.linspace(out_mle, out_mle * 2, 1000).astype(int) for out_mle in out_mles]
 
         eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
         ps = eff
@@ -66,7 +66,7 @@ class DetectS1Photoelectrons(fd.Block):
         upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle * 10 for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
 
         out_mles = np.round(d['s1_photoelectrons_detected_mle']).astype(int)
-        xs = [np.arange(out_mle, out_mle * 10).astype(int) for out_mle in out_mles]
+        xs = [np.linspace(out_mle, out_mle * 2, 1000).astype(int) for out_mle in out_mles]
 
         eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
         ps = eff

@@ -2,6 +2,7 @@ import typing as ty
 
 import numpy as np
 from scipy import stats
+import scipy.special as sp
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -80,21 +81,29 @@ class DetectPhotonsOrElectrons(fd.Block):
                              "detection efficiency: did you apply and "
                              "configure your cuts correctly?")
 
-        # Estimate produced quanta
-        n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
-            d[self.quanta_name + 's_detected_mle'] / eff
+        out_mles = np.round(d[self.quanta_name + 's_detected_mle']).astype(int)
+        ps = eff
+        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
 
-        # Estimating the spread in number of produced quanta is tricky since
-        # the number of detected quanta is itself uncertain.
-        # TODO: where did this derivation come from again?
-        q = (1 - eff) / eff
-        _std = (q + (q ** 2 + 4 * n_prod_mle * q) ** 0.5) / 2
+        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            d[self.quanta_name + 's_produced_' + bound] = intify(
-                n_prod_mle + sign * self.source.max_sigma * _std
-            ).clip(0, None).astype(np.int)
+        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+
+        out_mles = np.round(d[self.quanta_name + 's_detected_mle']).astype(int)
+        ps = eff
+        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
+
+        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle, p in zip(xs, cdfs, out_mles, ps)]
+
+        d[self.quanta_name + 's_produced_mle'] = d[self.quanta_name + 's_detected_mle'] / eff
+        d[self.quanta_name + 's_produced_min'] = lower_lims
+        d[self.quanta_name + 's_produced_max'] = upper_lims
 
 
 @export
@@ -105,9 +114,9 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     model_functions = ('photon_detection_eff',
                        's1_posDependence') + special_model_functions
 
-    MC_annotate = True
-
-    MC_annotate_dimensions = ('photons_produced',)
+    # MC_annotate = True
+    #
+    # MC_annotate_dimensions = ('photons_produced',)
 
     def s1_posDependence(self, r, z):
         """
@@ -137,9 +146,9 @@ class DetectElectrons(DetectPhotonsOrElectrons):
     special_model_functions = ('electron_acceptance',)
     model_functions = ('electron_detection_eff',) + special_model_functions
 
-    MC_annotate = True
-
-    MC_annotate_dimensions = ('electrons_produced',)
+    # MC_annotate = True
+    #
+    # MC_annotate_dimensions = ('electrons_produced',)
 
     electron_acceptance = 1.
 
@@ -151,6 +160,39 @@ class DetectElectrons(DetectPhotonsOrElectrons):
                                 quanta_detected=electrons_detected,
                                 data_tensor=data_tensor, ptensor=ptensor)
 
+    def _annotate(self, d):
+        eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
+
+        out_mles = np.round(d[self.quanta_name + 's_detected_min']).astype(int)
+        ps = eff
+        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
+
+        mus = [x * p for x, p in zip(xs, ps)]
+        sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]
+
+        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+
+        out_mles = np.round(d[self.quanta_name + 's_detected_max']).astype(int)
+        ps = eff
+        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
+
+        mus = [x * p for x, p in zip(xs, ps)]
+        sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]
+
+        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle, p in zip(xs, cdfs, out_mles, ps)]
+
+        d[self.quanta_name + 's_produced_mle'] = d[self.quanta_name + 's_detected_mle'] / eff
+        d[self.quanta_name + 's_produced_min'] = lower_lims
+        d[self.quanta_name + 's_produced_max'] = upper_lims
+
 
 @export
 class DetectS2Photons(DetectPhotonsOrElectrons):
@@ -160,9 +202,9 @@ class DetectS2Photons(DetectPhotonsOrElectrons):
     model_functions = ('s2_photon_detection_eff',
                        's2_posDependence') + special_model_functions
 
-    MC_annotate = True
-
-    MC_annotate_dimensions = ('s2_photons_produced',)
+    # MC_annotate = True
+    #
+    # MC_annotate_dimensions = ('s2_photons_produced',)
 
     def s2_posDependence(self, r):
         """
@@ -179,3 +221,36 @@ class DetectS2Photons(DetectPhotonsOrElectrons):
         return super()._compute(quanta_produced=s2_photons_produced,
                                 quanta_detected=s2_photons_detected,
                                 data_tensor=data_tensor, ptensor=ptensor)
+
+    def _annotate(self, d):
+        eff = self.gimme_numpy(self.quanta_name + '_detection_eff') * self.gimme_numpy('s2_posDependence')
+
+        out_mles = np.round(d[self.quanta_name + 's_detected_min']).astype(int)
+        ps = eff
+        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
+
+        mus = [x * p for x, p in zip(xs, ps)]
+        sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]
+
+        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
+
+        out_mles = np.round(d[self.quanta_name + 's_detected_max']).astype(int)
+        ps = eff
+        xs = [np.linspace(out_mle, np.ceil(out_mle / p * 10), 1000).astype(int) for out_mle, p in zip(out_mles, ps)]
+
+        mus = [x * p for x, p in zip(xs, ps)]
+        sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]
+
+        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle, p in zip(xs, cdfs, out_mles, ps)]
+
+        d[self.quanta_name + 's_produced_mle'] = d[self.quanta_name + 's_detected_mle'] / eff
+        d[self.quanta_name + 's_produced_min'] = lower_lims
+        d[self.quanta_name + 's_produced_max'] = upper_lims
