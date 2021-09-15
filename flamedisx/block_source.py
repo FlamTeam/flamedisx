@@ -201,7 +201,7 @@ class Block:
             return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
 
         pdfs = [normal(rv_normal, mu_normal, sigma_normal)
-                for rv_normal, mu, sigma in zip(rvs_normal, mus_normal, sigmas_normal)]
+                for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
