@@ -7,6 +7,7 @@ import sklearn.neighbors
 import tensorflow as tf
 import pandas as pd
 import math
+import scipy.special as sp
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -151,6 +152,56 @@ class Block:
             assert np.all(d[f'{dim}_min'].values
                           <= d[f'{dim}_max'].values), \
                 f"_annotate of {self} set misordered bounds"
+
+    def bayes_bounds_binomial(self, df, in_dim, supports, ns_binom, ps_binom, rvs_binom, bound):
+        """"""
+        assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
+
+        pdfs = [sp.binom(n_binom, rv_binom) * pow(p_binom, rv_binom) * pow(1. - p_binom, n_binom - rv_binom)
+                for n_binom, p_binom, rv_binom in zip(ns_binom, ps_binom, rvs_binom)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        if bound == 'lower':
+            lower_lims = [support[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0
+                          else support[0]
+                          for support, cdf in zip(supports, cdfs)]
+            df[in_dim + '_min'] = lower_lims
+
+        elif bound == 'upper':
+            upper_lims = [support[np.where(cdf > 1. - 0.00135)[0][0]] if len(np.where(cdf > 1. - 0.00135)[0]) > 0
+                          else support[-1]
+                          for support, cdf in zip(supports, cdfs)]
+            df[in_dim + '_max'] = upper_lims
+
+        elif bound == 'mle':
+            mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
+            df[in_dim + '_mle'] = mles
+
+    def bayes_bounds_normal(self, df, in_dim, supports, mus_normal, sigmas_normal, rvs_normal, bound):
+        """"""
+        assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
+
+        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (rv_normal - mu)**2 / sigma**2)
+                for mu, sigma, rv_normal in zip(mus_normal, sigmas_normal, rvs_normal)]
+        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+        cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+        if bound == 'lower':
+            lower_lims = [support[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0
+                          else support[0]
+                          for support, cdf in zip(supports, cdfs)]
+            df[in_dim + '_min'] = lower_lims
+
+        elif bound == 'upper':
+            upper_lims = [support[np.where(cdf > 1. - 0.00135)[0][0]] if len(np.where(cdf > 1. - 0.00135)[0]) > 0
+                          else support[-1]
+                          for support, cdf in zip(supports, cdfs)]
+            df[in_dim + '_max'] = upper_lims
+
+        elif bound == 'mle':
+            mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
+            df[in_dim + '_mle'] = mles
 
     def check_data(self):
         pass

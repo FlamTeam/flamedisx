@@ -47,29 +47,17 @@ class MakePhotoelectrons(fd.Block):
             p=self.gimme_numpy('double_pe_fraction')) + d[self.quanta_in_name]
 
     def _annotate(self, d):
-        out_mles = np.round(d[self.quanta_out_name + '_min']).astype(int)
-        ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
+        for suffix, bound in (('_min', 'lower'),
+                               ('_max', 'upper'),
+                               ('_mle', 'mle')):
+            out_bounds = d[self.quanta_out_name + suffix]
+            supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int) for out_bound in out_bounds]
+            ns = supports
+            ps = self.gimme_numpy('double_pe_fraction')
+            rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
 
-        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else np.ceil(out_mle / 2.).astype(int) for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        out_mles = np.round(d[self.quanta_out_name + '_max']).astype(int)
-        ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
-
-        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        d[self.quanta_in_name + '_mle'] = d[self.quanta_out_name + '_mle'].values / (1 + ps)
-        d[self.quanta_in_name + '_min'] = lower_lims
-        d[self.quanta_in_name + '_max'] = upper_lims
+            self.bayes_bounds_binomial(d, self.quanta_in_name, supports=supports, ns_binom=ns,
+                                       ps_binom=ps, rvs_binom=rvs, bound=bound)
 
 
 @export
