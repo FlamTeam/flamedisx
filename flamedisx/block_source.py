@@ -153,12 +153,27 @@ class Block:
                           <= d[f'{dim}_max'].values), \
                 f"_annotate of {self} set misordered bounds"
 
-    def bayes_bounds_binomial(self, df, in_dim, supports, ns_binom, ps_binom, rvs_binom, bound):
+    def bayes_bounds_binomial(self, df, in_dim, supports, rvs_binom, ns_binom, ps_binom, bound):
         """"""
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
 
-        pdfs = [sp.binom(n_binom, rv_binom) * pow(p_binom, rv_binom) * pow(1. - p_binom, n_binom - rv_binom)
-                for n_binom, p_binom, rv_binom in zip(ns_binom, ps_binom, rvs_binom)]
+        def binom(x, n, p):
+            return sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
+
+        def binom_approx(x, n, p):
+            mu = n * p
+            sigma = np.sqrt(n * p * (1. - p))
+            return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+
+        def approx_cond(n, p):
+            if (n * p > 9. * (1. - p)).all() and (n * (1. - p) > 9. * p).all():
+                return True
+            else:
+                return False
+
+        pdfs = [binom_approx(rv_binom, n_binom, p_binom) if approx_cond(n_binom, p_binom)
+                else binom(rv_binom, n_binom, p_binom)
+                for rv_binom, n_binom, p_binom in zip(rvs_binom, ns_binom, ps_binom)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
@@ -178,12 +193,15 @@ class Block:
             mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
             df[in_dim + '_mle'] = mles
 
-    def bayes_bounds_normal(self, df, in_dim, supports, mus_normal, sigmas_normal, rvs_normal, bound):
+    def bayes_bounds_normal(self, df, in_dim, supports, rvs_normal, mus_normal, sigmas_normal, bound):
         """"""
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
 
-        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (rv_normal - mu)**2 / sigma**2)
-                for mu, sigma, rv_normal in zip(mus_normal, sigmas_normal, rvs_normal)]
+        def normal(x, mu, sigma):
+            return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+
+        pdfs = [normal(rv_normal, mu_normal, sigma_normal)
+                for rv_normal, mu, sigma in zip(rvs_normal, mus_normal, sigmas_normal)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
