@@ -50,8 +50,7 @@ class MakeS2Photons(fd.Block):
 
     def _annotate(self, d):
         for suffix, bound in (('_min', 'lower'),
-                               ('_max', 'upper'),
-                               ('_mle', 'mle')):
+                               ('_max', 'upper')):
             out_bounds = d['s2_photons_produced' + suffix]
             supports = [np.linspace(np.floor(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 0.9),
                         np.ceil(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 1.1), 1000).astype(int)

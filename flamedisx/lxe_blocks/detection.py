@@ -75,29 +75,18 @@ class DetectPhotonsOrElectrons(fd.Block):
                              "detection efficiency: did you apply and "
                              "configure your cuts correctly?")
 
-        out_mles = np.round(d[self.quanta_name + 's_detected_min']).astype(int)
-        ps = eff
-        xs = [np.arange(out_mle, np.ceil(out_mle / p * 10)).astype(int) for out_mle, p in zip(out_mles, ps)]
+        for suffix, bound in (('_min', 'lower'),
+                               ('_max', 'upper'),
+                               ('_mle', 'mle')):
+            out_bounds = d[self.quanta_name + 's_detected' + suffix]
+            supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10),
+                                                       1000).astype(int) for out_bound, eff in zip(out_bounds, eff)]
+            ns = supports
+            ps = eff
+            rvs = out_bounds
 
-        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        out_mles = np.round(d[self.quanta_name + 's_detected_max']).astype(int)
-        ps = eff
-        xs = [np.arange(out_mle, np.ceil(out_mle / p * 10)).astype(int) for out_mle, p in zip(out_mles, ps)]
-
-        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / p * 10).astype(int) for x, cdf, out_mle, p in zip(xs, cdfs, out_mles, ps)]
-
-        d[self.quanta_name + 's_produced_mle'] = d[self.quanta_name + 's_detected_mle'] / eff
-        d[self.quanta_name + 's_produced_min'] = lower_lims
-        d[self.quanta_name + 's_produced_max'] = upper_lims
+            self.bayes_bounds_binomial(d, self.quanta_name + 's_produced', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
 
 
 @export
