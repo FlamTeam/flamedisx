@@ -56,8 +56,8 @@ class MakePhotoelectrons(fd.Block):
             ps = self.gimme_numpy('double_pe_fraction')
             rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
 
-            self.bayes_bounds_binomial(d, self.quanta_in_name, supports=supports, ns_binom=ns,
-                                       ps_binom=ps, rvs_binom=rvs, bound=bound)
+            self.bayes_bounds_binomial(d, self.quanta_in_name, supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
 
 
 @export
@@ -96,34 +96,3 @@ class MakeS2Photoelectrons(MakePhotoelectrons):
             quanta_in=s2_photons_detected,
             quanta_out=s2_photoelectrons_detected,
             data_tensor=data_tensor, ptensor=ptensor)
-
-    def _annotate(self, d):
-        out_mles = np.round(d[self.quanta_out_name + '_min']).astype(int)
-        ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
-
-        mus = [x * p for x, p in zip(xs, ps)]
-        sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]
-
-        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - x - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else np.ceil(out_mle / 2.).astype(int) for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        out_mles = np.round(d[self.quanta_out_name + '_max']).astype(int)
-        ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.linspace(np.ceil(out_mle / 2.), out_mle + 1., 1000).astype(int) for out_mle in out_mles]
-
-        mus = [x * p for x, p in zip(xs, ps)]
-        sigmas = [np.sqrt(x * p * (1 - p)) for x, p in zip(xs, ps)]
-
-        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - x - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        d[self.quanta_in_name + '_mle'] = d[self.quanta_out_name + '_mle'].values / (1 + ps)
-        d[self.quanta_in_name + '_min'] = lower_lims
-        d[self.quanta_in_name + '_max'] = upper_lims
