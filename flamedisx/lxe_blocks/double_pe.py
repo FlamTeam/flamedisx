@@ -49,26 +49,14 @@ class MakeS1Photoelectrons(fd.Block):
             p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
 
     def _annotate(self, d):
-        out_mles = np.round(d['photoelectrons_detected_min']).astype(int)
-        ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
+        for suffix, bound in (('_min', 'lower'),
+                               ('_max', 'upper'),
+                               ('_mle', 'mle')):
+            out_bounds = d['photoelectrons_detected' + suffix]
+            supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int) for out_bound in out_bounds]
+            ns = supports
+            ps = self.gimme_numpy('double_pe_fraction')
+            rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
 
-        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else np.ceil(out_mle / 2.).astype(int) for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        out_mles = np.round(d['photoelectrons_detected_max']).astype(int)
-        ps = self.gimme_numpy('double_pe_fraction')
-        xs = [np.arange(np.ceil(out_mle / 2.), out_mle + 1.).astype(int) for out_mle in out_mles]
-
-        pdfs = [sp.binom(x, out_mle - x) * pow(p, out_mle - x) * pow(1. - p, 2. * x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        d['photons_detected_mle'] = d['photoelectrons_detected_mle'].values / (1 + ps)
-        d['photons_detected_min'] = lower_lims
-        d['photons_detected_max'] = upper_lims
+            self.bayes_bounds_binomial(d, 'photons_detected', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)

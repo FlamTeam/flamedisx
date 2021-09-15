@@ -48,8 +48,7 @@ class MakePhotoelectrons(fd.Block):
 
     def _annotate(self, d):
         for suffix, bound in (('_min', 'lower'),
-                               ('_max', 'upper'),
-                               ('_mle', 'mle')):
+                               ('_max', 'upper')):
             out_bounds = d[self.quanta_out_name + suffix]
             supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int) for out_bound in out_bounds]
             ns = supports
