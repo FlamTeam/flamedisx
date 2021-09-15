@@ -49,34 +49,16 @@ class MakeS2Photons(fd.Block):
                    * self.gimme_numpy('electron_gain_std')))).astype(int)
 
     def _annotate(self, d):
-        out_mles = np.round(d['s2_photons_produced_min']).astype(int)
-        means = self.gimme_numpy('electron_gain_mean') * np.ones(len(out_mles))
-        stds = self.gimme_numpy('electron_gain_std') * np.ones(len(out_mles))
-        xs = [np.linspace(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1), 1000).astype(int) for out_mle, mean in zip(out_mles, means)]
+        for suffix, bound in (('_min', 'lower'),
+                               ('_max', 'upper'),
+                               ('_mle', 'mle')):
+            out_bounds = d['s2_photons_produced' + suffix]
+            supports = [np.linspace(np.floor(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 0.9),
+                        np.ceil(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 1.1), 1000).astype(int)
+                        for out_bound in out_bounds]
+            mus = supports * self.gimme_numpy('electron_gain_mean')
+            sigmas = np.sqrt(supports * self.gimme_numpy('electron_gain_std')**2)
+            rvs = out_bounds
 
-        mus = [x * mean for x, mean in zip(xs, means)]
-        sigmas = [np.sqrt(x * std * std) for x, std in zip(xs, stds)]
-
-        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        out_mles = np.round(d['s2_photons_produced_max']).astype(int)
-        means = self.gimme_numpy('electron_gain_mean') * np.ones(len(out_mles))
-        stds = self.gimme_numpy('electron_gain_std') * np.ones(len(out_mles))
-        xs = [np.linspace(np.floor(out_mle / mean * 0.9), np.ceil(out_mle / mean * 1.1), 1000).astype(int) for out_mle, mean in zip(out_mles, means)]
-
-        mus = [x * mean for x, mean in zip(xs, means)]
-        sigmas = [np.sqrt(x * std * std) for x, std in zip(xs, stds)]
-
-        pdfs = [(1 / np.sqrt(sigma)) * np.exp(-0.5 * (out_mle - mu)**2 / sigma**2) for mu, sigma, out_mle, x in zip(mus, sigmas, out_mles, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else np.ceil(out_mle / mean * 10).astype(int) for x, cdf, out_mle, mean in zip(xs, cdfs, out_mles, means)]
-
-        d['electrons_detected_mle'] = d['s2_photons_produced_mle'] / means
-        d['electrons_detected_min'] = lower_lims
-        d['electrons_detected_max'] = upper_lims
+            self.bayes_bounds_normal(d, 'electrons_detected', supports=supports, mus_normal=mus,
+                                       sigmas_normal=sigmas, rvs_normal=rvs, bound=bound)
