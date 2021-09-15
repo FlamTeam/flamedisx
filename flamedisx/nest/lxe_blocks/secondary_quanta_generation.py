@@ -60,5 +60,5 @@ class MakeS2Photons(fd.Block):
             sigmas = np.sqrt(supports * self.gimme_numpy('electron_gain_std')**2)
             rvs = out_bounds
 
-            self.bayes_bounds_normal(d, 'electrons_detected', supports=supports, mus_normal=mus,
-                                       sigmas_normal=sigmas, rvs_normal=rvs, bound=bound)
+            self.bayes_bounds_normal(d, 'electrons_detected', supports=supports,
+                                     rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)
