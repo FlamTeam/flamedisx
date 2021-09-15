@@ -41,42 +41,15 @@ class DetectS1Photoelectrons(fd.Block):
                 d['s1_photoelectrons_produced']))
 
     def _annotate(self, d):
-        out_mles = np.round(d['s1_photoelectrons_detected_min']).astype(int)
-        xs = [np.linspace(out_mle, out_mle * 2, 1000).astype(int) for out_mle in out_mles]
+        for suffix, bound in (('_min', 'lower'),
+                               ('_max', 'upper'),
+                               ('_mle', 'mle')):
+            out_bounds = d['s1_photoelectrons_detected' + suffix]
+            supports = [np.linspace(out_bound, out_bound * 2., 1000).astype(int)
+                        for out_bound in out_bounds]
+            ns = supports
+            ps = [self.gimme_numpy('photoelectron_detection_eff', support) for support in supports]
+            rvs = out_bounds
 
-        eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
-        ps = eff
-
-        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        lower_lims = [x[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0 else out_mle for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        out_mles = np.round(d['s1_photoelectrons_detected_max']).astype(int)
-        xs = [np.linspace(out_mle, out_mle * 2, 1000).astype(int) for out_mle in out_mles]
-
-        eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
-        ps = eff
-
-        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        upper_lims = [x[np.where(cdf > (1. - 0.00135))[0][0]] if len(np.where(cdf > (1. - 0.00135))[0]) > 0 else out_mle * 10 for x, cdf, out_mle in zip(xs, cdfs, out_mles)]
-
-        out_mles = np.round(d['s1_photoelectrons_detected_mle']).astype(int)
-        xs = [np.linspace(out_mle, out_mle * 2, 1000).astype(int) for out_mle in out_mles]
-
-        eff = [self.gimme_numpy('photoelectron_detection_eff', x) for x in xs]
-        ps = eff
-
-        pdfs = [sp.binom(x, out_mle) * pow(p, out_mle) * pow(1. - p, x - out_mle) for out_mle, p, x in zip(out_mles, ps, xs)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        mles = [x[np.argmin(np.abs(cdf - 0.5))] for x, cdf in zip(xs, cdfs)]
-
-        d['s1_photoelectrons_produced_mle'] = mles
-        d['s1_photoelectrons_produced_min'] = lower_lims
-        d['s1_photoelectrons_produced_max'] = upper_lims
+            self.bayes_bounds_binomial(d, 's1_photoelectrons_produced', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
