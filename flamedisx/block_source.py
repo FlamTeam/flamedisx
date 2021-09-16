@@ -156,25 +156,28 @@ class Block:
     def bayes_bounds_binomial(self, df, in_dim, supports, rvs_binom, ns_binom, ps_binom, bound):
         """"""
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
+        assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom)), \
+            "Shapes of rvs_binom, ns_binom and ps_binom must be equal"
 
-        def binom(x, n, p):
-            result = sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
-            return [result_num if not np.isnan(result_num) else 0. for result_num in result]
-
-        def binom_approx(x, n, p):
+        def binomial(x, n, p):
             mu = n * p
             sigma = np.sqrt(n * p * (1. - p))
-            result = (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
-            return [result_num if not np.isnan(result_num) else 0. for result_num in result]
+            result = [(1 / np.sqrt(sigma_i)) * np.exp(-0.5 * (x_i - mu_i)**2 / sigma_i**2)
+                      if approx_cond(n_i, p_i)
+                      else sp.binom(n_i, x_i) * pow(p_i, x_i) * pow(1. - p_i, n_i - x_i)
+                      if not p_i == 1.
+                      else
+                      float(n_i == x_i)
+                      for x_i, n_i, p_i, mu_i, sigma_i in zip(x, n, p, mu, sigma)]
+            return result
 
         def approx_cond(n, p):
-            if (n * p > 9. * (1. - p)).all() and (n * (1. - p) > 9. * p).all():
+            if (n * p > 9. * (1. - p)) and (n * (1. - p) > 9. * p):
                 return True
             else:
                 return False
 
-        pdfs = [binom_approx(rv_binom, n_binom, p_binom) if approx_cond(n_binom, p_binom)
-                else binom(rv_binom, n_binom, p_binom)
+        pdfs = [binomial(rv_binom, n_binom, p_binom)
                 for rv_binom, n_binom, p_binom in zip(rvs_binom, ns_binom, ps_binom)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
@@ -198,10 +201,12 @@ class Block:
     def bayes_bounds_normal(self, df, in_dim, supports, rvs_normal, mus_normal, sigmas_normal, bound):
         """"""
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
+        assert (np.shape(rvs_normal) == np.shape(mus_normal) == np.shape(sigmas_normal)), \
+            "Shapes of rvs_normal, mus_normal and sigmas_normal must be equal"
 
         def normal(x, mu, sigma):
             result = (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
-            return [result_num if not np.isnan(result_num) else 0. for result_num in result]
+            return result
 
         pdfs = [normal(rv_normal, mu_normal, sigma_normal)
                 for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]

@@ -48,7 +48,7 @@ class DetectS1Photoelectrons(fd.Block):
                         for out_bound in out_bounds]
             ns = supports
             ps = [self.gimme_numpy('photoelectron_detection_eff', support) for support in supports]
-            rvs = out_bounds
+            rvs = [out_bound * np.ones_like(support) for out_bound, support in zip (out_bounds, supports)]
 
             self.bayes_bounds_binomial(d, 's1_photoelectrons_produced', supports=supports,
                                        rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)

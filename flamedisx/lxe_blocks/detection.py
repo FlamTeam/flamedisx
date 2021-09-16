@@ -64,13 +64,13 @@ class DetectPhotonsOrElectrons(fd.Block):
 
     def _annotate(self, d):
         # Get efficiency
-        eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
+        effs = self.gimme_numpy(self.quanta_name + '_detection_eff')
         if self.quanta_name == 'photon':
-            eff *= self.gimme_numpy('penning_quenching_eff',
-                                    d['photons_detected_mle'].values / eff)
+            effs *= self.gimme_numpy('penning_quenching_eff',
+                                    d['photons_detected_mle'].values / effs)
 
         # Check for bad efficiencies
-        if self.check_efficiencies and np.any(eff <= 0):
+        if self.check_efficiencies and np.any(effs <= 0):
             raise ValueError(f"Found event with nonpositive {self.quanta_name} "
                              "detection efficiency: did you apply and "
                              "configure your cuts correctly?")
@@ -80,10 +80,10 @@ class DetectPhotonsOrElectrons(fd.Block):
                                ('_mle', 'mle')):
             out_bounds = d[self.quanta_name + 's_detected' + suffix]
             supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10),
-                                                       1000).astype(int) for out_bound, eff in zip(out_bounds, eff)]
+                                                       1000).astype(int) for out_bound, eff in zip(out_bounds, effs)]
             ns = supports
-            ps = eff
-            rvs = out_bounds
+            ps = [eff * np.ones_like(support) for eff, support in zip(effs, supports)]
+            rvs = [out_bound * np.ones_like(support) for out_bound, support in zip (out_bounds, supports)]
 
             self.bayes_bounds_binomial(d, self.quanta_name + 's_produced', supports=supports,
                                        rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
