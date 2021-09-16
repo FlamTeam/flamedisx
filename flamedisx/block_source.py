@@ -158,12 +158,14 @@ class Block:
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
 
         def binom(x, n, p):
-            return sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
+            result = sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
+            return [result_num if not np.isnan(result_num) else 0. for result_num in result]
 
         def binom_approx(x, n, p):
             mu = n * p
             sigma = np.sqrt(n * p * (1. - p))
-            return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+            result = (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+            return [result_num if not np.isnan(result_num) else 0. for result_num in result]
 
         def approx_cond(n, p):
             if (n * p > 9. * (1. - p)).all() and (n * (1. - p) > 9. * p).all():
@@ -198,7 +200,8 @@ class Block:
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
 
         def normal(x, mu, sigma):
-            return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+            result = (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+            return [result_num if not np.isnan(result_num) else 0. for result_num in result]
 
         pdfs = [normal(rv_normal, mu_normal, sigma_normal)
                 for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
