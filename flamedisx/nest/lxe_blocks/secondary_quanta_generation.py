@@ -57,7 +57,7 @@ class MakeS2Photons(fd.Block):
                         for out_bound in out_bounds]
             mus = supports * self.gimme_numpy('electron_gain_mean')
             sigmas = np.sqrt(supports * self.gimme_numpy('electron_gain_std')**2)
-            rvs = out_bounds
+            rvs = [out_bound * np.ones_like(support) for out_bound, support in zip (out_bounds, supports)]
 
             self.bayes_bounds_normal(d, 'electrons_detected', supports=supports,
                                      rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)

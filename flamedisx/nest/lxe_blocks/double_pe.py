@@ -52,7 +52,7 @@ class MakePhotoelectrons(fd.Block):
             out_bounds = d[self.quanta_out_name + suffix]
             supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int) for out_bound in out_bounds]
             ns = supports
-            ps = self.gimme_numpy('double_pe_fraction')
+            ps = [p * np.ones_like(support) for p, support in zip(self.gimme_numpy('double_pe_fraction'), supports)]
             rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
 
             self.bayes_bounds_binomial(d, self.quanta_in_name, supports=supports,
