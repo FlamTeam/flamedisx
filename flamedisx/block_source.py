@@ -162,20 +162,24 @@ class Block:
         def binomial(x, n, p):
             mu = n * p
             sigma = np.sqrt(n * p * (1. - p))
-            result = [(1 / np.sqrt(sigma_i)) * np.exp(-0.5 * (x_i - mu_i)**2 / sigma_i**2)
-                      if approx_cond(n_i, p_i)
-                      else sp.binom(n_i, x_i) * pow(p_i, x_i) * pow(1. - p_i, n_i - x_i)
-                      if not p_i == 1.
-                      else
-                      float(n_i == x_i)
-                      for x_i, n_i, p_i, mu_i, sigma_i in zip(x, n, p, mu, sigma)]
+            condlist = [approx_cond(n, p), peak_cond(p), np.invert(peak_cond(p))]
+            result = np.select(condlist,
+                               [binom_approx(x, mu, sigma),
+                                np.equal(n, x),
+                                binom(x, n, p)])
             return result
 
+        def binom_approx(x, mu, sigma):
+            return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+
+        def binom(x, n, p):
+            return sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
+
         def approx_cond(n, p):
-            if (n * p > 9. * (1. - p)) and (n * (1. - p) > 9. * p):
-                return True
-            else:
-                return False
+            return np.where(np.logical_and(n * p > 9. * (1. - p), n * (1. - p) > 9. * p), True, False)
+
+        def peak_cond(p):
+            return np.where(p == 1., True, False)
 
         pdfs = [binomial(rv_binom, n_binom, p_binom)
                 for rv_binom, n_binom, p_binom in zip(rvs_binom, ns_binom, ps_binom)]
