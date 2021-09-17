@@ -102,10 +102,6 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     model_functions = ('photon_detection_eff',
                        's1_posDependence') + special_model_functions
 
-    # MC_annotate = True
-    #
-    # MC_annotate_dimensions = ('photons_produced',)
-
     def s1_posDependence(self, r, z):
         """
         Override for specific detector.
@@ -134,10 +130,6 @@ class DetectElectrons(DetectPhotonsOrElectrons):
     special_model_functions = ('electron_acceptance',)
     model_functions = ('electron_detection_eff',) + special_model_functions
 
-    # MC_annotate = True
-    #
-    # MC_annotate_dimensions = ('electrons_produced',)
-
     electron_acceptance = 1.
 
     quanta_name = 'electron'
@@ -156,10 +148,6 @@ class DetectS2Photons(DetectPhotonsOrElectrons):
     special_model_functions = ('s2_photon_acceptance',)
     model_functions = ('s2_photon_detection_eff',
                        's2_posDependence') + special_model_functions
-
-    # MC_annotate = True
-    #
-    # MC_annotate_dimensions = ('s2_photons_produced',)
 
     def s2_posDependence(self, r):
         """

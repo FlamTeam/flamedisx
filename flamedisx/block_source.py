@@ -59,10 +59,6 @@ class Block:
     #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
-    MC_annotate: bool = False
-    post_MC_annotate: bool = False
-    MC_annotate_dimensions: ty.Tuple[str] = tuple()
-
     def __init__(self, source):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
@@ -555,31 +551,11 @@ class BlockModelSource(fd.Source):
 
     def _annotate(self, _skip_bounds_computation=False):
         d = self.data
-        MC_bound_dimensions = tuple()
         # By going in reverse order through the blocks, we can use the bounds
         # on hidden variables closer to the final signals (easy to compute)
         # for estimating the bounds on deeper hidden variables.
         for b in self.model_blocks[::-1]:
-            assert not (b.MC_annotate and b.post_MC_annotate), \
-                "Block can't be both MC_annotate and post_MC_annotate"
-            if not b.MC_annotate and not b.post_MC_annotate:
-                b.annotate(d)
-            elif b.MC_annotate:
-                for dim in b.MC_annotate_dimensions:
-                    if dim not in MC_bound_dimensions:
-                        MC_bound_dimensions += (dim,)
-
-        if MC_bound_dimensions:
-            self.MC_bounds(self.source_copy, ('s1', 's2', 'r', 'z'), 'energy', 'energies',
-                           (('rates_vs_energy', 1000),),
-                           MC_bound_dimensions)
-
-            for x in MC_bound_dimensions:
-                self.data[x + '_min'] = self.data[x + '_min'].apply(lambda x : x if x > 0 else 0)
-
-        for b in self.model_blocks[::-1]:
-            if b.post_MC_annotate:
-                b.annotate(d)
+            b.annotate(d)
 
     def scale_observables(self, df, observables):
         """"""
@@ -592,7 +568,7 @@ class BlockModelSource(fd.Source):
 
         return observables_scaled
 
-    def MC_bounds(self, source_copy_original, kd_tree_observables: ty.Tuple[str],
+    def energy_bounds(self, source_copy_original, kd_tree_observables: ty.Tuple[str],
                   initial_dimension: str, initial_attribute: str,
                   flat_attributes: ty.Tuple[ty.Tuple[str, int]] = (),
                   MC_bound_dimensions: ty.Tuple[str] = ()):
@@ -615,13 +591,15 @@ class BlockModelSource(fd.Source):
             initial_dimension_max = self.data.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
             ind_count += 1
 
-            setattr(source_copy, initial_attribute, tf.cast(tf.linspace(initial_dimension_min, initial_dimension_max, 1000),
-                                                            fd.float_type()))
-            for flat_attribute in flat_attributes:
-                setattr(source_copy, flat_attribute[0], tf.ones(flat_attribute[1], fd.float_type()))
-            source_copy.setup_copy()
+            """The following will prove useful if priors are needed for Bayes bounds"""
 
-            MC_data_small = source_copy.simulate(1000, fix_truth=self.data.iloc[i])
+            # setattr(source_copy, initial_attribute, tf.cast(tf.linspace(initial_dimension_min, initial_dimension_max, 1000),
+            #                                                 fd.float_type()))
+            # for flat_attribute in flat_attributes:
+            #     setattr(source_copy, flat_attribute[0], tf.ones(flat_attribute[1], fd.float_type()))
+            # source_copy.setup_copy()
+            #
+            # MC_data_small = source_copy.simulate(1000, fix_truth=self.data.iloc[i])
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)

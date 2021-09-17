@@ -19,8 +19,6 @@ class MakeERQuanta(fd.Block):
     depends_on = ((('energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
-    post_MC_annotate = True
-
     work = DEFAULT_WORK_PER_QUANTUM
 
     def _compute(self,
@@ -117,8 +115,6 @@ class MakeNRQuanta(fd.Block):
 
     special_model_functions = ('lindhard_l',)
     model_functions = ('work',) + special_model_functions
-
-    post_MC_annotate = True
 
     work = DEFAULT_WORK_PER_QUANTUM
 
