@@ -1,5 +1,4 @@
 from copy import deepcopy
-import operator
 import typing as ty
 
 import numpy as np
@@ -158,9 +157,8 @@ class Block:
         def binomial(x, n, p):
             mu = n * p
             sigma = np.sqrt(n * p * (1. - p))
-            result = np.select([approx_cond(n, p), peak_cond(p), np.invert(peak_cond(p))],
-                               [binom_approx(x, mu, sigma), np.equal(n, x), binom(x, n, p)])
-            return result
+            return np.select([approx_cond(n, p), peak_cond(p), np.invert(peak_cond(p))],
+                             [binom_approx(x, mu, sigma), np.equal(n, x), binom(x, n, p)])
 
         def binom_approx(x, mu, sigma):
             with np.errstate(invalid='ignore', divide='ignore'):
@@ -204,8 +202,8 @@ class Block:
             "Shapes of rvs_normal, mus_normal and sigmas_normal must be equal"
 
         def normal(x, mu, sigma):
-            result = (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
-            return result
+            with np.errstate(invalid='ignore', divide='ignore'):
+                return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
 
         pdfs = [normal(rv_normal, mu_normal, sigma_normal)
                 for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
