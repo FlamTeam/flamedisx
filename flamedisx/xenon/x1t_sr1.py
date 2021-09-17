@@ -277,13 +277,11 @@ class SR1Source:
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
-        if 's1' in d.columns:
+        if ('s1' in d.columns) and ('cs1' not in d.columns):
             d['cs1'] = d['s1'] / d['s1_relative_ly']
-        if 's2' in d.columns:
-            d['cs2'] = (
-                d['s2']
-                / d['s2_relative_ly']
-                * np.exp(d['drift_time'] / d['elife']))
+        if ('s2' in d.columns) and ('cs2' not in d.columns):
+            d['cs2'] = (d['s2'] / d['s2_relative_ly']
+                      * np.exp(d['drift_time'] / d['elife']))
 
 
     @staticmethod
