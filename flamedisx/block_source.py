@@ -167,10 +167,12 @@ class Block:
             return result
 
         def binom_approx(x, mu, sigma):
-            return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+            with np.errstate(invalid='ignore', divide='ignore'):
+                return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
 
         def binom(x, n, p):
-            return sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
+            with np.errstate(invalid='ignore'):
+                return sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
 
         def approx_cond(n, p):
             return np.where(np.logical_and(n * p > 9. * (1. - p), n * (1. - p) > 9. * p), True, False)
