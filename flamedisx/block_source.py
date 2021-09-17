@@ -162,11 +162,8 @@ class Block:
         def binomial(x, n, p):
             mu = n * p
             sigma = np.sqrt(n * p * (1. - p))
-            condlist = [approx_cond(n, p), peak_cond(p), np.invert(peak_cond(p))]
-            result = np.select(condlist,
-                               [binom_approx(x, mu, sigma),
-                                np.equal(n, x),
-                                binom(x, n, p)])
+            result = np.select([approx_cond(n, p), peak_cond(p), np.invert(peak_cond(p))],
+                               [binom_approx(x, mu, sigma), np.equal(n, x), binom(x, n, p)])
             return result
 
         def binom_approx(x, mu, sigma):
