@@ -19,8 +19,6 @@ class MakePhotonsElectronsBinomial(fd.Block):
     special_model_functions = ('p_electron',)
     model_functions = special_model_functions
 
-    post_MC_annotate = True
-
     p_electron = 0.5   # Nonsense, ER and NR sources provide specifics
 
     def _compute(self,
