@@ -45,21 +45,17 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy(self.quanta_name + '_gain_mean')
-        s = self.gimme_numpy(self.quanta_name + '_gain_std')
+        for bound in ('lower', 'upper', 'mle'):
+            observed_signals = d[self.signal_name].clip(0, None)
+            supports = [np.linspace(np.floor((observed_signal / mean) / 2.),
+                                    np.ceil((observed_signal / mean) * 2.), 1000).astype(int)
+                        for observed_signal, mean in zip(observed_signals, self.gimme_numpy(self.quanta_name + '_gain_mean'))]
+            mus = [support * mean for support, mean in zip(supports, self.gimme_numpy(self.quanta_name + '_gain_mean'))]
+            sigmas = [np.sqrt(support) * std for support, std in zip(supports, self.gimme_numpy(self.quanta_name + '_gain_std'))]
+            rvs = [observed_signal * np.ones_like(support) for observed_signal, support in zip (observed_signals, supports)]
 
-        mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.signal_name] / m).clip(0, None)
-        scale = mle**0.5 * s / m
-
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            # For detected quanta the MLE is quite accurate
-            # (since fluctuations are tiny)
-            # so let's just use the relative error on the MLE)
-            d[self.quanta_name + 's_detected_' + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
+            self.bayes_bounds_normal(d, self.quanta_name + 's_detected', supports=supports,
+                                     rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)
 
     def _compute(self,
                  quanta_detected, s_observed,
