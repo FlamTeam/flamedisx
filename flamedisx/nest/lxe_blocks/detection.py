@@ -83,7 +83,7 @@ class DetectPhotonsOrElectrons(fd.Block):
         for suffix, bound in (('_min', 'lower'),
                                ('_max', 'upper')):
             out_bounds = d[self.quanta_name + 's_detected' + suffix]
-            supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10),
+            supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10.),
                                                        1000).astype(int) for out_bound, eff in zip(out_bounds, effs)]
             ns = supports
             ps = [eff * np.ones_like(support) for eff, support in zip(effs, supports)]
