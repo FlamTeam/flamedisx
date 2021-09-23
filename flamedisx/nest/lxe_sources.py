@@ -80,6 +80,12 @@ class nestSource(fd.BlockModelSource):
 
         super().__init__(*args, **kwargs)
 
+    final_dimensions = ('s1', 's2')
+    penultimate_dimensions = ('s1_photoelectrons_detected',
+                              's2_photoelectrons_detected')
+    no_step_dimensions = ('s1_photoelectrons_produced',
+                          's1_photoelectrons_detected')
+
     # detection.py
 
     def photon_detection_eff(self, z):
@@ -164,10 +170,6 @@ class nestERSource(nestSource):
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
 
-    final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('s1_photoelectrons_produced',
-                          's1_photoelectrons_detected')
-
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
                    er_pel_e0=5.):
@@ -206,10 +208,6 @@ class nestNRSource(nestSource):
         fd_nest.DetectS2Photons,
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
-
-    final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('s1_photoelectrons_produced',
-                          's1_photoelectrons_detected')
 
     @staticmethod
     def p_electron(nq, *,
