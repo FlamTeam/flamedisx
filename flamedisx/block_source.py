@@ -149,10 +149,24 @@ class Block:
                 f"_annotate of {self} set misordered bounds"
 
     def bayes_bounds_binomial(self, df, in_dim, supports, rvs_binom, ns_binom, ps_binom, bound):
-        """"""
+        """Calculate bounds on a block using a binomial distribution.
+
+        :param df: Dataframe with events
+        :param in_dim: String giving the 'input' dimension to the block, whose bounds are
+        being calculated
+        :param supports: Values of in_dim over which the PMF/CMF used to find the bounds
+        will be calculated, for each event in the dataframe
+        :param rvs_binom: Variable the block uses as the 'object' of the binomial calculation;
+        must be the same shape as supports
+        :param ns_binom: Variable the block uses as the number of trials of the binomial calculation;
+        must be the same shape as supports
+        :param ps_binom: Variable the block uses as the success probability of the binomial calculation;
+        must be the same shape as supports
+        :param bound: 'upper', 'lower' or 'mle' to determine which bound is currently being calculated
+        """
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
-        assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom)), \
-            "Shapes of rvs_binom, ns_binom and ps_binom must be equal"
+        assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom) == np.shape(supports)), \
+            "Shapes of suports, rvs_binom, ns_binom and ps_binom must be equal"
 
         def binomial(x, n, p):
             mu = n * p
@@ -198,10 +212,25 @@ class Block:
             df[in_dim + '_mle'] = mles
 
     def bayes_bounds_normal(self, df, in_dim, supports, rvs_normal, mus_normal, sigmas_normal, bound):
-        """"""
+        """Calculate bounds on a block using a normal distribution.
+        Note that we do not account for continuity corrections here.
+
+        :param df: Dataframe with events
+        :param in_dim: String giving the 'input' dimension to the block, whose bounds are
+        being calculated
+        :param supports: Values of in_dim over which the PMF/CMF used to find the bounds
+        will be calculated, for each event in the dataframe
+        :param rvs_normal: Variable the block uses as the 'object' of the normal calculation;
+        must be the same shape as supports
+        :param mus_binom: Variable the block uses as the mean of the normal calculation;
+        must be the same shape as supports
+        :param sigmas_binom: Variable the block uses as the standard deviation of the normal calculation;
+        must be the same shape as supports
+        :param bound: 'upper', 'lower' or 'mle' to determine which bound is currently being calculated
+        """
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
-        assert (np.shape(rvs_normal) == np.shape(mus_normal) == np.shape(sigmas_normal)), \
-            "Shapes of rvs_normal, mus_normal and sigmas_normal must be equal"
+        assert (np.shape(rvs_normal) == np.shape(mus_normal) == np.shape(sigmas_normal) == np.shape(supports)), \
+            "Shapes of supports, rvs_normal, mus_normal and sigmas_normal must be equal"
 
         def normal(x, mu, sigma):
             with np.errstate(invalid='ignore', divide='ignore'):
