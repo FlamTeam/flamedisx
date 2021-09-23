@@ -49,10 +49,15 @@ class MakeFinalSignals(fd.Block):
             observed_signals = d[self.signal_name].clip(0, None)
             supports = [np.linspace(np.floor((observed_signal / mean) / 2.),
                                     np.ceil((observed_signal / mean) * 2.), 1000).astype(int)
-                        for observed_signal, mean in zip(observed_signals, self.gimme_numpy(self.quanta_name + '_gain_mean'))]
+                        for observed_signal, mean in
+                        zip(observed_signals, self.gimme_numpy(self.quanta_name + '_gain_mean'))]
             mus = [support * mean for support, mean in zip(supports, self.gimme_numpy(self.quanta_name + '_gain_mean'))]
-            sigmas = [np.sqrt(support) * std for support, std in zip(supports, self.gimme_numpy(self.quanta_name + '_gain_std'))]
-            rvs = [observed_signal * np.ones_like(support) for observed_signal, support in zip (observed_signals, supports)]
+            sigmas = [np.sqrt(support) * std
+                      for support, std in
+                      zip(supports, self.gimme_numpy(self.quanta_name + '_gain_std'))]
+            rvs = [observed_signal * np.ones_like(support)
+                   for observed_signal, support in
+                   zip(observed_signals, supports)]
 
             self.bayes_bounds_normal(d, self.quanta_name + 's_detected', supports=supports,
                                      rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)

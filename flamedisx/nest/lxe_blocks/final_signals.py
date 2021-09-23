@@ -47,7 +47,8 @@ class MakeFinalSignals(fd.Block):
                         for observed_signal in observed_signals]
             mus = supports
             sigmas = [self.gimme_numpy(self.signal_name + '_spe_smearing', support) for support in supports]
-            rvs = [observed_signal * np.ones_like(support) for observed_signal, support in zip (observed_signals, supports)]
+            rvs = [observed_signal * np.ones_like(support)
+                   for observed_signal, support in zip(observed_signals, supports)]
 
             self.bayes_bounds_normal(d, self.signal_name + '_photoelectrons_detected', supports=supports,
                                      rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)
