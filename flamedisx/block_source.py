@@ -180,13 +180,15 @@ class Block:
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
         if bound == 'lower':
-            lower_lims = [support[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0
+            lower_lims = [support[np.where(cdf < self.source.bounds_prob)[0][-1]]
+                          if len(np.where(cdf < self.source.bounds_prob)[0]) > 0
                           else support[0]
                           for support, cdf in zip(supports, cdfs)]
             df[in_dim + '_min'] = lower_lims
 
         elif bound == 'upper':
-            upper_lims = [support[np.where(cdf > 1. - 0.00135)[0][0]] if len(np.where(cdf > 1. - 0.00135)[0]) > 0
+            upper_lims = [support[np.where(cdf > 1. - self.source.bounds_prob)[0][0]]
+                          if len(np.where(cdf > 1. - self.source.bounds_prob)[0]) > 0
                           else support[-1]
                           for support, cdf in zip(supports, cdfs)]
             df[in_dim + '_max'] = upper_lims
@@ -211,13 +213,15 @@ class Block:
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
         if bound == 'lower':
-            lower_lims = [support[np.where(cdf < 0.00135)[0][-1]] if len(np.where(cdf < 0.00135)[0]) > 0
+            lower_lims = [support[np.where(cdf < self.source.bounds_prob)[0][-1]]
+                          if len(np.where(cdf < self.source.bounds_prob)[0]) > 0
                           else support[0]
                           for support, cdf in zip(supports, cdfs)]
             df[in_dim + '_min'] = lower_lims
 
         elif bound == 'upper':
-            upper_lims = [support[np.where(cdf > 1. - 0.00135)[0][0]] if len(np.where(cdf > 1. - 0.00135)[0]) > 0
+            upper_lims = [support[np.where(cdf > 1. - self.source.bounds_prob)[0][0]]
+                          if len(np.where(cdf > 1. - self.source.bounds_prob)[0]) > 0
                           else support[-1]
                           for support, cdf in zip(supports, cdfs)]
             df[in_dim + '_max'] = upper_lims

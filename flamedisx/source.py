@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+import scipy.special as sp
 
 from tqdm import tqdm
 
@@ -180,7 +181,7 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=None,
-                 max_dim_size=120,
+                 max_dim_size=70,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -206,7 +207,10 @@ class Source:
         """
         if max_sigma is None:
             max_sigma = self.default_max_sigma
-        self.max_sigma = max_sigma
+        self.bounds_prob = 0.5 * (1 + sp.erf(-max_sigma / np.sqrt(2)))
+        assert self.bounds_prob > 0., \
+            "max_sigma too high!"
+
         self.max_dim_size = max_dim_size
 
         # Check for duplicated model functions
@@ -402,7 +406,10 @@ class Source:
             mi = d[dim + '_min'].to_numpy()
             self.dimsizes[dim] = ma - mi + 1
             # Ensure we don't go over max_dim_size in a domain
-            self.cap_dimsizes(dim, max_dim_size)
+            if dim=='s1_photoelectrons_detected' or dim=='s2_photoelectrons_detected':
+                self.cap_dimsizes(dim, 120)
+            else:
+                self.cap_dimsizes(dim, max_dim_size)
 
             # Calculate steps if we have cappeed the dimesize
             steps = tf.where((ma-mi+1) > self.dimsizes[dim],
