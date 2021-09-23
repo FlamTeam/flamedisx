@@ -45,14 +45,15 @@ class MakeS2Photons(fd.Block):
 
     def _annotate(self, d):
         for suffix, bound in (('_min', 'lower'),
-                               ('_max', 'upper')):
+                              ('_max', 'upper')):
             out_bounds = d['s2_photons_produced' + suffix]
             supports = [np.linspace(np.floor(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 0.9),
                         np.ceil(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 1.1), 1000).astype(int)
                         for out_bound in out_bounds]
             mus = supports * self.gimme_numpy('electron_gain_mean')
             sigmas = np.sqrt(supports * self.gimme_numpy('electron_gain_std')**2)
-            rvs = [out_bound * np.ones_like(support) for out_bound, support in zip (out_bounds, supports)]
+            rvs = [out_bound * np.ones_like(support)
+                   for out_bound, support in zip(out_bounds, supports)]
 
             self.bayes_bounds_normal(d, 'electrons_detected', supports=supports,
                                      rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)

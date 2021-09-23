@@ -49,10 +49,11 @@ class MakeS1Photoelectrons(fd.Block):
 
     def _annotate(self, d):
         for suffix, bound in (('_min', 'lower'),
-                               ('_max', 'upper'),
-                               ('_mle', 'mle')):
+                              ('_max', 'upper'),
+                              ('_mle', 'mle')):
             out_bounds = d['photoelectrons_detected' + suffix]
-            supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int) for out_bound in out_bounds]
+            supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int)
+                        for out_bound in out_bounds]
             ns = supports
             ps = [p * np.ones_like(support) for p, support in zip(self.gimme_numpy('double_pe_fraction'), supports)]
             rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]

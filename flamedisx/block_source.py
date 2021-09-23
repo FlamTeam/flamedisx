@@ -5,7 +5,6 @@ import numpy as np
 import sklearn.neighbors
 import tensorflow as tf
 import pandas as pd
-import math
 import scipy.special as sp
 
 import flamedisx as fd
@@ -600,9 +599,9 @@ class BlockModelSource(fd.Source):
         return observables_scaled
 
     def energy_bounds(self, source_copy_original, kd_tree_observables: ty.Tuple[str],
-                  initial_dimension: str, initial_attribute: str,
-                  flat_attributes: ty.Tuple[ty.Tuple[str, int]] = (),
-                  MC_bound_dimensions: ty.Tuple[str] = ()):
+                      initial_dimension: str, initial_attribute: str,
+                      flat_attributes: ty.Tuple[ty.Tuple[str, int]] = (),
+                      MC_bound_dimensions: ty.Tuple[str] = ()):
         """"""
         source_copy = deepcopy(source_copy_original)
         MC_data = source_copy.simulate(int(1e6))
@@ -618,14 +617,14 @@ class BlockModelSource(fd.Source):
 
         for i in range(len(self.data)):
 
-            initial_dimension_min = self.data.at[i, initial_dimension + '_min'] = min(MC_data[initial_dimension].iloc[ind[i]])
-            initial_dimension_max = self.data.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
-            ind_count += 1
+            self.data.at[i, initial_dimension + '_min'] = min(MC_data[initial_dimension].iloc[ind[i]])
+            self.data.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
 
             """The following will prove useful if priors are needed for Bayes bounds"""
 
-            # setattr(source_copy, initial_attribute, tf.cast(tf.linspace(initial_dimension_min, initial_dimension_max, 1000),
-            #                                                 fd.float_type()))
+            # setattr(source_copy, initial_attribute,
+            #         tf.cast(tf.linspace(initial_dimension_min, initial_dimension_max, 1000),
+            #         fd.float_type()))
             # for flat_attribute in flat_attributes:
             #     setattr(source_copy, flat_attribute[0], tf.ones(flat_attribute[1], fd.float_type()))
             # source_copy.setup_copy()
