@@ -113,9 +113,9 @@ class nestSource(fd.BlockModelSource):
 
     @staticmethod
     def mu_correction(*args):
-        skew = args[0]
-        var = args[1]
-        width_corr = args[2]
+        skew = tf.cast(args[0], fd.float_type())
+        var = tf.cast(args[1], fd.float_type())
+        width_corr = tf.cast(args[2], fd.float_type())
 
         return (tf.sqrt(var) / width_corr) * (skew / tf.sqrt(1. + skew * skew)) * tf.sqrt(2. / pi)
 
@@ -269,7 +269,7 @@ class nestERSource(nestSource):
         skew = 1. / (1. + tf.exp((energy - E2) / E3)) * (alpha0 + cc0 * tf.exp(-1. * self.drift_field / F0) * (1. - tf.exp(-1. * energy / E0))) + \
                1. / (1. + tf.exp(-1. * (energy - E2) / E3)) * cc1 * tf.exp(-1. * energy / E1) * tf.exp(-1. * tf.sqrt(self.drift_field) / tf.sqrt(F1))
 
-        mask = tf.less(nq_mean, 1e4*tf.ones_like(nq_mean))
+        mask = tf.less(nq_mean, 10000*tf.ones_like(nq_mean))
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
         skewness_masked = tf.multiply(skewness, tf.cast(mask, fd.float_type()))
 
