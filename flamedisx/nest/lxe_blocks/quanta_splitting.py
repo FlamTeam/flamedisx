@@ -109,9 +109,9 @@ class MakePhotonsElectronsNR(fd.Block):
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
         if self.is_ER:
-            nel = self.gimme_numpy('mean_yield_electron', bonus_arg=d['energy'].values)
-            nq = self.gimme_numpy('mean_yield_quanta', bonus_arg=(d['energy'].values, nel))
-            fano = self.gimme_numpy('fano_factor', bonus_arg=nq)
+            nel = self.gimme_numpy('mean_yield_electron', d['energy'].values)
+            nq = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nel))
+            fano = self.gimme_numpy('fano_factor', nq)
 
             nq_actual_temp = np.round(stats.norm.rvs(nq, np.sqrt(fano*nq))).astype(int)
             # Don't let number of quanta go negative
@@ -119,7 +119,7 @@ class MakePhotonsElectronsNR(fd.Block):
                                  nq_actual_temp * 0,
                                  nq_actual_temp)
 
-            ex_ratio = self.gimme_numpy('exciton_ratio', bonus_arg=d['energy'].values)
+            ex_ratio = self.gimme_numpy('exciton_ratio', d['energy'].values)
             alpha = 1. / (1. + ex_ratio)
 
             d['ions_produced'] = stats.binom.rvs(n=nq_actual, p=alpha)
@@ -127,7 +127,7 @@ class MakePhotonsElectronsNR(fd.Block):
             nex = nq_actual - d['ions_produced']
 
         else:
-            yields = self.gimme_numpy('mean_yields', bonus_arg=d['energy'].values)
+            yields = self.gimme_numpy('mean_yields', d['energy'].values)
             nel = yields[0]
             nq = yields[1]
             ex_ratio = yields[2]
@@ -147,11 +147,11 @@ class MakePhotonsElectronsNR(fd.Block):
 
             nq_actual = d['ions_produced'] + nex
 
-        recomb_p = self.gimme_numpy('recomb_prob', bonus_arg=(nel, nq, ex_ratio))
-        skew = self.gimme_numpy('skewness', bonus_arg=nq)
-        var = self.gimme_numpy('variance', bonus_arg=(nel, nq, recomb_p, d['ions_produced'].values))
-        width_corr = self.gimme_numpy('width_correction', bonus_arg=skew)
-        mu_corr= self.gimme_numpy('mu_correction', bonus_arg=(skew, var, width_corr))
+        recomb_p = self.gimme_numpy('recomb_prob', (nel, nq, ex_ratio))
+        skew = self.gimme_numpy('skewness', nq)
+        var = self.gimme_numpy('variance', (nel, nq, recomb_p, d['ions_produced'].values))
+        width_corr = self.gimme_numpy('width_correction', skew)
+        mu_corr= self.gimme_numpy('mu_correction', (skew, var, width_corr))
 
         el_prod_temp1 = np.round(stats.skewnorm.rvs(skew, (1 - recomb_p) * d['ions_produced'] - mu_corr,
                                  np.sqrt(var) / width_corr)).astype(int)
@@ -169,6 +169,39 @@ class MakePhotonsElectronsNR(fd.Block):
         d['photons_produced'] = np.where(ph_prod_temp < nex,
                                          nex,
                                          ph_prod_temp)
+
+    def _annotate(self, d):
+        for suffix, bound in (('_min', 'lower'),
+                              ('_max', 'upper')):
+            out_bounds_e = d['electrons_produced' + suffix]
+            out_bounds_ph = d['photons_produced' + suffix]
+            out_bounds_q = out_bounds_e + out_bounds_ph
+            supports = [np.linspace(out_bound_e, out_bound_e * 10., 1000).astype(int)
+                        for out_bound_e in out_bounds_e]
+
+            if self.is_ER:
+                ex_ratios = self.gimme_numpy('exciton_ratio', d['energy'].values)
+            else:
+                ex_ratios = self.gimme_numpy('mean_yields', ['energy'].values)[2]
+            recomb_ps = self.gimme_numpy('recomb_prob', (out_bounds_e, out_bounds_q, ex_ratios))
+            skews = self.gimme_numpy('skewness', out_bounds_q)
+            vars = [self.gimme_numpy('variance', (out_bound_e, out_bound_q, recomb_p, support))
+                   for out_bound_e, out_bound_q, recomb_p, support
+                   in zip(out_bounds_e, out_bounds_q, recomb_ps, supports)]
+            width_corrs = self.gimme_numpy('width_correction', skews)
+            mu_corrs = [self.gimme_numpy('mu_correction', (skew, var, width_corr))
+                        for skew, var, width_corr in zip(skews, vars, width_corrs)]
+
+            mus = [(1 - recomb_p) * support - mu_corr
+                   for recomb_p, support, mu_corr in zip(recomb_ps, supports, mu_corrs)]
+            sigmas = [np.sqrt(var) / width_corr for var, width_corr in zip(vars, width_corrs)]
+            rvs = [out_bound_e * np.ones_like(support)
+                   for out_bound_e, support in zip(out_bounds_e, supports)]
+
+            self.bayes_bounds_skew_normal(d, 'ions_produced', supports=supports,
+                                          rvs_skew_normal=rvs, mus_skew_normal=mus,
+                                          sigmas_skew_normal=sigmas, alphas_skew_normal = skews,
+                                          bound=bound)
 
 
 @export
