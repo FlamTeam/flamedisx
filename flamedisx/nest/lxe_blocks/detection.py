@@ -68,39 +68,35 @@ class DetectPhotonsOrElectrons(fd.Block):
 
     def _annotate(self, d):
         # Get efficiency
-        eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
+        effs = self.gimme_numpy(self.quanta_name + '_detection_eff')
         if self.quanta_name == 'photon':
-            eff *= self.gimme_numpy('s1_posDependence')
+            effs *= self.gimme_numpy('s1_posDependence')
         elif self.quanta_name == 's2_photon':
-            eff *= self.gimme_numpy('s2_posDependence')
+            effs *= self.gimme_numpy('s2_posDependence')
 
         # Check for bad efficiencies
-        if self.check_efficiencies and np.any(eff <= 0):
+        if self.check_efficiencies and np.any(effs <= 0):
             raise ValueError(f"Found event with nonpositive {self.quanta_name} "
                              "detection efficiency: did you apply and "
                              "configure your cuts correctly?")
 
-        # Estimate produced quanta
-        n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
-            d[self.quanta_name + 's_detected_mle'] / eff
+        for suffix, bound in (('_min', 'lower'),
+                              ('_max', 'upper')):
+            out_bounds = d[self.quanta_name + 's_detected' + suffix]
+            supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10.),
+                                    1000).astype(int) for out_bound, eff in zip(out_bounds, effs)]
+            ns = supports
+            ps = [eff * np.ones_like(support) for eff, support in zip(effs, supports)]
+            rvs = [out_bound * np.ones_like(support)
+                   for out_bound, support in zip(out_bounds, supports)]
 
-        # Estimating the spread in number of produced quanta is tricky since
-        # the number of detected quanta is itself uncertain.
-        # TODO: where did this derivation come from again?
-        q = (1 - eff) / eff
-        _std = (q + (q ** 2 + 4 * n_prod_mle * q) ** 0.5) / 2
-
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            d[self.quanta_name + 's_produced_' + bound] = intify(
-                n_prod_mle + sign * self.source.max_sigma * _std
-            ).clip(0, None).astype(np.int)
+            self.bayes_bounds_binomial(d, self.quanta_name + 's_produced', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
 
 
 @export
 class DetectPhotons(DetectPhotonsOrElectrons):
     dimensions = ('photons_produced', 'photons_detected')
-    extra_dimensions = ()
 
     special_model_functions = ('photon_acceptance',)
     model_functions = ('photon_detection_eff',
@@ -130,7 +126,6 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 @export
 class DetectElectrons(DetectPhotonsOrElectrons):
     dimensions = ('electrons_produced', 'electrons_detected')
-    extra_dimensions = ()
 
     special_model_functions = ('electron_acceptance',)
     model_functions = ('electron_detection_eff',) + special_model_functions
@@ -149,7 +144,6 @@ class DetectElectrons(DetectPhotonsOrElectrons):
 @export
 class DetectS2Photons(DetectPhotonsOrElectrons):
     dimensions = ('s2_photons_produced', 's2_photons_detected')
-    extra_dimensions = ()
 
     special_model_functions = ('s2_photon_acceptance',)
     model_functions = ('s2_photon_detection_eff',

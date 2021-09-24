@@ -52,7 +52,8 @@ class LogLikelihood:
             free_rates=None,
             batch_size=10,
             max_sigma=None,
-            max_dim_size=120,
+            max_dim_size=None,
+            max_dim_size_outer=None,
             n_trials=int(1e5),
             log_constraint=None,
             bounds_specified=True,
@@ -81,6 +82,9 @@ class LogLikelihood:
 
         :param max_dim_size: Maximum bounds size for inner_dimensions,
             excluding no_step_dimensions
+
+        :param max_dim_size_outer: Maximum bounds size for outer blocks,
+            if hidden variable dimensions not in no_step_dimensions
 
         :param n_trials: Number of Monte-Carlo trials for mu estimation.
 
@@ -139,6 +143,7 @@ class LogLikelihood:
             sname: sclass(data=None,
                           max_sigma=max_sigma,
                           max_dim_size=max_dim_size,
+                          max_dim_size_outer=max_dim_size_outer,
                           # The source will filter out parameters it does not
                           # take
                           fit_params=list(k for k in common_param_specs.keys()),

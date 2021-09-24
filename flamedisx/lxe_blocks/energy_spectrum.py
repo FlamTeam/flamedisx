@@ -12,7 +12,6 @@ o = tf.newaxis
 @export
 class EnergySpectrum(fd.FirstBlock):
     dimensions = ('energy',)
-    extra_dimensions = ()
     model_attributes = (
         'energies',
         'fv_radius', 'fv_high', 'fv_low',
@@ -120,6 +119,9 @@ class EnergySpectrum(fd.FirstBlock):
             # Assume fix_truth is a one-line dataframe with at least
             # cols columns
             return d[cols].iloc[0].to_dict()
+        elif isinstance(d, pd.Series):
+            cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']
+            return d[cols].to_dict()
         else:
             assert isinstance(d, dict), \
                 "fix_truth needs to be a DataFrame, dict, or None"

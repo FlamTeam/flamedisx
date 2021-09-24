@@ -11,7 +11,6 @@ o = tf.newaxis
 @export
 class MakeS1Photoelectrons(fd.Block):
     dimensions = ('photons_detected', 'photoelectrons_detected')
-    extra_dimensions = ()
 
     model_functions = ('double_pe_fraction',)
 
@@ -49,11 +48,15 @@ class MakeS1Photoelectrons(fd.Block):
             p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
 
     def _annotate(self, d):
-        # TODO: this assumes the spread from the double PE effect is subdominant
-        dpe_fraction = self.gimme_numpy('double_pe_fraction')
-        for suffix, intify in (('min', np.floor),
-                               ('max', np.ceil),
-                               ('mle', lambda x: x)):
-            d['photons_detected_' + suffix] = \
-                intify(d['photoelectrons_detected_' + suffix].values
-                       / (1 + dpe_fraction))
+        for suffix, bound in (('_min', 'lower'),
+                              ('_max', 'upper'),
+                              ('_mle', 'mle')):
+            out_bounds = d['photoelectrons_detected' + suffix]
+            supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int)
+                        for out_bound in out_bounds]
+            ns = supports
+            ps = [p * np.ones_like(support) for p, support in zip(self.gimme_numpy('double_pe_fraction'), supports)]
+            rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
+
+            self.bayes_bounds_binomial(d, 'photons_detected', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)

@@ -40,18 +40,18 @@ class MakeFinalSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        mle = d[self.signal_name + '_photoelectrons_detected_' + 'mle'] = \
-            d[self.signal_name].clip(0, None)
-        scale = self.gimme_numpy(self.signal_name + '_spe_smearing', mle)
+        for bound in ('lower', 'upper'):
+            observed_signals = d[self.signal_name].clip(0, None)
+            supports = [np.linspace(np.floor(observed_signal / 2.),
+                                    np.ceil(observed_signal * 2.), 1000).astype(int)
+                        for observed_signal in observed_signals]
+            mus = supports
+            sigmas = [self.gimme_numpy(self.signal_name + '_spe_smearing', support) for support in supports]
+            rvs = [observed_signal * np.ones_like(support)
+                   for observed_signal, support in zip(observed_signals, supports)]
 
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            # For detected quanta the MLE is quite accurate
-            # (since fluctuations are tiny)
-            # so let's just use the relative error on the MLE)
-            d[self.signal_name + '_photoelectrons_detected_' + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
+            self.bayes_bounds_normal(d, self.signal_name + '_photoelectrons_detected', supports=supports,
+                                     rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)
 
     def _compute(self,
                  photoelectrons_detected, s_observed,
@@ -89,7 +89,6 @@ class MakeS1(MakeFinalSignals):
     signal_name = 's1'
 
     dimensions = ('s1_photoelectrons_detected', 's1')
-    extra_dimensions = ()
     special_model_functions = ('s1_spe_smearing', 'reconstruction_bias_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
 
@@ -120,7 +119,6 @@ class MakeS2(MakeFinalSignals):
     signal_name = 's2'
 
     dimensions = ('s2_photoelectrons_detected', 's2')
-    extra_dimensions = ()
     special_model_functions = ('s2_spe_smearing', 'reconstruction_bias_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
 

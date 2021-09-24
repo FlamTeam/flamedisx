@@ -1,4 +1,5 @@
 from copy import copy
+from copy import deepcopy
 from contextlib import contextmanager
 import inspect
 import typing as ty
@@ -8,6 +9,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+import scipy.special as sp
 
 from tqdm import tqdm
 
@@ -29,7 +31,10 @@ class Source:
     #: Whether to trace (compile into a tensorflow graph) the differential
     #: rate computation
     trace_difrate = True
+
     default_max_sigma = 3
+    default_max_dim_size = 70
+    default_max_dim_size_outer = 120
 
     #: Names of model functions
     model_functions: ty.Tuple[str] = tuple()
@@ -46,6 +51,10 @@ class Source:
     #: Names of final observable dimensions (e.g. s1, s2)
     #: for use in domain / cross-domain
     final_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of penulitmate model dimensions;
+    #: these may have different max_dim_size, given by max_dim_size_outer
+    penultimate_dimensions = tuple()
 
     #: Names of dimensions of hidden variables (e.g. produced electrons)
     #: for which domain computations and dimsize calculations are to be done
@@ -179,7 +188,8 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=None,
-                 max_dim_size=120,
+                 max_dim_size=None,
+                 max_dim_size_outer=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -194,6 +204,8 @@ class Source:
             If omitted, set to default_max_sigma
         :param max_dim_size: Maximum bounds size for inner_dimensions,
             excluding no_step_dimensions
+        :param max_dim_size_outer: Maximum bounds size for outer blocks,
+            if hidden variable dimensions not in no_step_dimensions
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
@@ -205,8 +217,16 @@ class Source:
         """
         if max_sigma is None:
             max_sigma = self.default_max_sigma
-        self.max_sigma = max_sigma
+        self.bounds_prob = 0.5 * (1 + sp.erf(-max_sigma / np.sqrt(2)))
+        assert self.bounds_prob > 0., \
+            "max_sigma too high!"
+
+        if max_dim_size is None:
+            max_dim_size = self.default_max_dim_size
+        if max_dim_size_outer is None:
+            max_dim_size_outer = self.default_max_dim_size_outer
         self.max_dim_size = max_dim_size
+        self.max_dim_size_outer = max_dim_size_outer
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:
@@ -276,6 +296,8 @@ class Source:
         if not _skip_tf_init:
             self.trace_differential_rate()
 
+        self.source_copy = deepcopy(self)
+
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files
         params = {**fd.load_config(config), **params}
@@ -339,7 +361,7 @@ class Source:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
                 self._annotate()
-                self._calculate_dimsizes(self.max_dim_size)
+                self._calculate_dimsizes()
 
         if not _skip_tf_init:
             self._check_data()
@@ -391,7 +413,7 @@ class Source:
             self.dimsizes[dim] = cap * np.greater(self.dimsizes[dim], cap) + \
                 self.dimsizes[dim] * np.less_equal(self.dimsizes[dim], cap)
 
-    def _calculate_dimsizes(self, max_dim_size):
+    def _calculate_dimsizes(self):
         self.dimsizes = dict()
         d = self.data
         for dim in self.inner_dimensions:
@@ -399,7 +421,10 @@ class Source:
             mi = d[dim + '_min'].to_numpy()
             self.dimsizes[dim] = ma - mi + 1
             # Ensure we don't go over max_dim_size in a domain
-            self.cap_dimsizes(dim, max_dim_size)
+            if dim in self.penultimate_dimensions:
+                self.cap_dimsizes(dim, self.max_dim_size_outer)
+            else:
+                self.cap_dimsizes(dim, self.max_dim_size)
 
             # Calculate steps if we have cappeed the dimesize
             steps = tf.where((ma-mi+1) > self.dimsizes[dim],
@@ -740,6 +765,9 @@ class Source:
         """Return mean expected number of events BEFORE efficiencies/response
         using data for the evaluation of the energy spectra
         """
+        raise NotImplementedError
+
+    def setup_copy():
         raise NotImplementedError
 
     ##
