@@ -20,10 +20,6 @@ class MakePhotonsElectronsNR(fd.Block):
                                 'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
-    MC_annotate = True
-
-    MC_annotate_dimensions = ('ions_produced',)
-
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain
