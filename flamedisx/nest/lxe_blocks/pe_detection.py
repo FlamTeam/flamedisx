@@ -11,6 +11,7 @@ o = tf.newaxis
 @export
 class DetectS1Photoelectrons(fd.Block):
     dimensions = ('s1_photoelectrons_produced', 's1_photoelectrons_detected')
+    extra_dimensions = ()
 
     special_model_functions = ('photoelectron_detection_eff',)
     model_functions = special_model_functions
@@ -40,15 +41,19 @@ class DetectS1Photoelectrons(fd.Block):
                 d['s1_photoelectrons_produced']))
 
     def _annotate(self, d):
-        for suffix, bound in (('_min', 'lower'),
-                              ('_max', 'upper')):
-            out_bounds = d['s1_photoelectrons_detected' + suffix]
-            supports = [np.linspace(out_bound, out_bound * 2., 1000).astype(int)
-                        for out_bound in out_bounds]
-            ns = supports
-            ps = [self.gimme_numpy('photoelectron_detection_eff', support) for support in supports]
-            rvs = [out_bound * np.ones_like(support)
-                   for out_bound, support in zip(out_bounds, supports)]
-
-            self.bayes_bounds_binomial(d, 's1_photoelectrons_produced', supports=supports,
-                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
+        # Estimate the mle of the detection probability via interpolation
+        # _nprod_temp = np.logspace(-1., 8., 1000)
+        # _pdet_temp = self.gimme_numpy(
+        #     'photoelectron_detection_eff',
+        #     _nprod_temp)
+        # p_det_mle = np.interp(
+        #     d['s1_photoelectrons_detected_mle'],
+        #     _nprod_temp * _pdet_temp,
+        #     _pdet_temp)
+        # TODO: this assumes the spread from the PE detection efficiency is subdominant
+        # TODO: come back and fix thing with p_det_mle
+        for suffix, intify in (('min', np.floor),
+                               ('max', np.ceil),
+                               ('mle', np.round)):
+            d['s1_photoelectrons_produced_' + suffix] = \
+                intify(d['s1_photoelectrons_detected_' + suffix].values)
