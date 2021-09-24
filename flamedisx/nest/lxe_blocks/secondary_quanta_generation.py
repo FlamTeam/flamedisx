@@ -11,6 +11,7 @@ o = tf.newaxis
 @export
 class MakeS2Photons(fd.Block):
     dimensions = ('electrons_detected', 's2_photons_produced')
+    extra_dimensions = ()
 
     model_functions = ('electron_gain_mean', 'electron_gain_std')
 
@@ -44,16 +45,16 @@ class MakeS2Photons(fd.Block):
                    * self.gimme_numpy('electron_gain_std')))).astype(int)
 
     def _annotate(self, d):
-        for suffix, bound in (('_min', 'lower'),
-                              ('_max', 'upper')):
-            out_bounds = d['s2_photons_produced' + suffix]
-            supports = [np.linspace(np.floor(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 0.9),
-                        np.ceil(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 1.1), 1000).astype(int)
-                        for out_bound in out_bounds]
-            mus = supports * self.gimme_numpy('electron_gain_mean')
-            sigmas = np.sqrt(supports * self.gimme_numpy('electron_gain_std')**2)
-            rvs = [out_bound * np.ones_like(support)
-                   for out_bound, support in zip(out_bounds, supports)]
+        m = self.gimme_numpy('electron_gain_mean')
+        s = self.gimme_numpy('electron_gain_std')
 
-            self.bayes_bounds_normal(d, 'electrons_detected', supports=supports,
-                                     rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)
+        mle = d['electrons_detected_mle'] = \
+            (d['s2_photons_produced_mle'] / m).clip(0, None)
+
+        scale = mle**0.5 * s / m
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            d['electrons_detected_' + bound] = intify(
+                mle + sign * self.source.max_sigma * scale
+            ).clip(0, None).astype(np.int)

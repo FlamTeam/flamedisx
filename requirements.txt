@@ -7,4 +7,3 @@ tqdm==4.62.2
 tensorflow==2.6.0
 tensorflow_probability==0.14.0
 iminuit==2.8.3
-scikit-learn==0.24.2

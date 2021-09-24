@@ -149,8 +149,8 @@ class MakeNRQuanta(fd.Block):
         work = self.gimme('work', data_tensor=data_tensor, ptensor=ptensor)
         mean_q_produced = (
                 energy_noStep
-                * self.gimme('lindhard_l', bonus_arg=energy_noStep[:, 0, :],
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o, :]
+                * self.gimme('lindhard_l', bonus_arg=energy_noStep,
+                             data_tensor=data_tensor, ptensor=ptensor)
                 / work[:, o, o])
 
         # (n_events, |nq|, |ne|) tensor giving p(nq | e)

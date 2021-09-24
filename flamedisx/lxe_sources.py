@@ -33,8 +33,6 @@ class ERSource(fd.BlockModelSource):
         return fd.safe_p(qy * 13.7e-3)
 
     final_dimensions = ('s1', 's2')
-    penultimate_dimensions = ('photoelectrons_detected',
-                              'electrons_detected')
     no_step_dimensions = ()
 
 
@@ -51,8 +49,6 @@ class NRSource(fd.BlockModelSource):
         fd.MakeS2)
 
     final_dimensions = ('s1', 's2')
-    penultimate_dimensions = ('photoelectrons_detected',
-                              'electrons_detected')
     no_step_dimensions = ()
 
     # Use a larger default energy range, since most energy is lost
