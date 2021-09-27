@@ -749,11 +749,14 @@ class LogLikelihood:
 
         params = {**bestfit, **fix}
         if inverse_hessian is None:
-            inverse_hessian = self.inverse_hessian(
+            # inverse_hessian returns inverse of hessian of -2 loglikelihood
+            # but covariance matrix is inverse of hessian of - logikelihood
+            # (kA)^(-1) = k^(-1)A^(-1) for non-zero scalar k
+            inverse_hessian = 2. * self.inverse_hessian(
                 params,
                 omit_grads=tuple(fix.keys()))
 
-        stderr, cov = cov_to_std(inverse_hessian)
+        stderr, corr = cov_to_std(inverse_hessian)
 
         var_par_i = 0
         for i, pname in enumerate(self.param_names):
@@ -771,7 +774,7 @@ class LogLikelihood:
 
         var_pars = [x for x in self.param_names if x not in fix]
         df = pd.DataFrame(
-            {p1: {p2: cov[i1, i2]
+            {p1: {p2: corr[i1, i2]
                   for i2, p2 in enumerate(var_pars)}
              for i1, p1 in enumerate(var_pars)},
             columns=var_pars)
