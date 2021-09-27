@@ -626,8 +626,11 @@ class IntervalObjective(Objective):
 
         if sigma_guess is None:
             # Estimate one sigma interval using parabolic approx.
+            # inverse_hessian returns hessian of -2 loglikelihood but the
+            # covariance matrix is calculated from the hessian of -
+            # loglikelihood
             sigma_guess = fd.cov_to_std(
-                self.lf.inverse_hessian(bestfit)
+                2. * self.lf.inverse_hessian(bestfit)
             )[0][self.arg_names.index(self.target_parameter)]
         self.sigma_guess = sigma_guess
 
