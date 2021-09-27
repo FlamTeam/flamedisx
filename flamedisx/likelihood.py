@@ -740,7 +740,7 @@ class LogLikelihood:
         return np.linalg.inv(-2 * grad2_ll)
 
     def summary(self, bestfit=None, fix=None, guess=None,
-                inverse_hessian=None, precision=3):
+                cov=None, precision=3):
         """Print summary information about best fit"""
         if fix is None:
             fix = dict()
@@ -748,15 +748,15 @@ class LogLikelihood:
             bestfit = self.bestfit(guess=guess, fix=fix)
 
         params = {**bestfit, **fix}
-        if inverse_hessian is None:
+        if cov is None:
             # inverse_hessian returns inverse of hessian of -2 loglikelihood
             # but covariance matrix is inverse of hessian of - logikelihood
             # (kA)^(-1) = k^(-1)A^(-1) for non-zero scalar k
-            inverse_hessian = 2. * self.inverse_hessian(
+            cov = 2. * self.inverse_hessian(
                 params,
                 omit_grads=tuple(fix.keys()))
 
-        stderr, corr = cov_to_std(inverse_hessian)
+        stderr, corr = cov_to_std(cov)
 
         var_par_i = 0
         for i, pname in enumerate(self.param_names):
