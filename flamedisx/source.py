@@ -218,6 +218,7 @@ class Source:
         if max_sigma is None:
             max_sigma = self.default_max_sigma
         self.bounds_prob = 0.5 * (1 + sp.erf(-max_sigma / np.sqrt(2)))
+        self.max_sigma = max_sigma
         assert self.bounds_prob > 0., \
             "max_sigma too high!"
 
