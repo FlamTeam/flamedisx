@@ -63,29 +63,32 @@ class DetectPhotonsOrElectrons(fd.Block):
 
     def _annotate(self, d):
         # Get efficiency
-        effs = self.gimme_numpy(self.quanta_name + '_detection_eff')
+        eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
         if self.quanta_name == 'photon':
-            effs *= self.gimme_numpy('penning_quenching_eff',
-                                     d['photons_detected_mle'].values / effs)
+            eff *= self.gimme_numpy('penning_quenching_eff',
+                                    d['photons_detected_mle'].values / eff)
 
         # Check for bad efficiencies
-        if self.check_efficiencies and np.any(effs <= 0):
+        if self.check_efficiencies and np.any(eff <= 0):
             raise ValueError(f"Found event with nonpositive {self.quanta_name} "
                              "detection efficiency: did you apply and "
                              "configure your cuts correctly?")
 
-        for suffix, bound in (('_min', 'lower'),
-                              ('_max', 'upper'),
-                              ('_mle', 'mle')):
-            out_bounds = d[self.quanta_name + 's_detected' + suffix]
-            supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10.), 1000).astype(int)
-                        for out_bound, eff in zip(out_bounds, effs)]
-            ns = supports
-            ps = [eff * np.ones_like(support) for eff, support in zip(effs, supports)]
-            rvs = [out_bound * np.ones_like(support) for out_bound, support in zip(out_bounds, supports)]
+        # Estimate produced quanta
+        n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
+            d[self.quanta_name + 's_detected_mle'] / eff
 
-            self.bayes_bounds_binomial(d, self.quanta_name + 's_produced', supports=supports,
-                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
+        # Estimating the spread in number of produced quanta is tricky since
+        # the number of detected quanta is itself uncertain.
+        # TODO: where did this derivation come from again?
+        q = (1 - eff) / eff
+        _std = (q + (q ** 2 + 4 * n_prod_mle * q) ** 0.5) / 2
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            d[self.quanta_name + 's_produced_' + bound] = intify(
+                n_prod_mle + sign * self.source.max_sigma * _std
+            ).clip(0, None).astype(np.int)
 
 
 @export
