@@ -157,7 +157,7 @@ class Block:
 
         def skew_normal(x, mu, sigma, alpha):
             with np.errstate(invalid='ignore', divide='ignore'):
-                return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
+                return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
                     * (1 + sp.erf(alpha * (x - mu) / (np.sqrt(2) * sigma)))
 
         pdfs = [skew_normal(rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal)
