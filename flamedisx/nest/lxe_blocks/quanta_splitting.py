@@ -178,13 +178,13 @@ class MakePhotonsElectronsNR(fd.Block):
                         for out_bound in out_bounds]
 
             if self.is_ER:
-                nels = self.gimme_numpy('mean_yield_electron', d['energy'].values)
-                nqs = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nels))
-                ex_ratios = self.gimme_numpy('exciton_ratio', d['energy'].values)
+                nels = self.gimme_numpy('mean_yield_electron', d['energy_mle'].values)
+                nqs = self.gimme_numpy('mean_yield_quanta', (d['energy_mle'].values, nels))
+                ex_ratios = self.gimme_numpy('exciton_ratio', d['energy_mle'].values)
             else:
-                nels = self.gimme_numpy('mean_yields', d['energy'].values)[0]
-                nqs = self.gimme_numpy('mean_yields', d['energy'].values)[1]
-                ex_ratios = self.gimme_numpy('mean_yields', ['energy'].values)[2]
+                nels = self.gimme_numpy('mean_yields', d['energy_mle'].values)[0]
+                nqs = self.gimme_numpy('mean_yields', d['energy_mle'].values)[1]
+                ex_ratios = self.gimme_numpy('mean_yields', ['energy_mle'].values)[2]
 
             recomb_ps = self.gimme_numpy('recomb_prob', (nels, nqs, ex_ratios))
             skews = self.gimme_numpy('skewness', nqs)

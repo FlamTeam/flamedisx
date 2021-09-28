@@ -493,6 +493,8 @@ class BlockModelSource(fd.Source):
         return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
     def _annotate(self, _skip_bounds_computation=False):
+        self.energy_bounds(self.source_copy,  ('s1', 's2', 'r', 'z'), 'energy', 'energies')
+
         d = self.data
         # By going in reverse order through the blocks, we can use the bounds
         # on hidden variables closer to the final signals (easy to compute)
