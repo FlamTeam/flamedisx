@@ -163,7 +163,10 @@ class Block:
         prior_hist = np.histogram(prior_data)
         prior_pdf = stats.rv_histogram(prior_hist)
         def prior(x):
-            return prior_pdf.pdf(x)
+            if np.sum(prior_pdf.pdf(x)) == 0:
+                return 1
+            else:
+                return prior_pdf.pdf(x)
 
         pdfs = [skew_normal(rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal) \
                 * prior(support)
