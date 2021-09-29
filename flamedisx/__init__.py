@@ -5,6 +5,7 @@ from .source import *
 from .block_source import *
 from .likelihood import *
 from .inference import *
+from .bounds import *
 
 # Original flamedisx models
 # Accessible under fd root package (for now), for backwards compatibility
