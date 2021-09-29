@@ -80,6 +80,13 @@ class DetectPhotonsOrElectrons(fd.Block):
                              "detection efficiency: did you apply and "
                              "configure your cuts correctly?")
 
+        # THIS IS TEMPORARY
+        energy = self.source.energies[0]
+        energies = energy * np.ones(len(d))
+
+        reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energy * 0.9) &
+                                                 (self.source.MC_reservoir['energy'] < energy * 1.1)]
+
         for suffix, bound in (('_min', 'lower'),
                               ('_max', 'upper')):
             out_bounds = d[self.quanta_name + 's_detected' + suffix]
@@ -90,9 +97,15 @@ class DetectPhotonsOrElectrons(fd.Block):
             rvs = [out_bound * np.ones_like(support)
                    for out_bound, support in zip(out_bounds, supports)]
 
-            fd.bounds.bayes_bounds_binomial(df=d, in_dim=self.quanta_name + 's_produced', supports=supports,
-                                            rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
-                                            bound=bound, bounds_prob=self.source.bounds_prob)
+            if self.quanta_name == 'photon' or 'electron':
+                fd.bounds.bayes_bounds_binomial(df=d, in_dim=self.quanta_name + 's_produced', supports=supports,
+                                                rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
+                                                bound=bound, bounds_prob=self.source.bounds_prob,
+                                                prior_data=reservoir_filter[self.quanta_name + 's_produced'])
+            else:
+                fd.bounds.bayes_bounds_binomial(df=d, in_dim=self.quanta_name + 's_produced', supports=supports,
+                                                rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
+                                                bound=bound, bounds_prob=self.source.bounds_prob)
 
 
 @export

@@ -171,18 +171,18 @@ class MakePhotonsElectronsNR(fd.Block):
                                          ph_prod_temp)
 
     def _annotate(self, d):
+        # THIS IS TEMPORARY
+        energy = self.source.energies[0]
+        energies = energy * np.ones(len(d))
+
+        reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energy * 0.9) &
+                                                 (self.source.MC_reservoir['energy'] < energy * 1.1)]
+
         for suffix, bound in (('_min', 'lower'),
                               ('_max', 'upper')):
             out_bounds = d['electrons_produced' + suffix]
             supports = [np.linspace(out_bound, out_bound * 5., 1000).astype(int)
                         for out_bound in out_bounds]
-
-            # THIS IS TEMPORARY
-            energy = self.source.energies[0]
-            energies = energy * np.ones(len(d))
-
-            reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energy * 0.9) &
-                                                     (self.source.MC_reservoir['energy'] < energy * 1.1)]
 
             if self.is_ER:
                 nels = self.gimme_numpy('mean_yield_electron', energies)

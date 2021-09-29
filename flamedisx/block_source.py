@@ -147,7 +147,7 @@ class Block:
                 f"_annotate of {self} set misordered bounds"
 
     def bayes_bounds_skew_normal(self, df, in_dim, supports, rvs_skew_normal, mus_skew_normal,
-                                 sigmas_skew_normal, alphas_skew_normal, prior_data, bound):
+                                 sigmas_skew_normal, alphas_skew_normal, bound, prior_data):
         """
         """
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
