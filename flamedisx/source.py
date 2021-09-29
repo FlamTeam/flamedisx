@@ -296,6 +296,8 @@ class Source:
         if not _skip_tf_init:
             self.trace_differential_rate()
 
+        self.MC_reservoir = pd.DataFrame()
+
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files
         params = {**fd.load_config(config), **params}

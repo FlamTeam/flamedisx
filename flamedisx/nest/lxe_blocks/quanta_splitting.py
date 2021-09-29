@@ -174,17 +174,23 @@ class MakePhotonsElectronsNR(fd.Block):
         for suffix, bound in (('_min', 'lower'),
                               ('_max', 'upper')):
             out_bounds = d['electrons_produced' + suffix]
-            supports = [np.linspace(out_bound, out_bound * 10., 1000).astype(int)
+            supports = [np.linspace(out_bound, out_bound * 5., 1000).astype(int)
                         for out_bound in out_bounds]
 
+            # THIS IS TEMPORARY
+            energy = d['energy'].values[0]
+
+            reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energy * 0.9) &
+                                                     (self.source.MC_reservoir['energy'] < energy * 1.1)]
+
             if self.is_ER:
-                nels = self.gimme_numpy('mean_yield_electron', d['energy_mle'].values)
-                nqs = self.gimme_numpy('mean_yield_quanta', (d['energy_mle'].values, nels))
-                ex_ratios = self.gimme_numpy('exciton_ratio', d['energy_mle'].values)
+                nels = self.gimme_numpy('mean_yield_electron', d['energy'].values)
+                nqs = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nels))
+                ex_ratios = self.gimme_numpy('exciton_ratio', d['energy'].values)
             else:
-                nels = self.gimme_numpy('mean_yields', d['energy_mle'].values)[0]
-                nqs = self.gimme_numpy('mean_yields', d['energy_mle'].values)[1]
-                ex_ratios = self.gimme_numpy('mean_yields', ['energy_mle'].values)[2]
+                nels = self.gimme_numpy('mean_yields', d['energy'].values)[0]
+                nqs = self.gimme_numpy('mean_yields', d['energy'].values)[1]
+                ex_ratios = self.gimme_numpy('mean_yields', ['energy'].values)[2]
 
             recomb_ps = self.gimme_numpy('recomb_prob', (nels, nqs, ex_ratios))
             skews = self.gimme_numpy('skewness', nqs)
@@ -204,7 +210,7 @@ class MakePhotonsElectronsNR(fd.Block):
             self.bayes_bounds_skew_normal(d, 'ions_produced', supports=supports,
                                           rvs_skew_normal=rvs, mus_skew_normal=mus,
                                           sigmas_skew_normal=sigmas, alphas_skew_normal = skews,
-                                          bound=bound)
+                                          prior_data = reservoir_filter['ions_produced'], bound=bound)
 
 
 @export
