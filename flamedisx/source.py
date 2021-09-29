@@ -1,5 +1,4 @@
 from copy import copy
-from copy import deepcopy
 from contextlib import contextmanager
 import inspect
 import typing as ty
@@ -296,8 +295,6 @@ class Source:
 
         if not _skip_tf_init:
             self.trace_differential_rate()
-
-        self.source_copy = deepcopy(self)
 
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files
@@ -766,9 +763,6 @@ class Source:
         """Return mean expected number of events BEFORE efficiencies/response
         using data for the evaluation of the energy spectra
         """
-        raise NotImplementedError
-
-    def setup_copy():
         raise NotImplementedError
 
     ##

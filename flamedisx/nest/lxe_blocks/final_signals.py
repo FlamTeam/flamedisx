@@ -50,8 +50,9 @@ class MakeFinalSignals(fd.Block):
             rvs = [observed_signal * np.ones_like(support)
                    for observed_signal, support in zip(observed_signals, supports)]
 
-            self.bayes_bounds_normal(d, self.signal_name + '_photoelectrons_detected', supports=supports,
-                                     rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas, bound=bound)
+            fd.bounds.bayes_bounds_normal(df=d, in_dim=self.signal_name + '_photoelectrons_detected', supports=supports,
+                                          rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas,
+                                          bound=bound, bounds_prob=self.source.bounds_prob)
 
     def _compute(self,
                  photoelectrons_detected, s_observed,

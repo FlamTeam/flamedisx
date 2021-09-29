@@ -55,8 +55,9 @@ class MakePhotoelectrons(fd.Block):
             ps = [p * np.ones_like(support) for p, support in zip(self.gimme_numpy('double_pe_fraction'), supports)]
             rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
 
-            self.bayes_bounds_binomial(d, self.quanta_in_name, supports=supports,
-                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps, bound=bound)
+            fd.bounds.bayes_bounds_binomial(df=d, in_dim=self.quanta_in_name, supports=supports,
+                                            rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
+                                            bound=bound, bounds_prob=self.source.bounds_prob)
 
 
 @export
