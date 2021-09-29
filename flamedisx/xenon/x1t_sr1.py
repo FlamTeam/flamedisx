@@ -20,6 +20,7 @@ DEFAULT_G2 = 11.4  # g2 bottom
 DEFAULT_AREA_FRACTION_TOP = 0.63  # fraction of light from top array
 DEFAULT_P_DPE = 0.219
 DEFAULT_EXTRACTION_EFFICIENCY = 0.96
+DEFAULT_WORK_PER_QUANTUM = 13.8e-3
 
 DEFAULT_ELECTRON_LIFETIME = 641e3
 DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
@@ -305,11 +306,21 @@ class SR1Source:
                           single_electron_width=DEFAULT_SINGLE_ELECTRON_WIDTH):
         # 0 * light yield is to fix the shape
         return single_electron_width + 0. * s2_relative_ly
-
-    #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
+    
     @staticmethod
-    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1):
-        mean_eff= g1 / (1. + DEFAULT_P_DPE)
+    def work(z, *, W=DEFAULT_WORK_PER_QUANTUM):
+        # Ties the work model function to the W parameter in the sources
+        return W + 0 * z
+
+    @staticmethod
+    def double_pe_fraction(z,*, dpe=DEFAULT_P_DPE):
+        # Ties the double_pe_fraction model function to the dpe parameter 
+        # in the sources
+        return dpe + 0 * z
+
+    @staticmethod
+    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1, dpe=DEFAULT_P_DPE):
+        mean_eff= g1 / (1. + dpe)
         return mean_eff * s1_relative_ly
 
     def photon_acceptance(self,
@@ -363,7 +374,7 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, *, W=DEFAULT_WORK_PER_QUANTUM, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
         F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
