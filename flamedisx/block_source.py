@@ -147,7 +147,7 @@ class Block:
                 f"_annotate of {self} set misordered bounds"
 
     def bayes_bounds_skew_normal(self, df, in_dim, supports, rvs_skew_normal, mus_skew_normal,
-                                 sigmas_skew_normal, alphas_skew_normal, bound):
+                                 sigmas_skew_normal, alphas_skew_normal, prior_data, bound):
         """
         """
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
@@ -160,9 +160,15 @@ class Block:
                 return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
                     * (1 + sp.erf(alpha * (x - mu) / (np.sqrt(2) * sigma)))
 
-        pdfs = [skew_normal(rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal)
-                for rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal
-                in zip(rvs_skew_normal, mus_skew_normal, sigmas_skew_normal, alphas_skew_normal)]
+        prior_hist = np.histogram(prior_data)
+        prior_pdf = stats.rv_histogram(prior_hist)
+        def prior(x):
+            return prior_pdf.pdf(x)
+
+        pdfs = [skew_normal(rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal) \
+                * prior(support)
+                for rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal, support
+                in zip(rvs_skew_normal, mus_skew_normal, sigmas_skew_normal, alphas_skew_normal, supports)]
         pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
         cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
