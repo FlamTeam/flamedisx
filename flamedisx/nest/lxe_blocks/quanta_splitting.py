@@ -178,19 +178,20 @@ class MakePhotonsElectronsNR(fd.Block):
                         for out_bound in out_bounds]
 
             # THIS IS TEMPORARY
-            energy = d['energy'].values[0]
+            energy = self.source.energies[0]
+            energies = energy * np.ones(len(d))
 
             reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energy * 0.9) &
                                                      (self.source.MC_reservoir['energy'] < energy * 1.1)]
 
             if self.is_ER:
-                nels = self.gimme_numpy('mean_yield_electron', d['energy'].values)
-                nqs = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nels))
-                ex_ratios = self.gimme_numpy('exciton_ratio', d['energy'].values)
+                nels = self.gimme_numpy('mean_yield_electron', energies)
+                nqs = self.gimme_numpy('mean_yield_quanta', (energies, nels))
+                ex_ratios = self.gimme_numpy('exciton_ratio', energies)
             else:
-                nels = self.gimme_numpy('mean_yields', d['energy'].values)[0]
-                nqs = self.gimme_numpy('mean_yields', d['energy'].values)[1]
-                ex_ratios = self.gimme_numpy('mean_yields', ['energy'].values)[2]
+                nels = self.gimme_numpy('mean_yields', energies)[0]
+                nqs = self.gimme_numpy('mean_yields', energies)[1]
+                ex_ratios = self.gimme_numpy('mean_yields', energies)[2]
 
             recomb_ps = self.gimme_numpy('recomb_prob', (nels, nqs, ex_ratios))
             skews = self.gimme_numpy('skewness', nqs)
