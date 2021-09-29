@@ -1,6 +1,8 @@
 import typing as ty
 
 import numpy as np
+import pandas as pd
+from scipy import spatial
 import scipy.special as sp
 
 import flamedisx as fd
@@ -133,23 +135,20 @@ def scale_observables(df, observables):
     return observables_scaled
 
 
-def energy_bounds(source, kd_tree_observables: ty.Tuple[str],
-                  initial_dimension: str, initial_attribute: str,
-                  flat_attributes: ty.Tuple[ty.Tuple[str, int]] = (),
-                  MC_bound_dimensions: ty.Tuple[str] = ()):
+def energy_bounds(source, df, kd_tree_observables: ty.Tuple[str], initial_dimension: str):
     """"""
     MC_data = source.simulate(int(1e6))
 
-    df_full = pd.concat([MC_data, source.data])
+    df_full = pd.concat([MC_data, df])
     data_full = np.array(list(zip(*scale_observables(df_full, kd_tree_observables))))
 
     data = data_full[len(MC_data)::]
     data_MC = data_full[0:len(MC_data)]
 
-    tree = sklearn.neighbors.KDTree(data_MC)
+    tree = spatial.KDTree(data_MC)
     dist, ind = tree.query(data[::], k=10)
 
     for i in range(len(source.data)):
 
-        source.data.at[i, initial_dimension + '_min'] = min(MC_data[initial_dimension].iloc[ind[i]])
-        source.data.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
+        df.at[i, initial_dimension + '_min'] = min(MC_data[initial_dimension].iloc[ind[i]])
+        df.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
