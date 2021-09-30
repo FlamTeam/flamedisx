@@ -10,7 +10,7 @@ export, __all__ = fd.exporter()
 
 
 @export
-def bayes_bounds_binomial(df, in_dim, supports, rvs_binom, ns_binom, ps_binom, bound, bounds_prob):
+def bayes_bounds_binomial(df, in_dim, supports, rvs_binom, ns_binom, ps_binom, bound, bounds_prob, prior_data=None):
     """Calculate bounds on a block using a binomial distribution.
 
     :param df: Dataframe with events
@@ -30,8 +30,19 @@ def bayes_bounds_binomial(df, in_dim, supports, rvs_binom, ns_binom, ps_binom, b
     assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom) == np.shape(supports)), \
         "Shapes of suports, rvs_binom, ns_binom and ps_binom must be equal"
 
-    pdfs = [stats.binom.pmf(rv_binom, n_binom, p_binom)
-            for rv_binom, n_binom, p_binom in zip(rvs_binom, ns_binom, ps_binom)]
+    if prior_data is not None:
+        prior_hist = np.histogram(prior_data)
+        prior_pdf = stats.rv_histogram(prior_hist)
+    def prior(x):
+        if prior_data is None:
+            return 1
+        elif np.sum(prior_pdf.pdf(x)) == 0:
+            return 1
+        else:
+            return prior_pdf.pdf(x)
+
+    pdfs = [stats.binom.pmf(rv_binom, n_binom, p_binom) * prior(support)
+            for rv_binom, n_binom, p_binom, support in zip(rvs_binom, ns_binom, ps_binom, supports)]
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
@@ -113,7 +124,7 @@ def scale_observables(df, observables):
 
 def energy_bounds(source, df, kd_tree_observables: ty.Tuple[str], initial_dimension: str):
     """"""
-    MC_data = source.simulate(int(1e6))
+    source.MC_reservoir = MC_data = source.simulate(int(1e6), keep_padding=True)
 
     df_full = pd.concat([MC_data, df])
     data_full = np.array(list(zip(*scale_observables(df_full, kd_tree_observables))))

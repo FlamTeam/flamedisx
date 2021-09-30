@@ -448,7 +448,7 @@ class Source:
             d[dim + "_dimsizes"] = self.dimsizes[dim]
 
     @contextmanager
-    def _set_temporarily(self, data, **kwargs):
+    def _set_temporarily(self, data, keep_padding=False, **kwargs):
         """Set data and/or defaults temporarily, without affecting the
         data tensor state"""
         if data is None:
@@ -460,7 +460,10 @@ class Source:
             if self.data is None:
                 old_data = None
             else:
-                old_data = self.data[:self.n_events]  # Remove padding
+                if keep_padding:
+                    old_data = self.data
+                else:
+                    old_data = self.data[:self.n_events]  # Remove padding
             self.set_data(data, **kwargs, _skip_tf_init=True)
         try:
             yield
@@ -671,7 +674,8 @@ class Source:
     # Simulation methods and helpers
     ##
 
-    def simulate(self, n_events, fix_truth=None, full_annotate=False, **params):
+    def simulate(self, n_events, fix_truth=None, full_annotate=False,
+                 keep_padding = False, **params):
         """Simulate n events.
 
         Will omit events lost due to selection/detection efficiencies
@@ -688,7 +692,7 @@ class Source:
         assert isinstance(sim_data, pd.DataFrame)
 
         with self._set_temporarily(sim_data, _skip_bounds_computation=True,
-                                   **params):
+                                   keep_padding=keep_padding, **params):
             # Do the forward simulation of the detector response
             d = self._simulate_response()
             if full_annotate:
