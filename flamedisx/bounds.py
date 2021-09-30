@@ -3,7 +3,7 @@ import typing as ty
 import numpy as np
 import pandas as pd
 from scipy import spatial
-import scipy.special as sp
+from scipy import stats
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -30,27 +30,7 @@ def bayes_bounds_binomial(df, in_dim, supports, rvs_binom, ns_binom, ps_binom, b
     assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom) == np.shape(supports)), \
         "Shapes of suports, rvs_binom, ns_binom and ps_binom must be equal"
 
-    def binomial(x, n, p):
-        mu = n * p
-        sigma = np.sqrt(n * p * (1. - p))
-        return np.select([approx_cond(n, p), peak_cond(p), np.invert(peak_cond(p))],
-                         [binom_approx(x, mu, sigma), np.equal(n, x), binom(x, n, p)])
-
-    def binom_approx(x, mu, sigma):
-        with np.errstate(invalid='ignore', divide='ignore'):
-            return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
-
-    def binom(x, n, p):
-        with np.errstate(invalid='ignore'):
-            return sp.binom(n, x) * pow(p, x) * pow(1. - p, n - x)
-
-    def approx_cond(n, p):
-        return np.where(np.logical_and(n * p > 9. * (1. - p), n * (1. - p) > 9. * p), True, False)
-
-    def peak_cond(p):
-        return np.where(p == 1., True, False)
-
-    pdfs = [binomial(rv_binom, n_binom, p_binom)
+    pdfs = [stats.binom.pmf(rv_binom, n_binom, p_binom)
             for rv_binom, n_binom, p_binom in zip(rvs_binom, ns_binom, ps_binom)]
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
@@ -95,11 +75,7 @@ def bayes_bounds_normal(df, in_dim, supports, rvs_normal, mus_normal, sigmas_nor
     assert (np.shape(rvs_normal) == np.shape(mus_normal) == np.shape(sigmas_normal) == np.shape(supports)), \
         "Shapes of supports, rvs_normal, mus_normal and sigmas_normal must be equal"
 
-    def normal(x, mu, sigma):
-        with np.errstate(invalid='ignore', divide='ignore'):
-            return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
-
-    pdfs = [normal(rv_normal, mu_normal, sigma_normal)
+    pdfs = [stats.norm.pdf(rv_normal, mu_normal, sigma_normal)
             for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]

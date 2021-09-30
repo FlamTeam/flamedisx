@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
-import scipy.special as sp
+from scipy import stats
 
 from tqdm import tqdm
 
@@ -216,7 +216,7 @@ class Source:
         """
         if max_sigma is None:
             max_sigma = self.default_max_sigma
-        self.bounds_prob = 0.5 * (1 + sp.erf(-max_sigma / np.sqrt(2)))
+        self.bounds_prob = stats.norm.cdf(-max_sigma)
         self.max_sigma = max_sigma
         assert self.bounds_prob > 0., \
             "max_sigma too high!"

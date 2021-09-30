@@ -90,19 +90,22 @@ class EnergySpectrum(fd.FirstBlock):
         """Clean fix_truth, ensure all needed variables are present
            Compute derived variables.
         """
+        # When passing in an event as DataFrame we select and set
+        # only these columns:
+        cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']
         if d is None:
             return dict()
         elif isinstance(d, pd.DataFrame):
             # This is useful, since it allows you to fix_truth with an
             # observed event.
-            # When passing in an event as DataFrame we select and set
-            # only these columns:
-            cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']
             # Assume fix_truth is a one-line dataframe with at least
             # cols columns
             return d[cols].iloc[0].to_dict()
         elif isinstance(d, pd.Series):
-            cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']
+            # This is useful, since it allows you to fix_truth with an
+            # observed event.
+            # Assume fix_truth is a one-line series with at least
+            # cols columns
             return d[cols].to_dict()
         else:
             assert isinstance(d, dict), \
