@@ -3,7 +3,8 @@ import typing as ty
 import numpy as np
 import tensorflow as tf
 import pandas as pd
-import math
+from scipy import stats
+import scipy.special as sp
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -502,9 +503,10 @@ class BlockModelSource(fd.Source):
         return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
     def _annotate(self, _skip_bounds_computation=False):
-        self.energy_bounds(self.source_copy,  ('s1', 's2', 'r', 'z'), 'energy', 'energies')
-
         d = self.data
+        fd.bounds.energy_bounds(source=self, df=d,
+                                kd_tree_observables=('s1', 's2', 'r', 'z'), initial_dimension='energy')
+
         # By going in reverse order through the blocks, we can use the bounds
         # on hidden variables closer to the final signals (easy to compute)
         # for estimating the bounds on deeper hidden variables.
