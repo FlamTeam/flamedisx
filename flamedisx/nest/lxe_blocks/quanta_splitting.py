@@ -63,14 +63,14 @@ class MakePhotonsElectronsNR(fd.Block):
                 alpha = 1. / (1. + ex_ratio)
 
                 p_ni = tfp.distributions.Normal(
-                    loc=nq_mean*alf, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced + 0.5) \
+                    loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced + 0.5) \
                 -  tfp.distributions.Normal(
-                    loc=nq_mean*alf, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced - 0.5)
+                    loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced - 0.5)
 
                 p_nq = tfp.distributions.Normal(
-                    loc=nq_mean*alf*excitonR, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced + 0.5) \
+                    loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced + 0.5) \
                 - tfp.distributions.Normal(
-                    loc=nq_mean*alf*excitonR, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced - 0.5)
+                    loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced - 0.5)
 
             recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=(nel_mean, nq_mean, ex_ratio))
