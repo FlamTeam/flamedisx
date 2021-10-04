@@ -295,9 +295,9 @@ class SR1Source:
                            *,
                            g2=DEFAULT_G2,
                            aft=DEFAULT_AREA_FRACTION_TOP,
-                           extraction_efficiency=DEFAULT_EXTRACTION_EFFICIENCY):
+                           extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         g2_total = g2/(1.-aft)
-        single_electron_gain = g2_total/extraction_efficiency
+        single_electron_gain = g2_total/extraction_eff
         return single_electron_gain * s2_relative_ly
 
     @staticmethod
@@ -306,9 +306,9 @@ class SR1Source:
                           g2=DEFAULT_G2,
                           aft=DEFAULT_AREA_FRACTION_TOP,
                           gain_width_fraction=DEFAULT_GAIN_WIDTH_FRACTION,
-                          extraction_efficiency=DEFAULT_EXTRACTION_EFFICIENCY):
+                          extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         g2_total = g2/(1.-aft)
-        single_electron_gain = g2_total/extraction_efficiency
+        single_electron_gain = g2_total/extraction_eff
         single_electron_width = gain_width_fraction*single_electron_gain
         # 0 * light yield is to fix the shape of tensor
         return single_electron_width + 0. * s2_relative_ly
