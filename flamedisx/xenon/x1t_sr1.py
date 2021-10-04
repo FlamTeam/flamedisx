@@ -392,12 +392,13 @@ class SR1ERSource(SR1Source, fd.ERSource):
         return fd.safe_p(p_el)
 
     @staticmethod
-    def p_electron_fluctuation(nq, q2=0.034, q3_nq=123.):
+    def p_electron_fluctuation(nq, q2=0.034, q3=1.7, W=DEFAULT_WORK_PER_QUANTUM):
         # From SR0, BBF model, right?
         # q3 = 1.7 keV ~= 123 quanta
         # For SR1:
+        e_kev = nq * W
         return tf.clip_by_value(
-            q2 * (tf.constant(1., dtype=fd.float_type()) - tf.exp(-nq / q3_nq)),
+            q2 * (tf.constant(1., dtype=fd.float_type()) - tf.exp(-e_kev / q3)),
             tf.constant(1e-4, dtype=fd.float_type()),
             float('inf'))
 
