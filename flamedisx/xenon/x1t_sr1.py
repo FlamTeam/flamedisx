@@ -14,28 +14,24 @@ o = tf.newaxis
 ##
 # Parameters
 ##
-DEFAULT_G1 = 0.142
-DEFAULT_G2 = 11.4  # g2 bottom
-
+# Not recommended to nuisance (cause can measure anyway)
 DEFAULT_AREA_FRACTION_TOP = 0.63  # fraction of light from top array
 DEFAULT_P_DPE = 0.219
 DEFAULT_EXTRACTION_EFFICIENCY = 0.96
-DEFAULT_WORK_PER_QUANTUM = 13.8e-3
-
+DEFAULT_DRIFT_FIELD = 81.
 DEFAULT_ELECTRON_LIFETIME = 641e3
 DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
-DEFAULT_DRIFT_FIELD = 81.
-
-DEFAULT_G2_TOTAL = DEFAULT_G2 / (1.-DEFAULT_AREA_FRACTION_TOP)
-DEFAULT_SINGLE_ELECTRON_GAIN = DEFAULT_G2_TOTAL / DEFAULT_EXTRACTION_EFFICIENCY
-DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
+# Can measure but should nuisance
+DEFAULT_G1 = 0.142
+DEFAULT_G2 = 11.4  # g2 bottom
+DEFAULT_WORK_PER_QUANTUM = 13.8e-3
+DEFAULT_GAIN_WIDTH_FRACTION  = 0.25 # single_e_width = gain_width_fraction*single_e_gain
 
 # Official numbers from BBF
 DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
 DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT = 0.49198507921078005
 DEFAULT_S1_RECONSTRUCTION_EFFICIENCY_PIVOT = -0.31816407029454036
-
 
 def read_maps_tf(path_bag, is_bbf=False):
     """ Function to read reconstruction bias/combined cut acceptances/dummy maps.
@@ -297,14 +293,24 @@ class SR1Source:
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
                            *,
-                           single_electron_gain=DEFAULT_SINGLE_ELECTRON_GAIN):
+                           g2=DEFAULT_G2,
+                           aft=DEFAULT_AREA_FRACTION_TOP,
+                           extraction_efficiency=DEFAULT_EXTRACTION_EFFICIENCY):
+        g2_total = g2/(1.-aft)
+        single_electron_gain = g2_total/extraction_efficiency
         return single_electron_gain * s2_relative_ly
 
     @staticmethod
     def electron_gain_std(s2_relative_ly,
                           *,
-                          single_electron_width=DEFAULT_SINGLE_ELECTRON_WIDTH):
-        # 0 * light yield is to fix the shape
+                          g2=DEFAULT_G2,
+                          aft=DEFAULT_AREA_FRACTION_TOP,
+                          gain_width_fraction=DEFAULT_GAIN_WIDTH_FRACTION,
+                          extraction_efficiency=DEFAULT_EXTRACTION_EFFICIENCY):
+        g2_total = g2/(1.-aft)
+        single_electron_gain = g2_total/extraction_efficiency
+        single_electron_width = gain_width_fraction*single_electron_gain
+        # 0 * light yield is to fix the shape of tensor
         return single_electron_width + 0. * s2_relative_ly
     
     @staticmethod
@@ -313,7 +319,7 @@ class SR1Source:
         return W + 0 * z
 
     @staticmethod
-    def double_pe_fraction(z,*, dpe=DEFAULT_P_DPE):
+    def double_pe_fraction(z, *, dpe=DEFAULT_P_DPE):
         # Ties the double_pe_fraction model function to the dpe parameter 
         # in the sources
         return dpe + 0 * z
