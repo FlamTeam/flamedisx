@@ -443,36 +443,47 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
       # TODO: The parameters here will need to be polished. 
       # They are fitted parameters and give a reasonable result.
       @staticmethod
-      def p_electron(nq, *, w_er_pel_a = -123. , w_er_pel_b = -47.7, 
-                    w_er_pel_c = 68., w_er_pel_e0 = 9.95):
+      def p_electron(nq, *, w_er_pel_c = 55.67):
       
           """Fraction of ER quanta that become electrons
-          Simplified form from Jelle's thesis
+          Constant probability.
           """
-          # The original model depended on energy, but in flamedisx
-          # it has to be a direct function of nq.
-          e_kev_sortof = nq * 13.7e-3
-          eps = fd.tf_log10(e_kev_sortof / w_er_pel_e0 + 1e-9)
-          qy = (
-              w_er_pel_a * eps ** 2
-              + w_er_pel_b * eps
-              + w_er_pel_c)
-          return fd.safe_p(qy * 13.7e-3)
+          # TODO: Maybe this can be tied to W in a combined fit
+          qy = w_er_pel_c
+          return fd.safe_p(qy * 13.7e-3 + 0. * nq)
 
       @staticmethod
       def electron_detection_eff(drift_time,
                                  elife,
                                  *,
-                                 w_extraction_eff=0.0169):
-          return w_extraction_eff * tf.exp(-drift_time / elife)
-          
+                                 w_extraction_eff=0.0072):
+         return w_extraction_eff * tf.exp(-drift_time / elife)
+
+      @staticmethod
+      def electron_gain_mean(s2_relative_ly,
+                             *,
+                             w_g2_total=0.2081,
+                             w_extraction_eff=0.0072):
+         single_electron_gain=w_g2_total/w_extraction_eff
+         return single_electron_gain * s2_relative_ly
+
+      @staticmethod
+      def electron_gain_std(s2_relative_ly,
+                            *,
+                            w_g2_total=0.2081,
+                            w_extraction_eff=0.0072):
+          # 0 * light yield is to fix the shape
+         single_electron_width=w_g2_total/w_extraction_eff*0.25
+         return single_electron_width + 0. * s2_relative_ly
+
       @staticmethod
       def p_electron_fluctuation(nq, w_q2 = 0.0237, w_q3_nq = 123.): 
-        return tf.clip_by_value(
-            w_q2 * (tf.constant(1., dtype=fd.float_type()) - \
-            tf.exp(-nq / w_q3_nq)),
-            tf.constant(1e-4, dtype=fd.float_type()),
-            float('inf'))
+         return tf.clip_by_value(
+                w_q2 * (tf.constant(1., dtype=fd.float_type()) - \
+                tf.exp(-nq / w_q3_nq)),
+                tf.constant(1e-4, dtype=fd.float_type()),
+                float('inf'))
+
       # It is preferred to have higher energy spectrum for the wall
       energies = tf.cast(tf.linspace(0., 25. , 1000),
                        dtype=fd.float_type())
