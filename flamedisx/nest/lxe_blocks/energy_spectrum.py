@@ -33,10 +33,9 @@ class EnergySpectrum(fd.FirstBlock):
 
         left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
         right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
-        energies = tf.clip_by_value(self.energies, left_bound, right_bound)
-        bool_mask = tf.logical_and(tf.greater(energies, tf.reduce_min(energies)),
-                                   tf.less(energies, tf.reduce_max(energies)))
-        energies_trim = tf.boolean_mask(energies, bool_mask)
+        bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
+                                   tf.less_equal(self.energies, right_bound))
+        energies_trim = tf.boolean_mask(self.energies, bool_mask)
 
         return {self.dimensions[0]: tf.repeat(energies_trim[o, :],
                                               self.source.batch_size,
@@ -168,9 +167,8 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     def _compute(self, data_tensor, ptensor, *, energy):
         left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
         right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
-        energies = tf.clip_by_value(self.energies, left_bound, right_bound)
-        bool_mask = tf.logical_and(tf.greater(energies, tf.reduce_min(energies)),
-                                   tf.less(energies, tf.reduce_max(energies)))
+        bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
+                                   tf.less_equal(self.energies, right_bound))
         spectrum_trim = tf.boolean_mask(self.rates_vs_energy, bool_mask)
 
         spectrum = tf.repeat(spectrum_trim[o, :],
