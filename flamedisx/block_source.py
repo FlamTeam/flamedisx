@@ -175,7 +175,7 @@ class Block:
 
         def binom_approx(x, mu, sigma):
             with np.errstate(invalid='ignore', divide='ignore'):
-                return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+                return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
 
         def binom(x, n, p):
             with np.errstate(invalid='ignore'):
@@ -233,7 +233,7 @@ class Block:
 
         def normal(x, mu, sigma):
             with np.errstate(invalid='ignore', divide='ignore'):
-                return (1 / np.sqrt(sigma)) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
+                return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2)
 
         pdfs = [normal(rv_normal, mu_normal, sigma_normal)
                 for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
