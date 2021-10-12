@@ -85,6 +85,7 @@ class nestSource(fd.BlockModelSource):
 
         super().__init__(*args, **kwargs)
 
+    initial_dimension = 'energy'
     final_dimensions = ('s1', 's2')
     penultimate_dimensions = ('s1_photoelectrons_detected',
                               's2_photoelectrons_detected')

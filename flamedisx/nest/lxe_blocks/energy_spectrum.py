@@ -30,7 +30,15 @@ class EnergySpectrum(fd.FirstBlock):
 
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
-        return {self.dimensions[0]: tf.repeat(fd.np_to_tf(self.energies)[o, :],
+
+        left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
+        right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
+        energies = tf.clip_by_value(self.energies, left_bound, right_bound)
+        bool_mask = tf.logical_and(tf.greater(energies, tf.reduce_min(energies)),
+                                   tf.less(energies, tf.reduce_max(energies)))
+        energies_trim = tf.boolean_mask(energies, bool_mask)
+
+        return {self.dimensions[0]: tf.repeat(energies_trim[o, :],
                                               self.source.batch_size,
                                               axis=0)}
 
@@ -158,7 +166,14 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     energy_spectrum_rate_multiplier = 1.
 
     def _compute(self, data_tensor, ptensor, *, energy):
-        spectrum = tf.repeat(self.rates_vs_energy[o, :],
+        left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
+        right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
+        energies = tf.clip_by_value(self.energies, left_bound, right_bound)
+        bool_mask = tf.logical_and(tf.greater(energies, tf.reduce_min(energies)),
+                                   tf.less(energies, tf.reduce_max(energies)))
+        spectrum_trim = tf.boolean_mask(self.rates_vs_energy, bool_mask)
+
+        spectrum = tf.repeat(spectrum_trim[o, :],
                              self.source.batch_size,
                              axis=0)
         rate_multiplier = self.gimme('energy_spectrum_rate_multiplier',

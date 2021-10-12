@@ -47,6 +47,8 @@ class Source:
     #: Note these cannot have any fittable parameters.
     frozen_model_functions: ty.Tuple[str] = tuple()
 
+    initial_dimension: str
+
     #: Names of final observable dimensions (e.g. s1, s2)
     #: for use in domain / cross-domain
     final_dimensions: ty.Tuple[str] = tuple()
@@ -252,6 +254,8 @@ class Source:
         ctc += list(self.final_dimensions)                  # Final observables (e.g. S1, S2)
         ctc += self.extra_needed_columns()                  # Manually fetched columns
         ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
+        ctc += [self.initial_dimension + '_min']  # Left bounds of domains
+        ctc += [self.initial_dimension + '_max']  # Right bounds of domains
         ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
         ctc += [x + '_max' for x in self.inner_dimensions]  # Right bounds of domains
         ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
