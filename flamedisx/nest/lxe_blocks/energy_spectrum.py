@@ -40,6 +40,10 @@ class EnergySpectrum(fd.FirstBlock):
         return {self.dimensions[0]: tf.repeat(energies_trim[o, :],
                                               self.source.batch_size,
                                               axis=0)}
+    def _annotate_kd(self, d):
+        fd.bounds.energy_bounds(source=self.source, df=d,
+                                kd_tree_observables=('s1', 's2', 'r', 'z'), initial_dimension='energy')
+        return True
 
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time

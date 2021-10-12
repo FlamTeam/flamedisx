@@ -147,6 +147,21 @@ class Block:
                           <= d[f'{dim}_max'].values), \
                 f"_annotate of {self} set misordered bounds"
 
+    def annotate_kd(self, d: pd.DataFrame):
+        """"""
+        return_value = self._annotate_kd(d)
+        assert isinstance(return_value, bool), f"_annotate_kd of {self} should return a bool"
+
+        if return_value == True:
+            for dim in self.dimensions:
+                for bound in ('min', 'max'):
+                    colname = f'{dim}_{bound}'
+                    assert colname in d.columns, \
+                        f" must set {colname}"
+                assert np.all(d[f'{dim}_min'].values
+                              <= d[f'{dim}_max'].values), \
+                    f"_annotate of {self} set misordered bounds"
+
     def bayes_bounds_skew_normal(self, df, in_dim, supports, rvs_skew_normal, mus_skew_normal,
                                  sigmas_skew_normal, alphas_skew_normal, bound, prior_data):
         """
@@ -212,6 +227,10 @@ class Block:
     def _annotate(self, d):
         """Add _min and _max for each dimension to d in-place"""
         raise NotImplementedError
+
+    def _annotate_kd(self, d):
+        """"""
+        return False
 
     def _domain_dict_bonus(self, d):
         """Calculate any additional intenal tensors arising from the use of
@@ -503,15 +522,21 @@ class BlockModelSource(fd.Source):
         return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
     def _annotate(self, _skip_bounds_computation=False):
-        d = self.data
-        fd.bounds.energy_bounds(source=self, df=d,
-                                kd_tree_observables=('s1', 's2', 'r', 'z'), initial_dimension='energy')
+        # First, we see if any blocks will do k-d tree-based annotation
+        self._annotate_kd()
 
+        d = self.data
         # By going in reverse order through the blocks, we can use the bounds
         # on hidden variables closer to the final signals (easy to compute)
         # for estimating the bounds on deeper hidden variables.
         for b in self.model_blocks[::-1]:
             b.annotate(d)
+
+    def _annotate_kd(self):
+        #
+        d = self.data
+        for b in self.model_blocks[::-1]:
+            b.annotate_kd(d)
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)
