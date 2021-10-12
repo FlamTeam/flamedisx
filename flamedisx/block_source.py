@@ -162,8 +162,9 @@ class Block:
                               <= d[f'{dim}_max'].values), \
                     f"_annotate of {self} set misordered bounds"
 
-    def bayes_bounds_skew_normal(self, df, in_dim, supports, rvs_skew_normal, mus_skew_normal,
-                                 sigmas_skew_normal, alphas_skew_normal, bound, prior_data):
+    def bayes_bounds_skew_normal(self, in_dim, supports, rvs_skew_normal, mus_skew_normal,
+                                 sigmas_skew_normal, alphas_skew_normal, bound, prior_data,
+                                 batch):
         """
         """
         assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
@@ -196,18 +197,18 @@ class Block:
                           if len(np.where(cdf < self.source.bounds_prob)[0]) > 0
                           else support[0]
                           for support, cdf in zip(supports, cdfs)]
-            df[in_dim + '_min'] = lower_lims
+            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, in_dim + '_min'] = lower_lims
 
         elif bound == 'upper':
             upper_lims = [support[np.where(cdf > 1. - self.source.bounds_prob)[0][0]]
                           if len(np.where(cdf > 1. - self.source.bounds_prob)[0]) > 0
                           else support[-1]
                           for support, cdf in zip(supports, cdfs)]
-            df[in_dim + '_max'] = upper_lims
+            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, in_dim + '_max'] = upper_lims
 
         elif bound == 'mle':
             mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
-            df[in_dim + '_mle'] = mles
+            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, in_dim + '_mle'] = mles
 
     def check_data(self):
         pass

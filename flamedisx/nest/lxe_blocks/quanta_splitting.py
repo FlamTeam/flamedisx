@@ -171,47 +171,47 @@ class MakePhotonsElectronsNR(fd.Block):
                                          ph_prod_temp)
 
     def _annotate(self, d):
-        # THIS IS TEMPORARY
-        energy = self.source.energies[0]
-        energies = energy * np.ones(len(d))
+        for batch in range(self.source.n_batches):
+            d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
 
-        reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energy * 0.9) &
-                                                 (self.source.MC_reservoir['energy'] < energy * 1.1)]
+            for suffix, bound in (('_min', 'lower'),
+                                  ('_max', 'upper')):
+                energies = d_batch['energy' + suffix]
+                reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energies.iloc[0] * 0.9) &
+                                                         (self.source.MC_reservoir['energy'] < energies.iloc[0] * 1.1)]
+                out_bounds = d_batch['electrons_produced' + suffix]
+                supports = [np.linspace(out_bound, out_bound * 5., 1000).astype(int)
+                            for out_bound in out_bounds]
 
-        for suffix, bound in (('_min', 'lower'),
-                              ('_max', 'upper')):
-            out_bounds = d['electrons_produced' + suffix]
-            supports = [np.linspace(out_bound, out_bound * 5., 1000).astype(int)
-                        for out_bound in out_bounds]
+                if self.is_ER:
+                    nels = self.gimme_numpy('mean_yield_electron', energies)
+                    nqs = self.gimme_numpy('mean_yield_quanta', (energies, nels))
+                    ex_ratios = self.gimme_numpy('exciton_ratio', energies)
+                else:
+                    nels = self.gimme_numpy('mean_yields', energies)[0]
+                    nqs = self.gimme_numpy('mean_yields', energies)[1]
+                    ex_ratios = self.gimme_numpy('mean_yields', energies)[2]
 
-            if self.is_ER:
-                nels = self.gimme_numpy('mean_yield_electron', energies)
-                nqs = self.gimme_numpy('mean_yield_quanta', (energies, nels))
-                ex_ratios = self.gimme_numpy('exciton_ratio', energies)
-            else:
-                nels = self.gimme_numpy('mean_yields', energies)[0]
-                nqs = self.gimme_numpy('mean_yields', energies)[1]
-                ex_ratios = self.gimme_numpy('mean_yields', energies)[2]
+                recomb_ps = self.gimme_numpy('recomb_prob', (nels, nqs, ex_ratios))
+                skews = self.gimme_numpy('skewness', nqs)
+                vars = [self.gimme_numpy('variance', (nel, nq, recomb_p, support))
+                       for nel, nq, recomb_p, support
+                       in zip(nels, nqs, recomb_ps, supports)]
+                width_corrs = self.gimme_numpy('width_correction', skews)
+                mu_corrs = [self.gimme_numpy('mu_correction', (skew, var, width_corr))
+                            for skew, var, width_corr in zip(skews, vars, width_corrs)]
 
-            recomb_ps = self.gimme_numpy('recomb_prob', (nels, nqs, ex_ratios))
-            skews = self.gimme_numpy('skewness', nqs)
-            vars = [self.gimme_numpy('variance', (nel, nq, recomb_p, support))
-                   for nel, nq, recomb_p, support
-                   in zip(nels, nqs, recomb_ps, supports)]
-            width_corrs = self.gimme_numpy('width_correction', skews)
-            mu_corrs = [self.gimme_numpy('mu_correction', (skew, var, width_corr))
-                        for skew, var, width_corr in zip(skews, vars, width_corrs)]
+                mus = [(1 - recomb_p) * support - mu_corr
+                       for recomb_p, support, mu_corr in zip(recomb_ps, supports, mu_corrs)]
+                sigmas = [np.sqrt(var) / width_corr for var, width_corr in zip(vars, width_corrs)]
+                rvs = [out_bound * np.ones_like(support)
+                       for out_bound, support in zip(out_bounds, supports)]
 
-            mus = [(1 - recomb_p) * support - mu_corr
-                   for recomb_p, support, mu_corr in zip(recomb_ps, supports, mu_corrs)]
-            sigmas = [np.sqrt(var) / width_corr for var, width_corr in zip(vars, width_corrs)]
-            rvs = [out_bound * np.ones_like(support)
-                   for out_bound, support in zip(out_bounds, supports)]
-
-            self.bayes_bounds_skew_normal(d, 'ions_produced', supports=supports,
-                                          rvs_skew_normal=rvs, mus_skew_normal=mus,
-                                          sigmas_skew_normal=sigmas, alphas_skew_normal = skews,
-                                          prior_data = reservoir_filter['ions_produced'], bound=bound)
+                self.bayes_bounds_skew_normal('ions_produced', supports=supports,
+                                              rvs_skew_normal=rvs, mus_skew_normal=mus,
+                                              sigmas_skew_normal=sigmas, alphas_skew_normal = skews,
+                                              prior_data = reservoir_filter['ions_produced'], bound=bound,
+                                              batch=batch)
 
 
 @export

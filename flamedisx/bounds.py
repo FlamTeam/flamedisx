@@ -122,7 +122,7 @@ def scale_observables(df, observables):
     return observables_scaled
 
 
-def energy_bounds(source, df, kd_tree_observables: ty.Tuple[str], initial_dimension: str):
+def kd_bounds(source, df, kd_tree_observables: ty.Tuple[str], initial_dimension: str):
     """"""
     source.MC_reservoir = MC_data = source.simulate(int(1e6), keep_padding=True)
 
@@ -133,9 +133,8 @@ def energy_bounds(source, df, kd_tree_observables: ty.Tuple[str], initial_dimens
     data_MC = data_full[0:len(MC_data)]
 
     tree = spatial.KDTree(data_MC)
-    dist, ind = tree.query(data[::], k=10)
+    dist, ind = tree.query(data[::], k=100)
 
     for i in range(len(source.data)):
-
         df.at[i, initial_dimension + '_min'] = min(MC_data[initial_dimension].iloc[ind[i]])
         df.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
