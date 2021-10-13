@@ -10,8 +10,8 @@ export, __all__ = fd.exporter()
 
 
 def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
-    assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
-    assert (bound_type == 'binomial' or 'normal'), "bound_type must be binomial or normal"
+    assert (bound in ('upper', 'lower', 'mle')), "bound argumment must be upper, lower or mle"
+    assert (bound_type in ('binomial', 'normal')), "bound_type must be binomial or normal"
 
     if bound_type == 'binomial':
         cdfs =  bayes_bounds_binomial(supports, **kwargs)
@@ -36,6 +36,37 @@ def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs)
     elif bound == 'mle':
         mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
         df[in_dim + '_mle'] = mles
+
+
+def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
+    assert (bound in ('upper', 'lower',  'mle')), "bound argumment must be upper, lower or mle"
+    assert (bound_type in ('binomial',)), "bound_type must be binomial"
+
+    df_batch = df[batch * source.batch_size : (batch + 1) * source.batch_size]
+    energies = df_batch['energy_mle']
+    reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] > energies.iloc[0] * 0.9) &
+                                               (source.MC_reservoir['energy'] < energies.iloc[0] * 1.1)]
+
+    if bound_type == 'binomial':
+        cdfs =  bayes_bounds_binomial(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+
+    if bound == 'lower':
+        lower_lims = [support[np.where(cdf < bounds_prob)[0][-1]]
+                      if len(np.where(cdf < bounds_prob)[0]) > 0
+                      else support[0]
+                      for support, cdf in zip(supports, cdfs)]
+        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_min'] = lower_lims
+
+    elif bound == 'upper':
+        upper_lims = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
+                      if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
+                      else support[-1]
+                      for support, cdf in zip(supports, cdfs)]
+        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_max'] = upper_lims
+
+    elif bound == 'mle':
+        mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
+        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_mle'] = mles
 
 
 def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_data=None):

@@ -167,7 +167,7 @@ class Block:
                                  batch):
         """
         """
-        assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
+        assert (bound in ('upper', 'lower', 'mle')), "bound argumment must be upper, lower or mle"
         assert (np.shape(rvs_skew_normal) == np.shape(mus_skew_normal) \
             == np.shape(sigmas_skew_normal) == np.shape(supports)), \
             "Shapes of supports, rvs_skew_normal, mus_skew_normal and sigmas_skew_normal must be equal"
