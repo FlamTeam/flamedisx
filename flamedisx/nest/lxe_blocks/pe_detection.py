@@ -51,6 +51,7 @@ class DetectS1Photoelectrons(fd.Block):
             rvs = [out_bound * np.ones_like(support)
                    for out_bound, support in zip(out_bounds, supports)]
 
-            fd.bounds.bayes_bounds_binomial(df=d, in_dim='s1_photoelectrons_produced', supports=supports,
-                                            rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
-                                            bound=bound, bounds_prob=self.source.bounds_prob)
+            fd.bounds.bayes_bounds(df=d, in_dim='s1_photoelectrons_produced',
+                                   bounds_prob=self.source.bounds_prob, bound=bound,
+                                   bound_type='binomial', supports=supports,
+                                   rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
