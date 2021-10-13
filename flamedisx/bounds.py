@@ -133,8 +133,12 @@ def kd_bounds(source, df, kd_tree_observables: ty.Tuple[str], initial_dimension:
     data_MC = data_full[0:len(MC_data)]
 
     tree = spatial.KDTree(data_MC)
-    dist, ind = tree.query(data[::], k=100)
 
+    dist, ind = tree.query(data[::], k=100)
     for i in range(len(source.data)):
         df.at[i, initial_dimension + '_min'] = min(MC_data[initial_dimension].iloc[ind[i]])
         df.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
+
+    dist, ind = tree.query(data[::], k=1)
+    for i in range(len(source.data)):
+        df.at[i, initial_dimension + '_mle'] = MC_data[initial_dimension].iloc[ind[i]]
