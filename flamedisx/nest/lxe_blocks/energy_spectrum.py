@@ -47,8 +47,10 @@ class EnergySpectrum(fd.FirstBlock):
         for batch in range(self.source.n_batches):
             energy_min = min(d['energy_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
             energy_max = max(d['energy_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
+            energy_mle = np.mean(d['energy_mle'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
             self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_min'] = energy_min
             self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_max'] = energy_max
+            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_mle'] = energy_mle
 
         return True
 

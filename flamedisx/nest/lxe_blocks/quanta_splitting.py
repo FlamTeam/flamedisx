@@ -176,7 +176,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
             for suffix, bound in (('_min', 'lower'),
                                   ('_max', 'upper')):
-                energies = d_batch['energy' + suffix]
+                energies = d_batch['energy_mle']
                 reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energies.iloc[0] * 0.9) &
                                                          (self.source.MC_reservoir['energy'] < energies.iloc[0] * 1.1)]
                 out_bounds = d_batch['electrons_produced' + suffix]
