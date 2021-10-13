@@ -9,14 +9,39 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
-@export
-def bayes_bounds_binomial(df, in_dim, supports, rvs_binom, ns_binom, ps_binom, bound, bounds_prob, prior_data=None):
+def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
+    assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
+    assert (bound_type == 'binomial' or 'normal'), "bound_type must be binomial or normal"
+
+    if bound_type == 'binomial':
+        cdfs =  bayes_bounds_binomial(supports, **kwargs)
+
+    elif bound_type == 'normal':
+        cdfs =  bayes_bounds_normal(supports, **kwargs)
+
+    if bound == 'lower':
+        lower_lims = [support[np.where(cdf < bounds_prob)[0][-1]]
+                      if len(np.where(cdf < bounds_prob)[0]) > 0
+                      else support[0]
+                      for support, cdf in zip(supports, cdfs)]
+        df[in_dim + '_min'] = lower_lims
+
+    elif bound == 'upper':
+        upper_lims = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
+                      if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
+                      else support[-1]
+                      for support, cdf in zip(supports, cdfs)]
+        df[in_dim + '_max'] = upper_lims
+
+    elif bound == 'mle':
+        mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
+        df[in_dim + '_mle'] = mles
+
+
+def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_data=None):
     """Calculate bounds on a block using a binomial distribution.
 
-    :param df: Dataframe with events
-    :param in_dim: String giving the 'input' dimension to the block, whose bounds are
-    being calculated
-    :param supports: Values of in_dim over which the PMF/CMF used to find the bounds
+    :param supports: Values of block 'input' dimension over which the PMF/CMF used to find the bounds
     will be calculated, for each event in the dataframe
     :param rvs_binom: Variable the block uses as the 'object' of the binomial calculation;
     must be the same shape as supports
@@ -24,9 +49,8 @@ def bayes_bounds_binomial(df, in_dim, supports, rvs_binom, ns_binom, ps_binom, b
     must be the same shape as supports
     :param ps_binom: Variable the block uses as the success probability of the binomial calculation;
     must be the same shape as supports
-    :param bound: 'upper', 'lower' or 'mle' to determine which bound is currently being calculated
+    :param prior_data: FILL THIS IN
     """
-    assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
     assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom) == np.shape(supports)), \
         "Shapes of suports, rvs_binom, ns_binom and ps_binom must be equal"
 
@@ -46,43 +70,22 @@ def bayes_bounds_binomial(df, in_dim, supports, rvs_binom, ns_binom, ps_binom, b
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
-    if bound == 'lower':
-        lower_lims = [support[np.where(cdf < bounds_prob)[0][-1]]
-                      if len(np.where(cdf < bounds_prob)[0]) > 0
-                      else support[0]
-                      for support, cdf in zip(supports, cdfs)]
-        df[in_dim + '_min'] = lower_lims
-
-    elif bound == 'upper':
-        upper_lims = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
-                      if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
-                      else support[-1]
-                      for support, cdf in zip(supports, cdfs)]
-        df[in_dim + '_max'] = upper_lims
-
-    elif bound == 'mle':
-        mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
-        df[in_dim + '_mle'] = mles
+    return cdfs
 
 
-def bayes_bounds_normal(df, in_dim, supports, rvs_normal, mus_normal, sigmas_normal, bound, bounds_prob):
+def bayes_bounds_normal(supports, rvs_normal, mus_normal, sigmas_normal):
     """Calculate bounds on a block using a normal distribution.
     Note that we do not account for continuity corrections here.
 
-    :param df: Dataframe with events
-    :param in_dim: String giving the 'input' dimension to the block, whose bounds are
-    being calculated
-    :param supports: Values of in_dim over which the PMF/CMF used to find the bounds
+    :param supports: Values of block 'input' dimension over which the PMF/CMF used to find the bounds
     will be calculated, for each event in the dataframe
     :param rvs_normal: Variable the block uses as the 'object' of the normal calculation;
     must be the same shape as supports
-    :param mus_binom: Variable the block uses as the mean of the normal calculation;
+    :param mus_normal: Variable the block uses as the mean of the normal calculation;
     must be the same shape as supports
-    :param sigmas_binom: Variable the block uses as the standard deviation of the normal calculation;
+    :param sigmas_normal: Variable the block uses as the standard deviation of the normal calculation;
     must be the same shape as supports
-    :param bound: 'upper', 'lower' or 'mle' to determine which bound is currently being calculated
     """
-    assert (bound == 'upper' or 'lower' or 'mle'), "bound argumment must be upper, lower or mle"
     assert (np.shape(rvs_normal) == np.shape(mus_normal) == np.shape(sigmas_normal) == np.shape(supports)), \
         "Shapes of supports, rvs_normal, mus_normal and sigmas_normal must be equal"
 
@@ -91,23 +94,7 @@ def bayes_bounds_normal(df, in_dim, supports, rvs_normal, mus_normal, sigmas_nor
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
-    if bound == 'lower':
-        lower_lims = [support[np.where(cdf < bounds_prob)[0][-1]]
-                      if len(np.where(cdf < bounds_prob)[0]) > 0
-                      else support[0]
-                      for support, cdf in zip(supports, cdfs)]
-        df[in_dim + '_min'] = lower_lims
-
-    elif bound == 'upper':
-        upper_lims = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
-                      if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
-                      else support[-1]
-                      for support, cdf in zip(supports, cdfs)]
-        df[in_dim + '_max'] = upper_lims
-
-    elif bound == 'mle':
-        mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
-        df[in_dim + '_mle'] = mles
+    return cdfs
 
 
 def scale_observables(df, observables):

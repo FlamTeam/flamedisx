@@ -55,6 +55,7 @@ class MakeS2Photons(fd.Block):
             rvs = [out_bound * np.ones_like(support)
                    for out_bound, support in zip(out_bounds, supports)]
 
-            fd.bounds.bayes_bounds_normal(df=d, in_dim='electrons_detected', supports=supports,
-                                          rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas,
-                                          bound=bound, bounds_prob=self.source.bounds_prob)
+            fd.bounds.bayes_bounds(df=d, in_dim='electrons_detected',
+                                   bounds_prob=self.source.bounds_prob, bound=bound,
+                                   bound_type='normal', supports=supports,
+                                   rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas)

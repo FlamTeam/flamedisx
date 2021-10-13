@@ -98,14 +98,16 @@ class DetectPhotonsOrElectrons(fd.Block):
                    for out_bound, support in zip(out_bounds, supports)]
 
             if self.quanta_name == 'photon' or 'electron':
-                fd.bounds.bayes_bounds_binomial(df=d, in_dim=self.quanta_name + 's_produced', supports=supports,
-                                                rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
-                                                bound=bound, bounds_prob=self.source.bounds_prob,
-                                                prior_data=reservoir_filter[self.quanta_name + 's_produced'])
+                fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
+                                       bounds_prob=self.source.bounds_prob, bound=bound,
+                                       bound_type='binomial', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
+                                       prior_data=reservoir_filter[self.quanta_name + 's_produced'])
             else:
-                fd.bounds.bayes_bounds_binomial(df=d, in_dim=self.quanta_name + 's_produced', supports=supports,
-                                                rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
-                                                bound=bound, bounds_prob=self.source.bounds_prob)
+                fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
+                                       bounds_prob=self.source.bounds_prob, bound=bound,
+                                       bound_type='binomial', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
 
 @export
