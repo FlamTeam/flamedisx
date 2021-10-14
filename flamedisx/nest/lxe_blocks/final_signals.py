@@ -55,6 +55,8 @@ class MakeFinalSignals(fd.Block):
                                    bound_type='normal', supports=supports,
                                    rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas)
 
+        return True
+
     def _compute(self,
                  photoelectrons_detected, s_observed,
                  data_tensor, ptensor):

@@ -60,6 +60,8 @@ class MakePhotoelectrons(fd.Block):
                                    bound_type='binomial', supports=supports,
                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
+        return True
+
 
 @export
 class MakeS1Photoelectrons(MakePhotoelectrons):

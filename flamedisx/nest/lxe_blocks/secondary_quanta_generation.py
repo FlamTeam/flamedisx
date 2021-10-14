@@ -59,3 +59,5 @@ class MakeS2Photons(fd.Block):
                                    bounds_prob=self.source.bounds_prob, bound=bound,
                                    bound_type='normal', supports=supports,
                                    rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas)
+
+        return True

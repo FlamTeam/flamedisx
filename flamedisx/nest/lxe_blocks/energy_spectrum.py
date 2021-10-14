@@ -40,17 +40,14 @@ class EnergySpectrum(fd.FirstBlock):
         return {self.dimensions[0]: tf.repeat(energies_trim[o, :],
                                               self.source.batch_size,
                                               axis=0)}
-    def _annotate_kd(self, d):
-        fd.bounds.kd_bounds(source=self.source, df=d,
-                                kd_tree_observables=('s1', 's2', 'r', 'z'), initial_dimension='energy')
+    def _prepare_priors(self, d):
+        self.source.MC_reservoir = self.source.simulate(int(1e6), keep_padding=True)
 
-        for batch in range(self.source.n_batches):
-            energy_min = min(d['energy_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
-            energy_max = max(d['energy_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
-            energy_mle = np.mean(d['energy_mle'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_min'] = energy_min
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_max'] = energy_max
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_mle'] = energy_mle
+        # for batch in range(self.source.n_batches):
+            # energy_min = min(d['energy_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
+            # energy_max = max(d['energy_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
+            # self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_min'] = energy_min
+            # self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_max'] = energy_max
 
         return True
 
