@@ -91,17 +91,23 @@ class DetectPhotonsOrElectrons(fd.Block):
                    for out_bound, support in zip(out_bounds, supports)]
 
             if self.quanta_name in ('photon', 'electron'):
-                for batch in range(self.source.n_batches):
-                    fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
-                                                   df=d, in_dim=self.quanta_name + 's_produced',
-                                                   bounds_prob=self.source.bounds_prob, bound=bound,
-                                                   bound_type='binomial', supports=supports,
-                                                   rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
+                fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
+                                       bounds_prob=self.source.bounds_prob, bound=bound,
+                                       bound_type='binomial', supports=supports,
+                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
+                # for batch in range(self.source.n_batches):
+                #     fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
+                #                                    df=d, in_dim=self.quanta_name + 's_produced',
+                #                                    bounds_prob=self.source.bounds_prob, bound=bound,
+                #                                    bound_type='binomial', supports=supports,
+                #                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
             else:
                 fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
                                        bounds_prob=self.source.bounds_prob, bound=bound,
                                        bound_type='binomial', supports=supports,
                                        rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
+
+        return True
 
 
 @export

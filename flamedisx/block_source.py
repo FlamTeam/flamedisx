@@ -132,27 +132,12 @@ class Block:
     def annotate(self, d: pd.DataFrame):
         """Add _min and _max for each dimension to d in-place"""
         return_value = self._annotate(d)
-        assert return_value is None, f"_annotate of {self} should return None"
-
-        for dim in self.dimensions:
-            if dim in self.source.final_dimensions \
-                    or dim in self.source.initial_dimensions:
-                continue
-            for bound in ('min', 'max'):
-                colname = f'{dim}_{bound}'
-                assert colname in d.columns, \
-                    f" must set {colname}"
-            assert np.all(d[f'{dim}_min'].values
-                          <= d[f'{dim}_max'].values), \
-                f"_annotate of {self} set misordered bounds"
-
-    def annotate_kd(self, d: pd.DataFrame):
-        """"""
-        return_value = self._annotate_kd(d)
-        assert isinstance(return_value, bool), f"_annotate_kd of {self} should return a bool"
+        assert isinstance(return_value, bool), f"_annotate of {self} should return a bool"
 
         if return_value == True:
             for dim in self.dimensions:
+                if dim in self.source.final_dimensions:
+                    continue
                 for bound in ('min', 'max'):
                     colname = f'{dim}_{bound}'
                     assert colname in d.columns, \
@@ -160,6 +145,40 @@ class Block:
                 assert np.all(d[f'{dim}_min'].values
                               <= d[f'{dim}_max'].values), \
                     f"_annotate of {self} set misordered bounds"
+
+    def prepare_priors(self, d: pd.DataFrame):
+        """"""
+        return_value = self._prepare_priors(d)
+        assert isinstance(return_value, bool), f"_prepare_priors of {self} should return a bool"
+
+        if return_value == True:
+            for dim in self.dimensions:
+                if dim in self.source.final_dimensions:
+                    continue
+                for bound in ('min', 'max'):
+                    colname = f'{dim}_{bound}'
+                    assert colname in d.columns, \
+                        f" must set {colname}"
+                assert np.all(d[f'{dim}_min'].values
+                              <= d[f'{dim}_max'].values), \
+                    f"_prepare_priors of {self} set misordered bounds"
+
+    def annotate_prior(self, d: pd.DataFrame):
+        """"""
+        return_value = self._annotate_prior(d)
+        assert isinstance(return_value, bool), f"_annotate_prior of {self} should return a bool"
+
+        if return_value == True:
+            for dim in self.dimensions:
+                if dim in self.source.final_dimensions:
+                    continue
+                for bound in ('min', 'max'):
+                    colname = f'{dim}_{bound}'
+                    assert colname in d.columns, \
+                        f" must set {colname}"
+                assert np.all(d[f'{dim}_min'].values
+                              <= d[f'{dim}_max'].values), \
+                    f"_annotate_prior of {self} set misordered bounds"
 
     def check_data(self):
         pass
@@ -178,9 +197,13 @@ class Block:
 
     def _annotate(self, d):
         """Add _min and _max for each dimension to d in-place"""
-        raise NotImplementedError
+        return False
 
-    def _annotate_kd(self, d):
+    def _prepare_priors(self, d):
+        """"""
+        return False
+
+    def _annotate_priors(self, d):
         """"""
         return False
 
@@ -202,10 +225,6 @@ class FirstBlock(Block):
 
     def _simulate(self, d):
         raise RuntimeError("FirstBlock's shouldn't simulate")
-
-    def _annotate(self, d):
-        # First block can omit annotate
-        pass
 
     def domain(self, data_tensor):
         """Return dictionary mapping dimension -> domain"""
@@ -474,9 +493,6 @@ class BlockModelSource(fd.Source):
         return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
     def _annotate(self, _skip_bounds_computation=False):
-        # First, we see if any blocks will do k-d tree-based annotation
-        self._annotate_kd()
-
         d = self.data
         # By going in reverse order through the blocks, we can use the bounds
         # on hidden variables closer to the final signals (easy to compute)
@@ -484,11 +500,13 @@ class BlockModelSource(fd.Source):
         for b in self.model_blocks[::-1]:
             b.annotate(d)
 
-    def _annotate_kd(self):
         #
-        d = self.data
         for b in self.model_blocks[::-1]:
-            b.annotate_kd(d)
+            b.prepare_priors(d)
+
+        #
+        for b in self.model_blocks[::-1]:
+            b.annotate_prior(d)
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)

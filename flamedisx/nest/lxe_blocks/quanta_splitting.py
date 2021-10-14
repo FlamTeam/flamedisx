@@ -170,13 +170,14 @@ class MakePhotonsElectronsNR(fd.Block):
                                          nex,
                                          ph_prod_temp)
 
-    def _annotate(self, d):
+    def _annotate_prior(self, d):
         for batch in range(self.source.n_batches):
             d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
-            energies = d_batch['energy_mle']
 
             for suffix, bound in (('_min', 'lower'),
                                   ('_max', 'upper')):
+                energies = d_batch['energy' + suffix]
+
                 out_bounds = d_batch['electrons_produced' + suffix]
                 supports = [np.linspace(out_bound, out_bound * 5., 1000).astype(int)
                             for out_bound in out_bounds]

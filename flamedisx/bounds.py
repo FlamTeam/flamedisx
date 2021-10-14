@@ -176,37 +176,3 @@ def bayes_bounds_skew_normal(supports, rvs_skew_normal, mus_skew_normal,
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
     return cdfs
-
-
-def scale_observables(df, observables):
-    """"""
-    observables_scaled = []
-    for x in observables:
-        if np.std(df[x]) < 1e-10:
-            observables_scaled.append(df[x] - df[x].mean())
-        else:
-            observables_scaled.append((df[x] - df[x].mean()) / df[x].std())
-
-    return observables_scaled
-
-
-def kd_bounds(source, df, kd_tree_observables: ty.Tuple[str], initial_dimension: str):
-    """"""
-    source.MC_reservoir = MC_data = source.simulate(int(1e6), keep_padding=True)
-
-    df_full = pd.concat([MC_data, df])
-    data_full = np.array(list(zip(*scale_observables(df_full, kd_tree_observables))))
-
-    data = data_full[len(MC_data)::]
-    data_MC = data_full[0:len(MC_data)]
-
-    tree = spatial.KDTree(data_MC)
-
-    dist, ind = tree.query(data[::], k=100)
-    for i in range(len(source.data)):
-        df.at[i, initial_dimension + '_min'] = min(MC_data[initial_dimension].iloc[ind[i]])
-        df.at[i, initial_dimension + '_max'] = max(MC_data[initial_dimension].iloc[ind[i]])
-
-    dist, ind = tree.query(data[::], k=1)
-    for i in range(len(source.data)):
-        df.at[i, initial_dimension + '_mle'] = MC_data[initial_dimension].iloc[ind[i]]
