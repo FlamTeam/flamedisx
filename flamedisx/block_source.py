@@ -4,7 +4,6 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 from scipy import stats
-import scipy.special as sp
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -161,54 +160,6 @@ class Block:
                 assert np.all(d[f'{dim}_min'].values
                               <= d[f'{dim}_max'].values), \
                     f"_annotate of {self} set misordered bounds"
-
-    def bayes_bounds_skew_normal(self, in_dim, supports, rvs_skew_normal, mus_skew_normal,
-                                 sigmas_skew_normal, alphas_skew_normal, bound, prior_data,
-                                 batch):
-        """
-        """
-        assert (bound in ('upper', 'lower', 'mle')), "bound argumment must be upper, lower or mle"
-        assert (np.shape(rvs_skew_normal) == np.shape(mus_skew_normal) \
-            == np.shape(sigmas_skew_normal) == np.shape(supports)), \
-            "Shapes of supports, rvs_skew_normal, mus_skew_normal and sigmas_skew_normal must be equal"
-
-        def skew_normal(x, mu, sigma, alpha):
-            with np.errstate(invalid='ignore', divide='ignore'):
-                return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
-                    * (1 + sp.erf(alpha * (x - mu) / (np.sqrt(2) * sigma)))
-
-        prior_hist = np.histogram(prior_data)
-        prior_pdf = stats.rv_histogram(prior_hist)
-        def prior(x):
-            if np.sum(prior_pdf.pdf(x)) == 0:
-                return 1
-            else:
-                return prior_pdf.pdf(x)
-
-        pdfs = [skew_normal(rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal) \
-                * prior(support)
-                for rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal, support
-                in zip(rvs_skew_normal, mus_skew_normal, sigmas_skew_normal, alphas_skew_normal, supports)]
-        pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-        cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-        if bound == 'lower':
-            lower_lims = [support[np.where(cdf < self.source.bounds_prob)[0][-1]]
-                          if len(np.where(cdf < self.source.bounds_prob)[0]) > 0
-                          else support[0]
-                          for support, cdf in zip(supports, cdfs)]
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, in_dim + '_min'] = lower_lims
-
-        elif bound == 'upper':
-            upper_lims = [support[np.where(cdf > 1. - self.source.bounds_prob)[0][0]]
-                          if len(np.where(cdf > 1. - self.source.bounds_prob)[0]) > 0
-                          else support[-1]
-                          for support, cdf in zip(supports, cdfs)]
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, in_dim + '_max'] = upper_lims
-
-        elif bound == 'mle':
-            mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, in_dim + '_mle'] = mles
 
     def check_data(self):
         pass

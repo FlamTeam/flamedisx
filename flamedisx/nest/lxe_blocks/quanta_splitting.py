@@ -173,12 +173,10 @@ class MakePhotonsElectronsNR(fd.Block):
     def _annotate(self, d):
         for batch in range(self.source.n_batches):
             d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
+            energies = d_batch['energy_mle']
 
             for suffix, bound in (('_min', 'lower'),
                                   ('_max', 'upper')):
-                energies = d_batch['energy_mle']
-                reservoir_filter = self.source.MC_reservoir.loc[(self.source.MC_reservoir['energy'] > energies.iloc[0] * 0.9) &
-                                                         (self.source.MC_reservoir['energy'] < energies.iloc[0] * 1.1)]
                 out_bounds = d_batch['electrons_produced' + suffix]
                 supports = [np.linspace(out_bound, out_bound * 5., 1000).astype(int)
                             for out_bound in out_bounds]
@@ -207,11 +205,12 @@ class MakePhotonsElectronsNR(fd.Block):
                 rvs = [out_bound * np.ones_like(support)
                        for out_bound, support in zip(out_bounds, supports)]
 
-                self.bayes_bounds_skew_normal('ions_produced', supports=supports,
-                                              rvs_skew_normal=rvs, mus_skew_normal=mus,
-                                              sigmas_skew_normal=sigmas, alphas_skew_normal = skews,
-                                              prior_data = reservoir_filter['ions_produced'], bound=bound,
-                                              batch=batch)
+                fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
+                                               df=d, in_dim='ions_produced',
+                                               bounds_prob=self.source.bounds_prob, bound=bound,
+                                               bound_type='skew_normal', supports=supports,
+                                               rvs_skew_normal=rvs, mus_skew_normal=mus,
+                                               sigmas_skew_normal=sigmas, alphas_skew_normal = skews)
 
 
 @export
