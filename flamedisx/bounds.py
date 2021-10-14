@@ -48,16 +48,16 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
         energies = df_batch['energy_max']
         s1_phel = max(df_batch['s1_photoelectrons_detected_max'])
         s2_phel = max(df_batch['s2_photoelectrons_detected_max'])
-        reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] < energies.iloc[0]) &
-                                                   (source.MC_reservoir['s1_photoelectrons_detected'] < s1_phel) &
-                                                   (source.MC_reservoir['s2_photoelectrons_detected'] < s2_phel)]
+        reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] <= energies.iloc[0]) &
+                                                   (source.MC_reservoir['s1_photoelectrons_detected'] <= s1_phel) &
+                                                   (source.MC_reservoir['s2_photoelectrons_detected'] <= s2_phel)]
     elif bound=='lower':
         energies = df_batch['energy_min']
         s1_phel = min(df_batch['s1_photoelectrons_detected_min'])
         s2_phel = min(df_batch['s2_photoelectrons_detected_min'])
-        reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] > energies.iloc[0]) &
-                                                   (source.MC_reservoir['s1_photoelectrons_detected'] > s1_phel) &
-                                                   (source.MC_reservoir['s2_photoelectrons_detected'] > s2_phel)]
+        reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] >= energies.iloc[0]) &
+                                                   (source.MC_reservoir['s1_photoelectrons_detected'] >= s1_phel) &
+                                                   (source.MC_reservoir['s2_photoelectrons_detected'] >= s2_phel)]
 
     if bound_type == 'binomial':
         cdfs_prior =  bayes_bounds_binomial(supports, prior_data=reservoir_filter[in_dim], **kwargs)
