@@ -44,33 +44,45 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
     assert (bound_type in ('binomial', 'skew_normal')), "bound_type must be binomial or skew_normal"
 
     df_batch = df[batch * source.batch_size : (batch + 1) * source.batch_size]
-    energies = df_batch['energy_mle']
+    if bound=='upper':
+        energies = df_batch['energy_max']
+    elif bound=='lower':
+        energies = df_batch['energy_min']
+
     reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] > energies.iloc[0] * 0.9) &
                                                (source.MC_reservoir['energy'] < energies.iloc[0] * 1.1)]
 
     if bound_type == 'binomial':
-        cdfs =  bayes_bounds_binomial(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+        cdfs_prior =  bayes_bounds_binomial(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+        cdfs_no_prior =  bayes_bounds_binomial(supports, **kwargs)
 
     elif bound_type == 'skew_normal':
-        cdfs =  bayes_bounds_skew_normal(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+        cdfs_prior =  bayes_bounds_skew_normal(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+        cdfs_no_prior = bayes_bounds_skew_normal(supports, **kwargs)
 
     if bound == 'lower':
-        lower_lims = [support[np.where(cdf < bounds_prob)[0][-1]]
-                      if len(np.where(cdf < bounds_prob)[0]) > 0
-                      else support[0]
-                      for support, cdf in zip(supports, cdfs)]
-        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_min'] = lower_lims
+        lower_lims_prior = [support[np.where(cdf < bounds_prob)[0][-1]]
+                            if len(np.where(cdf < bounds_prob)[0]) > 0
+                            else support[0]
+                            for support, cdf in zip(supports, cdfs_prior)]
+        lower_lims_no_prior = [support[np.where(cdf < bounds_prob)[0][-1]]
+                               if len(np.where(cdf < bounds_prob)[0]) > 0
+                               else support[0]
+                               for support, cdf in zip(supports, cdfs_no_prior)]
+        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_min'] = \
+            max(lower_lims_prior, lower_lims_no_prior)
 
     elif bound == 'upper':
-        upper_lims = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
-                      if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
-                      else support[-1]
-                      for support, cdf in zip(supports, cdfs)]
-        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_max'] = upper_lims
-
-    elif bound == 'mle':
-        mles = [support[np.argmin(np.abs(cdf - 0.5))] for support, cdf in zip(supports, cdfs)]
-        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_mle'] = mles
+        upper_lims_prior = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
+                            if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
+                            else support[-1]
+                            for support, cdf in zip(supports, cdfs_prior)]
+        upper_lims_no_prior = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
+                               if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
+                               else support[-1]
+                               for support, cdf in zip(supports, cdfs_no_prior)]
+        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_max'] = \
+            min(upper_lims_prior, upper_lims_no_prior)
 
 
 def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_data=None):
@@ -145,10 +157,13 @@ def bayes_bounds_skew_normal(supports, rvs_skew_normal, mus_skew_normal,
             return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
                 * (1 + sp.erf(alpha * (x - mu) / (np.sqrt(2) * sigma)))
 
-    prior_hist = np.histogram(prior_data)
-    prior_pdf = stats.rv_histogram(prior_hist)
+    if prior_data is not None:
+        prior_hist = np.histogram(prior_data)
+        prior_pdf = stats.rv_histogram(prior_hist)
     def prior(x):
-        if np.sum(prior_pdf.pdf(x)) == 0:
+        if prior_data is None:
+            return 1
+        elif np.sum(prior_pdf.pdf(x)) == 0:
             return 1
         else:
             return prior_pdf.pdf(x)
