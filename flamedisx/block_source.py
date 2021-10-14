@@ -203,7 +203,7 @@ class Block:
         """"""
         return False
 
-    def _annotate_priors(self, d):
+    def _annotate_prior(self, d):
         """"""
         return False
 

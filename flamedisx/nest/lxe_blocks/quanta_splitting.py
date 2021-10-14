@@ -213,6 +213,8 @@ class MakePhotonsElectronsNR(fd.Block):
                                                rvs_skew_normal=rvs, mus_skew_normal=mus,
                                                sigmas_skew_normal=sigmas, alphas_skew_normal = skews)
 
+        return True
+
 
 @export
 class MakePhotonsElectronER(MakePhotonsElectronsNR):
