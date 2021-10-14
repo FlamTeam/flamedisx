@@ -90,22 +90,38 @@ class DetectPhotonsOrElectrons(fd.Block):
             rvs = [out_bound * np.ones_like(support)
                    for out_bound, support in zip(out_bounds, supports)]
 
-            if self.quanta_name in ('photon', 'electron'):
-                fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
+            fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
                                        bounds_prob=self.source.bounds_prob, bound=bound,
                                        bound_type='binomial', supports=supports,
                                        rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
-                # for batch in range(self.source.n_batches):
-                #     fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
-                #                                    df=d, in_dim=self.quanta_name + 's_produced',
-                #                                    bounds_prob=self.source.bounds_prob, bound=bound,
-                #                                    bound_type='binomial', supports=supports,
-                #                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
-            else:
-                fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
-                                       bounds_prob=self.source.bounds_prob, bound=bound,
-                                       bound_type='binomial', supports=supports,
-                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
+
+        return True
+
+    def _annotate_prior(self, d):
+        if self.quanta_name not in ('photon', 'electron'):
+            return False
+
+        # Get efficiency
+        effs = self.gimme_numpy(self.quanta_name + '_detection_eff')
+        if self.quanta_name == 'photon':
+            effs *= self.gimme_numpy('s1_posDependence')
+
+        for suffix, bound in (('_min', 'lower'),
+                              ('_max', 'upper')):
+            out_bounds = d[self.quanta_name + 's_detected' + suffix]
+            supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10.),
+                                    1000).astype(int) for out_bound, eff in zip(out_bounds, effs)]
+            ns = supports
+            ps = [eff * np.ones_like(support) for eff, support in zip(effs, supports)]
+            rvs = [out_bound * np.ones_like(support)
+                   for out_bound, support in zip(out_bounds, supports)]
+
+            for batch in range(self.source.n_batches):
+                fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
+                                               df=d, in_dim=self.quanta_name + 's_produced',
+                                               bounds_prob=self.source.bounds_prob, bound=bound,
+                                               bound_type='binomial', supports=supports,
+                                               rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
         return True
 
