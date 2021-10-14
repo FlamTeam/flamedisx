@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import spatial
 from scipy import stats
+import scipy.special as sp
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -40,7 +41,7 @@ def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs)
 
 def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
     assert (bound in ('upper', 'lower',  'mle')), "bound argumment must be upper, lower or mle"
-    assert (bound_type in ('binomial',)), "bound_type must be binomial"
+    assert (bound_type in ('binomial', 'skew_normal')), "bound_type must be binomial or skew_normal"
 
     df_batch = df[batch * source.batch_size : (batch + 1) * source.batch_size]
     energies = df_batch['energy_mle']
@@ -49,6 +50,9 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
 
     if bound_type == 'binomial':
         cdfs =  bayes_bounds_binomial(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+
+    elif bound_type == 'skew_normal':
+        cdfs =  bayes_bounds_skew_normal(supports, prior_data=reservoir_filter[in_dim], **kwargs)
 
     if bound == 'lower':
         lower_lims = [support[np.where(cdf < bounds_prob)[0][-1]]
@@ -122,6 +126,37 @@ def bayes_bounds_normal(supports, rvs_normal, mus_normal, sigmas_normal):
 
     pdfs = [stats.norm.pdf(rv_normal, mu_normal, sigma_normal)
             for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
+    pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
+    cdfs = [np.cumsum(pdf) for pdf in pdfs]
+
+    return cdfs
+
+
+def bayes_bounds_skew_normal(supports, rvs_skew_normal, mus_skew_normal,
+                             sigmas_skew_normal, alphas_skew_normal, prior_data=None):
+    """
+    """
+    assert (np.shape(rvs_skew_normal) == np.shape(mus_skew_normal) \
+        == np.shape(sigmas_skew_normal) == np.shape(supports)), \
+        "Shapes of supports, rvs_skew_normal, mus_skew_normal and sigmas_skew_normal must be equal"
+
+    def skew_normal(x, mu, sigma, alpha):
+        with np.errstate(invalid='ignore', divide='ignore'):
+            return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
+                * (1 + sp.erf(alpha * (x - mu) / (np.sqrt(2) * sigma)))
+
+    prior_hist = np.histogram(prior_data)
+    prior_pdf = stats.rv_histogram(prior_hist)
+    def prior(x):
+        if np.sum(prior_pdf.pdf(x)) == 0:
+            return 1
+        else:
+            return prior_pdf.pdf(x)
+
+    pdfs = [skew_normal(rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal) \
+            * prior(support)
+            for rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal, support
+            in zip(rvs_skew_normal, mus_skew_normal, sigmas_skew_normal, alphas_skew_normal, supports)]
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
 
