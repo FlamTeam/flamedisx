@@ -212,7 +212,7 @@ class MakeNRQuanta(fd.Block):
     def _annotate(self, d):
         d['quanta_produced_noStep_min'] = (
                 d['electrons_produced_min']
-                + d['photons_produced_min'])
+                + d['photons_produced_min']).clip(1, None)
         annotate_ces(self, d)
 
     def _domain_dict_bonus(self, d):
