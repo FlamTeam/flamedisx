@@ -97,7 +97,7 @@ class MakeERQuanta(fd.Block):
     def _annotate(self, d):
         d['quanta_produced_noStep_min'] = (
                 d['electrons_produced_min']
-                + d['photons_produced_min'])
+                + d['photons_produced_min']).clip(1, None)
         annotate_ces(self, d)
 
     def _domain_dict_bonus(self, d):
@@ -236,7 +236,7 @@ def annotate_ces(self, d):
     for bound in ('min', 'max'):
         d['quanta_produced_' + bound] = (
                 d['electrons_produced_' + bound]
-                + d['photons_produced_' + bound])
+                + d['photons_produced_' + bound]).clip(1, None)
 
 
 def domain_dict_bonus(self, d):
