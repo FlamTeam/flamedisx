@@ -27,6 +27,10 @@ class DetectS1Photoelectrons(fd.Block):
                 probs=tf.cast(p_det, dtype=fd.float_type())
             ).prob(s1_photoelectrons_detected)
 
+        result = tf.where(tf.math.is_nan(result),
+                          tf.zeros_like(result, dtype=fd.float_type()),
+                          result)
+
         return result
 
     def _simulate(self, d):
@@ -38,18 +42,18 @@ class DetectS1Photoelectrons(fd.Block):
 
     def _annotate(self, d):
         # Estimate the mle of the detection probability via interpolation
-        _nprod_temp = np.logspace(-1., 8., 1000)
-        _pdet_temp = self.gimme_numpy(
-            'photoelectron_detection_eff',
-            _nprod_temp)
-        p_det_mle = np.interp(
-            d['s1_photoelectrons_detected_mle'],
-            _nprod_temp * _pdet_temp,
-            _pdet_temp)
+        # _nprod_temp = np.logspace(-1., 8., 1000)
+        # _pdet_temp = self.gimme_numpy(
+        #     'photoelectron_detection_eff',
+        #     _nprod_temp)
+        # p_det_mle = np.interp(
+        #     d['s1_photoelectrons_detected_mle'],
+        #     _nprod_temp * _pdet_temp,
+        #     _pdet_temp)
         # TODO: this assumes the spread from the PE detection efficiency is subdominant
+        # TODO: come back and fix thing with p_det_mle
         for suffix, intify in (('min', np.floor),
                                ('max', np.ceil),
                                ('mle', np.round)):
             d['s1_photoelectrons_produced_' + suffix] = \
-                intify(d['s1_photoelectrons_detected_' + suffix].values
-                       / p_det_mle)
+                intify(d['s1_photoelectrons_detected_' + suffix].values)

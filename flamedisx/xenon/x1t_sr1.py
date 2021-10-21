@@ -2,6 +2,7 @@
 from multihist import Histdd
 from multihist import Hist1d
 import numpy as np
+from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
 import pandas as pd
@@ -114,6 +115,44 @@ def calculate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
         lambda: bias_median - interpolate_tf(sig_tf, fmap[0], domain_def),
         lambda: interpolate_tf(sig_tf, fmap[2], domain_def) - bias_median)
     return bias_median + pivot_pt * bias_diff
+
+## 
+# Utility for the spatial template construction 
+##
+def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
+                                         exp_const=1.36 ):
+  """ Utility function to construct a spatial template for sources
+  :param n: number of samples in the template
+  :param max_r: maximum radius for the exponential r template
+  :param exp_const: exponential constant for the exponential function in r
+  :return: multihist.Histdd 3D normalised histogram in the format needed 
+           for the spatial_hist method of fd.SpatialRateERSource
+  """
+  assert max_r < 50, "max_r should be < 50cm."
+  theta_arr= np.random.uniform(0, 2 * np.pi, size = n)
+  r = np.zeros(n)
+  z = np.zeros(n)
+  theta_edges = np.linspace(0,2 * np.pi, 361)
+  z_edges = np.linspace(-100, 0, 101)
+  r_edges = np.sqrt(np.linspace(0, 50**2,51))
+  # For SR1 FV
+  for i in range(len(r)):
+    rr = max_r - stats.expon.rvs(loc = 0, scale = exp_const, size = 1)
+    zr = np.random.uniform(-94., -8.)
+    while  ((-94 > zr) | (zr > -8) | (rr > max_r) | \
+                (zr > -2.63725 - 0.00946597 * rr * rr) | \
+                (zr < -158.173 + 0.0456094 * rr * rr)):
+      rr = max_r - stats.expon.rvs(loc = 0, scale = exp_const, size = 1)
+      zr = np.random.uniform(-94., -8.)
+    r[i] = rr 
+    z[i] = zr
+  hist, edges = np.histogramdd([r,theta_arr,z],bins=(r_edges, theta_edges,
+                                                 z_edges))
+  exp_spatial_rate = Histdd.from_histogram(hist, bin_edges = edges,
+                                          axis_names = ['r','theta','z'])
+  return exp_spatial_rate / np.mean(exp_spatial_rate.histogram / \
+                                    exp_spatial_rate.bin_volumes())
+
 
 ##
 # Flamedisx sources
@@ -389,6 +428,53 @@ class SR1NRSource(SR1Source, fd.NRSource):
         n_el = ni * fnotr
         return fd.safe_p(n_el / nq)
 
+@export
+class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
+      
+      # Should set FV here 
+      #fv_radius = R 
+      #fv_high = z_max
+      #fv_low = z_min
+      
+      # Should set the spatial histogram here
+      #spatial_hist = normalised_Histdd_wall_spatial_hist
+      
+      # TODO: The parameters here will need to be polished. 
+      # They are fitted parameters and give a reasonable result.
+      @staticmethod
+      def p_electron(nq, *, w_er_pel_a = -123. , w_er_pel_b = -47.7, 
+                    w_er_pel_c = 68., w_er_pel_e0 = 9.95):
+      
+          """Fraction of ER quanta that become electrons
+          Simplified form from Jelle's thesis
+          """
+          # The original model depended on energy, but in flamedisx
+          # it has to be a direct function of nq.
+          e_kev_sortof = nq * 13.7e-3
+          eps = fd.tf_log10(e_kev_sortof / w_er_pel_e0 + 1e-9)
+          qy = (
+              w_er_pel_a * eps ** 2
+              + w_er_pel_b * eps
+              + w_er_pel_c)
+          return fd.safe_p(qy * 13.7e-3)
+
+      @staticmethod
+      def electron_detection_eff(drift_time,
+                                 elife,
+                                 *,
+                                 w_extraction_eff=0.0169):
+          return w_extraction_eff * tf.exp(-drift_time / elife)
+          
+      @staticmethod
+      def p_electron_fluctuation(nq, w_q2 = 0.0237, w_q3_nq = 123.): 
+        return tf.clip_by_value(
+            w_q2 * (tf.constant(1., dtype=fd.float_type()) - \
+            tf.exp(-nq / w_q3_nq)),
+            tf.constant(1e-4, dtype=fd.float_type()),
+            float('inf'))
+      # It is preferred to have higher energy spectrum for the wall
+      energies = tf.cast(tf.linspace(0., 25. , 1000),
+                       dtype=fd.float_type())
 
 @export
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):

@@ -180,7 +180,8 @@ class nestERSource(nestSource):
         return fd.safe_p(qy * 13.7e-3)
 
     final_dimensions = ('s1', 's2')
-    no_step_dimensions = ()
+    no_step_dimensions = ('s1_photoelectrons_produced',
+                          's1_photoelectrons_detected')
 
 
 @export
@@ -203,7 +204,8 @@ class nestNRSource(nestSource):
         fd_nest.MakeS2)
 
     final_dimensions = ('s1', 's2')
-    no_step_dimensions = ()
+    no_step_dimensions = ('s1_photoelectrons_produced',
+                          's1_photoelectrons_detected')
 
     # Use a larger default energy range, since most energy is lost
     # to heat.
