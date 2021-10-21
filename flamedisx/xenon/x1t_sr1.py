@@ -1,7 +1,11 @@
 """XENON1T SR1 implementation"""
+from multihist import Histdd
+from multihist import Hist1d
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+import pandas as pd
+import pickle
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -389,3 +393,44 @@ class SR1NRSource(SR1Source, fd.NRSource):
 @export
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
     pass
+
+
+@export
+class SR1AmBeSource(SR1NRSource, fd.SpatialRateNRSource):
+    spatial_hist = Histdd(bins=100,range=[[0,44],[-np.pi,np.pi],[-93,-9]]
+                        , axis_names=['r', 'theta', 'z'])
+    #File location not a permanent solution
+    fbase = '/Users/ashleyjoy/flamedisx/conda_install/NR_Model/Data/'
+    #fname = fbase+'Xenon1T_ib1sp500mm_AmBe_g4mc_G4_Sort_AllNRs_maxR44cm_Z-93To-9_EnergySorted_Preselected.pkl'
+    fname = fbase+'AmBe_SS_FD_1.pickle'
+    ss_data = pickle.load(open(fname, 'rb'))
+    #Geant4 units are mm, we work in cm here
+    spatial_hist.add(ss_data['r'], ss_data['theta'],ss_data['z'])
+
+    #The neutron energy spectrum goes from 13 keV to 500 MeV and is nearly logarithmic with energy
+    #We need to use logarithmic binning with the energy distribution
+    #Also note conversion from MeV Geant4 units to keV here
+    e_hist = Hist1d(bins=np.logspace(np.log10(.01),np.log10(500), 1001))
+    e_hist.add(ss_data['Ed'])
+    energies = tf.cast(np.logspace(np.log10(.01), np.log10(500), 1000),
+                       dtype=fd.float_type())
+    rates_vs_energy = tf.cast(tf.convert_to_tensor(e_hist.histogram), dtype=fd.float_type())
+
+
+
+#    xlen=len(spatial_hist.bin_centers('x'))
+#    ylen=len(spatial_hist.bin_centers('y'))
+#    zlen=len(spatial_hist.bin_centers('z'))
+#    weights = np.zeros(xlen*ylen*zlen)
+#    for k, z in enumerate(spatial_hist.bin_centers('z')):
+#        for j, y in enumerate(spatial_hist.bin_centers('y')):
+#            for i, x in enumerate(spatial_hist.bin_centers('x')):
+#                weights[i+j*xlen+k*xlen*ylen] = 1/((x-97)**2+(y-43.5)**2+(z+50)**2)
+
+#    x_centers = np.tile(spatial_hist.bin_centers('x'),ylen*zlen)
+#    y_centers = np.tile(np.repeat(spatial_hist.bin_centers('y'),xlen),zlen)
+#    z_centers = np.repeat(spatial_hist.bin_centers('z'),xlen*ylen)
+
+#    spatial_hist.add(x_centers, y_centers, z_centers, weights=weights)
+
+#    rates_vs_energy = tf.ones(1000, fd.float_type())
