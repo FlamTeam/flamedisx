@@ -505,7 +505,11 @@ class BlockModelSource(fd.Source):
             b.prepare_priors(d)
 
         #
+        for batch in range(self.n_batches):
+            fd.bounds.bayes_bounds_priors(self, d, batch)
+        #
         for b in self.model_blocks[::-1]:
+            print(b)
             b.annotate_prior(d)
 
     def mu_before_efficiencies(self, **params):

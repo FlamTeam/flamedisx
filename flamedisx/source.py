@@ -301,6 +301,8 @@ class Source:
             self.trace_differential_rate()
 
         self.MC_reservoir = pd.DataFrame()
+        self.MC_reservoirs_filtered_LB = tuple(pd.DataFrame())
+        self.MC_reservoirs_filtered_UB = tuple(pd.DataFrame())
 
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files
