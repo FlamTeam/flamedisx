@@ -92,6 +92,26 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
             min(upper_lims_prior, upper_lims_no_prior)
 
 
+def bayes_bounds_priors(source, df, batch):
+    df_batch = df[batch * source.batch_size : (batch + 1) * source.batch_size]
+
+    energies = df_batch['energy_max']
+    s1_phel = max(df_batch['s1_photoelectrons_detected_max'])
+    s2_phel = max(df_batch['s2_photoelectrons_detected_max'])
+    reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] <= energies.iloc[0]) &
+                                               (source.MC_reservoir['s1_photoelectrons_detected'] <= s1_phel) &
+                                               (source.MC_reservoir['s2_photoelectrons_detected'] <= s2_phel)]
+    source.MC_reservoirs_filtered_UB = source.MC_reservoirs_filtered_UB + (reservoir_filter,)
+
+    energies = df_batch['energy_min']
+    s1_phel = min(df_batch['s1_photoelectrons_detected_min'])
+    s2_phel = min(df_batch['s2_photoelectrons_detected_min'])
+    reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] >= energies.iloc[0]) &
+                                               (source.MC_reservoir['s1_photoelectrons_detected'] >= s1_phel) &
+                                               (source.MC_reservoir['s2_photoelectrons_detected'] >= s2_phel)]
+    source.MC_reservoirs_filtered_LB = source.MC_reservoirs_filtered_LB + (reservoir_filter,)
+
+
 def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_data=None):
     """Calculate bounds on a block using a binomial distribution.
 
