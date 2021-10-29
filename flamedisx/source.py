@@ -77,6 +77,9 @@ class Source:
     #: Any additional source attributes that should be configurable.
     model_attributes = tuple()
 
+    #
+    prior_dimensions: ty.Tuple[str] = tuple()
+
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
     # inspection will not find them.
@@ -308,8 +311,8 @@ class Source:
             self.trace_differential_rate()
 
         self.MC_reservoir = pd.DataFrame()
-        self.MC_reservoirs_filtered_LB = tuple(pd.DataFrame())
-        self.MC_reservoirs_filtered_UB = tuple(pd.DataFrame())
+        self.prior_PDFs_LB = tuple(dict())
+        self.prior_PDFs_UB = tuple(dict())
 
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files

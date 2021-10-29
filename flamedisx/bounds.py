@@ -44,16 +44,16 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
     assert (bound_type in ('binomial', 'skew_normal')), "bound_type must be binomial or skew_normal"
 
     if bound=='upper':
-        reservoir_filter = source.MC_reservoirs_filtered_UB[batch]
+        prior_pdfs = source.prior_PDFs_UB[batch]
     elif bound=='lower':
-        reservoir_filter = source.MC_reservoirs_filtered_LB[batch]
+        prior_pdfs = source.prior_PDFs_LB[batch]
 
     if bound_type == 'binomial':
-        cdfs_prior =  bayes_bounds_binomial(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+        cdfs_prior =  bayes_bounds_binomial(supports, prior_pdf=prior_pdfs[in_dim], **kwargs)
         cdfs_no_prior =  bayes_bounds_binomial(supports, **kwargs)
 
     elif bound_type == 'skew_normal':
-        cdfs_prior =  bayes_bounds_skew_normal(supports, prior_data=reservoir_filter[in_dim], **kwargs)
+        cdfs_prior =  bayes_bounds_skew_normal(supports, prior_pdf=prior_pdfs[in_dim], **kwargs)
         cdfs_no_prior = bayes_bounds_skew_normal(supports, **kwargs)
 
     if bound == 'lower':
@@ -90,7 +90,13 @@ def bayes_bounds_priors(source, df, batch):
     reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] <= energies.iloc[0]) &
                                                (source.MC_reservoir['s1_photoelectrons_detected'] <= s1_phel) &
                                                (source.MC_reservoir['s2_photoelectrons_detected'] <= s2_phel)]
-    source.MC_reservoirs_filtered_UB = source.MC_reservoirs_filtered_UB + (reservoir_filter,)
+    prior_dict = {}
+    for prior_dim in source.prior_dimensions:
+        prior_data=reservoir_filter[prior_dim]
+        prior_hist = np.histogram(prior_data)
+        prior_pdf = stats.rv_histogram(prior_hist)
+        prior_dict[prior_dim] = prior_pdf
+    source.prior_PDFs_UB += (prior_dict,)
 
     energies = df_batch['energy_min']
     s1_phel = min(df_batch['s1_photoelectrons_detected_min'])
@@ -98,10 +104,16 @@ def bayes_bounds_priors(source, df, batch):
     reservoir_filter = source.MC_reservoir.loc[(source.MC_reservoir['energy'] >= energies.iloc[0]) &
                                                (source.MC_reservoir['s1_photoelectrons_detected'] >= s1_phel) &
                                                (source.MC_reservoir['s2_photoelectrons_detected'] >= s2_phel)]
-    source.MC_reservoirs_filtered_LB = source.MC_reservoirs_filtered_LB + (reservoir_filter,)
+    prior_dict = {}
+    for prior_dim in source.prior_dimensions:
+        prior_data=reservoir_filter[prior_dim]
+        prior_hist = np.histogram(prior_data)
+        prior_pdf = stats.rv_histogram(prior_hist)
+        prior_dict[prior_dim] = prior_pdf
+    source.prior_PDFs_LB += (prior_dict,)
 
 
-def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_data=None):
+def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_pdf=None):
     """Calculate bounds on a block using a binomial distribution.
 
     :param supports: Values of block 'input' dimension over which the PMF/CMF used to find the bounds
@@ -112,16 +124,13 @@ def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_data=No
     must be the same shape as supports
     :param ps_binom: Variable the block uses as the success probability of the binomial calculation;
     must be the same shape as supports
-    :param prior_data: FILL THIS IN
+    :param prior_pdf: FILL THIS IN
     """
     assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom) == np.shape(supports)), \
         "Shapes of suports, rvs_binom, ns_binom and ps_binom must be equal"
 
-    if prior_data is not None:
-        prior_hist = np.histogram(prior_data)
-        prior_pdf = stats.rv_histogram(prior_hist)
     def prior(x):
-        if prior_data is None:
+        if prior_pdf is None:
             return 1
         elif np.sum(prior_pdf.pdf(x)) == 0:
             return 1
@@ -161,7 +170,7 @@ def bayes_bounds_normal(supports, rvs_normal, mus_normal, sigmas_normal):
 
 
 def bayes_bounds_skew_normal(supports, rvs_skew_normal, mus_skew_normal,
-                             sigmas_skew_normal, alphas_skew_normal, prior_data=None):
+                             sigmas_skew_normal, alphas_skew_normal, prior_pdf=None):
     """
     """
     assert (np.shape(rvs_skew_normal) == np.shape(mus_skew_normal) \
@@ -173,11 +182,8 @@ def bayes_bounds_skew_normal(supports, rvs_skew_normal, mus_skew_normal,
             return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
                 * (1 + sp.erf(alpha * (x - mu) / (np.sqrt(2) * sigma)))
 
-    if prior_data is not None:
-        prior_hist = np.histogram(prior_data)
-        prior_pdf = stats.rv_histogram(prior_hist)
     def prior(x):
-        if prior_data is None:
+        if prior_pdf is None:
             return 1
         elif np.sum(prior_pdf.pdf(x)) == 0:
             return 1
