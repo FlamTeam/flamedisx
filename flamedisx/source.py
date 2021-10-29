@@ -32,6 +32,7 @@ class Source:
     trace_difrate = True
 
     default_max_sigma = 3
+    default_max_dim_size_initial = 20
     default_max_dim_size = 70
     default_max_dim_size_outer = 120
 
@@ -189,6 +190,7 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=None,
+                 max_dim_size_initial=None,
                  max_dim_size=None,
                  max_dim_size_outer=None,
                  data_is_annotated=False,
@@ -203,6 +205,8 @@ class Source:
         :param batch_size: Number of events / tensorflow batch
         :param max_sigma: Hint for hidden variable bounds computation
             If omitted, set to default_max_sigma
+        param max_dim_size_initial: Maximum size for initial_dimension, once trimmed,
+            beyond which stepping will be done
         :param max_dim_size: Maximum bounds size for inner_dimensions,
             excluding no_step_dimensions
         :param max_dim_size_outer: Maximum bounds size for outer blocks,
@@ -223,10 +227,13 @@ class Source:
         assert self.bounds_prob > 0., \
             "max_sigma too high!"
 
+        if max_dim_size_initial is None:
+            max_dim_size_initial = self.default_max_dim_size_initial
         if max_dim_size is None:
             max_dim_size = self.default_max_dim_size
         if max_dim_size_outer is None:
             max_dim_size_outer = self.default_max_dim_size_outer
+        self.max_dim_size_initial = max_dim_size_initial
         self.max_dim_size = max_dim_size
         self.max_dim_size_outer = max_dim_size_outer
 
