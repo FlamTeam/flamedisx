@@ -53,6 +53,7 @@ class LogLikelihood:
             free_rates=None,
             batch_size=10,
             max_sigma=None,
+            max_dim_size_initial=None,
             max_dim_size=None,
             max_dim_size_outer=None,
             n_trials=int(1e5),
@@ -82,6 +83,9 @@ class LogLikelihood:
         :param max_sigma: Maximum sigma to use in bounds estimation.
             Higher numbers give better accuracy, at the cost of performance.
             If not specified, each source will use its own default.
+
+        param max_dim_size_initial: Maximum size for initial_dimension, once trimmed,
+            beyond which stepping will be done
 
         :param max_dim_size: Maximum bounds size for inner_dimensions,
             excluding no_step_dimensions
@@ -146,6 +150,7 @@ class LogLikelihood:
             sname: sclass(**(arguments.get(sname)),
                           data=None,
                           max_sigma=max_sigma,
+                          max_dim_size_initial=max_dim_size_initial,
                           max_dim_size=max_dim_size,
                           max_dim_size_outer=max_dim_size_outer,
                           # The source will filter out parameters it does not

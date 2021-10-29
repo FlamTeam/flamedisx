@@ -36,8 +36,11 @@ class EnergySpectrum(fd.FirstBlock):
         bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
                                    tf.less_equal(self.energies, right_bound))
         energies_trim = tf.boolean_mask(self.energies, bool_mask)
+        index_step = tf.round(tf.linspace(0, tf.shape(energies_trim)[0] - 1,
+                                          tf.math.minimum(tf.shape(energies_trim), self.source.max_dim_size_initial)[0]))
+        energies_trim_step = tf.gather(energies_trim, tf.cast(index_step, fd.int_type()))
 
-        return {self.dimensions[0]: tf.repeat(energies_trim[o, :],
+        return {self.dimensions[0]: tf.repeat(energies_trim_step[o, :],
                                               self.source.batch_size,
                                               axis=0)}
     def _prepare_priors(self, d):
@@ -191,8 +194,12 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
         bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
                                    tf.less_equal(self.energies, right_bound))
         spectrum_trim = tf.boolean_mask(self.rates_vs_energy, bool_mask)
+        index_step = tf.round(tf.linspace(0, tf.shape(spectrum_trim)[0] - 1,
+                                          tf.math.minimum(tf.shape(spectrum_trim), self.source.max_dim_size_initial)[0]))
+        spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()))
+        stepping_multiplier = tf.cast(tf.shape(spectrum_trim) / tf.shape(spectrum_trim_step), fd.float_type())
 
-        spectrum = tf.repeat(spectrum_trim[o, :],
+        spectrum = tf.repeat(spectrum_trim_step[o, :] * stepping_multiplier,
                              self.source.batch_size,
                              axis=0)
         rate_multiplier = self.gimme('energy_spectrum_rate_multiplier',
