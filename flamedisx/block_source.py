@@ -55,6 +55,8 @@ class Block:
     #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
+    prior_dimensions: ty.Tuple[str] = tuple()
+
     def __init__(self, source):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
@@ -503,6 +505,9 @@ class BlockModelSource(fd.Source):
         #
         for b in self.model_blocks[::-1]:
             b.prepare_priors(d)
+            for dim in b.prior_dimensions:
+                if dim not in self.prior_dimensions:
+                    self.prior_dimensions += b.prior_dimensions
 
         #
         for batch in range(self.n_batches):
