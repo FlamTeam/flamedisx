@@ -487,7 +487,6 @@ class SR1AmBeSource(SR1NRSource, fd.SpatialRateNRSource):
                         , axis_names=['r', 'theta', 'z'])
     #File location not a permanent solution
     fbase = '/Users/ashleyjoy/flamedisx/conda_install/NR_Model/Data/'
-    #fname = fbase+'Xenon1T_ib1sp500mm_AmBe_g4mc_G4_Sort_AllNRs_maxR44cm_Z-93To-9_EnergySorted_Preselected.pkl'
     fname = fbase+'AmBe_SS_FD_1.pickle'
     ss_data = pickle.load(open(fname, 'rb'))
     #Geant4 units are mm, we work in cm here
@@ -503,20 +502,33 @@ class SR1AmBeSource(SR1NRSource, fd.SpatialRateNRSource):
     rates_vs_energy = tf.cast(tf.convert_to_tensor(e_hist.histogram), dtype=fd.float_type())
 
 
+    
+    def p_electron(self, nq, *,
+                   alpha=1.280, zeta=0.045, beta=273 * .9e-4,
+                   gamma=0.0141, delta=0.062,
+                   drift_field=81.,
+                   testA=1.0, testB=1.0):
+        """Fraction of detectable NR quanta that become electrons,
+        slightly adjusted from Lenardo et al.'s global fit
+        (https://arxiv.org/abs/1412.4417).
 
-#    xlen=len(spatial_hist.bin_centers('x'))
-#    ylen=len(spatial_hist.bin_centers('y'))
-#    zlen=len(spatial_hist.bin_centers('z'))
-#    weights = np.zeros(xlen*ylen*zlen)
-#    for k, z in enumerate(spatial_hist.bin_centers('z')):
-#        for j, y in enumerate(spatial_hist.bin_centers('y')):
-#            for i, x in enumerate(spatial_hist.bin_centers('x')):
-#                weights[i+j*xlen+k*xlen*ylen] = 1/((x-97)**2+(y-43.5)**2+(z+50)**2)
+        Penning quenching is accounted in the photon detection efficiency.
+        """
+        # TODO: so to make field pos-dependent, override this entire f?
+        # could be made easier...
 
-#    x_centers = np.tile(spatial_hist.bin_centers('x'),ylen*zlen)
-#    y_centers = np.tile(np.repeat(spatial_hist.bin_centers('y'),xlen),zlen)
-#    z_centers = np.repeat(spatial_hist.bin_centers('z'),xlen*ylen)
+        # prevent /0  # TODO can do better than this
+        nq = nq + 1e-9
 
-#    spatial_hist.add(x_centers, y_centers, z_centers, weights=weights)
+        # Note: final term depends on nq now, not energy
+        # this means beta is different from lenardo et al
+        nexni = testB * alpha * drift_field ** -zeta * (1 - tf.exp(-beta * nq))
+        ni = nq * 1 / (1 + nexni)
 
-#    rates_vs_energy = tf.ones(1000, fd.float_type())
+        # Fraction of ions NOT participating in recombination
+        squiggle = gamma * drift_field ** -delta
+        fnotr = tf.math.log(1 + ni * squiggle) / (ni * squiggle)
+
+        # Finally, number of electrons produced..
+        n_el = ni * fnotr
+        return fd.safe_p(testA*(n_el / nq))
