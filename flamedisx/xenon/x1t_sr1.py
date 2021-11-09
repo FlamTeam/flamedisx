@@ -379,6 +379,10 @@ class SR1ERSource(SR1Source, fd.ERSource):
         #F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
 
         if tf.is_tensor(nq):
+            # in _compute, n_events = batch_size
+            # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+            # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+
             drift_field = drift_field[:, None]
 
         e_kev = nq * W
