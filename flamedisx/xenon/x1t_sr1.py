@@ -270,7 +270,9 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
 
-        pdb.set_trace()
+        d['drift_field'] = self.field_map(
+            np.transpose([d['r'].values,
+                          d['z'].values]))
 
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
@@ -371,15 +373,18 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, drift_field, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31.):
         # gamma_er from paper 0.124/4
-        F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+        #F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+
+        if tf.is_tensor(nq):
+            drift_field = drift_field[:, None]
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-0.24)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
