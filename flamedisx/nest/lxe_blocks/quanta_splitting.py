@@ -44,10 +44,13 @@ class MakePhotonsElectronsNR(fd.Block):
                 fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=nq_mean)
 
+                # p_nq = tfp.distributions.Normal(
+                #     loc=nq_mean, scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq + 0.5) \
+                # - tfp.distributions.Normal(
+                #     loc=nq_mean, scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq - 0.5)
+
                 p_nq = tfp.distributions.Normal(
-                    loc=nq_mean, scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq + 0.5) \
-                - tfp.distributions.Normal(
-                    loc=nq_mean, scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq - 0.5)
+                    loc=nq_mean, scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq)
 
                 ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
@@ -64,15 +67,21 @@ class MakePhotonsElectronsNR(fd.Block):
                 ex_ratio = yields[2]
                 alpha = 1. / (1. + ex_ratio)
 
+                # p_ni = tfp.distributions.Normal(
+                #     loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced + 0.5) \
+                # -  tfp.distributions.Normal(
+                #     loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced - 0.5)
+
                 p_ni = tfp.distributions.Normal(
-                    loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced + 0.5) \
-                -  tfp.distributions.Normal(
-                    loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced - 0.5)
+                    loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).prob(ions_produced)
+
+                # p_nq = tfp.distributions.Normal(
+                #     loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced + 0.5) \
+                # - tfp.distributions.Normal(
+                #     loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced - 0.5)
 
                 p_nq = tfp.distributions.Normal(
-                    loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced + 0.5) \
-                - tfp.distributions.Normal(
-                    loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced - 0.5)
+                    loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).prob(nq - ions_produced)
 
             recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=(nel_mean, nq_mean, ex_ratio))
@@ -87,8 +96,11 @@ class MakePhotonsElectronsNR(fd.Block):
 
             mean = (tf.ones_like(ions_produced, dtype=fd.float_type()) - recomb_p) * ions_produced - mu_corr
             std_dev = tf.sqrt(var) / width_corr
-            p_nel = tfp.distributions.TruncatedSkewGaussianCC(
-                    loc=mean, scale=std_dev, skewness=skew, limit=ions_produced).prob(electrons_produced)
+            # p_nel = tfp.distributions.TruncatedSkewGaussianCC(
+            #         loc=mean, scale=std_dev, skewness=skew, limit=ions_produced).prob(electrons_produced)
+
+            p_nel = tfp.distributions.SkewGaussian(
+                    loc=mean, scale=std_dev, skewness=skew).prob(electrons_produced)
 
             p_mult = p_nq * p_ni * p_nel
 
