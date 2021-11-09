@@ -10,7 +10,7 @@ export, __all__ = fd.exporter()
 
 o = tf.newaxis
 
-
+import pdb as pdb
 ##
 # Parameters
 ##
@@ -174,6 +174,9 @@ class SR1Source:
     path_s1_rly = '1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json'
     path_s2_rly = '1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json'
 
+    # Comsol map
+    path_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
     # Combined cuts acceptances
     path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
     path_cut_accept_s2 = ('S2AcceptanceSR1_v7_Median.json',)
@@ -202,6 +205,9 @@ class SR1Source:
         # Yield maps
         self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
         self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
+
+        # Field maps
+        self.field_map = fd.InterpolatingMap(fd.get_nt_file(self.path_field))
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
@@ -263,6 +269,8 @@ class SR1Source:
             np.transpose([d['x'].values,
                           d['y'].values,
                           d['z'].values]))
+
+        pdb.set_trace()
 
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
