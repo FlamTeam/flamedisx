@@ -157,6 +157,7 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
     default_elife = DEFAULT_ELECTRON_LIFETIME
+    default_drift_field = DEFAULT_DRIFT_FIELD
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
@@ -168,6 +169,9 @@ class SR1Source:
                         'variable_elife',
                         'default_elife',
                         'path_electron_lifetimes',
+                        'variable_drift_field',
+                        'default_drift_field',
+                        'path_drift_field',
                         )
 
     # Light yield maps
@@ -175,7 +179,8 @@ class SR1Source:
     path_s2_rly = '1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json'
 
     # Comsol map
-    path_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+    variable_drift_field = True
+    path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Combined cuts acceptances
     path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
@@ -207,7 +212,7 @@ class SR1Source:
         self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
 
         # Field maps
-        self.field_map = fd.InterpolatingMap(fd.get_nt_file(self.path_field))
+        self.field_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field))
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
@@ -254,6 +259,9 @@ class SR1Source:
 
         # Add extra needed columns
         # TODO: Add FDC maps instead of posrec resolution
+        # x, y, z are the actual fdc-corrected event positions
+        # x_observed, y_observed are the reconstructed positions without
+        # fdc-correction
         d['x_observed'] = np.random.normal(d['x'].values,
                                            scale=2)  # 2cm resolution)
         d['y_observed'] = np.random.normal(d['y'].values,
@@ -270,9 +278,12 @@ class SR1Source:
                           d['y'].values,
                           d['z'].values]))
 
-        d['drift_field'] = self.field_map(
-            np.transpose([d['r'].values,
-                          d['z'].values]))
+        if self.variable_drift_field:
+            d['drift_field'] = self.field_map(
+                np.transpose([d['r'].values,
+                              d['z'].values]))
+        else:
+            d['drift_field'] = self.default_drift_field
 
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
