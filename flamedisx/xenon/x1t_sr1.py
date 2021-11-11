@@ -172,8 +172,8 @@ class SR1Source:
                         'variable_drift_field',
                         'default_drift_field',
                         'path_drift_field',
-                        'path_field_distortion',
-                        'path_field_distortion_correction',
+                        'path_drift_field_distortion',
+                        'path_drift_field_distortion_correction',
                         )
 
     # Light yield maps
@@ -185,10 +185,10 @@ class SR1Source:
     path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Field distortion map
-    path_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+    path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # FDC map
-    path_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+    path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Combined cuts acceptances
     path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
@@ -224,13 +224,13 @@ class SR1Source:
 
         # Field distortion maps
         # cheap hack
-        aa = fd.get_nt_file(self.path_field_distortion) 
+        aa = fd.get_nt_file(self.path_drift_field_distortion) 
         aa['map'] = aa['r_distortion_map']
-        self.field_distortion_map = fd.InterpolatingMap(aa)
+        self.drift_field_distortion_map = fd.InterpolatingMap(aa)
         del aa
 
         # FDC maps
-        self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_field_distortion_correction))
+        self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field_distortion_correction))
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
@@ -284,7 +284,7 @@ class SR1Source:
         # x_fdc, y_fdc, z_fdc are the fdc-corrected positions
 
         # going from true position to position distorted by field
-        d['r_observed'] = self.field_distortion_map(
+        d['r_observed'] = self.drift_field_distortion_map(
             np.transpose([d['r'].values,
                           d['z'].values])) 
         d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
@@ -299,12 +299,10 @@ class SR1Source:
                           d['y_observed'].values,
                           d['z_observed'].values,]))
                               
-        r_obs = d['r_observed']
-        
         # apply radial correction
         with np.errstate(invalid='ignore', divide='ignore'):
-            r_cor = r_obs + delta_r
-            scale = r_cor / r_obs
+            d['r_fdc'] = d['r_observed'] + delta_r
+            scale = d['r_fdc'] / d['r_observed']
 
         d['x_fdc'] = d['x_observed'] * scale
         d['y_fdc'] = d['y_observed'] * scale
