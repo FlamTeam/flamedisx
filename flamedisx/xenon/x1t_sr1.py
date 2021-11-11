@@ -172,6 +172,8 @@ class SR1Source:
                         'variable_drift_field',
                         'default_drift_field',
                         'path_drift_field',
+                        'path_field_distortion',
+                        'path_field_distortion_correction',
                         )
 
     # Light yield maps
@@ -181,6 +183,12 @@ class SR1Source:
     # Comsol map
     variable_drift_field = True
     path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
+    # Field distortion map
+    path_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
+    # FDC map
+    path_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Combined cuts acceptances
     path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
@@ -213,6 +221,16 @@ class SR1Source:
 
         # Field maps
         self.field_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field))
+
+        # Field distortion maps
+        # cheap hack
+        aa = fd.get_nt_file(self.path_field_distortion) 
+        aa['map'] = aa['r_distortion_map']
+        self.field_distortion_map = fd.InterpolatingMap(aa)
+        del aa
+
+        # FDC maps
+        self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_field_distortion_correction))
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
@@ -258,14 +276,40 @@ class SR1Source:
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
 
         # Add extra needed columns
-        # TODO: Add FDC maps instead of posrec resolution
-        # x, y, z are the actual fdc-corrected event positions
+        # x, y, z are the true positions of the event
+        #
         # x_observed, y_observed are the reconstructed positions without
-        # fdc-correction
-        d['x_observed'] = np.random.normal(d['x'].values,
-                                           scale=2)  # 2cm resolution)
-        d['y_observed'] = np.random.normal(d['y'].values,
-                                           scale=2)  # 2cm resolution)
+        # fdc-correction, but don't know how to smear it so just set to truth
+        #
+        # x_fdc, y_fdc, z_fdc are the fdc-corrected positions
+
+        # going from true position to position distorted by field
+        d['r_observed'] = self.field_distortion_map(
+            np.transpose([d['r'].values,
+                          d['z'].values])) 
+        d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
+        d['y_observed'] = d['r_observed'] * np.sin(d['theta'])
+
+        # leave z intact, might want to correct this with drift velocity later
+        d['z_observed'] = d['z']
+        
+        # applying fdc
+        delta_r = self.fdc_map(
+            np.transpose([d['x_observed'].values,
+                          d['y_observed'].values,
+                          d['z_observed'].values,]))
+                              
+        r_obs = d['r_observed']
+        
+        # apply radial correction
+        with np.errstate(invalid='ignore', divide='ignore'):
+            r_cor = r_obs + delta_r
+            scale = r_cor / r_obs
+
+        d['x_fdc'] = d['x_observed'] * scale
+        d['y_fdc'] = d['y_observed'] * scale
+        d['z_fdc'] = d['z_observed']
+        
         return d
 
     def add_extra_columns(self, d):
@@ -274,9 +318,9 @@ class SR1Source:
              np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
         d['s1_relative_ly'] = self.s1_map(
-            np.transpose([d['x'].values,
-                          d['y'].values,
-                          d['z'].values]))
+            np.transpose([d['x_fdc'].values,
+                          d['y_fdc'].values,
+                          d['z_fdc'].values]))
 
         if self.variable_drift_field:
             d['drift_field'] = self.field_map(
