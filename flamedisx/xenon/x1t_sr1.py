@@ -226,7 +226,7 @@ class SR1Source:
         # cheap hack
         aa = fd.get_nt_file(self.path_drift_field_distortion) 
         aa['map'] = aa['r_distortion_map']
-        self.drift_field_distortion_map = fd.InterpolatingMap(aa)
+        self.drift_field_distortion_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
         del aa
 
         # FDC maps
