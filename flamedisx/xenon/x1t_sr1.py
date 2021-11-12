@@ -470,10 +470,9 @@ class SR1NRSource(SR1Source, fd.NRSource):
     # TODO: Define the proper nr spectrum
     # TODO: Modify the SR1NRSource to fit AmBe data better
 
-    def p_electron(self, nq, *,
+    def p_electron(self, nq, drift_field, *,
                    alpha=1.280, zeta=0.045, beta=273 * .9e-4,
-                   gamma=0.0141, delta=0.062,
-                   drift_field=DEFAULT_DRIFT_FIELD):
+                   gamma=0.0141, delta=0.062):
         """Fraction of detectable NR quanta that become electrons,
         slightly adjusted from Lenardo et al.'s global fit
         (https://arxiv.org/abs/1412.4417).
@@ -482,6 +481,12 @@ class SR1NRSource(SR1Source, fd.NRSource):
         """
         # TODO: so to make field pos-dependent, override this entire f?
         # could be made easier...
+
+        # in _compute, n_events = batch_size
+        # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+        # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+        if tf.is_tensor(nq):
+            drift_field = drift_field[:, None]
 
         # prevent /0  # TODO can do better than this
         nq = nq + 1e-9
