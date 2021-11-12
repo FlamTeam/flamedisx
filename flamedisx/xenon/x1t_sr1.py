@@ -292,6 +292,10 @@ class SR1Source:
 
         # leave z intact, might want to correct this with drift velocity later
         d['z_observed'] = d['z']
+
+        # Adding some smear according to posrec resolution
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=2) # 2cm resolution)
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=2) # 2cm resolution)
         
         # applying fdc
         delta_r = self.fdc_map(
