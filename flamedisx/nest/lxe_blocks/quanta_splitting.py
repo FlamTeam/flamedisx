@@ -2,6 +2,7 @@ import numpy as np
 from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
+import pandas as pd
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -186,28 +187,48 @@ class MakePhotonsElectronsNR(fd.Block):
 
     def _annotate_prior(self, d):
         for batch in range(self.source.n_batches):
+
             d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
 
-            for suffix, bound in (('_min', 'lower'),
-                                  ('_max', 'upper')):
-                energies = d_batch['energy' + suffix]
+            energy_min = min(d_batch['energy_min'])
+            energy_max = max(d_batch['energy_max'])
+
+            energies_trim = self.source.energies.numpy()[np.where(self.source.energies >= energy_min) and
+                                                         np.where(self.source.energies <= energy_max)]
+
+            index_step = np.round(np.linspace(0, len(energies_trim) - 1,
+                                              min(len(energies_trim), self.source.max_dim_size_initial))).astype(int)
+            energies_trim_step = energies_trim[index_step]
+
+            ions_produced_min = []
+            ions_produced_max = []
+
+            for i in range(len(energies_trim_step)):
+
+                energy = energies_trim_step[i]
 
                 if self.is_ER:
-                    nels = self.gimme_numpy('mean_yield_electron', energies)
-                    nqs = self.gimme_numpy('mean_yield_quanta', (energies, nels))
-                    ex_ratios = self.gimme_numpy('exciton_ratio', energies)
-                    alphas = 1. / (1. + ex_ratios)
-                    ions_means = nqs * alphas
-                    ions_stds = nqs * alphas * (1 - alphas)
+                    nel = self.gimme_numpy('mean_yield_electron', energy)
+                    nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
+                    ex_ratio = self.gimme_numpy('exciton_ratio', energy)
+                    alpha = 1. / (1. + ex_ratio)
+                    ions_mean = nq * alpha
+                    ions_std = nq * alpha * (1 - alpha)
                 else:
-                    nqs = self.gimme_numpy('mean_yields', energies)[1]
-                    ex_ratios = self.gimme_numpy('mean_yields', energies)[2]
-                    alphas = 1. / (1. + ex_ratios)
-                    ions_means = nqs * alphas
-                    ions_stds = np.sqrt(nqs * alphas)
+                    nq = self.gimme_numpy('mean_yields', energy)[1]
+                    ex_ratio = self.gimme_numpy('mean_yields', energy)[2]
+                    alpha = 1. / (1. + ex_ratio)
+                    ions_mean = nq * alpha
+                    ions_std = np.sqrt(nq * alpha)
 
-                d['ions_produced_min'] = ions_means - self.source.max_sigma * ions_stds
-                d['ions_produced_max'] = ions_means + self.source.max_sigma * ions_stds
+                ions_produced_min.append(ions_mean - self.source.max_sigma * ions_std)
+                ions_produced_max.append(ions_mean + self.source.max_sigma * ions_std)
+
+            indicies = np.arange(batch * self.source.batch_size, (batch + 1) * self.source.batch_size)
+            d.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'ions_produced_min'] = \
+                pd.Series([ions_produced_min]*len(indicies), index=indicies)
+            d.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'ions_produced_max'] = \
+                pd.Series([ions_produced_max]*len(indicies), index=indicies)
 
         return True
 
