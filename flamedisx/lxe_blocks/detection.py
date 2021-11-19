@@ -54,9 +54,10 @@ class DetectPhotonsOrElectrons(fd.Block):
             p *= self.gimme_numpy(
                 'penning_quenching_eff', d['photons_produced'].values)
 
-        d[self.quanta_name + 's_detected'] = stats.binom.rvs(
-            n=d[self.quanta_name + 's_produced'],
-            p=p)
+        d[self.quanta_name + 's_detected'] = tfp.distributions.Binomial(
+            total_count=tf.cast(d[self.quanta_name + 's_produced'],
+                dtype=fd.float_type),
+            probs=tf.cast(p, dtype=fd.float_type())).sample().numpy()
         d['p_accepted'] *= self.gimme_numpy(
             self.quanta_name + '_acceptance',
             d[self.quanta_name + 's_detected'].values)

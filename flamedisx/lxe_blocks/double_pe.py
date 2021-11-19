@@ -43,9 +43,9 @@ class MakeS1Photoelectrons(fd.Block):
                         result)
 
     def _simulate(self, d):
-        d['photoelectrons_detected'] = stats.binom.rvs(
-            n=d['photons_detected'],
-            p=self.gimme_numpy('double_pe_fraction')) + d['photons_detected']
+        d['photoelectrons_detected'] = tfp.distributions.Binomial(
+            total_count=tf.cast(d['photons_detected'],dtype=fd.float_type()),
+            probs=self.gimme('double_pe_fraction')).sample().numpy() + d['photons_detected']
 
     def _annotate(self, d):
         # TODO: this assumes the spread from the double PE effect is subdominant
