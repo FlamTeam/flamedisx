@@ -118,7 +118,6 @@ class MakeNRQuanta(fd.Block):
     model_functions = ('work',) + special_model_functions
 
     work = DEFAULT_WORK_PER_QUANTUM
-c67cf3cb2365ded55c2ba6616c1edf0bab579294
     @staticmethod
     def lindhard_l(e, lindhard_k=tf.constant(0.138, dtype=fd.float_type())):
         """Return Lindhard quenching factor at energy e in keV"""
