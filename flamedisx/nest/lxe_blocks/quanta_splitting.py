@@ -192,40 +192,22 @@ class MakePhotonsElectronsNR(fd.Block):
                                   ('_max', 'upper')):
                 energies = d_batch['energy' + suffix]
 
-                out_bounds = d_batch['electrons_produced' + suffix]
-                supports = [np.linspace(out_bound, out_bound * 5., 1000).astype(int)
-                            for out_bound in out_bounds]
-
                 if self.is_ER:
                     nels = self.gimme_numpy('mean_yield_electron', energies)
                     nqs = self.gimme_numpy('mean_yield_quanta', (energies, nels))
                     ex_ratios = self.gimme_numpy('exciton_ratio', energies)
+                    alphas = 1. / (1. + ex_ratios)
+                    ions_means = nqs * alphas
+                    ions_stds = nqs * alphas * (1 - alphas)
                 else:
-                    nels = self.gimme_numpy('mean_yields', energies)[0]
                     nqs = self.gimme_numpy('mean_yields', energies)[1]
                     ex_ratios = self.gimme_numpy('mean_yields', energies)[2]
+                    alphas = 1. / (1. + ex_ratios)
+                    ions_means = nqs * alphas
+                    ions_stds = np.sqrt(nqs * alphas)
 
-                recomb_ps = self.gimme_numpy('recomb_prob', (nels, nqs, ex_ratios))
-                skews = self.gimme_numpy('skewness', nqs)
-                vars = [self.gimme_numpy('variance', (nel, nq, recomb_p, support))
-                       for nel, nq, recomb_p, support
-                       in zip(nels, nqs, recomb_ps, supports)]
-                width_corrs = self.gimme_numpy('width_correction', skews)
-                mu_corrs = [self.gimme_numpy('mu_correction', (skew, var, width_corr))
-                            for skew, var, width_corr in zip(skews, vars, width_corrs)]
-
-                mus = [(1 - recomb_p) * support - mu_corr
-                       for recomb_p, support, mu_corr in zip(recomb_ps, supports, mu_corrs)]
-                sigmas = [np.sqrt(var) / width_corr for var, width_corr in zip(vars, width_corrs)]
-                rvs = [out_bound * np.ones_like(support)
-                       for out_bound, support in zip(out_bounds, supports)]
-
-                fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
-                                               df=d, in_dim='ions_produced',
-                                               bounds_prob=self.source.bounds_prob, bound=bound,
-                                               bound_type='skew_normal', supports=supports,
-                                               rvs_skew_normal=rvs, mus_skew_normal=mus,
-                                               sigmas_skew_normal=sigmas, alphas_skew_normal = skews)
+                d['ions_produced_min'] = ions_means - self.source.max_sigma * ions_stds
+                d['ions_produced_max'] = ions_means + self.source.max_sigma * ions_stds
 
         return True
 
