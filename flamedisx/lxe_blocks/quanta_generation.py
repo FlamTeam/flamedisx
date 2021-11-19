@@ -118,7 +118,7 @@ class MakeNRQuanta(fd.Block):
     model_functions = ('work',) + special_model_functions
 
     work = DEFAULT_WORK_PER_QUANTUM
-
+c67cf3cb2365ded55c2ba6616c1edf0bab579294
     @staticmethod
     def lindhard_l(e, lindhard_k=tf.constant(0.138, dtype=fd.float_type())):
         """Return Lindhard quenching factor at energy e in keV"""
@@ -208,7 +208,7 @@ class MakeNRQuanta(fd.Block):
         work = self.gimme_numpy('work')
         lindhard_l = self.gimme_numpy('lindhard_l', bonus_arg=energies)
         d['quanta_produced'] = tfp.distributions.Poisson(
-                rate = tf.cast( energies * lindhard_l / work),\
+                rate = tf.cast( energies * lindhard_l / work, dtype=fd.float_type()),\
                         dtype = tf.float_type()).sample().numpy()
 
     def _annotate(self, d):
