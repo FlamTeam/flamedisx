@@ -56,7 +56,7 @@ class DetectPhotonsOrElectrons(fd.Block):
 
         d[self.quanta_name + 's_detected'] = tfp.distributions.Binomial(
             total_count=tf.cast(d[self.quanta_name + 's_produced'],
-                dtype=fd.float_type),
+                dtype=fd.float_type()),
             probs=tf.cast(p, dtype=fd.float_type())).sample().numpy()
         d['p_accepted'] *= self.gimme_numpy(
             self.quanta_name + '_acceptance',
