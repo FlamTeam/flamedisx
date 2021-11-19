@@ -32,11 +32,13 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
-        d[self.signal_name] = stats.norm.rvs(
-            loc=(d[self.quanta_name + 's_detected']
+        d[self.signal_name] = tfp.distributions.Normal(
+            loc=tf.cast((d[self.quanta_name + 's_detected']
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
-            scale=(d[self.quanta_name + 's_detected']**0.5
-                   * self.gimme_numpy(self.quanta_name + '_gain_std')))
+                 dtype = fd.float_type()),
+            scale=tf.cast((d[self.quanta_name + 's_detected']**0.5
+                   * self.gimme_numpy(self.quanta_name + '_gain_std')),
+                   dtype = fd.float_type())).sample().numpy()
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
