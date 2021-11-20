@@ -207,7 +207,8 @@ class MakeNRQuanta(fd.Block):
         work = self.gimme_numpy('work')
         lindhard_l = self.gimme_numpy('lindhard_l', bonus_arg=energies)
         d['quanta_produced'] = tfp.distributions.Poisson(
-                rate = tf.cast( energies * lindhard_l / work, dtype=fd.float_type())).sample().numpy()
+                rate = tf.cast( energies * lindhard_l / work,
+                    dtype=fd.float_type())).sample().numpy().astype(np.int64)
 
     def _annotate(self, d):
         d['quanta_produced_noStep_min'] = (
