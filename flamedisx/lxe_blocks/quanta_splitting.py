@@ -59,11 +59,16 @@ class MakePhotonsElectronsBinomial(fd.Block):
                                    ptensor=ptensor)
             pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
             # See issue #37 for why we use 1 - p and photons here
-            return rate_nq * fd.beta_binom_pmf(
-                photons_produced,
-                n=nq,
-                p_mean=1. - pel,
-                p_sigma=pel_fluct)
+            res = tf.distributions.BetaBinomial(nq,
+                    *fd.beta_params(1. - pel, pel_fluct)
+                    ).prob(photons_produced)
+            return rate_nq * tf.where(tf.math.is_finite(res),
+                             res,
+                             tf.zeros_like(res, dtype=float_type()))
+                #photons_produced,
+                #n=nq,
+                #p_mean=1. - pel,
+                #p_sigma=pel_fluct)
 
         else:
             return rate_nq * tfp.distributions.Binomial(
@@ -78,15 +83,23 @@ class MakePhotonsElectronsBinomial(fd.Block):
                 'p_electron_fluctuation', d['quanta_produced'].values)
             d['p_el_actual'] = 1. - stats.beta.rvs(
                 *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
+            d['photons_produced'] = tf.distributions.BetaBinomial(
+                    tf.cast(d['quanta_produced'], dtype = fd.float_type()),
+                    *fd.beta_params(1. - d['p_el_mean'],d['p_el_fluct'])
+                    ).sample().numpy()
+            d['photons_produced'] = np.nan_to_num(d['photons_produced']).clip(0,\
+                    np.max(d['quanta_produced'])
+            d['electron_produced'] = d['quanta_produced'] - d['photons_produced']
+            
+
         else:
             d['p_el_fluct'] = 0.
             d['p_el_actual'] = d['p_el_mean']
-
-        d['p_el_actual'] = np.nan_to_num(d['p_el_actual']).clip(0, 1)
-        d['electrons_produced'] = stats.binom.rvs(
-            n=d['quanta_produced'],
-            p=d['p_el_actual'])
-        d['photons_produced'] = d['quanta_produced'] - d['electrons_produced']
+            d['p_el_actual'] = np.nan_to_num(d['p_el_actual']).clip(0, 1)
+            d['electrons_produced'] = stats.binom.rvs(
+                n=d['quanta_produced'],
+                p=d['p_el_actual'])
+            d['photons_produced'] = d['quanta_produced'] - d['electrons_produced']
 
     def _annotate(self, d):
         for suffix in ('min', 'max', 'mle'):
