@@ -59,16 +59,12 @@ class MakePhotonsElectronsBinomial(fd.Block):
                                    ptensor=ptensor)
             pel_fluct = fd.lookup_axis1(pel_fluct, _nq_ind)
             # See issue #37 for why we use 1 - p and photons here
-            res = tf.distributions.BetaBinomial(nq,
+            res = tfp.distributions.BetaBinomial(nq,
                     *fd.beta_params(1. - pel, pel_fluct)
                     ).prob(photons_produced)
             return rate_nq * tf.where(tf.math.is_finite(res),
                              res,
-                             tf.zeros_like(res, dtype=float_type()))
-                #photons_produced,
-                #n=nq,
-                #p_mean=1. - pel,
-                #p_sigma=pel_fluct)
+                             tf.zeros_like(res, dtype=fd.float_type()))
 
         else:
             return rate_nq * tfp.distributions.Binomial(
@@ -81,15 +77,13 @@ class MakePhotonsElectronsBinomial(fd.Block):
         if self.do_pel_fluct:
             d['p_el_fluct'] = self.gimme_numpy(
                 'p_electron_fluctuation', d['quanta_produced'].values)
-            d['p_el_actual'] = 1. - stats.beta.rvs(
-                *fd.beta_params(1. - d['p_el_mean'], d['p_el_fluct']))
-            d['photons_produced'] = tf.distributions.BetaBinomial(
+            d['photons_produced'] = tfp.distributions.BetaBinomial(
                     tf.cast(d['quanta_produced'], dtype = fd.float_type()),
                     *fd.beta_params(1. - d['p_el_mean'],d['p_el_fluct'])
                     ).sample().numpy()
-            d['photons_produced'] = np.nan_to_num(d['photons_produced']).clip(0,\
-                    np.max(d['quanta_produced'])
-            d['electron_produced'] = d['quanta_produced'] - d['photons_produced']
+            d['photons_produced'] = np.nan_to_num(
+              d['photons_produced']).clip(0, np.max(d['quanta_produced']))
+            d['electrons_produced'] = d['quanta_produced'] - d['photons_produced']
             
 
         else:
