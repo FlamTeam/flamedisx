@@ -59,6 +59,8 @@ class Block:
 
     prior_dimensions: ty.Tuple[str] = tuple()
 
+    use_batch: bool = False
+
     def __init__(self, source):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
@@ -366,7 +368,7 @@ class BlockModelSource(fd.Source):
                     return dims, b
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
-    def _differential_rate(self, data_tensor, ptensor):
+    def _differential_rate(self, i_batch, data_tensor, ptensor):
         results = {}
         already_stepped = ()  # Avoid double-multiplying to account for stepping
 
@@ -385,7 +387,10 @@ class BlockModelSource(fd.Source):
                 kwargs.update(self._domain_dict(dependency_dims, data_tensor))
 
             # Compute the block
-            r = b.compute(data_tensor, ptensor, **kwargs)
+            if b.use_batch is False:
+                r = b.compute(data_tensor, ptensor, **kwargs)
+            else:
+                r = b.compute(data_tensor, ptensor, i_batch=i_batch, **kwargs)
 
             # Scale the block by stepped dimensions, if not already done in
             # another block

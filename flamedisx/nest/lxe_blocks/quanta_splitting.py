@@ -26,14 +26,16 @@ class MakePhotonsElectronsNR(fd.Block):
 
     prior_dimensions = ('ions_produced',)
 
+    use_batch = True
+
     def _compute(self,
                  data_tensor, ptensor,
+                 #
+                 i_batch,
                  # Domain
                  electrons_produced, photons_produced,
                  # Dependency domain and value
-                 energy, rate_vs_energy,
-                 # Bonus dimension
-                 ions_produced):
+                 energy, rate_vs_energy):
 
         def compute_single_energy(args):
 
@@ -257,7 +259,9 @@ class MakePhotonsElectronsNR(fd.Block):
             [self.source.n_batches, -1, tf.shape(ion_bounds_min_tensor)[1]])
 
     def _domain_dict_bonus(self, d):
-        pass
+        mi = self.ion_bounds_min_tensor[0]
+
+        return dict()
 
 @export
 class MakePhotonsElectronER(MakePhotonsElectronsNR):
