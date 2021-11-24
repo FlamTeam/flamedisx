@@ -3,6 +3,7 @@ from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
 import pandas as pd
+import operator
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -218,8 +219,8 @@ class MakePhotonsElectronsNR(fd.Block):
                     ions_mean = nq * alpha
                     ions_std = np.sqrt(nq * alpha)
 
-                ions_produced_min.append(ions_mean - self.source.max_sigma * ions_std)
-                ions_produced_max.append(ions_mean + self.source.max_sigma * ions_std)
+                ions_produced_min.append(np.floor(ions_mean - self.source.max_sigma * ions_std).astype(int))
+                ions_produced_max.append(np.ceil(ions_mean + self.source.max_sigma * ions_std).astype(int))
 
             indicies = np.arange(batch * self.source.batch_size, (batch + 1) * self.source.batch_size)
             d.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'ions_produced_min'] = \
@@ -228,6 +229,16 @@ class MakePhotonsElectronsNR(fd.Block):
                 pd.Series([ions_produced_max]*len(indicies), index=indicies)
 
         return True
+
+    def _calculate_dimsizes_special(self):
+        d = self.source.data
+
+        maxs_batch = d['ions_produced_max'].to_numpy()
+        mins_batch = d['ions_produced_min'].to_numpy()
+
+        self.source.dimsizes['ions_produced'] = [max([elem + 1 for elem in list(map(operator.sub, maxs, mins))])
+                                                 for maxs, mins in zip(maxs_batch, mins_batch)]
+        print(self.source.dimsizes['ions_produced'])
 
 
 @export

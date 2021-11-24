@@ -27,7 +27,7 @@ class Block:
     #: Any additional domain tensors utilising them will need calculating via
     #: the block overriding _domain_dict_bonus())
     #: Label True if they will be used for variable stepping; this must be
-    #: computed manually in _domain_dict_bonus().
+    #: computed manually in _calculate_dimsizes_special().
     bonus_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
 
     #: Blocks whose result this block expects as an extra keyword
@@ -209,7 +209,7 @@ class Block:
         raise NotImplementedError
 
     def _calculate_dimsizes_special(self):
-        """Re-calculate dimension size and steps differently for any
+        """Calculate dimension size and steps differently for any
         dimensions; will need to override _calculate_dimsizes_special()
         within a block"""
         pass
