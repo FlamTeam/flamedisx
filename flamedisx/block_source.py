@@ -218,6 +218,10 @@ class Block:
         within a block"""
         pass
 
+    def _populate_special_tensors(self, d):
+        """
+        """
+
 
 @export
 class FirstBlock(Block):
@@ -517,6 +521,11 @@ class BlockModelSource(fd.Source):
         #
         for b in self.model_blocks[::-1]:
             b.annotate_prior(d)
+
+    def _populate_special_tensors(self):
+        d = self.data
+        for b in self.model_blocks[::-1]:
+            b._populate_special_tensors(d)
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)

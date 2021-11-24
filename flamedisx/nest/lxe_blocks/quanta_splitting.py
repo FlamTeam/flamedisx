@@ -249,6 +249,15 @@ class MakePhotonsElectronsNR(fd.Block):
                                             tf.math.ceil(([elem-1 for elem in dimsizes]) / (self.source.dimsizes['ions_produced']-1)),
                                             1).numpy()
 
+    def _populate_special_tensors(self, d):
+        ion_bounds_min = [tf.convert_to_tensor(values, dtype=fd.float_type()) for values in d['ions_produced_min'].values]
+        ion_bounds_min_tensor = tf.stack(ion_bounds_min)
+
+        self.ion_bounds_min_tensor = tf.reshape(ion_bounds_min_tensor,
+            [self.source.n_batches, -1, tf.shape(ion_bounds_min_tensor)[1]])
+
+    def _domain_dict_bonus(self, d):
+        pass
 
 @export
 class MakePhotonsElectronER(MakePhotonsElectronsNR):
