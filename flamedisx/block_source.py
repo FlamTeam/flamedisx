@@ -24,13 +24,11 @@ class Block:
     dimensions: ty.Tuple[str]
 
     #: Additional dimensions used in the block computation.
-    #: Label True if they represent an internally contracted hidden variable;
-    #: these will be added to inner_dimensions so domain tensors are calculated
-    #: automatically.
-    #: Label False otherwise; these will be added to bonus_dimensions. Thus,
-    #: any additional domain tensors utilising them will need calculating via
+    #: Any additional domain tensors utilising them will need calculating via
     #: the block overriding _domain_dict_bonus())
-    extra_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
+    #: Label True if they will be used for variable stepping; this must be
+    #: computed manually in _domain_dict_bonus().
+    bonus_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
 
     #: Blocks whose result this block expects as an extra keyword
     #: argument to compute. Specify as ((block_dims, argument_name), ...),
@@ -61,8 +59,8 @@ class Block:
         self.source = source
         assert len(self.dimensions) in (1, 2), \
             "Blocks must output 1 or 2 dimensions"
-        # Currently only support 1 extra_dimension per block
-        assert len(self.extra_dimensions) <= 1, \
+        # Currently only support 1 bonus_dimension per block
+        assert len(self.bonus_dimensions) <= 1, \
             f"{self} has >1 extra dimension!"
 
     # Redirect all model attribute queries to the linked source,
@@ -104,17 +102,13 @@ class Block:
         return self.source.gimme_numpy(*args, **kwargs)
 
     def compute(self, data_tensor, ptensor, **kwargs):
-        if len(self.extra_dimensions) == 0:
+        if len(self.bonus_dimensions) == 0:
             kwargs.update(self.source._domain_dict(
                 self.dimensions, data_tensor))
         else:
-            if self.extra_dimensions[0][1] is True:
-                kwargs.update(self.source._domain_dict_extra(
-                    self.dimensions, self.extra_dimensions[0][0], data_tensor))
-            else:
-                kwargs.update(self.source._domain_dict(
-                    self.dimensions, data_tensor))
-                kwargs.update(self._domain_dict_bonus(data_tensor))
+            kwargs.update(self.source._domain_dict(
+                self.dimensions, data_tensor))
+            kwargs.update(self._domain_dict_bonus(data_tensor))
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
@@ -255,8 +249,8 @@ class BlockModelSource(fd.Source):
     initial_dimensions: tuple
 
     #: Additional dimensions used in the block computation;
-    #: see Block.extra_dimensions for info
-    extra_dimensions = ()
+    #: see Block.bonus_dimensions for info
+    bonus_dimensions = ()
 
     def __init__(self, *args, **kwargs):
         if isinstance(self.model_blocks[0], FirstBlock):
@@ -271,7 +265,7 @@ class BlockModelSource(fd.Source):
         # Collect attributes from the different blocks in this dictionary:
         collected = {k: [] for k in (
             'dimensions',
-            'extra_dimensions',
+            'bonus_dimensions',
             'model_functions',
             'special_model_functions',
             'model_attributes',
@@ -336,12 +330,10 @@ class BlockModelSource(fd.Source):
         self.inner_dimensions = tuple(
             [d for d in collected['dimensions']
                 if ((d not in self.final_dimensions)
-                    and (d not in self.model_blocks[0].dimensions))]
-            + [d[0] for d in collected['extra_dimensions']
-                if d[1] is True])
+                    and (d not in self.model_blocks[0].dimensions))])
         self.initial_dimensions = self.model_blocks[0].dimensions
         self.bonus_dimensions = tuple([
-            d[0] for d in collected['extra_dimensions'] if d[1] is False])
+            d[0] for d in collected['bonus_dimensions']])
 
         super().__init__(*args, **kwargs)
 
@@ -366,7 +358,7 @@ class BlockModelSource(fd.Source):
 
         for b in self.model_blocks:
             b_dims = b.dimensions
-            scaling_dims = b.dimensions + tuple([extra_dimension[0] for extra_dimension in b.extra_dimensions if extra_dimension[1] is True])
+            scaling_dims = b.dimensions + tuple([bonus_dimension[0] for bonus_dimension in b.bonus_dimensions if bonus_dimension[1] is True])
 
             # Gather extra compute arguments.
             kwargs = dict()

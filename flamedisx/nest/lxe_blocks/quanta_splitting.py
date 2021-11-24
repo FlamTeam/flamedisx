@@ -14,7 +14,7 @@ class MakePhotonsElectronsNR(fd.Block):
     is_ER = False
 
     dimensions = ('electrons_produced', 'photons_produced')
-    extra_dimensions = (('ions_produced', True),)
+    bonus_dimensions = (('ions_produced', True),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
 
     special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
@@ -187,7 +187,6 @@ class MakePhotonsElectronsNR(fd.Block):
 
     def _annotate_prior(self, d):
         for batch in range(self.source.n_batches):
-
             d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
 
             energy_min = min(d_batch['energy_min'])
@@ -203,9 +202,7 @@ class MakePhotonsElectronsNR(fd.Block):
             ions_produced_min = []
             ions_produced_max = []
 
-            for i in range(len(energies_trim_step)):
-
-                energy = energies_trim_step[i]
+            for energy in energies_trim_step:
 
                 if self.is_ER:
                     nel = self.gimme_numpy('mean_yield_electron', energy)
