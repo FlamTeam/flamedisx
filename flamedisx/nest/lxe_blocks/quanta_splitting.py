@@ -236,9 +236,16 @@ class MakePhotonsElectronsNR(fd.Block):
         maxs_batch = d['ions_produced_max'].to_numpy()
         mins_batch = d['ions_produced_min'].to_numpy()
 
-        self.source.dimsizes['ions_produced'] = [max([elem + 1 for elem in list(map(operator.sub, maxs, mins))])
+        # Take the maximum dimsize across the energy range per event
+        dimsizes = [max([elem + 1 for elem in list(map(operator.sub, maxs, mins))])
                                                  for maxs, mins in zip(maxs_batch, mins_batch)]
-        print(self.source.dimsizes['ions_produced'])
+        self.source.dimsizes['ions_produced'] = \
+            self.source.max_dim_size * np.greater(dimsizes, self.source.max_dim_size) + \
+            dimsizes * np.less_equal(dimsizes, self.source.max_dim_size)
+
+        steps = tf.where(dimsizes > self.source.dimsizes['ions_produced'],
+                         tf.math.ceil(([elem-1 for elem in dimsizes]) / (self.source.dimsizes['ions_produced']-1)),
+                         1).numpy()
 
 
 @export
