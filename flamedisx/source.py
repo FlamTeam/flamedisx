@@ -274,7 +274,7 @@ class Source:
         ctc += [x + '_dimsizes' for x in self.inner_dimensions]  # Dimension sizes
         ctc += [x + '_dimsizes' for x in self.bonus_dimensions]  # Dimension sizes
         ctc += [x + '_dimsizes' for x in self.final_dimensions]  # Dimension sizes
-        ctc = list(set(ctc))
+        ctc = list(set(ctc) - set([x for x in self.exclude_data_tensor])) # We want to ignore these
 
         self.column_index = fd.index_lookup_dict(ctc,
                                                  column_widths=self.array_columns)

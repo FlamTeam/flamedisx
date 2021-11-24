@@ -18,6 +18,8 @@ class MakePhotonsElectronsNR(fd.Block):
     bonus_dimensions = (('ions_produced', True),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
 
+    exclude_data_tensor = ('ions_produced_min', 'ions_produced_max')
+
     special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
                                 'width_correction', 'mu_correction')
     model_functions = special_model_functions
@@ -243,9 +245,9 @@ class MakePhotonsElectronsNR(fd.Block):
             self.source.max_dim_size * np.greater(dimsizes, self.source.max_dim_size) + \
             dimsizes * np.less_equal(dimsizes, self.source.max_dim_size)
 
-        steps = tf.where(dimsizes > self.source.dimsizes['ions_produced'],
-                         tf.math.ceil(([elem-1 for elem in dimsizes]) / (self.source.dimsizes['ions_produced']-1)),
-                         1).numpy()
+        d['ions_produced_steps'] = tf.where(dimsizes > self.source.dimsizes['ions_produced'],
+                                            tf.math.ceil(([elem-1 for elem in dimsizes]) / (self.source.dimsizes['ions_produced']-1)),
+                                            1).numpy()
 
 
 @export
