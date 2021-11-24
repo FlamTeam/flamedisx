@@ -25,10 +25,14 @@ class Block:
 
     #: Additional dimensions used in the block computation.
     #: Any additional domain tensors utilising them will need calculating via
-    #: the block overriding _domain_dict_bonus())
-    #: Label True if they will be used for variable stepping; this must be
-    #: computed manually in _calculate_dimsizes_special().
+    #: the block overriding _domain_dict_bonus()).
+    #: Label True if they will be used for variable stepping.
+    #: dimsizes and steps for these dimensions must be computed manually in
+    #: _calculate_dimsizes_special().
     bonus_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
+
+    #:
+    exclude_data_tensor: ty.Tuple[str] = tuple()
 
     #: Blocks whose result this block expects as an extra keyword
     #: argument to compute. Specify as ((block_dims, argument_name), ...),
@@ -252,6 +256,9 @@ class BlockModelSource(fd.Source):
     #: see Block.bonus_dimensions for info
     bonus_dimensions = ()
 
+    #:
+    exclude_data_tensor = ()
+
     def __init__(self, *args, **kwargs):
         if isinstance(self.model_blocks[0], FirstBlock):
             # Blocks have already been instantiated
@@ -266,6 +273,7 @@ class BlockModelSource(fd.Source):
         collected = {k: [] for k in (
             'dimensions',
             'bonus_dimensions',
+            'exclude_data_tensor',
             'model_functions',
             'special_model_functions',
             'model_attributes',
@@ -334,6 +342,8 @@ class BlockModelSource(fd.Source):
         self.initial_dimensions = self.model_blocks[0].dimensions
         self.bonus_dimensions = tuple([
             d[0] for d in collected['bonus_dimensions']])
+        self.exclude_data_tensor = tuple([
+            d for d in collected['exclude_data_tensor']])
 
         super().__init__(*args, **kwargs)
 
