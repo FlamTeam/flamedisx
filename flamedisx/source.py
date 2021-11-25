@@ -670,26 +670,6 @@ class Source:
         result_y = tf.repeat(y_domain[:, o, :], tf.shape(x_domain)[1], axis=1)
         return result_x, result_y
 
-    def cross_domains_extra(self, x, y, z, data_tensor):
-        """Return (x, y, z) three-tuple of (n_events, |x|, |y|, |z|) tensors
-        containing possible integer values of x, y and z, respectively.
-        """
-        # TODO: somehow mask unnecessary elements and save computation time
-        x_domain = self.domain(x, data_tensor)
-        y_domain = self.domain(y, data_tensor)
-        z_domain = self.domain(z, data_tensor)
-
-        result_x = tf.repeat(x_domain[:, :, o], tf.shape(y_domain)[1], axis=2)
-        result_x = tf.repeat(result_x[:, :, :, o], tf.shape(z_domain)[1], axis=3)
-
-        result_y = tf.repeat(y_domain[:, o, :], tf.shape(x_domain)[1], axis=1)
-        result_y = tf.repeat(result_y[:, :, :, o], tf.shape(z_domain)[1], axis=3)
-
-        result_z = tf.repeat(z_domain[:, o, :], tf.shape(x_domain)[1], axis=1)
-        result_z = tf.repeat(result_z[:, :, o, :], tf.shape(y_domain)[1], axis=2)
-
-        return result_x, result_y, result_z
-
     ##
     # Simulation methods and helpers
     ##

@@ -558,13 +558,6 @@ class BlockModelSource(fd.Source):
                         self.cross_domains(*dimensions,
                                            data_tensor=data_tensor)))
 
-    def _domain_dict_extra(self, dimensions, internal_dimension, data_tensor):
-        all_dimensions = list(dimensions) + list((internal_dimension,))
-        assert len(all_dimensions) == 3
-        return dict(zip(all_dimensions,
-                        self.cross_domains_extra(*all_dimensions,
-                                                 data_tensor=data_tensor)))
-
     def add_derived_observables(self, d):
         pass
 
