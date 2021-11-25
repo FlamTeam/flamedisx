@@ -34,6 +34,8 @@ class MakePhotonsElectronsNR(fd.Block):
                  i_batch,
                  # Domain
                  electrons_produced, photons_produced,
+                 # Bonus dimension
+                 ions_produced,
                  # Dependency domain and value
                  energy, rate_vs_energy):
 
@@ -258,10 +260,27 @@ class MakePhotonsElectronsNR(fd.Block):
         self.ion_bounds_min_tensor = tf.reshape(ion_bounds_min_tensor,
             [self.source.n_batches, -1, tf.shape(ion_bounds_min_tensor)[1]])
 
-    def _domain_dict_bonus(self, d):
-        mi = self.ion_bounds_min_tensor[0]
+    def _domain_dict_bonus(self, d, i_batch):
+        electrons_domain = self.source.domain('electrons_produced', d)
+        photons_domain = self.source.domain('photons_produced', d)
 
-        return dict()
+        ions_min_initial = self.ion_bounds_min_tensor[i_batch, :, 0, o]
+        steps = self.source._fetch('ions_produced_steps', data_tensor=d)[:, o]
+        ions_range = tf.range(tf.reduce_max(self.source._fetch('ions_produced_dimsizes', data_tensor=d))) * steps
+        ions_domain_initial = ions_min_initial + ions_range
+
+        electrons = tf.repeat(electrons_domain[:, :, o], tf.shape(photons_domain)[1], axis=2)
+        electrons = tf.repeat(electrons[:, :, :, o], tf.shape(ions_domain_initial)[1], axis=3)
+
+        photons = tf.repeat(photons_domain[:, o, :], tf.shape(electrons_domain)[1], axis=1)
+        photons = tf.repeat(photons[:, :, :, o], tf.shape(ions_domain_initial)[1], axis=3)
+
+        ions = tf.repeat(ions_domain_initial[:, o, :], tf.shape(electrons_domain)[1], axis=1)
+        ions = tf.repeat(ions[:, :, o, :], tf.shape(photons_domain)[1], axis=2)
+
+        return dict({'electrons_produced': electrons,
+                     'photons_produced': photons,
+                     'ions_produced': ions})
 
 @export
 class MakePhotonsElectronER(MakePhotonsElectronsNR):
