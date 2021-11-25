@@ -24,8 +24,8 @@ class Block:
     dimensions: ty.Tuple[str]
 
     #: Additional dimensions used in the block computation.
-    #: Any additional domain tensors utilising them will need calculating via
-    #: the block overriding _domain_dict_bonus()).
+    #: Tensors for blocks with bonus dimensions will need manually calculating
+    #: via the block overriding _domain_dict_bonus()).
     #: Label True if they will be used for variable stepping.
     #: dimsizes and steps for these dimensions must be computed manually in
     #: _calculate_dimsizes_special().
@@ -112,9 +112,10 @@ class Block:
             kwargs.update(self.source._domain_dict(
                 self.dimensions, data_tensor))
         else:
-            kwargs.update(self.source._domain_dict(
-                self.dimensions, data_tensor))
-            kwargs.update(self._domain_dict_bonus(data_tensor))
+            if self.use_batch is False:
+                kwargs.update(self._domain_dict_bonus(data_tensor))
+            else:
+                kwargs.update(self._domain_dict_bonus(data_tensor, i_batch=kwargs['i_batch']))
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
@@ -209,7 +210,7 @@ class Block:
         """"""
         return False
 
-    def _domain_dict_bonus(self, d):
+    def _domain_dict_bonus(self, d, **kwargs):
         """Calculate any additional intenal tensors arising from the use of
         bonus_dimensions in a block. Override within block"""
         raise NotImplementedError
