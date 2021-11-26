@@ -229,19 +229,28 @@ class MakePhotonsElectronsNR(fd.Block):
                 if self.is_ER:
                     nel = self.gimme_numpy('mean_yield_electron', energy)
                     nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
+                    fano = self.gimme_numpy('fano_factor', nq)
+                    nq_actual_upper = nq + np.sqrt(fano * nq) * self.source.max_sigma
+                    nq_actual_lower = nq - np.sqrt(fano * nq) * self.source.max_sigma
+
                     ex_ratio = self.gimme_numpy('exciton_ratio', energy)
                     alpha = 1. / (1. + ex_ratio)
-                    ions_mean = nq * alpha
-                    ions_std = nq * alpha * (1 - alpha)
+
+                    ions_mean_upper = nq_actual_upper * alpha
+                    ions_mean_lower = nq_actual_lower * alpha
+                    ions_std_upper = np.sqrt(nq_actual_upper * alpha * (1 - alpha))
+                    ions_std_lower = np.sqrt(nq_actual_lower * alpha * (1 - alpha))
                 else:
                     nq = self.gimme_numpy('mean_yields', energy)[1]
                     ex_ratio = self.gimme_numpy('mean_yields', energy)[2]
                     alpha = 1. / (1. + ex_ratio)
-                    ions_mean = nq * alpha
-                    ions_std = np.sqrt(nq * alpha)
+                    ions_mean_upper = nq * alpha
+                    ions_mean_lower = nq * alpha
+                    ions_std_upper = np.sqrt(nq * alpha)
+                    ions_std_lower = np.sqrt(nq * alpha)
 
-                ions_produced_min.append(np.floor(ions_mean - self.source.max_sigma * ions_std).astype(int))
-                ions_produced_max.append(np.ceil(ions_mean + self.source.max_sigma * ions_std).astype(int))
+                ions_produced_min.append(np.floor(ions_mean_lower - self.source.max_sigma * ions_std_lower).astype(int))
+                ions_produced_max.append(np.ceil(ions_mean_upper + self.source.max_sigma * ions_std_upper).astype(int))
 
             indicies = np.arange(batch * self.source.batch_size, (batch + 1) * self.source.batch_size)
             d.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'ions_produced_min'] = \
