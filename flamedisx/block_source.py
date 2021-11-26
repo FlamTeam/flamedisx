@@ -396,7 +396,7 @@ class BlockModelSource(fd.Source):
             # Scale the block by stepped dimensions, if not already done in
             # another block
             for dim in scaling_dims:
-                if (dim in self.inner_dimensions) and \
+                if ((dim in self.inner_dimensions) or (dim in self.bonus_dimensions)) and \
                         (dim not in self.no_step_dimensions) and \
                         (dim not in already_stepped):
                     steps = self._fetch(dim+'_steps', data_tensor=data_tensor)
