@@ -294,8 +294,8 @@ class SR1Source:
         d['z_observed'] = d['z']
 
         # Adding some smear according to posrec resolution
-        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=2) # 2cm resolution)
-        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=2) # 2cm resolution)
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=0.4) # 4 mm resolution)
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=0.4) # 4 mm resolution)
         
         # applying fdc
         delta_r = self.fdc_map(
