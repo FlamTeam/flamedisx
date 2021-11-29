@@ -78,7 +78,7 @@ class MakePhotonsElectronsNR(fd.Block):
                 alpha = 1. / (1. + ex_ratio)
 
                 p_ni = tfp.distributions.Binomial(
-                    total_count=nq, probs=alpha).prob(ions_produced)
+                    total_count=nq, probs=alpha).prob(_ions_produced)
 
             else:
                 yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
@@ -94,7 +94,7 @@ class MakePhotonsElectronsNR(fd.Block):
                 #     loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(ions_produced - 0.5)
 
                 p_ni = tfp.distributions.Normal(
-                    loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).prob(ions_produced)
+                    loc=nq_mean*alpha, scale=tf.sqrt(nq_mean*alpha) + 1e-10).prob(_ions_produced)
 
                 # p_nq = tfp.distributions.Normal(
                 #     loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced + 0.5) \
@@ -102,20 +102,20 @@ class MakePhotonsElectronsNR(fd.Block):
                 #     loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - ions_produced - 0.5)
 
                 p_nq = tfp.distributions.Normal(
-                    loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).prob(nq - ions_produced)
+                    loc=nq_mean*alpha*ex_ratio, scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).prob(nq - _ions_produced)
 
             recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=(nel_mean, nq_mean, ex_ratio))
             skew = self.gimme('skewness', data_tensor=data_tensor, ptensor=ptensor,
                               bonus_arg=nq_mean)
             var = self.gimme('variance', data_tensor=data_tensor, ptensor=ptensor,
-                             bonus_arg=(nel_mean, nq_mean, recomb_p, ions_produced))
+                             bonus_arg=(nel_mean, nq_mean, recomb_p, _ions_produced))
             width_corr = self.gimme('width_correction', data_tensor=data_tensor, ptensor=ptensor,
                                     bonus_arg=skew)
             mu_corr = self.gimme('mu_correction', data_tensor=data_tensor, ptensor=ptensor,
                                        bonus_arg=(skew, var, width_corr))
 
-            mean = (tf.ones_like(ions_produced, dtype=fd.float_type()) - recomb_p) * ions_produced - mu_corr
+            mean = (tf.ones_like(_ions_produced, dtype=fd.float_type()) - recomb_p) * _ions_produced - mu_corr
             std_dev = tf.sqrt(var) / width_corr
             # p_nel = tfp.distributions.TruncatedSkewGaussianCC(
             #         loc=mean, scale=std_dev, skewness=skew, limit=ions_produced).prob(electrons_produced)
