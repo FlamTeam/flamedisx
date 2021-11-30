@@ -57,8 +57,6 @@ class Block:
     #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
-    prior_dimensions: ty.Tuple[str] = tuple()
-
     use_batch: bool = False
 
     def __init__(self, source):
@@ -149,10 +147,10 @@ class Block:
                               <= d[f'{dim}_max'].values), \
                     f"_annotate of {self} set misordered bounds"
 
-    def prepare_priors(self, d: pd.DataFrame):
+    def post_annotate(self, d: pd.DataFrame):
         """"""
-        return_value = self._prepare_priors(d)
-        assert isinstance(return_value, bool), f"_prepare_priors of {self} should return a bool"
+        return_value = self._post_annotate(d)
+        assert isinstance(return_value, bool), f"_post_annotate of {self} should return a bool"
 
         if return_value == True:
             for dim in self.dimensions:
@@ -164,12 +162,12 @@ class Block:
                         f" must set {colname}"
                 assert np.all(d[f'{dim}_min'].values
                               <= d[f'{dim}_max'].values), \
-                    f"_prepare_priors of {self} set misordered bounds"
+                    f"_post_annotate of {self} set misordered bounds"
 
-    def annotate_prior(self, d: pd.DataFrame):
+    def annotate_special(self, d: pd.DataFrame):
         """"""
-        return_value = self._annotate_prior(d)
-        assert isinstance(return_value, bool), f"_annotate_prior of {self} should return a bool"
+        return_value = self._annotate_special(d)
+        assert isinstance(return_value, bool), f"_annotate_special of {self} should return a bool"
 
         if return_value == True:
             for dim in self.dimensions:
@@ -181,7 +179,7 @@ class Block:
                         f" must set {colname}"
                 assert np.all(d[f'{dim}_min'].values
                               <= d[f'{dim}_max'].values), \
-                    f"_annotate_prior of {self} set misordered bounds"
+                    f"_annotate_special of {self} set misordered bounds"
 
     def check_data(self):
         pass
@@ -202,11 +200,11 @@ class Block:
         """Add _min and _max for each dimension to d in-place"""
         return False
 
-    def _prepare_priors(self, d):
+    def _post_annotate(self, d):
         """"""
         return False
 
-    def _annotate_prior(self, d):
+    def _annotate_special(self, d):
         """"""
         return False
 
@@ -516,17 +514,11 @@ class BlockModelSource(fd.Source):
 
         #
         for b in self.model_blocks[::-1]:
-            b.prepare_priors(d)
-            for dim in b.prior_dimensions:
-                if dim not in self.prior_dimensions:
-                    self.prior_dimensions += b.prior_dimensions
+            b.post_annotate(d)
 
         #
-        for batch in range(self.n_batches):
-            fd.bounds.bayes_bounds_priors(self, d, batch)
-        #
         for b in self.model_blocks[::-1]:
-            b.annotate_prior(d)
+            b.annotate_special(d)
 
     def _populate_special_tensors(self):
         d = self.data

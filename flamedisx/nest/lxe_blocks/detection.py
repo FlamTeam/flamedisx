@@ -15,8 +15,6 @@ class DetectPhotonsOrElectrons(fd.Block):
 
     model_attributes = ('check_efficiencies',)
 
-    prior_dimensions = ('electrons_produced', 'photons_produced')
-
     # Whether to check if all events have a positive detection efficiency.
     # As with check_acceptances in MakeFinalSignals, you may have to
     # turn this off, depending on your application.
@@ -96,36 +94,6 @@ class DetectPhotonsOrElectrons(fd.Block):
                                        bounds_prob=self.source.bounds_prob, bound=bound,
                                        bound_type='binomial', supports=supports,
                                        rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
-
-        return True
-
-    def _annotate_prior(self, d):
-        if self.quanta_name not in ('photon', 'electron'):
-            return False
-
-        for batch in range(self.source.n_batches):
-            d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
-
-            # Get efficiency
-            effs = self.gimme_numpy(self.quanta_name + '_detection_eff')[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
-            if self.quanta_name == 'photon':
-                effs *= self.gimme_numpy('s1_posDependence')[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
-
-            for suffix, bound in (('_min', 'lower'),
-                                  ('_max', 'upper')):
-                out_bounds = d_batch[self.quanta_name + 's_detected' + suffix]
-                supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10.),
-                                        1000).astype(int) for out_bound, eff in zip(out_bounds, effs)]
-                ns = supports
-                ps = [eff * np.ones_like(support) for eff, support in zip(effs, supports)]
-                rvs = [out_bound * np.ones_like(support)
-                       for out_bound, support in zip(out_bounds, supports)]
-
-                fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
-                                               df=d, in_dim=self.quanta_name + 's_produced',
-                                               bounds_prob=self.source.bounds_prob, bound=bound,
-                                               bound_type='binomial', supports=supports,
-                                               rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
         return True
 

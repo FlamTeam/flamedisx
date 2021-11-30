@@ -24,8 +24,6 @@ class MakePhotonsElectronsNR(fd.Block):
                                 'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
-    prior_dimensions = ('ions_produced',)
-
     use_batch = True
 
     def _compute(self,
@@ -207,7 +205,7 @@ class MakePhotonsElectronsNR(fd.Block):
                                          nex,
                                          ph_prod_temp)
 
-    def _annotate_prior(self, d):
+    def _annotate_special(self, d):
         for batch in range(self.source.n_batches):
             d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
 
