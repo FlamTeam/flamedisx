@@ -127,7 +127,7 @@ def safe_p(ps):
     ps = tf.where(tf.math.is_nan(ps),
                   tf.zeros_like(ps, dtype=float_type()),
                   tf.cast(ps, dtype=float_type()))
-    ps = tf.clip_by_value(ps, 1e-5, 1 - 1e-5)
+    ps = tf.clip_by_value(ps, 1e-9, 1 - 1e-9)
     return ps
 
 

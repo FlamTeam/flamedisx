@@ -327,8 +327,8 @@ class SR1Source:
                       cs1,
                       # Only used here, DEFAULT_.. would be super verbose
                       cs1_min=3.,
-                      cs1_max=70.):
-        acceptance = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
+                      s1_max=100.):
+        acceptance = tf.where((cs1 > cs1_min) & (s1 < s1_max),
                               tf.ones_like(s1, dtype=fd.float_type()),
                               tf.zeros_like(s1, dtype=fd.float_type()))
 
@@ -344,7 +344,7 @@ class SR1Source:
                       s2_min=200.,
                       # Needed for future sources i.e. wall
                       cs2b_min=50.1,
-                      cs2b_max=7940.):
+                      cs2b_max=12000.):
         cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
         acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max) 
                                                 & (s2 > s2_min),
@@ -379,6 +379,17 @@ class SR1ERSource(SR1Source, fd.ERSource):
         r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
         p_el = ni * (1. - r_er) / nq
         return fd.safe_p(p_el)
+
+    @staticmethod
+    def work(z, *, W=13.8e-3):
+        # Ties the work model function to the W parameter in the sources
+        return W + 0 * z
+
+    @staticmethod
+    def double_pe_fraction(z,*, dpe=0.219):
+        # Ties the double_pe_fraction model function to the dpe parameter 
+        # in the sources
+        return dpe + 0 * z
 
     @staticmethod
     def p_electron_fluctuation(nq, q2=0.034, q3_nq=123.):

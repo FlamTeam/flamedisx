@@ -50,7 +50,7 @@ class MakePhotonsElectronsBinomial(fd.Block):
         pel = tf.where(tf.math.is_nan(pel),
                        tf.zeros_like(pel, dtype=fd.float_type()),
                        pel)
-        pel = tf.clip_by_value(pel, 1e-6, 1. - 1e-6)
+        pel = tf.clip_by_value(pel, 1e-9, 1. - 1e-9)
 
         if self.do_pel_fluct:
             pel_fluct = self.gimme('p_electron_fluctuation',
