@@ -296,14 +296,24 @@ class SR1Source:
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
                            *,
-                           single_electron_gain=DEFAULT_SINGLE_ELECTRON_GAIN):
+                           g2=DEFAULT_G2,
+                           aft=DEFAULT_AREA_FRACTION_TOP,
+                           extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
+        g2_total = g2/(1.-aft)
+        single_electron_gain = g2_total/extraction_eff
         return single_electron_gain * s2_relative_ly
 
     @staticmethod
     def electron_gain_std(s2_relative_ly,
                           *,
-                          single_electron_width=DEFAULT_SINGLE_ELECTRON_WIDTH):
-        # 0 * light yield is to fix the shape
+                          g2=DEFAULT_G2,
+                          aft=DEFAULT_AREA_FRACTION_TOP,
+                          gain_width_fraction=0.25,
+                          extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
+        g2_total = g2/(1.-aft)
+        single_electron_gain = g2_total/extraction_eff
+        single_electron_width = gain_width_fraction*single_electron_gain
+          # 0 * light yield is to fix the shape of tensor
         return single_electron_width + 0. * s2_relative_ly
 
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
