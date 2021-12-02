@@ -276,6 +276,8 @@ class MakePhotonsElectronsNR(fd.Block):
                                             1).numpy()
 
     def _populate_special_tensors(self, d):
+        max_num_energies = max(map(len, d['ions_produced_min'].values))
+        [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
         ion_bounds_min = [tf.convert_to_tensor(values, dtype=fd.float_type()) for values in d['ions_produced_min'].values]
         ion_bounds_min_tensor = tf.stack(ion_bounds_min)
 
