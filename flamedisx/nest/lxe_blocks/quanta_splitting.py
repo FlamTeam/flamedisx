@@ -212,12 +212,16 @@ class MakePhotonsElectronsNR(fd.Block):
             energy_min = min(d_batch['energy_min'])
             energy_max = max(d_batch['energy_max'])
 
-            energies_trim = self.source.energies.numpy()[np.where(self.source.energies >= energy_min) and
-                                                         np.where(self.source.energies <= energy_max)]
+            energies_trim = self.source.energies.numpy()[(self.source.energies.numpy() >= energy_min) &
+                                                         (self.source.energies.numpy() <= energy_max)]
 
             index_step = np.round(np.linspace(0, len(energies_trim) - 1,
                                               min(len(energies_trim), self.source.max_dim_size_initial))).astype(int)
             energies_trim_step = energies_trim[index_step]
+
+            # print(energy_min)
+            # print(energy_max)
+            # print(energies_trim_step)
 
             ions_produced_min = []
             ions_produced_max = []
@@ -249,6 +253,10 @@ class MakePhotonsElectronsNR(fd.Block):
 
                 ions_produced_min.append(np.floor(ions_mean_lower - self.source.max_sigma * ions_std_lower).astype(int))
                 ions_produced_max.append(np.ceil(ions_mean_upper + self.source.max_sigma * ions_std_upper).astype(int))
+
+            # ones = [1] * len(ions_produced_min)
+            # ions_produced_min = [min(ions_produced_min) * one for one in ones]
+            # ions_produced_max = [max(ions_produced_max) * one for one in ones]
 
             indicies = np.arange(batch * self.source.batch_size, (batch + 1) * self.source.batch_size)
             d.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'ions_produced_min'] = \
