@@ -43,19 +43,17 @@ class MakePhotonsElectronsNR(fd.Block):
             rate_vs_energy = args[1]
             energy_index = args[2]
 
-            # ions_min_initial = self.ion_bounds_min_tensor[i_batch, :, 0, o]
-            # ions_min_initial = tf.repeat(ions_min_initial, tf.shape(ions_produced)[1], axis=1)
-            # ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
-            # ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
-            #
-            # ions_min = self.ion_bounds_min_tensor[i_batch, :, energy_index, o]
-            # ions_min = tf.repeat(ions_min, tf.shape(ions_produced)[1], axis=1)
-            # ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
-            # ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
-            #
-            # _ions_produced = ions_produced - ions_min_initial + ions_min
+            ions_min_initial = self.ion_bounds_min_tensor[i_batch, :, 0, o]
+            ions_min_initial = tf.repeat(ions_min_initial, tf.shape(ions_produced)[1], axis=1)
+            ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
+            ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
-            _ions_produced = ions_produced
+            ions_min = self.ion_bounds_min_tensor[i_batch, :, energy_index, o]
+            ions_min = tf.repeat(ions_min, tf.shape(ions_produced)[1], axis=1)
+            ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
+            ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
+
+            _ions_produced = ions_produced - ions_min_initial + ions_min
 
             if self.is_ER:
                 nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
@@ -251,10 +249,6 @@ class MakePhotonsElectronsNR(fd.Block):
 
                 ions_produced_min.append(np.floor(ions_mean_lower - self.source.max_sigma * ions_std_lower).astype(int))
                 ions_produced_max.append(np.ceil(ions_mean_upper + self.source.max_sigma * ions_std_upper).astype(int))
-
-            ones = [1] * len(ions_produced_min)
-            ions_produced_min = [min(ions_produced_min) * one for one in ones]
-            ions_produced_max = [max(ions_produced_max) * one for one in ones]
 
             indicies = np.arange(batch * self.source.batch_size, (batch + 1) * self.source.batch_size)
             d.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'ions_produced_min'] = \
