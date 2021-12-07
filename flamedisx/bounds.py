@@ -39,6 +39,43 @@ def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs)
         df[in_dim + '_mle'] = mles
 
 
+def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
+    assert (bound in ('upper', 'lower',  'mle')), "bound argumment must be upper or lower"
+    assert (bound_type in ('binomial',)), "bound_type must be binomial"
+
+    if bound=='upper':
+        prior_pdfs = source.prior_PDFs_UB[batch]
+    elif bound=='lower':
+        prior_pdfs = source.prior_PDFs_LB[batch]
+
+    cdfs_prior =  bayes_bounds_binomial(supports, prior_pdf=prior_pdfs[in_dim], **kwargs)
+    cdfs_no_prior = bayes_bounds_binomial(supports, **kwargs)
+
+    if bound == 'lower':
+        lower_lims_prior = [support[np.where(cdf < bounds_prob)[0][-1]]
+                            if len(np.where(cdf < bounds_prob)[0]) > 0
+                            else support[0]
+                            for support, cdf in zip(supports, cdfs_prior)]
+        lower_lims_no_prior = [support[np.where(cdf < bounds_prob)[0][-1]]
+                               if len(np.where(cdf < bounds_prob)[0]) > 0
+                               else support[0]
+                               for support, cdf in zip(supports, cdfs_no_prior)]
+        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_min'] = \
+            max(lower_lims_prior, lower_lims_no_prior)
+
+    elif bound == 'upper':
+        upper_lims_prior = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
+                            if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
+                            else support[-1]
+                            for support, cdf in zip(supports, cdfs_prior)]
+        upper_lims_no_prior = [support[np.where(cdf > 1. - bounds_prob)[0][0]]
+                               if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
+                               else support[-1]
+                               for support, cdf in zip(supports, cdfs_no_prior)]
+        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_max'] = \
+            min(upper_lims_prior, upper_lims_no_prior)
+
+
 def bayes_bounds_priors(source, reservoir, col1, col2, col3,
                         value1_max, value2_max, value3_max,
                         value1_min, value2_min, value3_min,
@@ -64,7 +101,7 @@ def bayes_bounds_priors(source, reservoir, col1, col2, col3,
      source.prior_PDFs_LB += (prior_dict,)
 
 
-def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom):
+def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_pdf=None):
     """Calculate bounds on a block using a binomial distribution.
 
     :param supports: Values of block 'input' dimension over which the PMF/CMF used to find the bounds
@@ -75,11 +112,20 @@ def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom):
     must be the same shape as supports
     :param ps_binom: Variable the block uses as the success probability of the binomial calculation;
     must be the same shape as supports
+    :param prior_pdf: FILL THIS IN
     """
     assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom) == np.shape(supports)), \
         "Shapes of suports, rvs_binom, ns_binom and ps_binom must be equal"
 
-    pdfs = [stats.binom.pmf(rv_binom, n_binom, p_binom)
+    def prior(x):
+        if prior_pdf is None:
+            return 1
+        elif np.sum(prior_pdf.pdf(x)) == 0:
+            return 1
+        else:
+            return prior_pdf.pdf(x)
+
+    pdfs = [stats.binom.pmf(rv_binom, n_binom, p_binom) * prior(support)
             for rv_binom, n_binom, p_binom, support in zip(rvs_binom, ns_binom, ps_binom, supports)]
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
