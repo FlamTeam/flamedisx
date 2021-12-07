@@ -39,6 +39,31 @@ def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs)
         df[in_dim + '_mle'] = mles
 
 
+def bayes_bounds_priors(source, reservoir, col1, col2, col3,
+                        value1_max, value2_max, value3_max,
+                        value1_min, value2_min, value3_min,
+                        prior_dims, prior_cols):
+     prior_dict = {}
+     for prior_dim, prior_col in zip(prior_dims, prior_cols):
+         prior_data = reservoir[:,prior_col][ (reservoir[:,col1] <= value1_max)
+                                              & (reservoir[:,col2] <= value2_max)
+                                              & (reservoir[:,col3] <= value3_max) ]
+         prior_hist = np.histogram(prior_data)
+         prior_pdf = stats.rv_histogram(prior_hist)
+         prior_dict[prior_dim] = prior_pdf
+     source.prior_PDFs_UB += (prior_dict,)
+
+     prior_dict = {}
+     for prior_dim, prior_col in zip(prior_dims, prior_cols):
+         prior_data = reservoir[:,prior_col][ (reservoir[:,col1] >= value1_min)
+                                              & (reservoir[:,col2] >= value2_min)
+                                              & (reservoir[:,col3] >= value3_min) ]
+         prior_hist = np.histogram(prior_data)
+         prior_pdf = stats.rv_histogram(prior_hist)
+         prior_dict[prior_dim] = prior_pdf
+     source.prior_PDFs_LB += (prior_dict,)
+
+
 def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom):
     """Calculate bounds on a block using a binomial distribution.
 

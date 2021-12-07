@@ -516,6 +516,28 @@ class BlockModelSource(fd.Source):
         for b in self.model_blocks[::-1]:
             b.post_annotate(d)
 
+        res = self.MC_reservoir.values
+        col1 = self.MC_reservoir.columns.get_loc('energy')
+        col2 = self.MC_reservoir.columns.get_loc('s1_photoelectrons_detected')
+        col3 = self.MC_reservoir.columns.get_loc('s2_photoelectrons_detected')
+        prior_dims = ('electrons_produced', 'photons_produced')
+        prior_cols = (self.MC_reservoir.columns.get_loc('electrons_produced'), self.MC_reservoir.columns.get_loc('photons_produced'))
+        for batch in range(self.n_batches):
+            df_batch = d[batch * self.batch_size : (batch + 1) * self.batch_size]
+
+            val1_max = df_batch['energy_max'].iloc[0]
+            val2_max = max(df_batch['s1_photoelectrons_detected_max'])
+            val3_max = max(df_batch['s2_photoelectrons_detected_max'])
+
+            val1_min = df_batch['energy_min'].iloc[0]
+            val2_min = min(df_batch['s1_photoelectrons_detected_min'])
+            val3_min = min(df_batch['s2_photoelectrons_detected_min'])
+
+            fd.bounds.bayes_bounds_priors(self, res, col1, col2, col3,
+                                          val1_max, val2_max, val3_max,
+                                          val1_min, val2_min, val3_min,
+                                          prior_dims, prior_cols)
+
         #
         for b in self.model_blocks[::-1]:
             b.annotate_special(d)
