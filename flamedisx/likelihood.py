@@ -53,6 +53,7 @@ class LogLikelihood:
             free_rates=None,
             batch_size=10,
             max_sigma=None,
+            max_sigma_outer=None,
             max_dim_size_initial=None,
             max_dim_size=None,
             max_dim_size_outer=None,
@@ -81,6 +82,10 @@ class LogLikelihood:
             at the cost of more memory
 
         :param max_sigma: Maximum sigma to use in bounds estimation.
+            Higher numbers give better accuracy, at the cost of performance.
+            If not specified, each source will use its own default.
+
+        :param max_sigma_outer: Maximum sigma to use in bounds estimation for outer blocks.
             Higher numbers give better accuracy, at the cost of performance.
             If not specified, each source will use its own default.
 
@@ -150,6 +155,7 @@ class LogLikelihood:
             sname: sclass(**(arguments.get(sname)),
                           data=None,
                           max_sigma=max_sigma,
+                          max_sigma_outer=max_sigma_outer,
                           max_dim_size_initial=max_dim_size_initial,
                           max_dim_size=max_dim_size,
                           max_dim_size_outer=max_dim_size_outer,

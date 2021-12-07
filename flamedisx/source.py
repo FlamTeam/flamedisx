@@ -32,6 +32,7 @@ class Source:
     trace_difrate = True
 
     default_max_sigma = 3
+    default_max_sigma_outer = 5
     default_max_dim_size_initial = 20
     default_max_dim_size = 70
     default_max_dim_size_outer = 120
@@ -193,6 +194,7 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=None,
+                 max_sigma_outer=None,
                  max_dim_size_initial=None,
                  max_dim_size=None,
                  max_dim_size_outer=None,
@@ -208,6 +210,8 @@ class Source:
         :param batch_size: Number of events / tensorflow batch
         :param max_sigma: Hint for hidden variable bounds computation
             If omitted, set to default_max_sigma
+        param max_sigma_outer: Hint for hidden variable bounds computation for outer blocks
+            If omitted, set to default_max_sigma_outer
         param max_dim_size_initial: Maximum size for initial_dimension, once trimmed,
             beyond which stepping will be done
         :param max_dim_size: Maximum bounds size for inner_dimensions,
@@ -225,10 +229,15 @@ class Source:
         """
         if max_sigma is None:
             max_sigma = self.default_max_sigma
+        if max_sigma_outer is None:
+            max_sigma_outer = self.default_max_sigma_outer
         self.bounds_prob = stats.norm.cdf(-max_sigma)
+        self.bounds_prob_outer = stats.norm.cdf(-max_sigma_outer)
         self.max_sigma = max_sigma
         assert self.bounds_prob > 0., \
             "max_sigma too high!"
+        assert self.bounds_prob_outer > 0., \
+            "max_sigma_outer too high!"
 
         if max_dim_size_initial is None:
             max_dim_size_initial = self.default_max_dim_size_initial
