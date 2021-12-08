@@ -18,6 +18,8 @@ class MakePhotonsElectronsNR(fd.Block):
     bonus_dimensions = (('ions_produced', True),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
 
+    max_dim_size = {'ions_produced': 30}
+
     exclude_data_tensor = ('ions_produced_min', 'ions_produced_max')
 
     special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
@@ -256,7 +258,7 @@ class MakePhotonsElectronsNR(fd.Block):
                                                          (self.source.energies.numpy() <= energy_max)]
 
             index_step = np.round(np.linspace(0, len(energies_trim) - 1,
-                                              min(len(energies_trim), self.source.max_dim_size_initial))).astype(int)
+                                              min(len(energies_trim), self.source.max_dim_sizes['energy']))).astype(int)
 
             ions_produced_min = list(np.take(ions_produced_min_full, index_step))
             ions_produced_max = list(np.take(ions_produced_max_full, index_step))
@@ -279,8 +281,8 @@ class MakePhotonsElectronsNR(fd.Block):
         dimsizes = [max([elem + 1 for elem in list(map(operator.sub, maxs, mins))])
                                                  for maxs, mins in zip(maxs_batch, mins_batch)]
         self.source.dimsizes['ions_produced'] = \
-            self.source.max_dim_size * np.greater(dimsizes, self.source.max_dim_size) + \
-            dimsizes * np.less_equal(dimsizes, self.source.max_dim_size)
+            self.source.max_dim_sizes['ions_produced'] * np.greater(dimsizes, self.source.max_dim_sizes['ions_produced']) + \
+            dimsizes * np.less_equal(dimsizes, self.source.max_dim_sizes['ions_produced'])
 
         d['ions_produced_steps'] = tf.where(dimsizes > self.source.dimsizes['ions_produced'],
                                             tf.math.ceil(([elem-1 for elem in dimsizes]) / (self.source.dimsizes['ions_produced']-1)),

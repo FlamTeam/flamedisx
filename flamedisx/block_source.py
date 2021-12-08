@@ -59,6 +59,8 @@ class Block:
 
     use_batch: bool = False
 
+    max_dim_size: ty.Dict[str, int] = dict()
+
     def __init__(self, source):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
@@ -349,6 +351,9 @@ class BlockModelSource(fd.Source):
             d[0] for d in collected['bonus_dimensions']])
         self.exclude_data_tensor = tuple([
             d for d in collected['exclude_data_tensor']])
+
+        for b in self.model_blocks:
+            self.max_dim_sizes.update(b.max_dim_size)
 
         super().__init__(*args, **kwargs)
 
