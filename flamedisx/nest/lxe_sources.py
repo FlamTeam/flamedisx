@@ -87,8 +87,6 @@ class nestSource(fd.BlockModelSource):
 
     initial_dimension = 'energy'
     final_dimensions = ('s1', 's2')
-    penultimate_dimensions = ('s1_photoelectrons_detected',
-                              's2_photoelectrons_detected')
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
 

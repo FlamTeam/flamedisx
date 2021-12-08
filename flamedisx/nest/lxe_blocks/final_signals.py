@@ -96,6 +96,8 @@ class MakeS1(MakeFinalSignals):
     special_model_functions = ('s1_spe_smearing', 'reconstruction_bias_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
 
+    max_dim_size = {'s1_photoelectrons_detected': 120}
+
     def s1_acceptance(self, s1):
         return tf.where((s1 < self.source.S1_min) | (s1 > self.source.S1_max),
                         tf.zeros_like(s1, dtype=fd.float_type()),
@@ -125,6 +127,8 @@ class MakeS2(MakeFinalSignals):
     dimensions = ('s2_photoelectrons_detected', 's2')
     special_model_functions = ('s2_spe_smearing', 'reconstruction_bias_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
+
+    max_dim_size = {'s2_photoelectrons_detected': 120}
 
     def s2_acceptance(self, s2):
         return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),

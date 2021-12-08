@@ -33,9 +33,9 @@ class Source:
 
     default_max_sigma = 3
     default_max_sigma_outer = 5
-    default_max_dim_size_initial = 20
     default_max_dim_size = 70
-    default_max_dim_size_outer = 120
+
+    max_dim_sizes: ty.Dict[str, int] = dict()
 
     #: Names of model functions
     model_functions: ty.Tuple[str] = tuple()
@@ -54,10 +54,6 @@ class Source:
     #: Names of final observable dimensions (e.g. s1, s2)
     #: for use in domain / cross-domain
     final_dimensions: ty.Tuple[str] = tuple()
-
-    #: Names of penulitmate model dimensions;
-    #: these may have different max_dim_size, given by max_dim_size_outer
-    penultimate_dimensions = tuple()
 
     #: Names of dimensions of hidden variables (e.g. produced electrons)
     #: for which domain computations and dimsize calculations are to be done
@@ -195,9 +191,6 @@ class Source:
                  batch_size=10,
                  max_sigma=None,
                  max_sigma_outer=None,
-                 max_dim_size_initial=None,
-                 max_dim_size=None,
-                 max_dim_size_outer=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -212,12 +205,6 @@ class Source:
             If omitted, set to default_max_sigma
         param max_sigma_outer: Hint for hidden variable bounds computation for outer blocks
             If omitted, set to default_max_sigma_outer
-        param max_dim_size_initial: Maximum size for initial_dimension, once trimmed,
-            beyond which stepping will be done
-        :param max_dim_size: Maximum bounds size for inner_dimensions,
-            excluding no_step_dimensions
-        :param max_dim_size_outer: Maximum bounds size for outer blocks,
-            if hidden variable dimensions not in no_step_dimensions
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
@@ -239,15 +226,9 @@ class Source:
         assert self.bounds_prob_outer > 0., \
             "max_sigma_outer too high!"
 
-        if max_dim_size_initial is None:
-            max_dim_size_initial = self.default_max_dim_size_initial
-        if max_dim_size is None:
-            max_dim_size = self.default_max_dim_size
-        if max_dim_size_outer is None:
-            max_dim_size_outer = self.default_max_dim_size_outer
-        self.max_dim_size_initial = max_dim_size_initial
-        self.max_dim_size = max_dim_size
-        self.max_dim_size_outer = max_dim_size_outer
+        for dim in (self.inner_dimensions + self.bonus_dimensions + (self.initial_dimension,)):
+            if dim not in self.max_dim_sizes:
+                self.max_dim_sizes[dim] = self.default_max_dim_size
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:
@@ -447,10 +428,7 @@ class Source:
             mi = d[dim + '_min'].to_numpy()
             self.dimsizes[dim] = ma - mi + 1
             # Ensure we don't go over max_dim_size in a domain
-            if dim in self.penultimate_dimensions:
-                self.cap_dimsizes(dim, self.max_dim_size_outer)
-            else:
-                self.cap_dimsizes(dim, self.max_dim_size)
+            self.cap_dimsizes(dim, self.max_dim_sizes[dim])
 
             # Calculate steps if we have cappeed the dimesize
             steps = tf.where((ma-mi+1) > self.dimsizes[dim],

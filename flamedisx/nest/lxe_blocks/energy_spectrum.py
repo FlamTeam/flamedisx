@@ -18,6 +18,8 @@ class EnergySpectrum(fd.FirstBlock):
         'drift_velocity',
         't_start', 't_stop')
 
+    max_dim_size = {'energy': 100}
+
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
     # This will then also be true at the midpoint of these times.
@@ -37,7 +39,7 @@ class EnergySpectrum(fd.FirstBlock):
                                    tf.less_equal(self.energies, right_bound))
         energies_trim = tf.boolean_mask(self.energies, bool_mask)
         index_step = tf.round(tf.linspace(0, tf.shape(energies_trim)[0] - 1,
-                                          tf.math.minimum(tf.shape(energies_trim), self.source.max_dim_size_initial)[0]))
+                                          tf.math.minimum(tf.shape(energies_trim), self.source.max_dim_sizes['energy'])[0]))
         energies_trim_step = tf.gather(energies_trim, tf.cast(index_step, fd.int_type()))
 
         return {self.dimensions[0]: tf.repeat(energies_trim_step[o, :],
@@ -200,7 +202,7 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
                                    tf.less_equal(self.energies, right_bound))
         spectrum_trim = tf.boolean_mask(self.rates_vs_energy, bool_mask)
         index_step = tf.round(tf.linspace(0, tf.shape(spectrum_trim)[0] - 1,
-                                          tf.math.minimum(tf.shape(spectrum_trim), self.source.max_dim_size_initial)[0]))
+                                          tf.math.minimum(tf.shape(spectrum_trim), self.source.max_dim_sizes['energy'])[0]))
         spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()))
         stepping_multiplier = tf.cast(tf.shape(spectrum_trim) / tf.shape(spectrum_trim_step), fd.float_type())
 
