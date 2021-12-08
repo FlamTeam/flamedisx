@@ -44,7 +44,12 @@ class EnergySpectrum(fd.FirstBlock):
                                               self.source.batch_size,
                                               axis=0)}
     def _post_annotate(self, d):
-        self.source.MC_reservoir = res = self.source.simulate(int(1e6), keep_padding=True)
+        self.source.MC_reservoir = self.source.simulate(int(1e6), keep_padding=True)
+
+        energy = self.source.MC_reservoir.columns.get_loc('energy')
+        electrons_produced = self.source.MC_reservoir.columns.get_loc('electrons_produced')
+        photons_produced = self.source.MC_reservoir.columns.get_loc('photons_produced')
+        res = self.source.MC_reservoir.values
 
         for batch in range(self.source.n_batches):
             electrons_produced_min = min(d['electrons_produced_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
@@ -53,15 +58,15 @@ class EnergySpectrum(fd.FirstBlock):
             photons_produced_min = min(d['photons_produced_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
             photons_produced_max = max(d['photons_produced_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
 
-            res_filter = res.loc[(res['electrons_produced'] >= electrons_produced_min)
-                                 & (res['electrons_produced'] <= electrons_produced_max)
-                                 & (res['photons_produced'] >= photons_produced_min)
-                                 & (res['photons_produced'] <= photons_produced_max)]
+            energies = res[:,energy][ (res[:,electrons_produced] >= electrons_produced_min)
+                                      & (res[:,electrons_produced] <= electrons_produced_max)
+                                      & (res[:,photons_produced] >= photons_produced_min)
+                                      & (res[:,photons_produced] <= photons_produced_max) ]
 
             self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
-                np.quantile(res_filter['energy'].values, self.source.bounds_prob)
+                np.quantile(energies, self.source.bounds_prob)
             self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
-                np.quantile(res_filter['energy'].values, 1. - self.source.bounds_prob)
+                np.quantile(energies, 1. - self.source.bounds_prob)
 
         return True
 
