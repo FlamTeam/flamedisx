@@ -449,7 +449,7 @@ class BlockModelSource(fd.Source):
         d['p_accepted'] = 1.
         for b in self.model_blocks[1:]:
             b.simulate(d)
-        return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
+        return d
 
     def _annotate(self, _skip_bounds_computation=False):
         d = self.data
