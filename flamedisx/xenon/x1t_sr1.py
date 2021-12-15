@@ -306,10 +306,16 @@ class SR1Source:
         # 0 * light yield is to fix the shape
         return single_electron_width + 0. * s2_relative_ly
 
+    @staticmethod
+    def double_pe_fraction(z, *, dpe=DEFAULT_P_DPE):
+        # Ties the double_pe_fraction model function to the dpe
+        # parameter in the sources
+        return dpe + 0 * z
+
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
-    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1):
-        mean_eff= g1 / (1. + DEFAULT_P_DPE)
+    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1, dpe=DEFAULT_P_DPE):
+        mean_eff = g1 / (1. + dpe)
         return mean_eff * s1_relative_ly
 
     def photon_acceptance(self,
@@ -364,14 +370,14 @@ class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
     def p_electron(nq, *, W=13.7e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
-                   gamma_er=0.031 , omega_er=31.):
+                   gamma_er=0.031 , omega_er=31., delta_er=0.24):
         # gamma_er from paper 0.124/4
         F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-1.*delta_er)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
