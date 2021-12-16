@@ -157,8 +157,10 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
     default_elife = DEFAULT_ELECTRON_LIFETIME
+    area_fraction_top = DEFAULT_AREA_FRACTION_TOP
 
-    model_attributes = ('path_cut_accept_s1',
+    model_attributes = ('area_fraction_top',
+                        'path_cut_accept_s1',
                         'path_cut_accept_s2',
                         'path_s1_rly',
                         'path_s2_rly',
@@ -351,7 +353,7 @@ class SR1Source:
                       # Needed for future sources i.e. wall
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
+        cs2b = cs2*(1-self.area_fraction_top)
         acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max) 
                                                 & (s2 > s2_min),
                               tf.ones_like(s2, dtype=fd.float_type()),
