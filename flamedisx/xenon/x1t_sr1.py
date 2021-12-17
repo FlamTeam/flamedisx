@@ -388,7 +388,7 @@ class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
     def p_electron_fluctuation(nq, q2=0.034, q3=1.7):
-        q3_nq = q3/13.7
+        q3_nq = q3/13.7e-3
         # From SR0, BBF model, right?
         # q3 = 1.7 keV ~= 123 quanta
         # For SR1:
