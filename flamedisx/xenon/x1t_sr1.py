@@ -376,13 +376,18 @@ class SR1ERSource(SR1Source, fd.ERSource):
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
-        ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-1.*delta_er)
+        ni = nq * fi
+        #nex = nq * (1. - fi) # not used anywhere
 
         # delta_er and gamma_er are highly correlated
-        # F **(-delta_er) set to constant
+        # Not recommended to vary delta_er
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-1.*delta_er)
+
+        # Mean recombination fraction
         r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
         r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
+
+        # num electrons = ni*(1-r), prob electrons = num electrons/num quanta 
         p_el = ni * (1. - r_er) / nq
         return fd.safe_p(p_el)
 
