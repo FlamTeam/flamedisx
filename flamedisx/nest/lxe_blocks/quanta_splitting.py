@@ -43,15 +43,14 @@ class MakePhotonsElectronsNR(fd.Block):
 
             energy = args[0]
             rate_vs_energy = args[1]
-            energy_index = args[2]
+            ions_min = args[2]
 
             ions_min_initial = self.ion_bounds_min_tensor[i_batch, :, 0, o]
             ions_min_initial = tf.repeat(ions_min_initial, tf.shape(ions_produced)[1], axis=1)
             ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
             ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
-            ions_min = self.ion_bounds_min_tensor[i_batch, :, energy_index, o]
-            ions_min = tf.repeat(ions_min, tf.shape(ions_produced)[1], axis=1)
+            ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
             ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
             ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
@@ -138,7 +137,8 @@ class MakePhotonsElectronsNR(fd.Block):
         nq = electrons_produced + photons_produced
 
         result = tf.reduce_sum(tf.vectorized_map(compute_single_energy,
-                                                 elems=[energy[0,:],rate_vs_energy[0,:],tf.range(tf.shape(energy)[1])]),
+                                                 elems=[energy[0,:],rate_vs_energy[0,:],
+                                                        tf.transpose(self.ion_bounds_min_tensor[i_batch, :])]),
                                                  0)
 
         return result
