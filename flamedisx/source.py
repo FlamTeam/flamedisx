@@ -32,7 +32,7 @@ class Source:
     trace_difrate = True
 
     default_max_sigma = 3
-    default_max_sigma_outer = 5
+    default_max_sigma_outer = 3
     default_max_dim_size = 70
 
     max_dim_sizes: ty.Dict[str, int] = dict()
