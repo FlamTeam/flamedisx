@@ -245,7 +245,7 @@ class MakePhotonsElectronsNR(fd.Block):
         if self.is_ER:
             bounds = [get_bounds_ER(energy) for energy in self.source.energies.numpy()]
         else:
-            bounds = [get_bounds_ER(energy) for energy in self.source.energies.numpy()]
+            bounds = [get_bounds_NR(energy) for energy in self.source.energies.numpy()]
 
         ions_produced_min_full = [x[0] for x in bounds]
         ions_produced_max_full = [x[1] for x in bounds]
