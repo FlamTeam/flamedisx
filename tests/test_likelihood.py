@@ -297,9 +297,8 @@ def test_hessian_rateonly(xes: fd.ERSource):
         """
         @staticmethod
         def electron_detection_eff(drift_time, *,
-                                   different_elife=333e3,
-                                   extraction_eff=0.96):
-            return extraction_eff * tf.exp(-drift_time / different_elife)
+                                   different_elife=333e3):
+            return 1. * tf.exp(-drift_time / different_elife)
 
     # Test the hessian at the guess position
     lf = fd.LogLikelihood(
