@@ -37,6 +37,10 @@ class DetectPhotonsOrElectrons(fd.Block):
             p = p * self.gimme('penning_quenching_eff',
                                bonus_arg=quanta_produced,
                                data_tensor=data_tensor, ptensor=ptensor)
+        else:
+            p = p * self.gimme('extraction_eff',
+                               bonus_arg=quanta_produced,
+                               data_tensor=data_tensor, ptensor=ptensor)
 
         result = tfp.distributions.Binomial(
                 total_count=quanta_produced,
@@ -53,6 +57,9 @@ class DetectPhotonsOrElectrons(fd.Block):
         if self.quanta_name == 'photon':
             p *= self.gimme_numpy(
                 'penning_quenching_eff', d['photons_produced'].values)
+        else:
+            p *= self.gimme_numpy(
+                'extraction_eff', d['electrons_produced'].values)
 
         d[self.quanta_name + 's_detected'] = stats.binom.rvs(
             n=d[self.quanta_name + 's_produced'],
@@ -67,6 +74,9 @@ class DetectPhotonsOrElectrons(fd.Block):
         if self.quanta_name == 'photon':
             eff *= self.gimme_numpy('penning_quenching_eff',
                                     d['photons_detected_mle'].values / eff)
+        else:
+            eff *= self.gimme_numpy('extraction_eff',
+                                    d['electrons_detected_mle'].values / eff)
 
         # Check for bad efficiencies
         if self.check_efficiencies and np.any(eff <= 0):
@@ -123,13 +133,17 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 class DetectElectrons(DetectPhotonsOrElectrons):
     dimensions = ('electrons_produced', 'electrons_detected')
 
-    special_model_functions = ('electron_acceptance',)
+    special_model_functions = ('electron_acceptance', 'extraction_eff')
     model_functions = ('electron_detection_eff',) + special_model_functions
 
     @staticmethod
     def electron_detection_eff(drift_time, *,
-                               elife=452e3, extraction_eff=0.96):
-        return extraction_eff * tf.exp(-drift_time / elife)
+                               elife=452e3):
+        return 1. * tf.exp(-drift_time / elife)
+
+    @staticmethod
+    def extraction_eff(nel):
+        return 0.96 + 0. * nel
 
     electron_acceptance = 1.
 
