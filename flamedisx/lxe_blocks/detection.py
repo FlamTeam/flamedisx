@@ -139,11 +139,13 @@ class DetectElectrons(DetectPhotonsOrElectrons):
     @staticmethod
     def electron_detection_eff(drift_time, *,
                                elife=452e3):
+        # TODO: change the function name, it is a drift_efficiency
         return 1. * tf.exp(-drift_time / elife)
 
     @staticmethod
-    def extraction_eff(nel):
-        return 0.96 + 0. * nel
+    def extraction_eff(nel, *,
+                       mean_ext=0.96):
+        return mean_ext + 0. * nel
 
     electron_acceptance = 1.
 
