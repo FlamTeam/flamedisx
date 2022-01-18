@@ -39,7 +39,7 @@ class MakePhotonsElectronsNR(fd.Block):
                  # Dependency domain and value
                  energy, rate_vs_energy):
 
-        def compute_single_energy(args):
+        def compute_single_energy_full(args):
 
             energy = args[0]
             rate_vs_energy = args[1]
@@ -59,13 +59,10 @@ class MakePhotonsElectronsNR(fd.Block):
                 fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=nq_mean)
 
-                p_nq = tf.cond(energy < 5.,
-                               lambda: tfp.distributions.Normal(loc=nq_mean,
-                                                                scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq + 0.5) \
-                                       - tfp.distributions.Normal(loc=nq_mean,
-                                                                  scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq - 0.5),
-                               lambda: tfp.distributions.Normal(loc=nq_mean,
-                                                                scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq))
+                p_nq = tfp.distributions.Normal(loc=nq_mean,
+                                                scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq + 0.5) \
+                       - tfp.distributions.Normal(loc=nq_mean,
+                                                  scale=tf.sqrt(nq_mean * fano) + 1e-10).cdf(nq - 0.5)
 
                 ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
@@ -82,21 +79,15 @@ class MakePhotonsElectronsNR(fd.Block):
                 ex_ratio = yields[2]
                 alpha = 1. / (1. + ex_ratio)
 
-                p_ni = tf.cond(energy < 20.,
-                               lambda: tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                                scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(_ions_produced + 0.5) \
-                                       -  tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                                   scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(_ions_produced - 0.5),
-                               lambda: tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                                scale=tf.sqrt(nq_mean*alpha) + 1e-10).prob(_ions_produced))
+                p_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
+                                                scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(_ions_produced + 0.5) \
+                       - tfp.distributions.Normal(loc=nq_mean*alpha,
+                                                  scale=tf.sqrt(nq_mean*alpha) + 1e-10).cdf(_ions_produced - 0.5)
 
-                p_nq = tf.cond(energy < 20.,
-                               lambda: tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                                scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - _ions_produced + 0.5) \
-                                       - tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                                  scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - _ions_produced - 0.5),
-                               lambda: tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                                scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).prob(nq - _ions_produced))
+                p_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
+                                                scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - _ions_produced + 0.5) \
+                       - tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
+                                                  scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).cdf(nq - _ions_produced - 0.5)
 
             recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=(nel_mean, nq_mean, ex_ratio))
@@ -112,24 +103,81 @@ class MakePhotonsElectronsNR(fd.Block):
             mean = (tf.ones_like(_ions_produced, dtype=fd.float_type()) - recomb_p) * _ions_produced - mu_corr
             std_dev = tf.sqrt(var) / width_corr
 
+            p_nel = tfp.distributions.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
+                                                              skewness=skew, limit=_ions_produced).prob(electrons_produced)
+
+            p_mult = p_nq * p_ni * p_nel
+
+            p_final = tf.reduce_sum(p_mult, 3)
+
+            r_final = p_final * rate_vs_energy
+
+            r_final = tf.where(tf.math.is_nan(r_final),
+                               tf.zeros_like(r_final, dtype=fd.float_type()),
+                               r_final)
+
+            return r_final
+
+        def compute_single_energy_approx(args):
+
+            energy = args[0]
+            rate_vs_energy = args[1]
+            ions_min = args[2]
+
+            ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
+            ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
+            ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
+
+            _ions_produced = ions_produced_add + ions_min
+
             if self.is_ER:
-                p_nel = tf.cond(energy < 5.,
-                                lambda: tfp.distributions.TruncatedSkewGaussianCC(loc=mean,
-                                                                                  scale=std_dev,
-                                                                                  skewness=skew,
-                                                                                  limit=_ions_produced).prob(electrons_produced),
-                                lambda: tfp.distributions.SkewGaussian(loc=mean,
-                                                                       scale=std_dev,
-                                                                       skewness=skew).prob(electrons_produced))
+                nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=energy)
+                nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
+                                     bonus_arg=(energy,nel_mean))
+                fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=nq_mean)
+
+                p_nq = tfp.distributions.Normal(loc=nq_mean,
+                                                scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq)
+
+                ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=energy)
+                alpha = 1. / (1. + ex_ratio)
+
+                p_ni = tfp.distributions.Binomial(
+                    total_count=nq, probs=alpha).prob(_ions_produced)
+
             else:
-                p_nel = tf.cond(energy < 20.,
-                                lambda: tfp.distributions.TruncatedSkewGaussianCC(loc=mean,
-                                                                                  scale=std_dev,
-                                                                                  skewness=skew,
-                                                                                  limit=_ions_produced).prob(electrons_produced),
-                                lambda: tfp.distributions.SkewGaussian(loc=mean,
-                                                                       scale=std_dev,
-                                                                       skewness=skew).prob(electrons_produced))
+                yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
+                                     bonus_arg=energy)
+                nel_mean = yields[0]
+                nq_mean = yields[1]
+                ex_ratio = yields[2]
+                alpha = 1. / (1. + ex_ratio)
+
+                p_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
+                                                scale=tf.sqrt(nq_mean*alpha) + 1e-10).prob(_ions_produced)
+
+                p_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
+                                                                scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).prob(nq - _ions_produced)
+
+            recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=(nel_mean, nq_mean, ex_ratio))
+            skew = self.gimme('skewness', data_tensor=data_tensor, ptensor=ptensor,
+                              bonus_arg=nq_mean)
+            var = self.gimme('variance', data_tensor=data_tensor, ptensor=ptensor,
+                             bonus_arg=(nel_mean, nq_mean, recomb_p, _ions_produced))
+            width_corr = self.gimme('width_correction', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=skew)
+            mu_corr = self.gimme('mu_correction', data_tensor=data_tensor, ptensor=ptensor,
+                                       bonus_arg=(skew, var, width_corr))
+
+            mean = (tf.ones_like(_ions_produced, dtype=fd.float_type()) - recomb_p) * _ions_produced - mu_corr
+            std_dev = tf.sqrt(var) / width_corr
+
+            p_nel = tfp.distributions.SkewGaussian(loc=mean, scale=std_dev,
+                                                   skewness=skew).prob(electrons_produced)
 
             p_mult = p_nq * p_ni * p_nel
 
@@ -152,12 +200,26 @@ class MakePhotonsElectronsNR(fd.Block):
 
         ions_produced_add = ions_produced - ions_min_initial
 
-        result = tf.reduce_sum(tf.vectorized_map(compute_single_energy,
-                                                 elems=[energy[0,:],rate_vs_energy[0,:],
-                                                        tf.transpose(self.ion_bounds_min_tensor[i_batch, :])]),
-                                                 0)
+        if self.is_ER:
+            cutoff_energy = 5.
+        else:
+            cutoff_energy = 20.
 
-        return result
+        energies_below_cutoff = tf.size(tf.where(energy[0,:] < cutoff_energy))
+        energies_above_cutoff = tf.size(tf.where(energy[0,:] >= cutoff_energy))
+
+        energy_full, energy_approx = tf.split(energy[0,:], [energies_below_cutoff, energies_above_cutoff], 0)
+        rate_vs_energy_full, rate_vs_energy_approx = tf.split(rate_vs_energy[0,:], [energies_below_cutoff, energies_above_cutoff], 0)
+        ion_bounds_min_full, ion_bounds_min_approx = tf.split(self.ion_bounds_min_tensor[i_batch,:], [energies_below_cutoff, energies_above_cutoff], 1)
+
+        result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
+                                                      elems=[energy_full,rate_vs_energy_full,
+                                                      tf.transpose(ion_bounds_min_full)]), 0)
+        result_approx = tf.reduce_sum(tf.vectorized_map(compute_single_energy_approx,
+                                                      elems=[energy_approx,rate_vs_energy_approx,
+                                                      tf.transpose(ion_bounds_min_approx)]), 0)
+
+        return (result_full + result_approx)
 
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
