@@ -210,7 +210,9 @@ class MakePhotonsElectronsNR(fd.Block):
 
         energy_full, energy_approx = tf.split(energy[0,:], [energies_below_cutoff, energies_above_cutoff], 0)
         rate_vs_energy_full, rate_vs_energy_approx = tf.split(rate_vs_energy[0,:], [energies_below_cutoff, energies_above_cutoff], 0)
-        ion_bounds_min_full, ion_bounds_min_approx = tf.split(self.ion_bounds_min_tensor[i_batch,:], [energies_below_cutoff, energies_above_cutoff], 1)
+        # Want to get rid of the padding of 0s at the end
+        ion_bounds_min = self.ion_bounds_min_tensor[i_batch,:,0:tf.size(energy[0,:])]
+        ion_bounds_min_full, ion_bounds_min_approx = tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
         result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
                                                       elems=[energy_full,rate_vs_energy_full,
@@ -373,6 +375,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
     def _populate_special_tensors(self, d):
         max_num_energies = max(map(len, d['ions_produced_min'].values))
+        # Pad with 0s at the end to make each one the same size, so we can stack them into a single tensor
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
         ion_bounds_min = [tf.convert_to_tensor(values, dtype=fd.float_type()) for values in d['ions_produced_min'].values]
         ion_bounds_min_tensor = tf.stack(ion_bounds_min)
