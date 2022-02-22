@@ -25,6 +25,7 @@ DEFAULT_ELECTRON_LIFETIME = 641e3
 DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
 DEFAULT_DRIFT_FIELD = 81.
+DEFAULT_SURVIVAL_PROBABILITY = 1.
 
 DEFAULT_G2_TOTAL = DEFAULT_G2 / (1.-DEFAULT_AREA_FRACTION_TOP)
 DEFAULT_SINGLE_ELECTRON_GAIN = DEFAULT_G2_TOTAL / DEFAULT_EXTRACTION_EFFICIENCY
@@ -158,6 +159,7 @@ class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
     default_elife = DEFAULT_ELECTRON_LIFETIME
     default_drift_field = DEFAULT_DRIFT_FIELD
+    default_survival_probability = DEFAULT_SURVIVAL_PROBABILITY
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
@@ -174,6 +176,10 @@ class SR1Source:
                         'path_drift_field',
                         'path_drift_field_distortion',
                         'path_drift_field_distortion_correction',
+                        'set_field_distortion',
+                        'set_field_distortion_correction',
+                        'survival_flag',
+                        'path_survival_map'
                         )
 
     # Light yield maps
@@ -185,10 +191,17 @@ class SR1Source:
     path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Field distortion map
+    set_field_distortion = True
     path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # FDC map
+    set_field_distortion_correction = True
     path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
+    # Survival map
+    survival_flag = True
+    path_survival_map = 'nt_maps/field_dependent_radius_depth_maps_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
 
     # Combined cuts acceptances
     path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
@@ -227,6 +240,13 @@ class SR1Source:
         aa = fd.get_nt_file(self.path_drift_field_distortion) 
         aa['map'] = aa['r_distortion_map']
         self.drift_field_distortion_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
+        del aa
+
+        # Survival maps
+        # cheap hack
+        aa = fd.get_nt_file(self.path_survival_map) 
+        aa['map'] = aa['survival_probability_map']
+        self.survival_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
         del aa
 
         # FDC maps
@@ -284,9 +304,11 @@ class SR1Source:
         # x_fdc, y_fdc, z_fdc are the fdc-corrected positions
 
         # going from true position to position distorted by field
-        d['r_observed'] = self.drift_field_distortion_map(
-            np.transpose([d['r'].values,
-                          d['z'].values])) 
+        d['r_observed'] = d['r']
+        if self.set_field_distortion: 
+            d['r_observed'] = self.drift_field_distortion_map(
+                np.transpose([d['r'].values,
+                d['z'].values])) 
         d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
         d['y_observed'] = d['r_observed'] * np.sin(d['theta'])
 
@@ -298,10 +320,12 @@ class SR1Source:
         d['y_observed'] = np.random.normal(d['y_observed'].values, scale=0.4) # 4 mm resolution)
         
         # applying fdc
-        delta_r = self.fdc_map(
-            np.transpose([d['x_observed'].values,
-                          d['y_observed'].values,
-                          d['z_observed'].values,]))
+        delta_r = 0.
+        if self.set_field_distortion_correction:
+            delta_r = self.fdc_map(
+                np.transpose([d['x_observed'].values,
+                            d['y_observed'].values,
+                            d['z_observed'].values,]))
                               
         # apply radial correction
         with np.errstate(invalid='ignore', divide='ignore'):
@@ -331,6 +355,13 @@ class SR1Source:
         else:
             d['drift_field'] = self.default_drift_field
 
+        if self.survival_flag:
+            d['survival_probability'] = self.survival_map(
+                np.transpose([d['r'].values,
+                              d['z'].values]))
+        else:
+            d['survival_probability'] = self.default_survival_probability
+
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
         if 'elife' not in d.columns:
@@ -356,9 +387,11 @@ class SR1Source:
     @staticmethod
     def electron_detection_eff(drift_time,
                                elife,
+                               survival_probability,
                                *,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
-        return extraction_eff * tf.exp(-drift_time / elife)
+        # electron_detection_eff comprises both the elife and the CIV effects
+        return tf.clip_by_value(extraction_eff * tf.exp(-drift_time / elife) * survival_probability ,1e-18,1) 
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
