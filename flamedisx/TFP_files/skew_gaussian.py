@@ -137,8 +137,10 @@ class SkewGaussian(distribution.Distribution):
   def _log_prob(self, x):
     scale = tf.convert_to_tensor(self.scale)
     skewness = tf.convert_to_tensor(self.skewness)
+    log_value = 1 + tf.math.erf(skewness/(np.sqrt(2)*scale) * (x - self.loc))
+    log_value = tf.where(log_value <= 0, 1e-10, log_value)
     log_unnormalized = -0.5 * tf.math.squared_difference(
-        x / scale, self.loc / scale) + tf.math.log(1 + tf.math.erf(skewness/(np.sqrt(2)*scale) * (x - self.loc)))
+        x / scale, self.loc / scale) + tf.math.log(log_value)
     log_normalization = tf.constant(
         0.5 * np.log(2. * np.pi), dtype=self.dtype) + tf.math.log(scale)
     return log_unnormalized - log_normalization
