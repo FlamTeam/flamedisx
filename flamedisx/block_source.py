@@ -149,23 +149,6 @@ class Block:
                               <= d[f'{dim}_max'].values), \
                     f"_annotate of {self} set misordered bounds"
 
-    def post_annotate(self, d: pd.DataFrame):
-        """"""
-        return_value = self._post_annotate(d)
-        assert isinstance(return_value, bool), f"_post_annotate of {self} should return a bool"
-
-        if return_value == True:
-            for dim in self.dimensions:
-                if dim in self.source.final_dimensions:
-                    continue
-                for bound in ('min', 'max'):
-                    colname = f'{dim}_{bound}'
-                    assert colname in d.columns, \
-                        f" must set {colname}"
-                assert np.all(d[f'{dim}_min'].values
-                              <= d[f'{dim}_max'].values), \
-                    f"_post_annotate of {self} set misordered bounds"
-
     def annotate_special(self, d: pd.DataFrame):
         """"""
         return_value = self._annotate_special(d)
@@ -200,10 +183,6 @@ class Block:
 
     def _annotate(self, d):
         """Add _min and _max for each dimension to d in-place"""
-        return False
-
-    def _post_annotate(self, d):
-        """"""
         return False
 
     def _annotate_special(self, d):
@@ -516,10 +495,6 @@ class BlockModelSource(fd.Source):
         # for estimating the bounds on deeper hidden variables.
         for b in self.model_blocks[::-1]:
             b.annotate(d)
-
-        #
-        for b in self.model_blocks[::-1]:
-            b.post_annotate(d)
 
         res = self.MC_reservoir.values
         col1 = self.MC_reservoir.columns.get_loc('energy')

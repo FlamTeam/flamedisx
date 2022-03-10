@@ -45,7 +45,7 @@ class EnergySpectrum(fd.FirstBlock):
         return {self.dimensions[0]: tf.repeat(energies_trim_step[o, :],
                                               self.source.batch_size,
                                               axis=0)}
-    def _post_annotate(self, d):
+    def _annotate(self, d):
         self.source.MC_reservoir = self.source.simulate(int(1e6), keep_padding=True)
 
         energy = self.source.MC_reservoir.columns.get_loc('energy')
