@@ -13,19 +13,18 @@
 # limitations under the License.
 # ============================================================================
 """Statistical distributions."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 # pylint: disable=unused-import,line-too-long,g-importing-member,g-bad-import-order
 
 # Distributions:
 from tensorflow_probability.python.distributions.autoregressive import Autoregressive
+from tensorflow_probability.python.distributions.batch_broadcast import BatchBroadcast
+from tensorflow_probability.python.distributions.batch_concat import BatchConcat
 from tensorflow_probability.python.distributions.batch_reshape import BatchReshape
 from tensorflow_probability.python.distributions.bates import Bates
 from tensorflow_probability.python.distributions.bernoulli import Bernoulli
 from tensorflow_probability.python.distributions.beta import Beta
 from tensorflow_probability.python.distributions.beta_binomial import BetaBinomial
+from tensorflow_probability.python.distributions.beta_quotient import BetaQuotient
 from tensorflow_probability.python.distributions.binomial import Binomial
 from tensorflow_probability.python.distributions.blockwise import Blockwise
 from tensorflow_probability.python.distributions.categorical import Categorical
@@ -40,6 +39,7 @@ from tensorflow_probability.python.distributions.dirichlet import Dirichlet
 from tensorflow_probability.python.distributions.dirichlet_multinomial import DirichletMultinomial
 from tensorflow_probability.python.distributions.distribution import Distribution
 from tensorflow_probability.python.distributions.doublesided_maxwell import DoublesidedMaxwell
+from tensorflow_probability.python.distributions.dpp import DeterminantalPointProcess
 from tensorflow_probability.python.distributions.empirical import Empirical
 from tensorflow_probability.python.distributions.exponentially_modified_gaussian import ExponentiallyModifiedGaussian
 from tensorflow_probability.python.distributions.exp_gamma import ExpGamma
@@ -72,6 +72,8 @@ from tensorflow_probability.python.distributions.joint_distribution_auto_batched
 from tensorflow_probability.python.distributions.joint_distribution_sequential import JointDistributionSequential
 from tensorflow_probability.python.distributions.joint_distribution_auto_batched import JointDistributionSequentialAutoBatched
 from tensorflow_probability.python.distributions.kumaraswamy import Kumaraswamy
+from tensorflow_probability.python.distributions.lambertw_f import LambertWDistribution
+from tensorflow_probability.python.distributions.lambertw_f import LambertWNormal
 from tensorflow_probability.python.distributions.laplace import Laplace
 from tensorflow_probability.python.distributions.linear_gaussian_ssm import LinearGaussianStateSpaceModel
 from tensorflow_probability.python.distributions.lkj import LKJ
@@ -79,6 +81,10 @@ from tensorflow_probability.python.distributions.logistic import Logistic
 from tensorflow_probability.python.distributions.loglogistic import LogLogistic
 from tensorflow_probability.python.distributions.lognormal import LogNormal
 from tensorflow_probability.python.distributions.logitnormal import LogitNormal
+from tensorflow_probability.python.distributions.markov_chain import MarkovChain
+from tensorflow_probability.python.distributions.masked import Masked
+from tensorflow_probability.python.distributions.matrix_normal_linear_operator import MatrixNormalLinearOperator
+from tensorflow_probability.python.distributions.matrix_t_linear_operator import MatrixTLinearOperator
 from tensorflow_probability.python.distributions.mixture import Mixture
 from tensorflow_probability.python.distributions.mixture_same_family import MixtureSameFamily
 from tensorflow_probability.python.distributions.moyal import Moyal
@@ -86,11 +92,13 @@ from tensorflow_probability.python.distributions.multinomial import Multinomial
 from tensorflow_probability.python.distributions.multivariate_student_t import MultivariateStudentTLinearOperator
 from tensorflow_probability.python.distributions.mvn_diag import MultivariateNormalDiag
 from tensorflow_probability.python.distributions.mvn_diag_plus_low_rank import MultivariateNormalDiagPlusLowRank
+from tensorflow_probability.python.distributions.mvn_diag_plus_low_rank_covariance import MultivariateNormalDiagPlusLowRankCovariance
 from tensorflow_probability.python.distributions.mvn_full_covariance import MultivariateNormalFullCovariance
 from tensorflow_probability.python.distributions.mvn_linear_operator import MultivariateNormalLinearOperator
 from tensorflow_probability.python.distributions.mvn_tril import MultivariateNormalTriL
 from tensorflow_probability.python.distributions.negative_binomial import NegativeBinomial
 from tensorflow_probability.python.distributions.normal import Normal
+from tensorflow_probability.python.distributions.normal_inverse_gaussian import NormalInverseGaussian
 from tensorflow_probability.python.distributions.onehot_categorical import OneHotCategorical
 from tensorflow_probability.python.distributions.ordered_logistic import OrderedLogistic
 from tensorflow_probability.python.distributions.pareto import Pareto
@@ -106,6 +114,7 @@ from tensorflow_probability.python.distributions.relaxed_bernoulli import Relaxe
 from tensorflow_probability.python.distributions.relaxed_onehot_categorical import ExpRelaxedOneHotCategorical
 from tensorflow_probability.python.distributions.relaxed_onehot_categorical import RelaxedOneHotCategorical
 from tensorflow_probability.python.distributions.sample import Sample
+from tensorflow_probability.python.distributions.sigmoid_beta import SigmoidBeta
 from tensorflow_probability.python.distributions.sinh_arcsinh import SinhArcsinh
 from tensorflow_probability.python.distributions.skellam import Skellam
 from tensorflow_probability.python.distributions.skew_gaussian import SkewGaussian
@@ -113,6 +122,7 @@ from tensorflow_probability.python.distributions.spherical_uniform import Spheri
 from tensorflow_probability.python.distributions.stopping_ratio_logistic import StoppingRatioLogistic
 from tensorflow_probability.python.distributions.student_t import StudentT
 from tensorflow_probability.python.distributions.student_t_process import StudentTProcess
+from tensorflow_probability.python.distributions.student_t_process_regression_model import StudentTProcessRegressionModel
 from tensorflow_probability.python.distributions.transformed_distribution import TransformedDistribution
 from tensorflow_probability.python.distributions.triangular import Triangular
 from tensorflow_probability.python.distributions.truncated_cauchy import TruncatedCauchy
@@ -154,16 +164,14 @@ del _sys
 # pylint: enable=line-too-long
 
 __all__ = [
-    'FULLY_REPARAMETERIZED',
-    'NOT_REPARAMETERIZED',
-    'ReparameterizationType',
-    'Distribution',
     'Autoregressive',
+    'BatchBroadcast',
     'BatchReshape',
     'Bates',
     'Bernoulli',
     'Beta',
     'BetaBinomial',
+    'BetaQuotient',
     'Binomial',
     'Blockwise',
     'Categorical',
@@ -171,33 +179,38 @@ __all__ = [
     'Chi',
     'Chi2',
     'CholeskyLKJ',
+    'DeterminantalPointProcess',
     'Deterministic',
+    'Dirichlet',
+    'DirichletMultinomial',
+    'Distribution',
     'DoublesidedMaxwell',
-    'VectorDeterministic',
     'Empirical',
-    'ExponentiallyModifiedGaussian',
     'ExpGamma',
     'ExpInverseGamma',
     'Exponential',
-    'VectorExponentialDiag',
+    'ExponentiallyModifiedGaussian',
+    'ExpRelaxedOneHotCategorical',
+    'FiniteDiscrete',
+    'FULLY_REPARAMETERIZED',
     'Gamma',
     'GammaGamma',
-    'InverseGaussian',
+    'GaussianProcess',
+    'GaussianProcessRegressionModel',
+    'GeneralizedExtremeValue',
     'GeneralizedNormal',
     'GeneralizedPareto',
     'Geometric',
-    'GaussianProcess',
-    'GaussianProcessRegressionModel',
-    'VariationalGaussianProcess',
     'Gumbel',
-    'GeneralizedExtremeValue',
     'HalfCauchy',
     'HalfNormal',
     'HalfStudentT',
     'HiddenMarkovModel',
     'Horseshoe',
     'Independent',
+    'independent_joint_distribution_from_structure',
     'InverseGamma',
+    'InverseGaussian',
     'JohnsonSU',
     'JointDistribution',
     'JointDistributionCoroutine',
@@ -206,22 +219,57 @@ __all__ = [
     'JointDistributionNamedAutoBatched',
     'JointDistributionSequential',
     'JointDistributionSequentialAutoBatched',
+    'kl_divergence',
     'Kumaraswamy',
-    'LinearGaussianStateSpaceModel',
+    'LambertWDistribution',
+    'LambertWNormal',
     'Laplace',
+    'LinearGaussianStateSpaceModel',
     'LKJ',
     'Logistic',
+    'LogitNormal',
     'LogLogistic',
     'LogNormal',
-    'LogitNormal',
+    'MarkovChain',
+    'Masked',
+    'MatrixNormalLinearOperator',
+    'MatrixTLinearOperator',
+    'Mixture',
+    'MixtureSameFamily',
     'Moyal',
+    'Multinomial',
+    'MultivariateNormalDiag',
+    'MultivariateNormalDiagPlusLowRank',
+    'MultivariateNormalFullCovariance',
+    'MultivariateNormalLinearOperator',
+    'MultivariateNormalTriL',
+    'MultivariateStudentTLinearOperator',
+    'mvn_conjugate_linear_update',
     'NegativeBinomial',
     'Normal',
+    'normal_conjugates_known_scale_posterior',
+    'normal_conjugates_known_scale_predictive',
+    'NormalInverseGaussian',
+    'NOT_REPARAMETERIZED',
+    'OneHotCategorical',
+    'OrderedLogistic',
+    'Pareto',
+    'PERT',
     'PixelCNN',
+    'PlackettLuce',
     'Poisson',
     'PoissonLogNormalQuadratureCompound',
+    'PowerSpherical',
     'ProbitBernoulli',
+    'quadrature_scheme_lognormal_gauss_hermite',
+    'quadrature_scheme_lognormal_quantiles',
+    'QuantizedDistribution',
+    'RegisterKL',
+    'RelaxedBernoulli',
+    'RelaxedOneHotCategorical',
+    'ReparameterizationType',
     'Sample',
+    'SigmoidBeta',
     'SinhArcsinh',
     'Skellam',
     'SkewGaussian',
@@ -229,45 +277,19 @@ __all__ = [
     'StoppingRatioLogistic',
     'StudentT',
     'StudentTProcess',
+    'StudentTProcessRegressionModel',
+    'TransformedDistribution',
     'Triangular',
     'TruncatedCauchy',
     'TruncatedNormal',
     'TruncatedSkewGaussianCC',
     'Uniform',
-    'MultivariateNormalDiag',
-    'MultivariateNormalFullCovariance',
-    'MultivariateNormalLinearOperator',
-    'MultivariateNormalTriL',
-    'MultivariateNormalDiagPlusLowRank',
-    'MultivariateStudentTLinearOperator',
-    'Dirichlet',
-    'DirichletMultinomial',
-    'Multinomial',
+    'VariationalGaussianProcess',
+    'VectorDeterministic',
     'VonMises',
     'VonMisesFisher',
     'Weibull',
     'WishartLinearOperator',
     'WishartTriL',
-    'TransformedDistribution',
-    'QuantizedDistribution',
-    'Mixture',
-    'MixtureSameFamily',
-    'ExpRelaxedOneHotCategorical',
-    'OneHotCategorical',
-    'OrderedLogistic',
-    'Pareto',
-    'PERT',
-    'PlackettLuce',
-    'PowerSpherical',
-    'RelaxedBernoulli',
-    'RelaxedOneHotCategorical',
     'Zipf',
-    'kl_divergence',
-    'RegisterKL',
-    'independent_joint_distribution_from_structure',
-    'mvn_conjugate_linear_update',
-    'normal_conjugates_known_scale_posterior',
-    'normal_conjugates_known_scale_predictive',
-    'quadrature_scheme_lognormal_gauss_hermite',
-    'quadrature_scheme_lognormal_quantiles',
 ]
