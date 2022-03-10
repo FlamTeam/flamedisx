@@ -52,6 +52,9 @@ class EnergySpectrum(fd.FirstBlock):
                                               self.source.batch_size,
                                               axis=0)}
 
+    def _annotate(self, d):
+        pass
+
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
         randomly drawn.
