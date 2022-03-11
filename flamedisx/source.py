@@ -79,7 +79,7 @@ class Source:
     additional_bounds_dimensions: ty.Tuple[str] = tuple()
 
     # Dimensions which we want to calculate priors for, in bounds computation.
-    prior_dimensions: ty.Tuple[str] = tuple()
+    prior_dimensions: ty.List[ty.Tuple[ty.Tuple[str], ty.Tuple[str]]] = []
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function

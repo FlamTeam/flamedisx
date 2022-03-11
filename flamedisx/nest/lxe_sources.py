@@ -89,7 +89,8 @@ class nestSource(fd.BlockModelSource):
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
     additional_bounds_dimensions = ('energy',)
-    prior_dimensions = ('electrons_produced', 'photons_produced')
+    prior_dimensions = [(('electrons_produced', 'photons_produced'),
+        ('energy', 's1_photoelectrons_detected', 's2_photoelectrons_detected'))]
 
 
     # quanta_splitting.py
