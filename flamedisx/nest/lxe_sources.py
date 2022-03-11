@@ -85,10 +85,11 @@ class nestSource(fd.BlockModelSource):
 
         super().__init__(*args, **kwargs)
 
-    initial_dimension = 'energy'
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
+    additional_bounds_dimensions = ('energy',)
+    prior_dimensions = ('electrons_produced', 'photons_produced')
 
 
     # quanta_splitting.py
@@ -199,10 +200,6 @@ class nestERSource(nestSource):
         fd_nest.DetectS2Photons,
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
-
-    final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('s1_photoelectrons_produced',
-                          's1_photoelectrons_detected')
 
     # quanta_splitting.py
 
@@ -315,10 +312,6 @@ class nestNRSource(nestSource):
         fd_nest.DetectS2Photons,
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
-
-    final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('s1_photoelectrons_produced',
-                          's1_photoelectrons_detected')
 
     # quanta_splitting.py
 
