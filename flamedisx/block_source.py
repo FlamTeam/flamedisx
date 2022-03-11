@@ -238,13 +238,6 @@ class BlockModelSource(fd.Source):
     #: Dimensions provided by the first block
     initial_dimensions: tuple
 
-    #: Additional dimensions used in the block computation;
-    #: see Block.bonus_dimensions for info
-    bonus_dimensions = ()
-
-    #:
-    exclude_data_tensor = ()
-
     def __init__(self, *args, **kwargs):
         if isinstance(self.model_blocks[0], FirstBlock):
             # Blocks have already been instantiated
@@ -500,7 +493,6 @@ class BlockModelSource(fd.Source):
         col1 = self.MC_reservoir.columns.get_loc('energy')
         col2 = self.MC_reservoir.columns.get_loc('s1_photoelectrons_detected')
         col3 = self.MC_reservoir.columns.get_loc('s2_photoelectrons_detected')
-        prior_dims = ('electrons_produced', 'photons_produced')
         prior_cols = (self.MC_reservoir.columns.get_loc('electrons_produced'), self.MC_reservoir.columns.get_loc('photons_produced'))
         for batch in range(self.n_batches):
             df_batch = d[batch * self.batch_size : (batch + 1) * self.batch_size]
@@ -516,7 +508,7 @@ class BlockModelSource(fd.Source):
             fd.bounds.bayes_bounds_priors(self, res, col1, col2, col3,
                                           val1_max, val2_max, val3_max,
                                           val1_min, val2_min, val3_min,
-                                          prior_dims, prior_cols)
+                                          self.prior_dimensions, prior_cols)
 
         #
         for b in self.model_blocks[::-1]:
