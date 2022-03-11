@@ -503,19 +503,14 @@ class BlockModelSource(fd.Source):
 
             for batch in range(self.n_batches):
                 df_batch = d[batch * self.batch_size : (batch + 1) * self.batch_size]
-
-                filter_dims_min = []
+                filter_dims_min,filter_dims_max = [],[]
                 for dim in filter_dims:
-                    filter_dims_min.append(min(df_batch[dim]))
-                filter_dims_max = []
+                  filter_dims_min.append(min(df_batch[dim+'_min']))
                 for dim in filter_dims:
-                    filter_dims_max.append(max(df_batch[dim]))
-
+                  filter_dims_max.append(max(df_batch[dim+'_max']))
                 fd.bounds.bayes_bounds_priors(self, res, prior_dims,
                                               prior_data_columns, filter_data_columns,
                                               filter_dims_min, filter_dims_max)
-
-
         for b in self.model_blocks[::-1]:
             b.annotate_special(d)
 
