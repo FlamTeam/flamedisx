@@ -79,33 +79,35 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
 def bayes_bounds_priors(source, reservoir, prior_dims,
                         prior_data_cols, filter_data_cols,
                         filter_dims_min, filter_dims_max):
-     prior_dict = {}
+    prior_dict = {}
 
-     for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
-         prior_data_filter = [True] * len(reservoir[:, 0])
+    for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
+        prior_data_filter = [True] * len(reservoir[:, 0])
 
-         for filter_data_col, filter_dim_min in zip(filter_data_cols, filter_dims_min):
-             prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] >= filter_dim_min)
+        for filter_data_col, filter_dim_min in zip(filter_data_cols, filter_dims_min):
+            prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] >= filter_dim_min)
 
-         prior_data = reservoir[:, prior_data_col][prior_data_filter]
-         prior_hist = np.histogram(prior_data)
-         prior_pdf = stats.rv_histogram(prior_hist)
-         prior_dict[prior_dim] = prior_pdf
+        print()
 
-     source.prior_PDFs_LB += (prior_dict,)
+        prior_data = reservoir[:, prior_data_col][prior_data_filter]
+        prior_hist = np.histogram(prior_data)
+        prior_pdf = stats.rv_histogram(prior_hist)
+        prior_dict[prior_dim] = prior_pdf
 
-     prior_dict = {}
+    source.prior_PDFs_LB += (prior_dict,)
 
-     for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
-         prior_data_filter = [True] * len(reservoir[:, 0])
+    prior_dict = {}
 
-         for filter_data_col, filter_dim_max in zip(filter_data_cols, filter_dims_max):
-             prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] <= filter_dim_max)
+    for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
+        prior_data_filter = [True] * len(reservoir[:, 0])
 
-         prior_data = reservoir[:, prior_data_col][prior_data_filter]
-         prior_hist = np.histogram(prior_data)
-         prior_pdf = stats.rv_histogram(prior_hist)
-         prior_dict[prior_dim] = prior_pdf
+        for filter_data_col, filter_dim_max in zip(filter_data_cols, filter_dims_max):
+            prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] <= filter_dim_max)
+
+        prior_data = reservoir[:, prior_data_col][prior_data_filter]
+        prior_hist = np.histogram(prior_data)
+        prior_pdf = stats.rv_histogram(prior_hist)
+        prior_dict[prior_dim] = prior_pdf
 
      source.prior_PDFs_UB += (prior_dict,)
 
