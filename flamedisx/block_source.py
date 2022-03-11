@@ -481,6 +481,33 @@ class BlockModelSource(fd.Source):
             b.simulate(d)
         return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
+    def get_priors(self, MC_reservoir, data):
+        if MC_reservoir.empty:
+            return
+
+        for set in self.prior_dimensions:
+            prior_dims = set[0]
+            filter_dims = set[1]
+
+            prior_data_columns, filter_data_columns = [], []
+            for dim in prior_dims:
+                prior_data_columns.append(MC_reservoir.columns.get_loc(dim))
+            for dim in filter_dims:
+                filter_data_columns.append(MC_reservoir.columns.get_loc(dim))
+
+            for batch in range(self.n_batches):
+                df_batch = data[batch * self.batch_size : (batch + 1) * self.batch_size]
+
+                filter_dims_min, filter_dims_max = [], []
+                for dim in filter_dims:
+                  filter_dims_min.append(min(df_batch[dim + '_min']))
+                for dim in filter_dims:
+                  filter_dims_max.append(max(df_batch[dim + '_max']))
+
+                fd.bounds.bayes_bounds_priors(self, MC_reservoir.values, prior_dims,
+                                              prior_data_columns, filter_data_columns,
+                                              filter_dims_min, filter_dims_max)
+
     def _annotate(self, _skip_bounds_computation=False):
         d = self.data
         # By going in reverse order through the blocks, we can use the bounds
@@ -489,28 +516,8 @@ class BlockModelSource(fd.Source):
         for b in self.model_blocks[::-1]:
             b.annotate(d)
 
-        res = self.MC_reservoir.values
-        for set in self.prior_dimensions:
-            prior_dims = set[0]
-            filter_dims = set[1]
+        self.get_priors(self.MC_reservoir, self.data)
 
-            prior_data_columns = []
-            for dim in prior_dims:
-                prior_data_columns.append(self.MC_reservoir.columns.get_loc(dim))
-            filter_data_columns = []
-            for dim in filter_dims:
-                filter_data_columns.append(self.MC_reservoir.columns.get_loc(dim))
-
-            for batch in range(self.n_batches):
-                df_batch = d[batch * self.batch_size : (batch + 1) * self.batch_size]
-                filter_dims_min,filter_dims_max = [],[]
-                for dim in filter_dims:
-                  filter_dims_min.append(min(df_batch[dim+'_min']))
-                for dim in filter_dims:
-                  filter_dims_max.append(max(df_batch[dim+'_max']))
-                fd.bounds.bayes_bounds_priors(self, res, prior_dims,
-                                              prior_data_columns, filter_data_columns,
-                                              filter_dims_min, filter_dims_max)
         for b in self.model_blocks[::-1]:
             b.annotate_special(d)
 

@@ -87,8 +87,6 @@ def bayes_bounds_priors(source, reservoir, prior_dims,
         for filter_data_col, filter_dim_min in zip(filter_data_cols, filter_dims_min):
             prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] >= filter_dim_min)
 
-        print()
-
         prior_data = reservoir[:, prior_data_col][prior_data_filter]
         prior_hist = np.histogram(prior_data)
         prior_pdf = stats.rv_histogram(prior_hist)
@@ -109,7 +107,7 @@ def bayes_bounds_priors(source, reservoir, prior_dims,
         prior_pdf = stats.rv_histogram(prior_hist)
         prior_dict[prior_dim] = prior_pdf
 
-     source.prior_PDFs_UB += (prior_dict,)
+    source.prior_PDFs_UB += (prior_dict,)
 
 
 def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_pdf=None):
