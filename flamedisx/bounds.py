@@ -76,29 +76,38 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
             min(upper_lims_prior, upper_lims_no_prior)
 
 
-def bayes_bounds_priors(source, reservoir, col1, col2, col3,
-                        value1_max, value2_max, value3_max,
-                        value1_min, value2_min, value3_min,
-                        prior_dims, prior_cols):
+def bayes_bounds_priors(source, reservoir, prior_dims,
+                        prior_data_cols, filter_data_cols,
+                        filter_dims_min, filter_dims_max):
      prior_dict = {}
-     for prior_dim, prior_col in zip(prior_dims, prior_cols):
-         prior_data = reservoir[:,prior_col][ (reservoir[:,col1] <= value1_max)
-                                              & (reservoir[:,col2] <= value2_max)
-                                              & (reservoir[:,col3] <= value3_max) ]
+
+     for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
+         prior_data_filter = [True] * len(reservoir[:, 0])
+
+         for filter_data_col, filter_dim_min in zip(filter_data_cols, filter_dims_min):
+             prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] >= filter_dim_min)
+
+         prior_data = reservoir[:, prior_data_col][prior_data_filter]
          prior_hist = np.histogram(prior_data)
          prior_pdf = stats.rv_histogram(prior_hist)
          prior_dict[prior_dim] = prior_pdf
-     source.prior_PDFs_UB += (prior_dict,)
+
+     source.prior_PDFs_LB += (prior_dict,)
 
      prior_dict = {}
-     for prior_dim, prior_col in zip(prior_dims, prior_cols):
-         prior_data = reservoir[:,prior_col][ (reservoir[:,col1] >= value1_min)
-                                              & (reservoir[:,col2] >= value2_min)
-                                              & (reservoir[:,col3] >= value3_min) ]
+
+     for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
+         prior_data_filter = [True] * len(reservoir[:, 0])
+
+         for filter_data_col, filter_dim_max in zip(filter_data_cols, filter_dims_max):
+             prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] <= filter_dim_max)
+
+         prior_data = reservoir[:, prior_data_col][prior_data_filter]
          prior_hist = np.histogram(prior_data)
          prior_pdf = stats.rv_histogram(prior_hist)
          prior_dict[prior_dim] = prior_pdf
-     source.prior_PDFs_LB += (prior_dict,)
+
+     source.prior_PDFs_UB += (prior_dict,)
 
 
 def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_pdf=None):

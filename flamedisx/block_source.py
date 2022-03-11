@@ -490,27 +490,32 @@ class BlockModelSource(fd.Source):
             b.annotate(d)
 
         res = self.MC_reservoir.values
-        col1 = self.MC_reservoir.columns.get_loc('energy')
-        col2 = self.MC_reservoir.columns.get_loc('s1_photoelectrons_detected')
-        col3 = self.MC_reservoir.columns.get_loc('s2_photoelectrons_detected')
-        prior_cols = (self.MC_reservoir.columns.get_loc('electrons_produced'), self.MC_reservoir.columns.get_loc('photons_produced'))
-        for batch in range(self.n_batches):
-            df_batch = d[batch * self.batch_size : (batch + 1) * self.batch_size]
+        for set in self.prior_dimensions:
+            prior_dims = set[0]
+            filter_dims = set[1]
 
-            val1_max = df_batch['energy_max'].iloc[0]
-            val2_max = max(df_batch['s1_photoelectrons_detected_max'])
-            val3_max = max(df_batch['s2_photoelectrons_detected_max'])
+            prior_data_columns = []
+            for dim in prior_dims:
+                prior_data_columns.append(self.MC_reservoir.columns.get_loc(dim))
+            filter_data_columns = []
+            for dim in filter_dims:
+                filter_data_columns.append(self.MC_reservoir.columns.get_loc(dim))
 
-            val1_min = df_batch['energy_min'].iloc[0]
-            val2_min = min(df_batch['s1_photoelectrons_detected_min'])
-            val3_min = min(df_batch['s2_photoelectrons_detected_min'])
+            for batch in range(self.n_batches):
+                df_batch = d[batch * self.batch_size : (batch + 1) * self.batch_size]
 
-            fd.bounds.bayes_bounds_priors(self, res, col1, col2, col3,
-                                          val1_max, val2_max, val3_max,
-                                          val1_min, val2_min, val3_min,
-                                          self.prior_dimensions, prior_cols)
+                filter_dims_min = []
+                for dim in filter_dims:
+                    filter_dims_min.append(min(df_batch[dim]))
+                filter_dims_max = []
+                for dim in filter_dims:
+                    filter_dims_max.append(max(df_batch[dim]))
 
-        #
+                fd.bounds.bayes_bounds_priors(self, res, prior_dims,
+                                              prior_data_columns, filter_data_columns,
+                                              filter_dims_min, filter_dims_max)
+
+
         for b in self.model_blocks[::-1]:
             b.annotate_special(d)
 
