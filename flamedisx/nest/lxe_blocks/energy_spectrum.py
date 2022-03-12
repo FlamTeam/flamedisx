@@ -70,8 +70,6 @@ class EnergySpectrum(fd.FirstBlock):
             self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
                 np.quantile(energies, 1. - self.source.bounds_prob)
 
-        return True
-
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
         randomly drawn.

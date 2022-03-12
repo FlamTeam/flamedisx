@@ -95,8 +95,6 @@ class DetectPhotonsOrElectrons(fd.Block):
                                        bound_type='binomial', supports=supports,
                                        rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
-        return True
-
     def _annotate_special(self, d):
         if self.quanta_name not in ('photon', 'electron'):
             return False
