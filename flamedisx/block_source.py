@@ -31,7 +31,7 @@ class Block:
     #: _calculate_dimsizes_special().
     bonus_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
 
-    #:
+    #: Columns that we don't want to include in the tensor of data columns
     exclude_data_tensor: ty.Tuple[str] = tuple()
 
     #: Blocks whose result this block expects as an extra keyword
@@ -57,8 +57,12 @@ class Block:
     #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
+    #: Set this to True if the block's _domain_dict_bonus() and compute() methods
+    #: need access to the batch number currently being computed
     use_batch: bool = False
 
+    #: Set the maximum dimension size for a block's dimensions; these are used
+    #: for variable tensor stepping
     max_dim_size: ty.Dict[str, int] = dict()
 
     def __init__(self, source):
@@ -145,15 +149,15 @@ class Block:
 
         for dim in self.dimensions:
             if dim in self.source.final_dimensions \
-                 or dim in self.source.initial_dimensions:
-             continue
+                    or dim in self.source.initial_dimensions:
+                continue
             for bound in ('min', 'max'):
-             colname = f'{dim}_{bound}'
-             assert colname in d.columns, \
-                 f" must set {colname}"
+                colname = f'{dim}_{bound}'
+                assert colname in d.columns, \
+                    f" must set {colname}"
             assert np.all(d[f'{dim}_min'].values
-                       <= d[f'{dim}_max'].values), \
-             f"_annotate of {self} set misordered bounds"
+                          <= d[f'{dim}_max'].values), \
+                f"_annotate of {self} set misordered bounds"
 
     def annotate_special(self, d: pd.DataFrame):
         """"""
