@@ -55,5 +55,3 @@ class DetectS1Photoelectrons(fd.Block):
                                    bounds_prob=self.source.bounds_prob, bound=bound,
                                    bound_type='binomial', supports=supports,
                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
-
-        return True

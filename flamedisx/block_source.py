@@ -109,12 +109,18 @@ class Block:
 
     def compute(self, data_tensor, ptensor, **kwargs):
         if len(self.bonus_dimensions) == 0:
+            # We don't have any bonus_dimensions; construct domains as normal for
+            # this block
             kwargs.update(self.source._domain_dict(
                 self.dimensions, data_tensor))
         else:
+            # We have bonus_dimensions; need to construct domains manually
+            # for this block
             if self.use_batch is False:
+                # Case where _domain_dict_bonus() doesn't need access to batch number
                 kwargs.update(self._domain_dict_bonus(data_tensor))
             else:
+                # Case where _domain_dict_bonus() does need access to batch number
                 kwargs.update(self._domain_dict_bonus(data_tensor, i_batch=kwargs['i_batch']))
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
@@ -135,19 +141,19 @@ class Block:
     def annotate(self, d: pd.DataFrame):
         """Add _min and _max for each dimension to d in-place"""
         return_value = self._annotate(d)
-        assert isinstance(return_value, bool), f"_annotate of {self} should return a bool"
+        assert return_value is None, f"_annotate of {self} should return None"
 
-        if return_value == True:
-            for dim in self.dimensions:
-                if dim in self.source.final_dimensions:
-                    continue
-                for bound in ('min', 'max'):
-                    colname = f'{dim}_{bound}'
-                    assert colname in d.columns, \
-                        f" must set {colname}"
-                assert np.all(d[f'{dim}_min'].values
-                              <= d[f'{dim}_max'].values), \
-                    f"_annotate of {self} set misordered bounds"
+        for dim in self.dimensions:
+            if dim in self.source.final_dimensions \
+                 or dim in self.source.initial_dimensions:
+             continue
+            for bound in ('min', 'max'):
+             colname = f'{dim}_{bound}'
+             assert colname in d.columns, \
+                 f" must set {colname}"
+            assert np.all(d[f'{dim}_min'].values
+                       <= d[f'{dim}_max'].values), \
+             f"_annotate of {self} set misordered bounds"
 
     def annotate_special(self, d: pd.DataFrame):
         """"""
@@ -156,8 +162,6 @@ class Block:
 
         if return_value == True:
             for dim in self.dimensions:
-                if dim in self.source.final_dimensions:
-                    continue
                 for bound in ('min', 'max'):
                     colname = f'{dim}_{bound}'
                     assert colname in d.columns, \

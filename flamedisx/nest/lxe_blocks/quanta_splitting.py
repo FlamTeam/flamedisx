@@ -287,6 +287,9 @@ class MakePhotonsElectronsNR(fd.Block):
                                          nex,
                                          ph_prod_temp)
 
+    def _annotate(self, d):
+        pass
+
     def _annotate_special(self, d):
         def get_bounds_ER(energy):
             nel = self.gimme_numpy('mean_yield_electron', energy)
