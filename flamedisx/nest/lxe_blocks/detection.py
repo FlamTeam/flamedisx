@@ -117,7 +117,7 @@ class DetectPhotonsOrElectrons(fd.Block):
                 rvs = [out_bound * np.ones_like(support)
                        for out_bound, support in zip(out_bounds, supports)]
 
-                fd.bounds.bayes_bounds_batched(source=self.source, batch=batch,
+                fd.bounds.bayes_bounds_priors(source=self.source, batch=batch,
                                                df=d, in_dim=self.quanta_name + 's_produced',
                                                bounds_prob=self.source.bounds_prob, bound=bound,
                                                bound_type='binomial', supports=supports,

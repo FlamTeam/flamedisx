@@ -11,6 +11,18 @@ export, __all__ = fd.exporter()
 
 
 def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
+    """Calculate bounds on a block using an inversion of Bayes theorem, with a flat prior.
+
+    :param df: dataframe that the bounds will be added to
+    :param in_dim: hidden variable dimension we are calculating the bounds for
+    :param bounds_prob: set the value of the CDF of the posterior for the 'in' hidden
+    variable that we will use to define the bounds
+    :param bound: upper bound, lower bound or mle
+    :param bound_type: distribution used in going from the block's 'in' hidden variable
+    to 'out' hidden variable
+    :param supports: sensible support for the 'in' hidden variable that we want bounds
+    for, that the CDF of the posterior will be evaluated along
+    """
     assert (bound in ('upper', 'lower', 'mle')), "bound argumment must be upper, lower or mle"
     assert (bound_type in ('binomial', 'normal')), "bound_type must be binomial or normal"
 
@@ -39,7 +51,21 @@ def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs)
         df[in_dim + '_mle'] = mles
 
 
-def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
+def bayes_bounds_priors(source, batch, df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs):
+    """Calculate bounds on a block using an inversion of Bayes theorem, with a calculated prior.
+
+    :param source: the source calling the function, for access to the priors
+    :param batch: the batch of events that bounds are being computed for, to access the correct priors
+    :param df: dataframe that the bounds will be added to
+    :param in_dim: hidden variable dimension we are calculating the bounds for
+    :param bounds_prob: set the value of the CDF of the posterior for the 'in' hidden
+    variable that we will use to define the bounds
+    :param bound: upper bound, lower bound or mle
+    :param bound_type: distribution used in going from the block's 'in' hidden variable
+    to 'out' hidden variable
+    :param supports: sensible support for the 'in' hidden variable that we want bounds
+    for, that the CDF of the posterior will be evaluated along
+    """
     assert (bound in ('upper', 'lower',  'mle')), "bound argumment must be upper or lower"
     assert (bound_type in ('binomial',)), "bound_type must be binomial"
 
@@ -48,6 +74,8 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
     elif bound=='lower':
         prior_pdfs = source.prior_PDFs_LB[batch]
 
+    # We will calculate bounds with the prior and also with a flat prior. Take
+    # the tightest set of bounds at the end
     cdfs_prior =  bayes_bounds_binomial(supports, prior_pdf=prior_pdfs[in_dim], **kwargs)
     cdfs_no_prior = bayes_bounds_binomial(supports, **kwargs)
 
@@ -76,9 +104,23 @@ def bayes_bounds_batched(source, batch, df, in_dim, bounds_prob, bound, bound_ty
             min(upper_lims_prior, upper_lims_no_prior)
 
 
-def bayes_bounds_priors(source, reservoir, prior_dims,
+def get_priors(source, reservoir, prior_dims,
                         prior_data_cols, filter_data_cols,
                         filter_dims_min, filter_dims_max):
+    """Obtain priors on certain hidden variable dimensions, to obtain more
+    accurate Bayes bounds. Separate priors calculated for estimating upper and
+    lower bounds.
+
+    :param reservoir: MC reservoir filtered for prior estimationn
+    :param prior_dims: tuple of dimensions we are obtaining priors for
+    :param prior_data_cols: column numbers in reservoir corresponding to prior_dims
+    :param filter_data_cols: column numbers in reservoir corresponding to dimensions
+    we are filtering reservoir by to obtain the priors
+    :param filter_dims_min: lower bounds of the dimensions we are filtering by, for
+    obtaining lower bound priors
+    :param filter_dims_max: upper bounds of the dimensions we are filtering by, for
+    obtaining upper bound priors
+    """
     prior_dict = {}
 
     for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
@@ -113,7 +155,7 @@ def bayes_bounds_priors(source, reservoir, prior_dims,
 def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_pdf=None):
     """Calculate bounds on a block using a binomial distribution.
 
-    :param supports: Values of block 'input' dimension over which the PMF/CMF used to find the bounds
+    :param supports: Values of block 'in' dimension over which the PMF/CMF used to find the bounds
     will be calculated, for each event in the dataframe
     :param rvs_binom: Variable the block uses as the 'object' of the binomial calculation;
     must be the same shape as supports
@@ -121,7 +163,7 @@ def bayes_bounds_binomial(supports, rvs_binom, ns_binom, ps_binom, prior_pdf=Non
     must be the same shape as supports
     :param ps_binom: Variable the block uses as the success probability of the binomial calculation;
     must be the same shape as supports
-    :param prior_pdf: FILL THIS IN
+    :param prior_pdf: if we are using a non-flat prior, pass in the PDF to be used
     """
     assert (np.shape(rvs_binom) == np.shape(ns_binom) == np.shape(ps_binom) == np.shape(supports)), \
         "Shapes of suports, rvs_binom, ns_binom and ps_binom must be equal"
@@ -146,7 +188,7 @@ def bayes_bounds_normal(supports, rvs_normal, mus_normal, sigmas_normal):
     """Calculate bounds on a block using a normal distribution.
     Note that we do not account for continuity corrections here.
 
-    :param supports: Values of block 'input' dimension over which the PMF/CMF used to find the bounds
+    :param supports: Values of block 'in' dimension over which the PMF/CMF used to find the bounds
     will be calculated, for each event in the dataframe
     :param rvs_normal: Variable the block uses as the 'object' of the normal calculation;
     must be the same shape as supports
@@ -160,28 +202,6 @@ def bayes_bounds_normal(supports, rvs_normal, mus_normal, sigmas_normal):
 
     pdfs = [stats.norm.pdf(rv_normal, mu_normal, sigma_normal)
             for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
-    pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
-    cdfs = [np.cumsum(pdf) for pdf in pdfs]
-
-    return cdfs
-
-
-def bayes_bounds_skew_normal(supports, rvs_skew_normal, mus_skew_normal,
-                             sigmas_skew_normal, alphas_skew_normal):
-    """
-    """
-    assert (np.shape(rvs_skew_normal) == np.shape(mus_skew_normal) \
-        == np.shape(sigmas_skew_normal) == np.shape(supports)), \
-        "Shapes of supports, rvs_skew_normal, mus_skew_normal and sigmas_skew_normal must be equal"
-
-    def skew_normal(x, mu, sigma, alpha):
-        with np.errstate(invalid='ignore', divide='ignore'):
-            return (1 / sigma) * np.exp(-0.5 * (x - mu)**2 / sigma**2) \
-                * (1 + sp.erf(alpha * (x - mu) / (np.sqrt(2) * sigma)))
-
-    pdfs = [skew_normal(rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal)
-            for rv_skew_normal, mu_skew_normal, sigma_skew_normal, alpha_skew_normal, support
-            in zip(rvs_skew_normal, mus_skew_normal, sigmas_skew_normal, alphas_skew_normal, supports)]
     pdfs = [pdf / np.sum(pdf) for pdf in pdfs]
     cdfs = [np.cumsum(pdf) for pdf in pdfs]
 

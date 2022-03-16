@@ -524,7 +524,7 @@ class BlockModelSource(fd.Source):
                 for dim in filter_dims:
                   filter_dims_max.append(max(df_batch[dim + '_max']))
 
-                fd.bounds.bayes_bounds_priors(self, MC_reservoir.values, prior_dims,
+                fd.bounds.get_priors(self, MC_reservoir.values, prior_dims,
                                               prior_data_columns, filter_data_columns,
                                               filter_dims_min, filter_dims_max)
 
