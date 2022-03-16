@@ -38,10 +38,10 @@ class DetectPhotonsOrElectrons(fd.Block):
                                bonus_arg=quanta_produced,
                                data_tensor=data_tensor, ptensor=ptensor)
         else:
-            p = p * self.gimme('extraction_eff',
+            p = p * self.gimme('electron_loss',
                                bonus_arg=quanta_produced,
                                data_tensor=data_tensor, ptensor=ptensor)
-
+    
         result = tfp.distributions.Binomial(
                 total_count=quanta_produced,
                 probs=tf.cast(p, dtype=fd.float_type())
@@ -59,7 +59,7 @@ class DetectPhotonsOrElectrons(fd.Block):
                 'penning_quenching_eff', d['photons_produced'].values)
         else:
             p *= self.gimme_numpy(
-                'extraction_eff', d['electrons_produced'].values)
+                'electron_loss', d['electrons_produced'].values)
 
         d[self.quanta_name + 's_detected'] = stats.binom.rvs(
             n=d[self.quanta_name + 's_produced'],
@@ -75,14 +75,14 @@ class DetectPhotonsOrElectrons(fd.Block):
             eff *= self.gimme_numpy('penning_quenching_eff',
                                     d['photons_detected_mle'].values / eff)
         else:
-            eff *= self.gimme_numpy('extraction_eff',
+            eff *= self.gimme_numpy('electron_loss',
                                     d['electrons_detected_mle'].values / eff)
 
         # Check for bad efficiencies
         if self.check_efficiencies and np.any(eff <= 0):
             raise ValueError(f"Found event with nonpositive {self.quanta_name} "
                              "detection efficiency: did you apply and "
-                             "configure your cuts correctly?")
+                             "configure your cuts caorrectly?")
 
         # Estimate produced quanta
         n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
@@ -133,19 +133,20 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 class DetectElectrons(DetectPhotonsOrElectrons):
     dimensions = ('electrons_produced', 'electrons_detected')
 
-    special_model_functions = ('electron_acceptance', 'extraction_eff')
+    special_model_functions = ('electron_acceptance', 'electron_loss')
     model_functions = ('electron_detection_eff',) + special_model_functions
 
     @staticmethod
     def electron_detection_eff(drift_time, *,
+                               extraction_eff=0.96,
                                elife=452e3):
         # TODO: change the function name, it is a drift_efficiency
-        return 1. * tf.exp(-drift_time / elife)
+        return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
-    def extraction_eff(nel, *,
-                       mean_ext=0.96):
-        return mean_ext + 0. * nel
+    def electron_loss(pel):
+        return 1. + 0. * pel
+
 
     electron_acceptance = 1.
 
