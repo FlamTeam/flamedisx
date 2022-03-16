@@ -212,6 +212,12 @@ class Block:
         within a block"""
         pass
 
+    def _populate_special_tensors(self):
+        """Calculate any additional tensors that won't be part of the standard
+        data tensor; will need to override _populate_special_tensors() within
+        a block."""
+        pass
+
 
 @export
 class FirstBlock(Block):
