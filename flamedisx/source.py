@@ -800,8 +800,8 @@ class Source:
         """
 
     def _populate_special_tensors(self):
-        """
-        """
+        """Override this if your source needs any additional tensors calculating
+        that won't be part of the standard data tensor."""
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """

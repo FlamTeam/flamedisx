@@ -160,7 +160,8 @@ class Block:
                 f"_annotate of {self} set misordered bounds"
 
     def annotate_special(self, d: pd.DataFrame):
-        """"""
+        """Will be called after annotate for any blocks which choose to implement it.
+        """
         return_value = self._annotate_special(d)
         assert isinstance(return_value, bool), f"_annotate_special of {self} should return a bool"
 
@@ -191,10 +192,13 @@ class Block:
 
     def _annotate(self, d):
         """Add _min and _max for each dimension to d in-place"""
-        return False
+        raise NotImplementedError
 
     def _annotate_special(self, d):
-        """"""
+        """Will be called after annotate for any blocks which choose to implement it.
+
+        Return True if the block does implement this.
+        """
         return False
 
     def _domain_dict_bonus(self, d, **kwargs):
@@ -207,10 +211,6 @@ class Block:
         dimensions; will need to override _calculate_dimsizes_special()
         within a block"""
         pass
-
-    def _populate_special_tensors(self, d):
-        """
-        """
 
 
 @export
@@ -358,6 +358,7 @@ class BlockModelSource(fd.Source):
 
         for b in self.model_blocks:
             b_dims = b.dimensions
+            # These are the the dimensions we will do variable stepping over
             scaling_dims = b.dimensions + tuple([bonus_dimension[0] for bonus_dimension in b.bonus_dimensions if bonus_dimension[1] is True])
 
             # Gather extra compute arguments.
@@ -372,8 +373,10 @@ class BlockModelSource(fd.Source):
 
             # Compute the block
             if b.use_batch is False:
+                # Case where compute() doesn't need access to batch number
                 r = b.compute(data_tensor, ptensor, **kwargs)
             else:
+                # Case where compute() does need access to batch number
                 r = b.compute(data_tensor, ptensor, i_batch=i_batch, **kwargs)
 
             # Scale the block by stepped dimensions, if not already done in
@@ -490,6 +493,15 @@ class BlockModelSource(fd.Source):
         return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
     def get_priors(self, MC_reservoir, data):
+        """Obtain priors on certain hidden variable dimensions, to obtain more
+        accurate Bayes bounds.
+
+        Requires filling in a MC_reservoir during the source's annotate(). The
+        source should also set prior_dimensions, which is a list of
+        [(prior_dims), (filter_dims)]. For each batch of events, the extremal
+        bounds values from annotate() for (filter_dims) are used to filter the
+        MC_reservoir to obtain bounds on (prior_dims).
+        """
         if MC_reservoir.empty:
             return
 
@@ -524,13 +536,19 @@ class BlockModelSource(fd.Source):
         for b in self.model_blocks[::-1]:
             b.annotate(d)
 
+        # Next, we obtain any desired hidden variable priors, in case we want
+        # to improve the bounds estimation for any hidden variables.
         self.get_priors(self.MC_reservoir, self.data)
 
+        # If any blocks want to do bounds estimation differently, using either
+        # the calculated priors or bounds on hidden variables deeper than themselves,
+        # they should have overrided _annotate_special(). Now we call this.
         for b in self.model_blocks[::-1]:
             b.annotate_special(d)
 
     def _populate_special_tensors(self):
         d = self.data
+        # If a block has overriden this, we now call it.
         for b in self.model_blocks[::-1]:
             b._populate_special_tensors(d)
 
