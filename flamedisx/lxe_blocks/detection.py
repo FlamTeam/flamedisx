@@ -41,7 +41,7 @@ class DetectPhotonsOrElectrons(fd.Block):
             p = p * self.gimme('electron_loss',
                                bonus_arg=quanta_produced,
                                data_tensor=data_tensor, ptensor=ptensor)
-    
+
         result = tfp.distributions.Binomial(
                 total_count=quanta_produced,
                 probs=tf.cast(p, dtype=fd.float_type())
@@ -146,7 +146,6 @@ class DetectElectrons(DetectPhotonsOrElectrons):
     @staticmethod
     def electron_loss(pel):
         return 1. + 0. * pel
-
 
     electron_acceptance = 1.
 
