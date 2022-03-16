@@ -286,10 +286,11 @@ class SR1Source:
                 * np.exp(d['drift_time'] / d['elife']))
     
     @staticmethod
-    def extraction_eff(electrons_produced,
-                       *,
-                       mean_ext=DEFAULT_EXTRACTION_EFFICIENCY):
-        return mean_ext + (0. * electrons_produced)
+    def electron_detection_eff(drift_time,
+                               elife,
+                               *,
+                               extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
+        return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
