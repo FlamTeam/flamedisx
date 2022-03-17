@@ -278,6 +278,12 @@ class Source:
                 len(self.column_index) + sum(self.array_columns.values())
                 - len(self.array_columns))
 
+        # A source may choose to fill these in for improved bounds computation.
+        # See bounds.py for details
+        self.MC_reservoir = pd.DataFrame()
+        self.prior_PDFs_LB = tuple(dict())
+        self.prior_PDFs_UB = tuple(dict())
+
         self.set_defaults(**params)
 
         if fit_params is None:
@@ -305,12 +311,6 @@ class Source:
 
         if not _skip_tf_init:
             self.trace_differential_rate()
-
-        # A source may choose to fill these in for improved bounds computation.
-        # See bounds.py for details
-        self.MC_reservoir = pd.DataFrame()
-        self.prior_PDFs_LB = tuple(dict())
-        self.prior_PDFs_UB = tuple(dict())
 
     def set_defaults(self, *, config=None, **params):
         # Load new params from configuration files

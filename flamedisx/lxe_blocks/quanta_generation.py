@@ -15,7 +15,7 @@ DEFAULT_WORK_PER_QUANTUM = 13.7e-3
 class MakeERQuanta(fd.Block):
 
     dimensions = ('quanta_produced', 'energy')
-    extra_dimensions = (('quanta_produced_noStep', False),)
+    bonus_dimensions = (('quanta_produced_noStep', False),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
@@ -111,7 +111,7 @@ class MakeERQuanta(fd.Block):
 class MakeNRQuanta(fd.Block):
 
     dimensions = ('quanta_produced', 'energy')
-    extra_dimensions = (('quanta_produced_noStep', False),)
+    bonus_dimensions = (('quanta_produced_noStep', False),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
 
     special_model_functions = ('lindhard_l',)
@@ -240,11 +240,17 @@ def annotate_ces(self, d):
 
 
 def domain_dict_bonus(self, d):
+    # Calculate cross_domains from quanta_produced and energy
+    quanta_produced_domain = self.source.domain('quanta_produced', d)
+    energy_domain = self.source.domain('energy', d)
+    quanta_produced = tf.repeat(quanta_produced_domain[:, :, o],
+                                tf.shape(energy_domain)[1],
+                                axis=2)
+
     # Calculate cross_domains from quanta_produced_noStep and energy
     mi = self.source._fetch('quanta_produced_noStep_min', data_tensor=d)[:, o]
     quanta_produced_noStep_domain = mi + tf.range(tf.reduce_max(
         self.source._fetch('quanta_produced_noStep_dimsizes', data_tensor=d)))
-    energy_domain = self.source.domain('energy', d)
 
     quanta_produced_noStep = tf.repeat(
         quanta_produced_noStep_domain[:, :, o],
@@ -256,7 +262,8 @@ def domain_dict_bonus(self, d):
         axis=1)
 
     # Return as domain_dict
-    return dict({'quanta_produced_noStep': quanta_produced_noStep,
+    return dict({'quanta_produced': quanta_produced,
+                 'quanta_produced_noStep': quanta_produced_noStep,
                  'energy_noStep': energy_noStep})
 
 
