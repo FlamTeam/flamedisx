@@ -66,7 +66,8 @@ class LogLikelihood:
         or just {sourcename: class} in case you have one dataset
         Every source name must be unique.
 
-        :param arguments: Dictionary {sourcename: {kwarg1: value, ...}, ...}
+        :param arguments: Dictionary {sourcename: {kwarg1: value, ...}, ...}, for
+        passing source arguments
 
         :param data: Dictionary {datasetname: pd.DataFrame}
         or just pd.DataFrame if you have one dataset or None if you

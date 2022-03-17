@@ -18,7 +18,7 @@ class EnergySpectrum(fd.FirstBlock):
         'drift_velocity',
         't_start', 't_stop')
 
-    max_dim_size = {'energy': 100}
+    max_dim_size = {'energy': 20}
 
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
@@ -37,15 +37,18 @@ class EnergySpectrum(fd.FirstBlock):
         right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
         bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
                                    tf.less_equal(self.energies, right_bound))
+        # Trim the energy spectrum within the bounds
         energies_trim = tf.boolean_mask(self.energies, bool_mask)
         index_step = tf.round(tf.linspace(0, tf.shape(energies_trim)[0] - 1,
                                           tf.math.minimum(tf.shape(energies_trim), self.source.max_dim_sizes['energy'])[0]))
+        # Variable stepping along the trimmed energy spectrum
         energies_trim_step = tf.gather(energies_trim, tf.cast(index_step, fd.int_type()))
 
         return {self.dimensions[0]: tf.repeat(energies_trim_step[o, :],
                                               self.source.batch_size,
                                               axis=0)}
     def _annotate(self, d):
+        # Generate an MC reservoir for obtaining energy bounds. Also use this for Bayes bounds priors
         self.source.MC_reservoir = self.source.simulate(int(1e6), keep_padding=True)
 
         energy = self.source.MC_reservoir.columns.get_loc('energy')
@@ -60,11 +63,13 @@ class EnergySpectrum(fd.FirstBlock):
             photons_produced_min = min(d['photons_produced_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
             photons_produced_max = max(d['photons_produced_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
 
+            # We filter the reservoir energies by flat-prior Bayes bounds on electrons/photons produced
             energies = res[:,energy][ (res[:,electrons_produced] >= electrons_produced_min)
                                       & (res[:,electrons_produced] <= electrons_produced_max)
                                       & (res[:,photons_produced] >= photons_produced_min)
                                       & (res[:,photons_produced] <= photons_produced_max) ]
 
+            # We use this filtered reservoir to estimate energy bounds
             self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
                 np.quantile(energies, self.source.bounds_prob)
             self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
@@ -194,6 +199,8 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     energy_spectrum_rate_multiplier = 1.
 
     def _compute(self, data_tensor, ptensor, *, energy):
+        # We want to do the same trimming/stepping treatment to the values of the energy
+        # spectrum itself as we do its domain
         left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
         right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
         bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),

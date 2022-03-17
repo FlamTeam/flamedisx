@@ -40,6 +40,7 @@ class MakePhotonsElectronsNR(fd.Block):
                  energy, rate_vs_energy):
 
         def compute_single_energy_full(args):
+            # Compute the block for a single energy, without approximations
 
             energy = args[0]
             rate_vs_energy = args[1]
@@ -49,6 +50,7 @@ class MakePhotonsElectronsNR(fd.Block):
             ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
             ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
+            # Calculate the ion domain tensor for this energy
             _ions_produced = ions_produced_add + ions_min
 
             if self.is_ER:
@@ -108,6 +110,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
             p_mult = p_nq * p_ni * p_nel
 
+            # Contract over ions_produced
             p_final = tf.reduce_sum(p_mult, 3)
 
             r_final = p_final * rate_vs_energy
@@ -119,6 +122,8 @@ class MakePhotonsElectronsNR(fd.Block):
             return r_final
 
         def compute_single_energy_approx(args):
+            # Compute the block for a single energy, without continuity corrections
+            # or truncated skew Gaussian
 
             energy = args[0]
             rate_vs_energy = args[1]
@@ -128,6 +133,7 @@ class MakePhotonsElectronsNR(fd.Block):
             ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
             ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
+            # Calculate the ion domain tensor for this energy
             _ions_produced = ions_produced_add + ions_min
 
             if self.is_ER:
@@ -181,6 +187,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
             p_mult = p_nq * p_ni * p_nel
 
+            # Contract over ions_produced
             p_final = tf.reduce_sum(p_mult, 3)
 
             r_final = p_final * rate_vs_energy
@@ -198,8 +205,11 @@ class MakePhotonsElectronsNR(fd.Block):
         ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
         ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
+        # Work out the increment we want to make to the ion domain tensor to get
+        # the correct domain for this energy
         ions_produced_add = ions_produced - ions_min_initial
 
+        # Energy above which we use the approximate computation
         if self.is_ER:
             cutoff_energy = 5.
         else:
@@ -208,12 +218,16 @@ class MakePhotonsElectronsNR(fd.Block):
         energies_below_cutoff = tf.size(tf.where(energy[0,:] < cutoff_energy))
         energies_above_cutoff = tf.size(tf.where(energy[0,:] >= cutoff_energy))
 
+        # We split the sum over energies to implement the approximate computation
+        # above the cutoff energy
         energy_full, energy_approx = tf.split(energy[0,:], [energies_below_cutoff, energies_above_cutoff], 0)
         rate_vs_energy_full, rate_vs_energy_approx = tf.split(rate_vs_energy[0,:], [energies_below_cutoff, energies_above_cutoff], 0)
         # Want to get rid of the padding of 0s at the end
         ion_bounds_min = self.ion_bounds_min_tensor[i_batch,:,0:tf.size(energy[0,:])]
         ion_bounds_min_full, ion_bounds_min_approx = tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
+        # Sum the block result per energy over energies, separately for the
+        # energies below the cutoff and the energies above the cutoff
         result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
                                                       elems=[energy_full,rate_vs_energy_full,
                                                       tf.transpose(ion_bounds_min_full)]), 0)
@@ -291,6 +305,9 @@ class MakePhotonsElectronsNR(fd.Block):
         pass
 
     def _annotate_special(self, d):
+        # Here we manually calculate ion bounds for each energy we will sum over in the spectrum
+        # Simple computation, based on forward simulation procedure
+
         def get_bounds_ER(energy):
             nel = self.gimme_numpy('mean_yield_electron', energy)
             nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
@@ -323,6 +340,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
             return (ions_produced_min, ions_produced_max)
 
+        # Compute ion bounds for every energy in the full spectrum, once
         if self.is_ER:
             bounds = [get_bounds_ER(energy) for energy in self.source.energies.numpy()]
         else:
@@ -334,12 +352,15 @@ class MakePhotonsElectronsNR(fd.Block):
         for batch in range(self.source.n_batches):
             d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
 
-            energy_min = min(d_batch['energy_min'])
-            energy_max = max(d_batch['energy_max'])
+            # These are the same across all events in a batch
+            energy_min = d_batch['energy_min'].iloc[0]
+            energy_max = d_batch['energy_max'].iloc[0]
 
             energies_trim = self.source.energies.numpy()[(self.source.energies.numpy() >= energy_min) &
                                                          (self.source.energies.numpy() <= energy_max)]
 
+            # Keep only the ion bounds corresponding to the energies in the trimmed
+            # spectrum for this batch
             ions_produced_min_full_trim = np.asarray(ions_produced_min_full)[(self.source.energies.numpy() >= energy_min) &
                                                                              (self.source.energies.numpy() <= energy_max)]
             ions_produced_max_full_trim = np.asarray(ions_produced_max_full)[(self.source.energies.numpy() >= energy_min) &
@@ -348,9 +369,13 @@ class MakePhotonsElectronsNR(fd.Block):
             index_step = np.round(np.linspace(0, len(energies_trim) - 1,
                                               min(len(energies_trim), self.source.max_dim_sizes['energy']))).astype(int)
 
+            # Keep only the ion bounds corresponding to the energies in the stepped + trimmed
+            # spectrum for this batch
             ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
             ions_produced_max = list(np.take(ions_produced_max_full_trim, index_step))
 
+            # For the events in the dataframe that are part of this batch, save the ion bounds at each energy
+            # in the dataframe
             indicies = np.arange(batch * self.source.batch_size, (batch + 1) * self.source.batch_size)
             d.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'ions_produced_min'] = \
                 pd.Series([ions_produced_min]*len(indicies), index=indicies)
@@ -365,18 +390,22 @@ class MakePhotonsElectronsNR(fd.Block):
         maxs_batch = d['ions_produced_max'].to_numpy()
         mins_batch = d['ions_produced_min'].to_numpy()
 
-        # Take the maximum dimsize across the energy range per event
+        # Take the dimsize for ion_produced to be the largest dimsize across the energy range
         dimsizes = [max([elem + 1 for elem in list(map(operator.sub, maxs, mins))])
                                                  for maxs, mins in zip(maxs_batch, mins_batch)]
+        # Cap the dimsize if we are above the max_dim_size
         self.source.dimsizes['ions_produced'] = \
             self.source.max_dim_sizes['ions_produced'] * np.greater(dimsizes, self.source.max_dim_sizes['ions_produced']) + \
             dimsizes * np.less_equal(dimsizes, self.source.max_dim_sizes['ions_produced'])
 
+        # Calculate the stepping across the domain
         d['ions_produced_steps'] = tf.where(dimsizes > self.source.dimsizes['ions_produced'],
                                             tf.math.ceil(([elem-1 for elem in dimsizes]) / (self.source.dimsizes['ions_produced']-1)),
                                             1).numpy()
 
     def _populate_special_tensors(self, d):
+        # Construct tensor of the minumum ion bound for each energy, for each event (same within a batch)
+
         max_num_energies = max(map(len, d['ions_produced_min'].values))
         # Pad with 0s at the end to make each one the same size, so we can stack them into a single tensor
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
