@@ -56,6 +56,7 @@ class EnergySpectrum(fd.FirstBlock):
         photons_produced = self.source.MC_reservoir.columns.get_loc('photons_produced')
         res = self.source.MC_reservoir.values
 
+        # Same energy bounds for all events within a batch
         for batch in range(self.source.n_batches):
             electrons_produced_min = min(d['electrons_produced_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
             electrons_produced_max = max(d['electrons_produced_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])

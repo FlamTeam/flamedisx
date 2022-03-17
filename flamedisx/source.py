@@ -35,6 +35,8 @@ class Source:
     default_max_sigma_outer = 3
     default_max_dim_size = 70
 
+    # Capping the domain size for hidden variable dimensions. Any which aren't
+    # set will default to default_max_dim_size
     max_dim_sizes: ty.Dict[str, int] = dict()
 
     #: Names of model functions
@@ -304,6 +306,8 @@ class Source:
         if not _skip_tf_init:
             self.trace_differential_rate()
 
+        # A source may choose to fill these in for improved bounds computation.
+        # See bounds.py for details
         self.MC_reservoir = pd.DataFrame()
         self.prior_PDFs_LB = tuple(dict())
         self.prior_PDFs_UB = tuple(dict())
@@ -458,7 +462,8 @@ class Source:
     @contextmanager
     def _set_temporarily(self, data, keep_padding=False, **kwargs):
         """Set data and/or defaults temporarily, without affecting the
-        data tensor state"""
+        data tensor state. Choose whether or not we keep padding from the currently
+        set data"""
         if data is None:
             raise ValueError("No point in setting data = None temporarily")
         old_defaults = copy(self.defaults)
