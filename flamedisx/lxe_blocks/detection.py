@@ -82,7 +82,7 @@ class DetectPhotonsOrElectrons(fd.Block):
         if self.check_efficiencies and np.any(eff <= 0):
             raise ValueError(f"Found event with nonpositive {self.quanta_name} "
                              "detection efficiency: did you apply and "
-                             "configure your cuts caorrectly?")
+                             "configure your cuts correctly?")
 
         # Estimate produced quanta
         n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
