@@ -387,12 +387,12 @@ class MakePhotonsElectronsNR(fd.Block):
     def _calculate_dimsizes_special(self):
         d = self.source.data
 
-        maxs_batch = d['ions_produced_max'].to_numpy()
-        mins_batch = d['ions_produced_min'].to_numpy()
+        ions_produced_max = d['ions_produced_max'].to_numpy()
+        ions_produced_min = d['ions_produced_min'].to_numpy()
 
-        # Take the dimsize for ion_produced to be the largest dimsize across the energy range
+        # Take the dimsize for ions_produced to be the largest dimsize across the energy range
         dimsizes = [max([elem + 1 for elem in list(map(operator.sub, maxs, mins))])
-                                                 for maxs, mins in zip(maxs_batch, mins_batch)]
+                                                 for maxs, mins in zip(ions_produced_max, ions_produced_min)]
         # Cap the dimsize if we are above the max_dim_size
         self.source.dimsizes['ions_produced'] = \
             self.source.max_dim_sizes['ions_produced'] * np.greater(dimsizes, self.source.max_dim_sizes['ions_produced']) + \
