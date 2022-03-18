@@ -269,12 +269,14 @@ def test_estimate_mu(xes: fd.ERSource):
 
 def test_underscore_diff_rate(xes: fd.ERSource):
 
-    x = xes._differential_rate(data_tensor=xes.data_tensor[0],
+    x = xes._differential_rate(i_batch=tf.constant(0, dtype=fd.int_type()),
+                               data_tensor=xes.data_tensor[0],
                                ptensor=xes.ptensor_from_kwargs())
     assert isinstance(x, tf.Tensor)
     assert x.dtype == fd.float_type()
 
-    y = xes._differential_rate(data_tensor=xes.data_tensor[0],
+    y = xes._differential_rate(i_batch=tf.constant(0, dtype=fd.int_type()),
+                               data_tensor=xes.data_tensor[0],
                                ptensor=xes.ptensor_from_kwargs(elife=100e3))
     np.testing.assert_array_less(-fd.tf_to_np(tf.abs(x - y)), 0)
 
@@ -282,12 +284,12 @@ def test_underscore_diff_rate(xes: fd.ERSource):
 def test_diff_rate_grad(xes):
     # Test low-level version
     ptensor = xes.ptensor_from_kwargs()
-    dr = xes._differential_rate(xes.data_tensor[0], ptensor)
+    dr = xes._differential_rate(i_batch=tf.constant(0, dtype=fd.int_type()), data_tensor=xes.data_tensor[0], ptensor=ptensor)
     dr = dr.numpy()
     assert dr.shape == (xes.n_events,)
 
     # Test eager/wrapped version
-    dr2 = xes.differential_rate(xes.data_tensor[0], autograph=False)
+    dr2 = xes.differential_rate(data_tensor=xes.data_tensor[0], autograph=False)
     dr2 = dr2.numpy()
     np.testing.assert_almost_equal(dr, dr2)
 
@@ -295,7 +297,7 @@ def test_diff_rate_grad(xes):
     # TODO: currently small discrepancy due to float32/float64!
     # Maybe due to weird events / poor bounds est
     # Check with real data
-    dr3 = xes.differential_rate(xes.data_tensor[0], autograph=True)
+    dr3 = xes.differential_rate(data_tensor=xes.data_tensor[0], autograph=True)
     dr3 = dr3.numpy()
     np.testing.assert_almost_equal(dr, dr3, decimal=4)
 

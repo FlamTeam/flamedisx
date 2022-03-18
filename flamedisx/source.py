@@ -622,14 +622,14 @@ class Source:
             self._differential_rate,
             input_signature=input_signature)
 
-    def differential_rate(self, i_batch, data_tensor=None, autograph=True, **kwargs):
+    def differential_rate(self, i_batch=tf.constant(0, dtype=fd.int_type()), data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
             return self._differential_rate_tf(
-                i_batch, data_tensor=data_tensor, ptensor=ptensor)
+                i_batch=i_batch, data_tensor=data_tensor, ptensor=ptensor)
         else:
             return self._differential_rate(
-                i_batch, data_tensor=data_tensor, ptensor=ptensor)
+                i_batch=i_batch, data_tensor=data_tensor, ptensor=ptensor)
 
     def ptensor_from_kwargs(self, **kwargs):
         return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
