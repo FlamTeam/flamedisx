@@ -838,7 +838,7 @@ class ColumnSource(Source):
     def mu_before_efficiencies(self, **params):
         return self.mu
 
-    def _differential_rate(self, data_tensor, ptensor):
+    def _differential_rate(self, i_batch, data_tensor, ptensor):
         return self._fetch(self.column, data_tensor)
 
     def random_truth(self, n_events, fix_truth=None, **params):
