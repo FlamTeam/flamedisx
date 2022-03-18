@@ -14,6 +14,7 @@ def test_one_parameter_interval_nonlincontr(xes):
 
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
+        arguments=dict(er=dict()),
         elife=(300e3, 500e3, 2),
         free_rates='er',
         data=xes.data)
@@ -63,6 +64,7 @@ def test_one_parameter_interval(xes):
 
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
+        arguments=dict(er=dict()),
         elife=(100e3, 500e3, 5),
         free_rates='er',
         data=xes.data)
@@ -108,6 +110,7 @@ def test_bestfit_minuit(xes):
     # Test bestfit (including hessian)
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
+        arguments=dict(er=dict()),
         elife=(100e3, 500e3, 5),
         free_rates='er',
         data=xes.data)
@@ -136,6 +139,7 @@ def test_bestfit_scipy(xes):
     # Test bestfit (including hessian)
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
+        arguments=dict(er=dict()),
         elife=(100e3, 500e3, 5),
         free_rates='er',
         data=xes.data)
