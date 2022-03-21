@@ -107,9 +107,15 @@ class MakePhotonsElectronsNR(fd.Block):
             mean = (tf.ones_like(_ions_produced, dtype=fd.float_type()) - recomb_p) * _ions_produced - mu_corr
             std_dev = tf.sqrt(var) / width_corr
 
+            if self.is_ER:
+                owens_t_terms = 5
+            else:
+                owens_t_terms = 2
+
             p_nel = tfp.distributions.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
                                                               skewness=skew,
-                                                              limit=_ions_produced).prob(electrons_produced)
+                                                              limit=_ions_produced,
+                                                              owens_t_terms=owens_t_terms).prob(electrons_produced)
 
             p_mult = p_nq * p_ni * p_nel
 
@@ -186,8 +192,14 @@ class MakePhotonsElectronsNR(fd.Block):
             mean = (tf.ones_like(_ions_produced, dtype=fd.float_type()) - recomb_p) * _ions_produced - mu_corr
             std_dev = tf.sqrt(var) / width_corr
 
+            if self.is_ER:
+                owens_t_terms = 5
+            else:
+                owens_t_terms = 2
+
             p_nel = tfp.distributions.SkewGaussian(loc=mean, scale=std_dev,
-                                                   skewness=skew).prob(electrons_produced)
+                                                   skewness=skew,
+                                                   owens_t_terms=owens_t_terms).prob(electrons_produced)
 
             p_mult = p_nq * p_ni * p_nel
 

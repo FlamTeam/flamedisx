@@ -37,6 +37,7 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
                scale,
                skewness,
                limit,
+               owens_t_terms=2,
                validate_args=False,
                allow_nan_stats=True,
                name='TruncatedSkewGaussianCC'):
@@ -55,6 +56,7 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
       limit: Floating point tensor; the point above which all probability
         mass is zero-ed out and re-dumped into the the probability mass of
         limit.
+      owens_t_terms: Number of terms to use in the expansion of Owen's T function
       validate_args: Python `bool`, default `False`. When `True` distribution
         parameters are checked for validity despite possibly degrading runtime
         performance. When `False` invalid inputs may silently render incorrect
@@ -79,6 +81,7 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
           skewness, dtype=dtype, name='skewness')
       self._limit = tensor_util.convert_nonref_to_tensor(
           limit, dtype=dtype, name='limit')
+      self.owens_t_terms = owens_t_terms
       super(TruncatedSkewGaussianCC, self).__init__(
           dtype=dtype,
           reparameterization_type=reparameterization.FULLY_REPARAMETERIZED,
@@ -140,13 +143,13 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
     limit = tf.convert_to_tensor(self.limit)
     bounded_log_prob = tf.where((x > limit),
                                 dtype_util.as_numpy_dtype(x.dtype)(-np.inf),
-                                tf.math.log(skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness).cdf(x+0.5) \
-                                - skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness).cdf(x-0.5)))
+                                tf.math.log(skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms).cdf(x+0.5) \
+                                - skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms).cdf(x-0.5)))
     bounded_log_prob = tf.where(tf.math.is_nan(bounded_log_prob),
                                 dtype_util.as_numpy_dtype(x.dtype)(-np.inf),
                                 bounded_log_prob)
     dumping_log_prob = tf.where((x == limit),
-                                tf.math.log(1 - skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness).cdf(x-0.5)),
+                                tf.math.log(1 - skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms).cdf(x-0.5)),
                                 bounded_log_prob)
     return dumping_log_prob
 
