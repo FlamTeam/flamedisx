@@ -48,6 +48,7 @@ class SkewGaussian(distribution.Distribution):
                loc,
                scale,
                skewness,
+               owens_t_terms=2,
                validate_args=False,
                allow_nan_stats=True,
                name='SkewGaussian'):
@@ -61,6 +62,7 @@ class SkewGaussian(distribution.Distribution):
       scale: Floating point tensor; the stddevs of the distribution(s).
         Must contain only positive values.
       skewness: Floating point tensor; the skewness of the distribution(s).
+      owens_t_terms: Number of terms to use in the expansion of Owen's T function
       validate_args: Python `bool`, default `False`. When `True` distribution
         parameters are checked for validity despite possibly degrading runtime
         performance. When `False` invalid inputs may silently render incorrect
@@ -83,6 +85,7 @@ class SkewGaussian(distribution.Distribution):
           scale, dtype=dtype, name='scale')
       self._skewness = tensor_util.convert_nonref_to_tensor(
           skewness, dtype=dtype, name='skewness')
+      self.owens_t_terms = owens_t_terms
       super(SkewGaussian, self).__init__(
           dtype=dtype,
           reparameterization_type=reparameterization.FULLY_REPARAMETERIZED,
@@ -144,8 +147,7 @@ class SkewGaussian(distribution.Distribution):
     return log_unnormalized - log_normalization
 
   @staticmethod
-  def owensT1(h, a):
-    terms = 2
+  def owensT1(h, a, terms):
     hs = -0.5 * h * h
     exp_hs = tf.math.exp(hs)
 
@@ -170,7 +172,7 @@ class SkewGaussian(distribution.Distribution):
     owens_t_eval = 0.5 * normal.Normal(loc=0.,scale=1.).cdf(h) + 0.5 * normal.Normal(loc=0.,scale=1.).cdf(a*h) - normal.Normal(loc=0.,scale=1.).cdf(h) * normal.Normal(loc=0.,scale=1.).cdf(a*h)
 
     return 0.5 * (1. + tf.math.erf(1./(np.sqrt(2.)*scale) * (x - self.loc))) - \
-    tf.cast(tf.where(a > tf.ones_like(a), 2. * (owens_t_eval - self.owensT1(a*h,1./a)), 2. * self.owensT1(h,a)),'float32')
+    tf.cast(tf.where(a > tf.ones_like(a), 2. * (owens_t_eval - self.owensT1(a*h,1./a,self.owens_t_terms)), 2. * self.owensT1(h,a,self.owens_t_terms)),'float32')
 
   def _parameter_control_dependencies(self, is_init):
     assertions = []
