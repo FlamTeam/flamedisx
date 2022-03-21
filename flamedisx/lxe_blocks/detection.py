@@ -144,8 +144,8 @@ class DetectElectrons(DetectPhotonsOrElectrons):
         return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
-    def electron_loss(pel):
-        return 1. + 0. * pel
+    def electron_loss(nel):
+        return 1. + 0. * nel
 
     electron_acceptance = 1.
 
