@@ -314,7 +314,7 @@ class SR1Source:
     #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
     def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1, dpe=DEFAULT_P_DPE):
-        mean_eff= g1 / (1. + dpe)
+        mean_eff = g1 / (1. + dpe)
         return mean_eff * s1_relative_ly
 
     def photon_acceptance(self,
