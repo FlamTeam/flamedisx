@@ -270,7 +270,7 @@ class Source:
         ctc += [x + '_dimsizes' for x in self.inner_dimensions]  # Dimension sizes
         ctc += [x + '_dimsizes' for x in self.bonus_dimensions]  # Dimension sizes
         ctc += [x + '_dimsizes' for x in self.final_dimensions]  # Dimension sizes
-        ctc = list(set(ctc) - set([x for x in self.exclude_data_tensor])) # We want to ignore these
+        ctc = list(set(ctc) - set([x for x in self.exclude_data_tensor]))  # We want to ignore these
 
         self.column_index = fd.index_lookup_dict(ctc,
                                                  column_widths=self.array_columns)
@@ -622,7 +622,8 @@ class Source:
             self._differential_rate,
             input_signature=input_signature)
 
-    def differential_rate(self, i_batch=tf.constant(0, dtype=fd.int_type()), data_tensor=None, autograph=True, **kwargs):
+    def differential_rate(self, i_batch=tf.constant(0, dtype=fd.int_type()),
+                          data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
             return self._differential_rate_tf(
@@ -671,7 +672,7 @@ class Source:
     ##
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
-                 keep_padding = False, **params):
+                 keep_padding=False, **params):
         """Simulate n events.
 
         Will omit events lost due to selection/detection efficiencies

@@ -3,7 +3,6 @@ import typing as ty
 import numpy as np
 import tensorflow as tf
 import pandas as pd
-from scipy import stats
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -119,7 +118,7 @@ class Block:
                 self.dimensions, data_tensor))
         else:
             # We have bonus_dimensions; need to construct domains manually
-            # for this block
+            # for this block
             if self.use_batch is False:
                 # Case where _domain_dict_bonus() doesn't need access to batch number
                 kwargs.update(self._domain_dict_bonus(data_tensor))
@@ -165,7 +164,7 @@ class Block:
         return_value = self._annotate_special(d)
         assert isinstance(return_value, bool), f"_annotate_special of {self} should return a bool"
 
-        if return_value == True:
+        if return_value is True:
             for dim in self.dimensions:
                 for bound in ('min', 'max'):
                     colname = f'{dim}_{bound}'
@@ -365,7 +364,9 @@ class BlockModelSource(fd.Source):
         for b in self.model_blocks:
             b_dims = b.dimensions
             # These are the the dimensions we will do variable stepping over
-            scaling_dims = b.dimensions + tuple([bonus_dimension[0] for bonus_dimension in b.bonus_dimensions if bonus_dimension[1] is True])
+            scaling_dims = b.dimensions + tuple([bonus_dimension[0] for
+                                                bonus_dimension in b.bonus_dimensions
+                                                if bonus_dimension[1] is True])
 
             # Gather extra compute arguments.
             kwargs = dict()
@@ -522,17 +523,17 @@ class BlockModelSource(fd.Source):
                 filter_data_columns.append(MC_reservoir.columns.get_loc(dim))
 
             for batch in range(self.n_batches):
-                df_batch = data[batch * self.batch_size : (batch + 1) * self.batch_size]
+                df_batch = data[batch * self.batch_size:(batch + 1) * self.batch_size]
 
                 filter_dims_min, filter_dims_max = [], []
                 for dim in filter_dims:
-                  filter_dims_min.append(min(df_batch[dim + '_min']))
+                    filter_dims_min.append(min(df_batch[dim + '_min']))
                 for dim in filter_dims:
-                  filter_dims_max.append(max(df_batch[dim + '_max']))
+                    filter_dims_max.append(max(df_batch[dim + '_max']))
 
                 fd.bounds.get_priors(self, MC_reservoir.values, prior_dims,
-                                              prior_data_columns, filter_data_columns,
-                                              filter_dims_min, filter_dims_max)
+                                     prior_data_columns, filter_data_columns,
+                                     filter_dims_min, filter_dims_max)
 
     def _annotate(self, _skip_bounds_computation=False):
         d = self.data
