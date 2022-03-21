@@ -145,6 +145,7 @@ class DetectElectrons(DetectPhotonsOrElectrons):
 
     @staticmethod
     def electron_loss(nel):
+        # The function should output values between [0,1]
         return 1. + 0. * nel
 
     electron_acceptance = 1.
