@@ -189,7 +189,7 @@ class nestERSource(nestSource):
         super().__init__(*args, **kwargs)
 
     model_blocks = (
-        fd_nest.FixedShapeEnergySpectrum,
+        fd_nest.FixedShapeEnergySpectrumER,
         fd_nest.MakePhotonsElectronER,
         fd_nest.DetectPhotons,
         fd_nest.MakeS1Photoelectrons,
@@ -310,7 +310,7 @@ class nestNRSource(nestSource):
         super().__init__(*args, **kwargs)
 
     model_blocks = (
-        fd_nest.FixedShapeEnergySpectrum,
+        fd_nest.FixedShapeEnergySpectrumNR,
         fd_nest.MakePhotonsElectronsNR,
         fd_nest.DetectPhotons,
         fd_nest.MakeS1Photoelectrons,
