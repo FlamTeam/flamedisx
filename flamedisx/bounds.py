@@ -1,10 +1,5 @@
-import typing as ty
-
 import numpy as np
-import pandas as pd
-from scipy import spatial
 from scipy import stats
-import scipy.special as sp
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -27,10 +22,10 @@ def bayes_bounds(df, in_dim, bounds_prob, bound, bound_type, supports, **kwargs)
     assert (bound_type in ('binomial', 'normal')), "bound_type must be binomial or normal"
 
     if bound_type == 'binomial':
-        cdfs =  bayes_bounds_binomial(supports, **kwargs)
+        cdfs = bayes_bounds_binomial(supports, **kwargs)
 
     elif bound_type == 'normal':
-        cdfs =  bayes_bounds_normal(supports, **kwargs)
+        cdfs = bayes_bounds_normal(supports, **kwargs)
 
     if bound == 'lower':
         lower_lims = [support[np.where(cdf < bounds_prob)[0][-1]]
@@ -69,14 +64,14 @@ def bayes_bounds_priors(source, batch, df, in_dim, bounds_prob, bound, bound_typ
     assert (bound in ('upper', 'lower',  'mle')), "bound argumment must be upper or lower"
     assert (bound_type in ('binomial',)), "bound_type must be binomial"
 
-    if bound=='upper':
+    if bound == 'upper':
         prior_pdfs = source.prior_PDFs_UB[batch]
-    elif bound=='lower':
+    elif bound == 'lower':
         prior_pdfs = source.prior_PDFs_LB[batch]
 
     # We will calculate bounds with the prior and also with a flat prior. Take
-    # the tightest set of bounds at the end
-    cdfs_prior =  bayes_bounds_binomial(supports, prior_pdf=prior_pdfs[in_dim], **kwargs)
+    # the tightest set of bounds at the end
+    cdfs_prior = bayes_bounds_binomial(supports, prior_pdf=prior_pdfs[in_dim], **kwargs)
     cdfs_no_prior = bayes_bounds_binomial(supports, **kwargs)
 
     if bound == 'lower':
@@ -88,7 +83,7 @@ def bayes_bounds_priors(source, batch, df, in_dim, bounds_prob, bound, bound_typ
                                if len(np.where(cdf < bounds_prob)[0]) > 0
                                else support[0]
                                for support, cdf in zip(supports, cdfs_no_prior)]
-        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_min'] = \
+        df.loc[batch * source.batch_size:(batch + 1) * source.batch_size - 1, in_dim + '_min'] = \
             max(lower_lims_prior, lower_lims_no_prior)
 
     elif bound == 'upper':
@@ -100,13 +95,13 @@ def bayes_bounds_priors(source, batch, df, in_dim, bounds_prob, bound, bound_typ
                                if len(np.where(cdf > 1. - bounds_prob)[0]) > 0
                                else support[-1]
                                for support, cdf in zip(supports, cdfs_no_prior)]
-        df.loc[batch * source.batch_size : (batch + 1) * source.batch_size - 1, in_dim + '_max'] = \
+        df.loc[batch * source.batch_size:(batch + 1) * source.batch_size - 1, in_dim + '_max'] = \
             min(upper_lims_prior, upper_lims_no_prior)
 
 
 def get_priors(source, reservoir, prior_dims,
-                        prior_data_cols, filter_data_cols,
-                        filter_dims_min, filter_dims_max):
+               prior_data_cols, filter_data_cols,
+               filter_dims_min, filter_dims_max):
     """Obtain priors on certain hidden variable dimensions, to obtain more
     accurate Bayes bounds. Separate priors calculated for estimating upper and
     lower bounds.

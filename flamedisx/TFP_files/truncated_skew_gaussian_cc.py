@@ -13,8 +13,6 @@ import tensorflow.compat.v2 as tf
 
 import functools
 
-import scipy.special
-
 from tensorflow_probability.python.distributions import distribution
 from tensorflow_probability.python.distributions import skew_gaussian
 from tensorflow_probability.python.internal import assert_util
