@@ -18,8 +18,6 @@ class EnergySpectrum(fd.FirstBlock):
         'drift_velocity',
         't_start', 't_stop')
 
-    max_dim_size = {'energy': 20}
-
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
     # This will then also be true at the midpoint of these times.
@@ -230,6 +228,16 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
 
     def mu_before_efficiencies(self, **params):
         return np.sum(fd.np_to_tf(self.rates_vs_energy))
+
+
+@export
+class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
+    max_dim_size = {'energy': 50}
 
 
 @export
