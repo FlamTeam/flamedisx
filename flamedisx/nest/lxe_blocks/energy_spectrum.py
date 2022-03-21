@@ -40,13 +40,15 @@ class EnergySpectrum(fd.FirstBlock):
         # Trim the energy spectrum within the bounds
         energies_trim = tf.boolean_mask(self.energies, bool_mask)
         index_step = tf.round(tf.linspace(0, tf.shape(energies_trim)[0] - 1,
-                                          tf.math.minimum(tf.shape(energies_trim), self.source.max_dim_sizes['energy'])[0]))
+                                          tf.math.minimum(tf.shape(energies_trim),
+                                                          self.source.max_dim_sizes['energy'])[0]))
         # Variable stepping along the trimmed energy spectrum
         energies_trim_step = tf.gather(energies_trim, tf.cast(index_step, fd.int_type()))
 
         return {self.dimensions[0]: tf.repeat(energies_trim_step[o, :],
                                               self.source.batch_size,
                                               axis=0)}
+
     def _annotate(self, d):
         # Generate an MC reservoir for obtaining energy bounds. Also use this for Bayes bounds priors
         self.source.MC_reservoir = self.source.simulate(int(1e6), keep_padding=True)
@@ -58,22 +60,28 @@ class EnergySpectrum(fd.FirstBlock):
 
         # Same energy bounds for all events within a batch
         for batch in range(self.source.n_batches):
-            electrons_produced_min = min(d['electrons_produced_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
-            electrons_produced_max = max(d['electrons_produced_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
+            electrons_produced_min = min(d['electrons_produced_min'][
+                batch * self.source.batch_size:(batch + 1) * self.source.batch_size])
+            electrons_produced_max = max(d['electrons_produced_max'][
+                batch * self.source.batch_size:(batch + 1) * self.source.batch_size])
 
-            photons_produced_min = min(d['photons_produced_min'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
-            photons_produced_max = max(d['photons_produced_max'][batch * self.source.batch_size : (batch + 1) * self.source.batch_size])
+            photons_produced_min = min(d['photons_produced_min'][
+                batch * self.source.batch_size:(batch + 1) * self.source.batch_size])
+            photons_produced_max = max(d['photons_produced_max'][
+                batch * self.source.batch_size:(batch + 1) * self.source.batch_size])
 
             # We filter the reservoir energies by flat-prior Bayes bounds on electrons/photons produced
-            energies = res[:,energy][ (res[:,electrons_produced] >= electrons_produced_min)
-                                      & (res[:,electrons_produced] <= electrons_produced_max)
-                                      & (res[:,photons_produced] >= photons_produced_min)
-                                      & (res[:,photons_produced] <= photons_produced_max) ]
+            energies = res[:, energy][(res[:, electrons_produced] >= electrons_produced_min)
+                                      & (res[:, electrons_produced] <= electrons_produced_max)
+                                      & (res[:, photons_produced] >= photons_produced_min)
+                                      & (res[:, photons_produced] <= photons_produced_max)]
 
             # We use this filtered reservoir to estimate energy bounds
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
+            self.source.data.loc[batch * self.source.batch_size:
+                                 (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
                 np.quantile(energies, self.source.bounds_prob)
-            self.source.data.loc[batch * self.source.batch_size : (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
+            self.source.data.loc[batch * self.source.batch_size:
+                                 (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
                 np.quantile(energies, 1. - self.source.bounds_prob)
 
     def draw_positions(self, n_events, **params):
@@ -201,14 +209,15 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
 
     def _compute(self, data_tensor, ptensor, *, energy):
         # We want to do the same trimming/stepping treatment to the values of the energy
-        # spectrum itself as we do its domain
+        # spectrum itself as we do its domain
         left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
         right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
         bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
                                    tf.less_equal(self.energies, right_bound))
         spectrum_trim = tf.boolean_mask(self.rates_vs_energy, bool_mask)
         index_step = tf.round(tf.linspace(0, tf.shape(spectrum_trim)[0] - 1,
-                                          tf.math.minimum(tf.shape(spectrum_trim), self.source.max_dim_sizes['energy'])[0]))
+                                          tf.math.minimum(tf.shape(spectrum_trim),
+                                                          self.source.max_dim_sizes['energy'])[0]))
         spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()))
         stepping_multiplier = tf.cast(tf.shape(spectrum_trim) / tf.shape(spectrum_trim_step), fd.float_type())
 

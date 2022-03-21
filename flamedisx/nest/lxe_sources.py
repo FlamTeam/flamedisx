@@ -6,11 +6,11 @@ import os
 import flamedisx as fd
 from .. import nest as fd_nest
 
-export, __all__ = fd.exporter()
-o = tf.newaxis
-
 import math as m
 pi = tf.constant(m.pi)
+
+export, __all__ = fd.exporter()
+o = tf.newaxis
 
 GAS_CONSTANT = 8.314
 N_AVAGADRO = 6.0221409e23
@@ -90,8 +90,7 @@ class nestSource(fd.BlockModelSource):
                           's1_photoelectrons_detected')
     additional_bounds_dimensions = ('energy',)
     prior_dimensions = [(('electrons_produced', 'photons_produced'),
-        ('energy', 's1_photoelectrons_detected', 's2_photoelectrons_detected'))]
-
+                        ('energy', 's1_photoelectrons_detected', 's2_photoelectrons_detected'))]
 
     # quanta_splitting.py
 
@@ -207,14 +206,20 @@ class nestERSource(nestSource):
     def mean_yield_electron(self, energy):
         Wq_eV = self.Wq_keV * 1e3
 
-        QyLvllowE = tf.cast(1e3 / Wq_eV + 6.5 * (1. - 1. / (1. + pow(self.drift_field / 47.408, 1.9851))), fd.float_type())
-        HiFieldQy = tf.cast(1. + 0.4607 / pow(1. + pow(self.drift_field / 621.74, -2.2717), 53.502), fd.float_type())
-        QyLvlmedE = tf.cast(32.988 -  32.988 / (1. + pow(self.drift_field / (0.026715 * tf.exp(self.density / 0.33926)), 0.6705)), fd.float_type())
+        QyLvllowE = tf.cast(1e3 / Wq_eV + 6.5 * (1. - 1. / (1. + pow(self.drift_field / 47.408, 1.9851))),
+                            fd.float_type())
+        HiFieldQy = tf.cast(1. + 0.4607 / pow(1. + pow(self.drift_field / 621.74, -2.2717), 53.502),
+                            fd.float_type())
+        QyLvlmedE = tf.cast(32.988 - 32.988 / (1. +
+                            pow(self.drift_field / (0.026715 * tf.exp(self.density / 0.33926)), 0.6705)),
+                            fd.float_type())
         QyLvlmedE *= HiFieldQy
-        DokeBirks = tf.cast(1652.264 + (1.415935e10 - 1652.264) / (1. + pow(self.drift_field / 0.02673144, 1.564691)), fd.float_type())
+        DokeBirks = tf.cast(1652.264 + (1.415935e10 - 1652.264) / (1. + pow(self.drift_field / 0.02673144, 1.564691)),
+                            fd.float_type())
         LET_power = tf.cast(-2., fd.float_type())
         QyLvlhighE = tf.cast(28., fd.float_type())
-        Qy = QyLvlmedE + (QyLvllowE - QyLvlmedE) / pow(1. + 1.304 * pow(energy, 2.1393), 0.35535) + QyLvlhighE / (1. + DokeBirks * pow(energy, LET_power))
+        Qy = QyLvlmedE + (QyLvllowE - QyLvlmedE) / pow(1. + 1.304 * pow(energy, 2.1393), 0.35535) + \
+            QyLvlhighE / (1. + DokeBirks * pow(energy, LET_power))
 
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
@@ -263,8 +268,10 @@ class nestERSource(nestSource):
         F0 = tf.cast(225., fd.float_type())
         F1 = tf.cast(71., fd.float_type())
 
-        skew = 1. / (1. + tf.exp((energy - E2) / E3)) * (alpha0 + cc0 * tf.exp(-1. * self.drift_field / F0) * (1. - tf.exp(-1. * energy / E0))) + \
-               1. / (1. + tf.exp(-1. * (energy - E2) / E3)) * cc1 * tf.exp(-1. * energy / E1) * tf.exp(-1. * tf.sqrt(self.drift_field) / tf.sqrt(F1))
+        skew = 1. / (1. + tf.exp((energy - E2) / E3)) * \
+            (alpha0 + cc0 * tf.exp(-1. * self.drift_field / F0) * (1. - tf.exp(-1. * energy / E0))) + \
+            1. / (1. + tf.exp(-1. * (energy - E2) / E3)) * cc1 * tf.exp(-1. * energy / E1) * \
+            tf.exp(-1. * tf.sqrt(self.drift_field) / tf.sqrt(F1))
 
         mask = tf.less(nq_mean, 10000*tf.ones_like(nq_mean))
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
@@ -285,7 +292,8 @@ class nestERSource(nestSource):
         skew = tf.cast(-0.2, fd.float_type())
         norm = tf.cast(0.988, fd.float_type())
 
-        omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * (1. + tf.math.erf(skew * (elec_frac - cntr) / (wide*  tf.sqrt(2.))))
+        omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * \
+            (1. + tf.math.erf(skew * (elec_frac - cntr) / (wide * tf.sqrt(2.))))
         omega = tf.where(nq_mean == 0,
                          tf.zeros_like(omega, dtype=fd.float_type()),
                          omega)

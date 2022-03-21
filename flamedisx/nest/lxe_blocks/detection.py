@@ -91,9 +91,9 @@ class DetectPhotonsOrElectrons(fd.Block):
                    for out_bound, support in zip(out_bounds, supports)]
 
             fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
-                                       bounds_prob=self.source.bounds_prob, bound=bound,
-                                       bound_type='binomial', supports=supports,
-                                       rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
+                                   bounds_prob=self.source.bounds_prob, bound=bound,
+                                   bound_type='binomial', supports=supports,
+                                   rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
     def _annotate_special(self, d):
         # Here we obtain improved bounds on photons and electrons detected with a non-flat prior
@@ -101,12 +101,14 @@ class DetectPhotonsOrElectrons(fd.Block):
             return False
 
         for batch in range(self.source.n_batches):
-            d_batch = d[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
+            d_batch = d[batch * self.source.batch_size:(batch + 1) * self.source.batch_size]
 
             # Get efficiency
-            effs = self.gimme_numpy(self.quanta_name + '_detection_eff')[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
+            effs = self.gimme_numpy(self.quanta_name + '_detection_eff')[
+                batch * self.source.batch_size:(batch + 1) * self.source.batch_size]
             if self.quanta_name == 'photon':
-                effs *= self.gimme_numpy('s1_posDependence')[batch * self.source.batch_size : (batch + 1) * self.source.batch_size]
+                effs *= self.gimme_numpy('s1_posDependence')[
+                    batch * self.source.batch_size:(batch + 1) * self.source.batch_size]
 
             for suffix, bound in (('_min', 'lower'),
                                   ('_max', 'upper')):
@@ -119,10 +121,10 @@ class DetectPhotonsOrElectrons(fd.Block):
                        for out_bound, support in zip(out_bounds, supports)]
 
                 fd.bounds.bayes_bounds_priors(source=self.source, batch=batch,
-                                               df=d, in_dim=self.quanta_name + 's_produced',
-                                               bounds_prob=self.source.bounds_prob, bound=bound,
-                                               bound_type='binomial', supports=supports,
-                                               rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
+                                              df=d, in_dim=self.quanta_name + 's_produced',
+                                              bounds_prob=self.source.bounds_prob, bound=bound,
+                                              bound_type='binomial', supports=supports,
+                                              rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
             return True
 
