@@ -221,8 +221,8 @@ class MakePhotonsElectronsNR(fd.Block):
         ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
         ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
-        # Work out the increment we want to make to the ion domain tensor to get
-        # the correct domain for this energy
+        # Work out the difference between each point in the ion domain and the lower bound,
+        # for the lowest energy
         ions_produced_add = ions_produced - ions_min_initial
 
         # Energy above which we use the approximate computation
@@ -458,6 +458,7 @@ class MakePhotonsElectronsNR(fd.Block):
         photons = tf.repeat(photons_domain[:, o, :], tf.shape(electrons_domain)[1], axis=1)
         photons = tf.repeat(photons[:, :, :, o], tf.shape(ions_domain_initial)[1], axis=3)
 
+        # We construct the ions domain for only the lowest energy; this is modified later
         ions = tf.repeat(ions_domain_initial[:, o, :], tf.shape(electrons_domain)[1], axis=1)
         ions = tf.repeat(ions[:, :, o, :], tf.shape(photons_domain)[1], axis=2)
 
