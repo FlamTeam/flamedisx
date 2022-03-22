@@ -309,9 +309,8 @@ class SR1Source:
     def double_pe_fraction(z, *, dpe=DEFAULT_P_DPE):
         # Ties the double_pe_fraction model function to the dpe
         # parameter in the sources
-        return dpe + 0 * z
+        return dpe + 0. * z
 
-    #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
     def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1, dpe=DEFAULT_P_DPE):
         mean_eff = g1 / (1. + dpe)
@@ -376,7 +375,7 @@ class SR1ERSource(SR1Source, fd.ERSource):
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-1.*delta_er)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-delta_er)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
