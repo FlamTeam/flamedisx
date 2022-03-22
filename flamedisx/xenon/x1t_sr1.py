@@ -449,7 +449,7 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
           Exponentially falling yield.
           """
           # TODO: Maybe this can be tied to W in a combined fit
-          W = 13.8e-3 #keV
+          W = 13.7e-3 #keV
           eps = (nq*W)
           qy = w_er_pel_c*tf.exp(-lam*eps)
           return fd.clip_by_value(qy * W, 1e-8, 1. - 1e-9)
@@ -467,7 +467,8 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
                         l_max=0.084,
                         alpha=0.0001,
                         l_min=0.002):
-          return l_max*(tf.exp(-alpha*electrons_produced))+l_min
+          return tf.clip_by_value(l_max*(tf.exp(-alpha*electrons_produced))+l_min,
+                                  1e-9, 1. - 1e-9)
 
       @staticmethod
       def electron_gain_mean(r,
@@ -482,7 +483,7 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
                             w_extraction_eff=0.89):
           # 0 * r is to fix the shape
           single_electron_width=w_g2/w_extraction_eff*0.25
-          return single_electron_width + 0. * tf.ones_like(r)
+          return single_electron_width + 0. * r
 
       @staticmethod
       def p_electron_fluctuation(nq, w_q2 = 0.0978, w_q3_nq = 145.):
