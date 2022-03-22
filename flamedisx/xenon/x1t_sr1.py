@@ -459,7 +459,7 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
                                  elife,
                                  *,
                                  w_extraction_eff=0.89):
-         return w_extraction_eff * tf.exp(-drift_time / elife)
+          return w_extraction_eff * tf.exp(-drift_time / elife)
 
       @staticmethod
       def electron_loss(electrons_produced,
@@ -473,7 +473,7 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
       def electron_gain_mean(r,
                              *,
                              w_g2=25.5):
-         return g2 * tf.ones_like(r)
+          return g2 * tf.ones_like(r)
 
       @staticmethod
       def electron_gain_std(r,
@@ -481,21 +481,24 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
                             w_g2=25.5,
                             w_extraction_eff=0.89):
           # 0 * r is to fix the shape
-         single_electron_width=w_g2/w_extraction_eff*0.25
-         return single_electron_width + 0. * tf.ones_like(r)
+          single_electron_width=w_g2/w_extraction_eff*0.25
+          return single_electron_width + 0. * tf.ones_like(r)
 
       @staticmethod
-      def p_electron_fluctuation(nq, w_q2 = 0.0978, w_q3_nq = 145.): 
-         return tf.clip_by_value(
-                w_q2 * (tf.constant(1., dtype=fd.float_type()) - \
-                tf.exp(-nq / w_q3_nq)),
-                tf.constant(1e-4, dtype=fd.float_type()),
-                float('inf'))
+      def p_electron_fluctuation(nq, w_q2 = 0.0978, w_q3_nq = 145.):
+          return tf.clip_by_value(
+                 w_q2 * (tf.constant(1., dtype=fd.float_type()) - \
+                 tf.exp(-nq / w_q3_nq)),
+                 tf.constant(1e-4, dtype=fd.float_type()),
+                 float('inf'))
 
       # It is preferred to have higher energy spectrum for the wall
       energies = tf.cast(tf.linspace(0., 80. , 2000),
-                       dtype=fd.float_type())
-
+                         dtype=fd.float_type())
+      #exponentially falling energy spectrum to simulate beta spectrum
+      rates_vs_energy=tf.cast(0.9*tf.exp(-0.5*tf.linspace(0.,80.,2000))+0.1,
+                              dtype=fd.float_type())
+        
 @export
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
     pass
