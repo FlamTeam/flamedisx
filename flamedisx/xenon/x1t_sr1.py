@@ -175,22 +175,22 @@ class SR1Source:
     path_s2_rly = '1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json'
 
     # Combined cuts acceptances
-    path_cut_accept_s1 = ('S1AcceptanceSR1_v7_Median.json',)
-    path_cut_accept_s2 = ('S2AcceptanceSR1_v7_Median.json',)
+    path_cut_accept_s1 = ('cut_acceptance/XENON1T/S1AcceptanceSR1_v7_Median.json',)
+    path_cut_accept_s2 = ('cut_acceptance/XENON1T/S2AcceptanceSR1_v7_Median.json',)
 
     # Pax reconstruction bias maps
     path_reconstruction_bias_mean_s1 = (
-        'ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS1BiasMeanUppers_SR1_v2.json')
+        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanLowers_SR1_v2.json',
+        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanUppers_SR1_v2.json')
     path_reconstruction_bias_mean_s2 = (
-        'ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'ReconstructionS2BiasMeanUppers_SR1_v2.json')
+        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanLowers_SR1_v2.json',
+        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanUppers_SR1_v2.json')
 
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
     path_reconstruction_efficiencies_s1 = (
-        'RecEfficiencyLowers_SR1_70phd_v1.json',
-        'RecEfficiencyMedians_SR1_70phd_v1.json',
-        'RecEfficiencyUppers_SR1_70phd_v1.json')
+        'reconstruction_efficiency/XENON1T/RecEfficiencyLowers_SR1_70phd_v1.json',
+        'reconstruction_efficiency/XENON1T/RecEfficiencyMedians_SR1_70phd_v1.json',
+        'reconstruction_efficiency/XENON1T/RecEfficiencyUppers_SR1_70phd_v1.json')
 
     # Elife maps
     variable_elife = True
