@@ -157,6 +157,7 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
     default_elife = DEFAULT_ELECTRON_LIFETIME
+    default_drift_field = DEFAULT_DRIFT_FIELD
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
@@ -168,6 +169,7 @@ class SR1Source:
                         'variable_elife',
                         'default_elife',
                         'path_electron_lifetimes',
+                        'default_drift_field',
                         )
 
     # Light yield maps
