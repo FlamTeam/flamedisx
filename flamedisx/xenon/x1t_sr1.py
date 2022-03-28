@@ -276,6 +276,8 @@ class SR1Source:
             else:
                 d['elife'] = self.default_elife
 
+        d['drift_field'] = self.default_drift_field
+
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -369,15 +371,22 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, *, W=13.7e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+    def p_electron(nq, drift_field, *, W=13.7e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
                    gamma_er=0.031 , omega_er=31., delta_er=0.24):
         # gamma_er from paper 0.124/4
-        F = tf.constant(self.default_drift_field, dtype=fd.float_type())
+        #F = tf.constant(self.default_drift_field, dtype=fd.float_type())
+
+        if tf.is_tensor(nq):
+            # in _compute, n_events = batch_size
+            # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+            # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+
+            drift_field = drift_field[:, None]
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-delta_er)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-delta_er)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
@@ -402,7 +411,7 @@ class SR1NRSource(SR1Source, fd.NRSource):
     # TODO: Define the proper nr spectrum
     # TODO: Modify the SR1NRSource to fit AmBe data better
 
-    def p_electron(self, nq, *,
+    def p_electron(self, nq, drift_field, *,
                    alpha=1.280, zeta=0.045, beta=273 * .9e-4,
                    gamma=0.0141, delta=0.062):
         """Fraction of detectable NR quanta that become electrons,
@@ -413,7 +422,7 @@ class SR1NRSource(SR1Source, fd.NRSource):
         """
         # TODO: so to make field pos-dependent, override this entire f?
         # could be made easier...
-        drift_field = tf.constant(self.default_drift_field, dtype=fd.float_type())
+        #drift_field = tf.constant(self.default_drift_field, dtype=fd.float_type())
 
         # prevent /0  # TODO can do better than this
         nq = nq + 1e-9
