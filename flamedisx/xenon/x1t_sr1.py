@@ -422,7 +422,12 @@ class SR1NRSource(SR1Source, fd.NRSource):
         """
         # TODO: so to make field pos-dependent, override this entire f?
         # could be made easier...
-        #drift_field = tf.constant(self.default_drift_field, dtype=fd.float_type())
+
+        # in _compute, n_events = batch_size
+        # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+        # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+        if tf.is_tensor(nq):
+            drift_field = drift_field[:, None]
 
         # prevent /0  # TODO can do better than this
         nq = nq + 1e-9
