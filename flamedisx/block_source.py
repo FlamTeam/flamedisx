@@ -25,7 +25,9 @@ class Block:
     #: Additional dimensions used in the block computation.
     #: Tensors for blocks with bonus dimensions will need manually calculating
     #: via the block overriding _domain_dict_bonus()).
-    #: Label True if they will be used for variable stepping.
+    #: Label True if they represent a hidden variable that will be summed over in
+    #: the differential rate computation, and thus need the final result to be
+    #: multiplied by a corresponding variable stepping scaling.
     #: dimsizes and steps for these dimensions must be computed manually in
     #: _calculate_dimsizes_special().
     bonus_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
