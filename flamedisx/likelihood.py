@@ -102,7 +102,13 @@ class LogLikelihood:
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
         if arguments is None:
-            arguments = {key:dict() for key in sources}
+            arguments = dict()
+            for key, value in sources.items():
+                if type(value) is not dict:
+                    arguments[key] = dict()
+                else:
+                    for key in value:
+                        arguments[key] = dict()
 
         param_defaults = dict()
 
