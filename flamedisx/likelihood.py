@@ -45,7 +45,7 @@ class LogLikelihood:
             sources: ty.Union[
                 ty.Dict[str, fd.Source.__class__],
                 ty.Dict[str, ty.Dict[str, fd.Source.__class__]]],
-            arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]],
+            arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
             data: ty.Union[
                 None,
                 pd.DataFrame,
@@ -101,6 +101,9 @@ class LogLikelihood:
 
         :param **common_param_specs:  param_name = (min, max, anchors), ...
         """
+        if arguments is None:
+            arguments = {key:dict() for key in sources}
+
         param_defaults = dict()
 
         if defaults is None:

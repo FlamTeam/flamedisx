@@ -30,8 +30,6 @@ def test_wimp_source(xes):
     # test KeyError 't' issue, because of add_extra_columns bug
     lf = fd.LogLikelihood(sources=dict(er=fd.ERSource,
                                        wimp=fd.WIMPSource),
-                          arguments=dict(er=dict(),
-                                         wimp=dict()),
                           free_rates=('er', 'wimp'))
 
     d = lf.simulate(er_rate_multiplier=1.0,
@@ -42,7 +40,6 @@ def test_wimp_source(xes):
 def test_inference(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
-        arguments=dict(er=dict()),
         elife=(100e3, 500e3, 5),
         data=xes.data)
 
@@ -78,7 +75,6 @@ def test_inference(xes: fd.ERSource):
 def test_multisource(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
-        arguments=dict(er=dict()),
         elife=(100e3, 500e3, 5),
         free_rates='er',
         data=xes.data)
@@ -86,7 +82,6 @@ def test_multisource(xes: fd.ERSource):
 
     lf2 = fd.LogLikelihood(
         sources=dict(er=xes.__class__, er2=xes.__class__),
-        arguments=dict(er=dict(), er2=dict()),
         elife=(100e3, 500e3, 5),
         data=xes.data)
 
@@ -102,7 +97,6 @@ def test_multisource(xes: fd.ERSource):
 def test_multisource_er_nr(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__, nr=fd.NRSource),
-        arguments=dict(er=dict(), nr=dict()),
         elife=(100e3, 500e3, 5),
         data=xes.data)
 
@@ -118,7 +112,6 @@ def test_columnsource(xes: fd.ERSource):
 
     lf = fd.LogLikelihood(
         sources=dict(muur=myColumnSource),
-        arguments=dict(muur=dict()),
         data=xes.data)
 
     np.testing.assert_almost_equal(lf(), -3.14 + len(xes.data) * np.log(5.))
@@ -127,14 +120,11 @@ def test_columnsource(xes: fd.ERSource):
 def test_no_dset(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        arguments=dict(er=dict()),
         data=None)
 
     lf2 = fd.LogLikelihood(
         sources=dict(data1=dict(er1=fd.ERSource),
                      data2=dict(er2=fd.ERSource)),
-        arguments=dict(er1=dict(),
-                       er2=dict()),
         data=dict(data1=None,
                   data2=None))
 
@@ -142,7 +132,6 @@ def test_no_dset(xes: fd.ERSource):
 def test_set_data_on_no_dset(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        arguments=dict(er=dict()),
         data=None,
         batch_size=4)
     # The batch_size can be at most 2 * len(data) or padding wont work
@@ -161,8 +150,6 @@ def test_set_data_on_no_dset(xes: fd.ERSource):
     lf2 = fd.LogLikelihood(
         sources=dict(data1=dict(er1=fd.ERSource),
                      data2=dict(er2=fd.ERSource)),
-        arguments=dict(er1=dict(),
-                       er2=dict()),
         data=dict(data1=None,
                   data2=None),
         batch_size=4)
@@ -176,7 +163,6 @@ def test_retrace_set_data(xes: fd.ERSource):
     # Test issue #53
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        arguments=dict(er=dict()),
         data=xes.data.copy())
     ll1 = lf()
 
@@ -193,15 +179,12 @@ def test_retrace_set_data(xes: fd.ERSource):
 def test_multi_dset(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        arguments=dict(er=dict()),
         data=xes.data.copy())
     ll1 = lf()
 
     lf2 = fd.LogLikelihood(
         sources=dict(data1=dict(er1=fd.ERSource),
                      data2=dict(er2=fd.ERSource)),
-        arguments=dict(er1=dict(),
-                       er2=dict()),
         data=dict(data1=xes.data.copy(),
                   data2=xes.data.copy()))
 
@@ -217,7 +200,6 @@ def test_multi_dset(xes: fd.ERSource):
 def test_simulate(xes):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        arguments=dict(er=dict()),
         data=None)
 
     events = lf.simulate()
@@ -231,8 +213,6 @@ def test_simulate_column(xes):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource,
                      muur=fd.ColumnSource),
-        arguments=dict(er=dict(),
-                       muur=dict()),
         data=None)
 
     events = lf.simulate()
@@ -254,8 +234,6 @@ def test_set_data(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(data1=dict(er1=fd.ERSource),
                      data2=dict(er2=fd.ERSource)),
-        arguments=dict(er1=dict(),
-                       er2=dict()),
         data=dict(data1=data1,
                   data2=data2))
 
@@ -294,13 +272,11 @@ def test_set_data(xes: fd.ERSource):
 def test_constraint(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        arguments=dict(er=dict()),
         data=xes.data.copy())
     ll1 = lf()
 
     lf2 = fd.LogLikelihood(
         sources=dict(er=fd.ERSource),
-        arguments=dict(er=dict()),
         log_constraint=lambda **kwargs: 100.,
         data=xes.data.copy())
 
@@ -328,7 +304,6 @@ def test_hessian_rateonly(xes: fd.ERSource):
     # Test the hessian at the guess position
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__,  er2=Bla),
-        arguments=dict(er=dict(), er2=dict()),
         free_rates=['er', 'er2'],
         data=xes.data)
 
@@ -352,7 +327,6 @@ def test_hessian_rateonly(xes: fd.ERSource):
 def test_hessian_rate_and_shape(xes: fd.ERSource):
     lf = fd.LogLikelihood(
         sources=dict(er=xes.__class__),
-        arguments=dict(er=dict()),
         elife=(100e3, 500e3, 5),
         free_rates='er',
         data=xes.data)
