@@ -21,12 +21,12 @@ from tensorflow_probability.python.internal import prefer_static
 from tensorflow_probability.python.internal import reparameterization
 from tensorflow_probability.python.internal import tensor_util
 
+import flamedisx as fd
 
-__all__ = [
-    'SkewGaussian',
-]
+export, __all__ = fd.exporter()
 
 
+@export
 class SkewGaussian(distribution.Distribution):
   """The Skew Gaussian distribution with `loc`, `scale` and `skewness` parameters.
 

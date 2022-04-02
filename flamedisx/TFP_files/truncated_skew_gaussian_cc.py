@@ -14,19 +14,18 @@ import tensorflow.compat.v2 as tf
 import functools
 
 from tensorflow_probability.python.distributions import distribution
-from tensorflow_probability.python.distributions import skew_gaussian
 from tensorflow_probability.python.internal import assert_util
 from tensorflow_probability.python.internal import dtype_util
 from tensorflow_probability.python.internal import prefer_static
 from tensorflow_probability.python.internal import reparameterization
 from tensorflow_probability.python.internal import tensor_util
 
+import flamedisx as fd
 
-__all__ = [
-    'TruncatedSkewGaussianCC',
-]
+export, __all__ = fd.exporter()
 
 
+@export
 class TruncatedSkewGaussianCC(distribution.Distribution):
   """
 
@@ -141,7 +140,7 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
     scale = tf.convert_to_tensor(self.scale)
     skewness = tf.convert_to_tensor(self.skewness)
     limit = tf.convert_to_tensor(self.limit)
-    skew_gauss = skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms)
+    skew_gauss = fd.tfp_files.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms)
 
     cdf_upper = skew_gauss.cdf(x+0.5)
     cdf_lower = skew_gauss.cdf(x-0.5)
