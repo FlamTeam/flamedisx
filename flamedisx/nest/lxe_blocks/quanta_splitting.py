@@ -124,11 +124,11 @@ class MakePhotonsElectronsNR(fd.Block):
                 owens_t_terms = 2
 
             if approx:
-                p_nel = fd.TFP_files.SkewGaussian(loc=mean, scale=std_dev,
+                p_nel = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
                                                        skewness=skew,
                                                        owens_t_terms=owens_t_terms).prob(electrons_produced)
             else:
-                p_nel = fd.TFP_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
+                p_nel = fd.tfp_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
                                                                   skewness=skew,
                                                                   limit=_ions_produced,
                                                                   owens_t_terms=owens_t_terms).prob(electrons_produced)
