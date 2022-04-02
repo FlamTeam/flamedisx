@@ -32,3 +32,5 @@ from . import nest
 # LUX models
 # Access through fd.lux.xxx
 from . import lux
+
+from . import TFP_files
