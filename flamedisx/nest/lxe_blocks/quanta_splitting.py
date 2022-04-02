@@ -67,9 +67,8 @@ class MakePhotonsElectronsNR(fd.Block):
                                                     scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq)
                 else:
                     normal_dist_nq = tfp.distributions.Normal(loc=nq_mean,
-                                                    scale=tf.sqrt(nq_mean * fano) + 1e-10)
+                                                              scale=tf.sqrt(nq_mean * fano) + 1e-10)
                     p_nq = normal_dist_nq.cdf(nq + 0.5) - normal_dist_nq.cdf(nq - 0.5)
-
 
                 ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
@@ -95,12 +94,12 @@ class MakePhotonsElectronsNR(fd.Block):
                                                         nq - _ions_produced)
                 else:
                     normal_dist_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                    scale=tf.sqrt(nq_mean*alpha) + 1e-10)
+                                                              scale=tf.sqrt(nq_mean*alpha) + 1e-10)
                     p_ni = normal_dist_ni.cdf(_ions_produced + 0.5) - \
                         normal_dist_ni.cdf(_ions_produced - 0.5)
 
                     normal_dist_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                    scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10)
+                                                              scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10)
                     p_nq = normal_dist_nq.cdf(nq - _ions_produced + 0.5) - \
                         - normal_dist_nq.cdf(nq - _ions_produced - 0.5)
 
@@ -125,13 +124,13 @@ class MakePhotonsElectronsNR(fd.Block):
 
             if approx:
                 p_nel = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
-                                                       skewness=skew,
-                                                       owens_t_terms=owens_t_terms).prob(electrons_produced)
+                                                  skewness=skew,
+                                                  owens_t_terms=owens_t_terms).prob(electrons_produced)
             else:
                 p_nel = fd.tfp_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
-                                                                  skewness=skew,
-                                                                  limit=_ions_produced,
-                                                                  owens_t_terms=owens_t_terms).prob(electrons_produced)
+                                                             skewness=skew,
+                                                             limit=_ions_produced,
+                                                             owens_t_terms=owens_t_terms).prob(electrons_produced)
 
             p_mult = p_nq * p_ni * p_nel
 
