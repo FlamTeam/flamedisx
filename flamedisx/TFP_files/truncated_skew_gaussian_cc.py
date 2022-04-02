@@ -141,16 +141,23 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
     scale = tf.convert_to_tensor(self.scale)
     skewness = tf.convert_to_tensor(self.skewness)
     limit = tf.convert_to_tensor(self.limit)
+    skew_gauss = skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms)
+
+    cdf_upper = skew_gauss.cdf(x+0.5)
+    cdf_lower = skew_gauss.cdf(x-0.5)
+
+    minus_inf = dtype_util.as_numpy_dtype(x.dtype)(-np.inf)
+
     bounded_log_prob = tf.where((x > limit),
-                                dtype_util.as_numpy_dtype(x.dtype)(-np.inf),
-                                tf.math.log(skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms).cdf(x+0.5) \
-                                - skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms).cdf(x-0.5)))
+                                minus_inf,
+                                tf.math.log(cdf_upper - cdf_lower))
     bounded_log_prob = tf.where(tf.math.is_nan(bounded_log_prob),
-                                dtype_util.as_numpy_dtype(x.dtype)(-np.inf),
+                                minus_inf,
                                 bounded_log_prob)
     dumping_log_prob = tf.where((x == limit),
-                                tf.math.log(1 - skew_gaussian.SkewGaussian(loc=self.loc,scale=scale,skewness=skewness,owens_t_terms=self.owens_t_terms).cdf(x-0.5)),
+                                tf.math.log(1 - cdf_lower),
                                 bounded_log_prob)
+
     return dumping_log_prob
 
   def _parameter_control_dependencies(self, is_init):
