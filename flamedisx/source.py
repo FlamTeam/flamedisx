@@ -272,7 +272,7 @@ class Source:
         ctc += [x + '_dimsizes' for x in self.final_dimensions]  # Dimension sizes
         self.ctc = list(set(ctc) - set([x for x in self.exclude_data_tensor]))  # We want to ignore these
 
-        self.column_index = fd.index_lookup_dict(ctc,
+        self.column_index = fd.index_lookup_dict(self.ctc,
                                                  column_widths=self.array_columns)
         self.n_columns_in_data_tensor = (
                 len(self.column_index) + sum(self.array_columns.values())
