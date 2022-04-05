@@ -213,12 +213,6 @@ class Block:
         within a block"""
         pass
 
-    def _populate_special_tensors(self, d):
-        """Calculate any additional tensors that won't be part of the standard
-        data tensor; will need to override _populate_special_tensors() within
-        a block."""
-        pass
-
 
 @export
 class FirstBlock(Block):
@@ -554,12 +548,6 @@ class BlockModelSource(fd.Source):
         # they should have overrided _annotate_special(). Now we call this.
         for b in self.model_blocks[::-1]:
             b.annotate_special(d)
-
-    def _populate_special_tensors(self):
-        d = self.data
-        # If a block has overriden this, we now call it.
-        for b in self.model_blocks[::-1]:
-            b._populate_special_tensors(d)
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)

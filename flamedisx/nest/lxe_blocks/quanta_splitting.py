@@ -20,7 +20,6 @@ class MakePhotonsElectronsNR(fd.Block):
 
     max_dim_size = {'ions_produced': 30}
 
-    # exclude_data_tensor = ('ions_produced_min', 'ions_produced_max')
     exclude_data_tensor = ('ions_produced_max',)
 
     special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
@@ -351,8 +350,9 @@ class MakePhotonsElectronsNR(fd.Block):
         max_num_energies = max(map(len, d['ions_produced_min'].values))
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
 
+        # We now want to override these source attributes, now that we know the size of the
+        # ions_produced_min arrays going into the data tensor
         self.source.array_columns['ions_produced_min'] = max_num_energies
-
         self.source.column_index = fd.index_lookup_dict(self.source.ctc,
                                                         column_widths=self.source.array_columns)
         self.source.n_columns_in_data_tensor = (
@@ -381,17 +381,6 @@ class MakePhotonsElectronsNR(fd.Block):
                                             tf.math.ceil(([elem-1 for elem in dimsizes]) /
                                             (self.source.dimsizes['ions_produced']-1)),
                                             1).numpy()
-
-    def _populate_special_tensors(self, d):
-        # Construct tensor of the minumum ion bound for each energy, for each event (same within a batch)
-
-        ion_bounds_min = [tf.convert_to_tensor(values, dtype=fd.float_type())
-                          for values in d['ions_produced_min'].values]
-        ion_bounds_min_tensor = tf.stack(ion_bounds_min)
-
-        self.ion_bounds_min_tensor = tf.reshape(ion_bounds_min_tensor,
-                                                [self.source.n_batches, -1,
-                                                 tf.shape(ion_bounds_min_tensor)[1]])
 
     def _domain_dict_bonus(self, d, i_batch):
         electrons_domain = self.source.domain('electrons_produced', d)
