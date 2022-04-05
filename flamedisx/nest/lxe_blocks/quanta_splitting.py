@@ -20,7 +20,8 @@ class MakePhotonsElectronsNR(fd.Block):
 
     max_dim_size = {'ions_produced': 30}
 
-    exclude_data_tensor = ('ions_produced_min', 'ions_produced_max')
+    # exclude_data_tensor = ('ions_produced_min', 'ions_produced_max')
+    exclude_data_tensor = ('ions_produced_max',)
 
     special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
                                'width_correction', 'mu_correction')
@@ -156,7 +157,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
         nq = electrons_produced + photons_produced
 
-        ions_min_initial = self.ion_bounds_min_tensor[i_batch, :, 0, o]
+        ions_min_initial = self.source._fetch('ions_produced_min', data_tensor=data_tensor)[:, 0, o]
         ions_min_initial = tf.repeat(ions_min_initial, tf.shape(ions_produced)[1], axis=1)
         ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
         ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
@@ -180,7 +181,7 @@ class MakePhotonsElectronsNR(fd.Block):
         rate_vs_energy_full, rate_vs_energy_approx = \
             tf.split(rate_vs_energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
         # Want to get rid of the padding of 0s at the end
-        ion_bounds_min = self.ion_bounds_min_tensor[i_batch, :, 0:tf.size(energy[0, :])]
+        ion_bounds_min = self.source._fetch('ions_produced_min', data_tensor=data_tensor)[:, 0:tf.size(energy[0, :])]
         ion_bounds_min_full, ion_bounds_min_approx = \
             tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
@@ -346,6 +347,18 @@ class MakePhotonsElectronsNR(fd.Block):
             d.loc[batch * self.source.batch_size:(batch + 1) * self.source.batch_size - 1, 'ions_produced_max'] = \
                 pd.Series([ions_produced_max]*len(indicies), index=indicies)
 
+        # Pad with 0s at the end to make each one the same size
+        max_num_energies = max(map(len, d['ions_produced_min'].values))
+        [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
+
+        self.source.array_columns['ions_produced_min'] = max_num_energies
+
+        self.source.column_index = fd.index_lookup_dict(self.source.ctc,
+                                                        column_widths=self.source.array_columns)
+        self.source.n_columns_in_data_tensor = (
+                len(self.source.column_index) + sum(self.source.array_columns.values())
+                - len(self.source.array_columns))
+
         return True
 
     def _calculate_dimsizes_special(self):
@@ -372,9 +385,6 @@ class MakePhotonsElectronsNR(fd.Block):
     def _populate_special_tensors(self, d):
         # Construct tensor of the minumum ion bound for each energy, for each event (same within a batch)
 
-        max_num_energies = max(map(len, d['ions_produced_min'].values))
-        # Pad with 0s at the end to make each one the same size, so we can stack them into a single tensor
-        [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
         ion_bounds_min = [tf.convert_to_tensor(values, dtype=fd.float_type())
                           for values in d['ions_produced_min'].values]
         ion_bounds_min_tensor = tf.stack(ion_bounds_min)
@@ -387,7 +397,7 @@ class MakePhotonsElectronsNR(fd.Block):
         electrons_domain = self.source.domain('electrons_produced', d)
         photons_domain = self.source.domain('photons_produced', d)
 
-        ions_min_initial = self.ion_bounds_min_tensor[i_batch, :, 0, o]
+        ions_min_initial = self.source._fetch('ions_produced_min', data_tensor=d)[:, 0, o]
         steps = self.source._fetch('ions_produced_steps', data_tensor=d)[:, o]
         ions_range = tf.range(tf.reduce_max(self.source._fetch('ions_produced_dimsizes', data_tensor=d))) * steps
         ions_domain_initial = ions_min_initial + ions_range
