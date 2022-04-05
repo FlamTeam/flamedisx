@@ -58,10 +58,6 @@ class Block:
     #: These can be overriden by Source attributes, just like model functions.
     model_attributes: ty.Tuple[str] = tuple()
 
-    #: Set this to True if the block's _domain_dict_bonus() and compute() methods
-    #: need access to the batch number currently being computed
-    use_batch: bool = False
-
     #: Set the maximum dimension size for a block's dimensions; these are used
     #: for variable tensor stepping
     max_dim_size: ty.Dict[str, int] = dict()
@@ -121,12 +117,7 @@ class Block:
         else:
             # We have bonus_dimensions; need to construct domains manually
             # for this block
-            if self.use_batch is False:
-                # Case where _domain_dict_bonus() doesn't need access to batch number
-                kwargs.update(self._domain_dict_bonus(data_tensor))
-            else:
-                # Case where _domain_dict_bonus() does need access to batch number
-                kwargs.update(self._domain_dict_bonus(data_tensor, i_batch=kwargs['i_batch']))
+            kwargs.update(self._domain_dict_bonus(data_tensor))
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
@@ -353,7 +344,7 @@ class BlockModelSource(fd.Source):
                     return dims, b
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
-    def _differential_rate(self, i_batch, data_tensor, ptensor):
+    def _differential_rate(self, data_tensor, ptensor):
         results = {}
         already_stepped = ()  # Avoid double-multiplying to account for stepping
 
@@ -375,12 +366,7 @@ class BlockModelSource(fd.Source):
                 kwargs.update(self._domain_dict(dependency_dims, data_tensor))
 
             # Compute the block
-            if b.use_batch is False:
-                # Case where compute() doesn't need access to batch number
-                r = b.compute(data_tensor, ptensor, **kwargs)
-            else:
-                # Case where compute() does need access to batch number
-                r = b.compute(data_tensor, ptensor, i_batch=i_batch, **kwargs)
+            r = b.compute(data_tensor, ptensor, **kwargs)
 
             # Scale the block by stepped dimensions, if not already done in
             # another block

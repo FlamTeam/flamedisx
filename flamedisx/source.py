@@ -599,8 +599,7 @@ class Source:
         y = []
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
-            y.append(fd.tf_to_np(self.differential_rate(tf.constant(i_batch, dtype=fd.int_type()),
-                                                        data_tensor=q,
+            y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
                                                         **params)))
 
         return np.concatenate(y)[:self.n_events]
@@ -611,8 +610,6 @@ class Source:
     def trace_differential_rate(self):
         """Compile the differential rate computation to a tensorflow graph"""
         input_signature = (
-            tf.TensorSpec(shape=None,
-                          dtype=fd.int_type()),
             tf.TensorSpec(shape=self._batch_data_tensor_shape(),
                           dtype=fd.float_type()),
             tf.TensorSpec(shape=[len(self.parameter_index)],
@@ -621,15 +618,14 @@ class Source:
             self._differential_rate,
             input_signature=input_signature)
 
-    def differential_rate(self, i_batch=tf.constant(0, dtype=fd.int_type()),
-                          data_tensor=None, autograph=True, **kwargs):
+    def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
             return self._differential_rate_tf(
-                i_batch=i_batch, data_tensor=data_tensor, ptensor=ptensor)
+                data_tensor=data_tensor, ptensor=ptensor)
         else:
             return self._differential_rate(
-                i_batch=i_batch, data_tensor=data_tensor, ptensor=ptensor)
+                data_tensor=data_tensor, ptensor=ptensor)
 
     def ptensor_from_kwargs(self, **kwargs):
         return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
@@ -781,7 +777,7 @@ class Source:
     # Functions you have to override
     ##
 
-    def _differential_rate(self, i_batch, data_tensor, ptensor):
+    def _differential_rate(self, data_tensor, ptensor):
         raise NotImplementedError
 
     def mu_before_efficiencies(self, **params):
@@ -834,7 +830,7 @@ class ColumnSource(Source):
     def mu_before_efficiencies(self, **params):
         return self.mu
 
-    def _differential_rate(self, i_batch, data_tensor, ptensor):
+    def _differential_rate(self, data_tensor, ptensor):
         return self._fetch(self.column, data_tensor)
 
     def random_truth(self, n_events, fix_truth=None, **params):

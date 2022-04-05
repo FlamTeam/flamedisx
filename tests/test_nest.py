@@ -29,7 +29,7 @@ def test_nest_source():
     s.estimate_mu()
 
     # Differential rate
-    dr = s.differential_rate(data_tensor=s.data_tensor[0])
+    dr = s.differential_rate(s.data_tensor[0])
     assert len(dr) == len(df_test)
     assert min(dr) > 0
 
