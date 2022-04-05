@@ -380,7 +380,6 @@ class Source:
         if not _skip_tf_init:
             self._check_data()
             self._populate_tensor_cache()
-            self._populate_special_tensors()
 
     def _check_data(self):
         """Do any final checks on the self.data dataframe,
@@ -804,10 +803,6 @@ class Source:
 
         :param data: pandas DataFrame
         """
-
-    def _populate_special_tensors(self):
-        """Override this if your source needs any additional tensors calculating
-        that won't be part of the standard data tensor."""
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """
