@@ -26,8 +26,6 @@ class MakePhotonsElectronsNR(fd.Block):
                                'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
-    use_batch = True
-
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain
@@ -344,8 +342,12 @@ class MakePhotonsElectronsNR(fd.Block):
             d.loc[batch * self.source.batch_size:(batch + 1) * self.source.batch_size - 1, 'ions_produced_max'] = \
                 pd.Series([ions_produced_max]*len(indicies), index=indicies)
 
-        # Pad with 0s at the end to make each one the same size
         max_num_energies = max(map(len, d['ions_produced_min'].values))
+        if max_num_energies == 1:
+            # One zero element at the end to get tensor dimensions that match up with non-mono-energetic case;
+            # will be discarded later on
+            max_num_energies = 2
+        # Pad with 0s at the end to make each one the same size
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
 
         # We now want to override these source attributes, now that we know the size of the
