@@ -30,8 +30,6 @@ class MakePhotonsElectronsNR(fd.Block):
 
     def _compute(self,
                  data_tensor, ptensor,
-                 #
-                 i_batch,
                  # Domain
                  electrons_produced, photons_produced,
                  # Bonus dimension
@@ -382,7 +380,7 @@ class MakePhotonsElectronsNR(fd.Block):
                                             (self.source.dimsizes['ions_produced']-1)),
                                             1).numpy()
 
-    def _domain_dict_bonus(self, d, i_batch):
+    def _domain_dict_bonus(self, d):
         electrons_domain = self.source.domain('electrons_produced', d)
         photons_domain = self.source.domain('photons_produced', d)
 
