@@ -472,7 +472,7 @@ class LogLikelihood:
 
             col_start, col_stop = self.column_indices[dsetname][source_i]
             dr = s.differential_rate(
-                data_tensor=data_tensor[:, col_start:col_stop],
+                data_tensor[:, col_start:col_stop],
                 # We are already tracing; if we call the traced function here
                 # it breaks the Hessian (it will give NaNs)
                 autograph=False,
