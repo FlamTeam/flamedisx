@@ -155,10 +155,6 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
 # Flamedisx sources
 ##
 class SR1Source:
-    drift_velocity = DEFAULT_DRIFT_VELOCITY
-    default_elife = DEFAULT_ELECTRON_LIFETIME
-    default_drift_field = DEFAULT_DRIFT_FIELD
-
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
                         'path_s1_rly',
@@ -170,7 +166,13 @@ class SR1Source:
                         'default_elife',
                         'path_electron_lifetimes',
                         'default_drift_field',
+                        's2_area_fraction_top',
                         )
+
+    drift_velocity = DEFAULT_DRIFT_VELOCITY
+    default_elife = DEFAULT_ELECTRON_LIFETIME
+    default_drift_field = DEFAULT_DRIFT_FIELD
+    s2_area_fraction_top = DEFAULT_AREA_FRACTION_TOP
 
     # Light yield maps
     path_s1_rly = '1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json'
@@ -353,7 +355,8 @@ class SR1Source:
                       # Needed for future sources i.e. wall
                       cs2b_min=50.1,
                       cs2b_max=7940.):
-        cs2b = cs2*(1-DEFAULT_AREA_FRACTION_TOP)
+        cs2b = cs2*(1-self.s2_area_fraction_top)
+        
         acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max) 
                                                 & (s2 > s2_min),
                               tf.ones_like(s2, dtype=fd.float_type()),
