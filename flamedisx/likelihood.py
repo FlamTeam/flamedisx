@@ -52,7 +52,8 @@ class LogLikelihood:
             free_rates=None,
             batch_size=10,
             max_sigma=None,
-            max_dim_size=120,
+            max_dim_size=None,
+            max_dim_size_outer=None,
             n_trials=int(1e5),
             log_constraint=None,
             bounds_specified=True,
@@ -81,6 +82,9 @@ class LogLikelihood:
 
         :param max_dim_size: Maximum bounds size for inner_dimensions,
             excluding no_step_dimensions
+
+        :param max_dim_size_outer: Maximum bounds size for outer blocks,
+            if hidden variable dimensions not in no_step_dimensions
 
         :param n_trials: Number of Monte-Carlo trials for mu estimation.
 
@@ -139,6 +143,7 @@ class LogLikelihood:
             sname: sclass(data=None,
                           max_sigma=max_sigma,
                           max_dim_size=max_dim_size,
+                          max_dim_size_outer=max_dim_size_outer,
                           # The source will filter out parameters it does not
                           # take
                           fit_params=list(k for k in common_param_specs.keys()),
@@ -740,7 +745,7 @@ class LogLikelihood:
         return np.linalg.inv(-2 * grad2_ll)
 
     def summary(self, bestfit=None, fix=None, guess=None,
-                inverse_hessian=None, precision=3):
+                cov=None, precision=3):
         """Print summary information about best fit"""
         if fix is None:
             fix = dict()
@@ -748,12 +753,15 @@ class LogLikelihood:
             bestfit = self.bestfit(guess=guess, fix=fix)
 
         params = {**bestfit, **fix}
-        if inverse_hessian is None:
-            inverse_hessian = self.inverse_hessian(
+        if cov is None:
+            # inverse_hessian returns inverse of hessian of -2 loglikelihood
+            # but covariance matrix is inverse of hessian of - logikelihood
+            # (kA)^(-1) = k^(-1)A^(-1) for non-zero scalar k
+            cov = 2. * self.inverse_hessian(
                 params,
                 omit_grads=tuple(fix.keys()))
 
-        stderr, cov = cov_to_std(inverse_hessian)
+        stderr, corr = cov_to_std(cov)
 
         var_par_i = 0
         for i, pname in enumerate(self.param_names):
@@ -771,7 +779,7 @@ class LogLikelihood:
 
         var_pars = [x for x in self.param_names if x not in fix]
         df = pd.DataFrame(
-            {p1: {p2: cov[i1, i2]
+            {p1: {p2: corr[i1, i2]
                   for i2, p2 in enumerate(var_pars)}
              for i1, p1 in enumerate(var_pars)},
             columns=var_pars)

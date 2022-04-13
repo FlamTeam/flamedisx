@@ -157,6 +157,7 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
 class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
     default_elife = DEFAULT_ELECTRON_LIFETIME
+    default_drift_field = DEFAULT_DRIFT_FIELD
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
@@ -168,6 +169,7 @@ class SR1Source:
                         'variable_elife',
                         'default_elife',
                         'path_electron_lifetimes',
+                        'default_drift_field',
                         )
 
     # Light yield maps
@@ -274,6 +276,8 @@ class SR1Source:
             else:
                 d['elife'] = self.default_elife
 
+        d['drift_field'] = self.default_drift_field
+
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
@@ -284,8 +288,7 @@ class SR1Source:
                 d['s2']
                 / d['s2_relative_ly']
                 * np.exp(d['drift_time'] / d['elife']))
-
-
+    
     @staticmethod
     def electron_detection_eff(drift_time,
                                elife,
@@ -306,10 +309,15 @@ class SR1Source:
         # 0 * light yield is to fix the shape
         return single_electron_width + 0. * s2_relative_ly
 
-    #TODO: implement better the double_pe_fraction or photon_detection_efficiency as parameter
     @staticmethod
-    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1):
-        mean_eff= g1 / (1. + DEFAULT_P_DPE)
+    def double_pe_fraction(z, *, dpe=DEFAULT_P_DPE):
+        # Ties the double_pe_fraction model function to the dpe
+        # parameter in the sources
+        return dpe + 0. * z
+
+    @staticmethod
+    def photon_detection_eff(s1_relative_ly, g1=DEFAULT_G1, dpe=DEFAULT_P_DPE):
+        mean_eff = g1 / (1. + dpe)
         return mean_eff * s1_relative_ly
 
     def photon_acceptance(self,
@@ -363,15 +371,22 @@ class SR1Source:
 class SR1ERSource(SR1Source, fd.ERSource):
 
     @staticmethod
-    def p_electron(nq, *, W=13.8e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
-                   gamma_er=0.031 , omega_er=31.):
+    def p_electron(nq, drift_field, *, W=13.7e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+                   gamma_er=0.031 , omega_er=31., delta_er=0.24):
         # gamma_er from paper 0.124/4
-        F = tf.constant(DEFAULT_DRIFT_FIELD, dtype=fd.float_type())
+        #F = tf.constant(self.default_drift_field, dtype=fd.float_type())
+
+        if tf.is_tensor(nq):
+            # in _compute, n_events = batch_size
+            # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+            # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+
+            drift_field = drift_field[:, None]
 
         e_kev = nq * W
         fi = 1. / (1. + mean_nexni)
         ni, nex = nq * fi, nq * (1. - fi)
-        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * F ** (-0.24)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-delta_er)
 
         # delta_er and gamma_er are highly correlated
         # F **(-delta_er) set to constant
@@ -381,7 +396,7 @@ class SR1ERSource(SR1Source, fd.ERSource):
         return fd.safe_p(p_el)
 
     @staticmethod
-    def p_electron_fluctuation(nq, q2=0.034, q3_nq=123.):
+    def p_electron_fluctuation(nq, q2=0.034, q3_nq=124.):
         # From SR0, BBF model, right?
         # q3 = 1.7 keV ~= 123 quanta
         # For SR1:
@@ -396,10 +411,9 @@ class SR1NRSource(SR1Source, fd.NRSource):
     # TODO: Define the proper nr spectrum
     # TODO: Modify the SR1NRSource to fit AmBe data better
 
-    def p_electron(self, nq, *,
+    def p_electron(self, nq, drift_field, *,
                    alpha=1.280, zeta=0.045, beta=273 * .9e-4,
-                   gamma=0.0141, delta=0.062,
-                   drift_field=DEFAULT_DRIFT_FIELD):
+                   gamma=0.0141, delta=0.062):
         """Fraction of detectable NR quanta that become electrons,
         slightly adjusted from Lenardo et al.'s global fit
         (https://arxiv.org/abs/1412.4417).
@@ -408,6 +422,12 @@ class SR1NRSource(SR1Source, fd.NRSource):
         """
         # TODO: so to make field pos-dependent, override this entire f?
         # could be made easier...
+
+        # in _compute, n_events = batch_size
+        # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+        # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+        if tf.is_tensor(nq):
+            drift_field = drift_field[:, None]
 
         # prevent /0  # TODO can do better than this
         nq = nq + 1e-9

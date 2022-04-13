@@ -46,20 +46,23 @@ class MakePhotoelectrons(fd.Block):
             p=self.gimme_numpy('double_pe_fraction')) + d[self.quanta_in_name]
 
     def _annotate(self, d):
-        # TODO: this assumes the spread from the double PE effect is subdominant
-        dpe_fraction = self.gimme_numpy('double_pe_fraction')
-        for suffix, intify in (('_min', np.floor),
-                               ('_max', np.ceil),
-                               ('_mle', lambda x: x)):
-            d[self.quanta_in_name + suffix] = \
-                intify(d[self.quanta_out_name + suffix].values
-                       / (1 + dpe_fraction))
+        for suffix, bound in (('_min', 'lower'),
+                              ('_max', 'upper')):
+            out_bounds = d[self.quanta_out_name + suffix]
+            supports = [np.linspace(np.ceil(out_bound / 2.), out_bound + 1., 1000).astype(int)
+                        for out_bound in out_bounds]
+            ns = supports
+            ps = [p * np.ones_like(support) for p, support in zip(self.gimme_numpy('double_pe_fraction'), supports)]
+            rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
+
+            fd.bounds.bayes_bounds_binomial(df=d, in_dim=self.quanta_in_name, supports=supports,
+                                            rvs_binom=rvs, ns_binom=ns, ps_binom=ps,
+                                            bound=bound, bounds_prob=self.source.bounds_prob)
 
 
 @export
 class MakeS1Photoelectrons(MakePhotoelectrons):
     dimensions = ('photons_detected', 's1_photoelectrons_produced')
-    extra_dimensions = ()
 
     quanta_in_name = 'photons_detected'
     quanta_out_name = 's1_photoelectrons_produced'
@@ -75,7 +78,6 @@ class MakeS1Photoelectrons(MakePhotoelectrons):
 @export
 class MakeS2Photoelectrons(MakePhotoelectrons):
     dimensions = ('s2_photons_detected', 's2_photoelectrons_detected')
-    extra_dimensions = ()
 
     quanta_in_name = 's2_photons_detected'
     quanta_out_name = 's2_photoelectrons_detected'

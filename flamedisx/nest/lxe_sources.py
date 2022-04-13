@@ -17,8 +17,6 @@ XENON_GAS_DIELECTRIC = 1.00126
 
 
 class nestSource(fd.BlockModelSource):
-    default_max_sigma = 12
-
     def __init__(self, *args, detector='default', **kwargs):
         assert detector in ('default',)
 
@@ -81,6 +79,12 @@ class nestSource(fd.BlockModelSource):
         self.S2_max = config.getfloat('NEST', 'S2_max_config')
 
         super().__init__(*args, **kwargs)
+
+    final_dimensions = ('s1', 's2')
+    penultimate_dimensions = ('s1_photoelectrons_detected',
+                              's2_photoelectrons_detected')
+    no_step_dimensions = ('s1_photoelectrons_produced',
+                          's1_photoelectrons_detected')
 
     # detection.py
 
@@ -146,7 +150,10 @@ class nestSource(fd.BlockModelSource):
 
 @export
 class nestERSource(nestSource):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, energy_min=0., energy_max=10., num_energies=1000, **kwargs):
+        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                fd.float_type())
+        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -179,14 +186,13 @@ class nestERSource(nestSource):
             + er_pel_c)
         return fd.safe_p(qy * 13.7e-3)
 
-    final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('s1_photoelectrons_produced',
-                          's1_photoelectrons_detected')
-
 
 @export
 class nestNRSource(nestSource):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, energy_min=0.7, energy_max=150., num_energies=1000, **kwargs):
+        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                fd.float_type())
+        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -202,16 +208,6 @@ class nestNRSource(nestSource):
         fd_nest.DetectS2Photons,
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
-
-    final_dimensions = ('s1', 's2')
-    no_step_dimensions = ('s1_photoelectrons_produced',
-                          's1_photoelectrons_detected')
-
-    # Use a larger default energy range, since most energy is lost
-    # to heat.
-    energies = tf.cast(tf.linspace(0.7, 150., 100),
-                       fd.float_type())
-    rates_vs_energy = tf.ones(100, fd.float_type())
 
     @staticmethod
     def p_electron(nq, *,

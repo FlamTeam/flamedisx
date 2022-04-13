@@ -15,7 +15,6 @@ class MakePhotonsElectronsBinomial(fd.Block):
 
     depends_on = ((('quanta_produced',), 'rate_vs_quanta'),)
     dimensions = ('electrons_produced', 'photons_produced')
-    extra_dimensions = ()
 
     special_model_functions = ('p_electron',)
     model_functions = special_model_functions
@@ -90,7 +89,7 @@ class MakePhotonsElectronsBinomial(fd.Block):
         d['photons_produced'] = d['quanta_produced'] - d['electrons_produced']
 
     def _annotate(self, d):
-        for suffix in ('min', 'max', 'mle'):
+        for suffix in ('min', 'max'):
             d['quanta_produced_' + suffix] = (
                 d['photons_produced_' + suffix]
                 + d['electrons_produced_' + suffix])
