@@ -27,7 +27,10 @@ class MakePhotonsElectronsNR(fd.Block):
     model_functions = special_model_functions
 
     def setup(self):
-        self.array_columns = (('ions_produced_min', max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)),)
+        self.array_columns = (('ions_produced_min',
+                               max(min(len(self.source.energies),
+                                       self.source.max_dim_sizes['energy']),
+                                   2)),)
 
     def _compute(self,
                  data_tensor, ptensor,
@@ -345,8 +348,8 @@ class MakePhotonsElectronsNR(fd.Block):
             d.loc[batch * self.source.batch_size:(batch + 1) * self.source.batch_size - 1, 'ions_produced_max'] = \
                 pd.Series([ions_produced_max]*len(indicies), index=indicies)
 
-        # If mono-energetic, one zero element at the end to get tensor dimensions that match up with non-mono-energetic case;
-        # will be discarded later on
+        # If mono-energetic, one zero element at the end to get tensor dimensions
+        # that match up with non-mono-energetic case; will be discarded later on
         max_num_energies = max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)
         # Pad with 0s at the end to make each one the same size
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
