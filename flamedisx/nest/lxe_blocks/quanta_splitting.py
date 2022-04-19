@@ -26,6 +26,9 @@ class MakePhotonsElectronsNR(fd.Block):
                                'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
+    def setup(self):
+        self.array_columns = (('ions_produced_min', max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)),)
+
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain
@@ -342,22 +345,11 @@ class MakePhotonsElectronsNR(fd.Block):
             d.loc[batch * self.source.batch_size:(batch + 1) * self.source.batch_size - 1, 'ions_produced_max'] = \
                 pd.Series([ions_produced_max]*len(indicies), index=indicies)
 
-        max_num_energies = max(map(len, d['ions_produced_min'].values))
-        if max_num_energies == 1:
-            # One zero element at the end to get tensor dimensions that match up with non-mono-energetic case;
-            # will be discarded later on
-            max_num_energies = 2
+        # If mono-energetic, one zero element at the end to get tensor dimensions that match up with non-mono-energetic case;
+        # will be discarded later on
+        max_num_energies = max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)
         # Pad with 0s at the end to make each one the same size
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
-
-        # We now want to override these source attributes, now that we know the size of the
-        # ions_produced_min arrays going into the data tensor
-        self.source.array_columns['ions_produced_min'] = max_num_energies
-        self.source.column_index = fd.index_lookup_dict(self.source.ctc,
-                                                        column_widths=self.source.array_columns)
-        self.source.n_columns_in_data_tensor = (
-                len(self.source.column_index) + sum(self.source.array_columns.values())
-                - len(self.source.array_columns))
 
         return True
 

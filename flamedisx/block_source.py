@@ -269,6 +269,8 @@ class BlockModelSource(fd.Source):
                     raise ValueError(
                         f"{k} in {b} should be a tuple, not a {type(k)}")
 
+            self.max_dim_sizes.update(b.max_dim_size)
+
             # Call the setup method. This method is not really needed anymore;
             # blocks can simply override __init__ for setup, as long as they
             # call super().__init__ *first* (else self.source would not be set)
@@ -323,9 +325,6 @@ class BlockModelSource(fd.Source):
             d[0] for d in collected['bonus_dimensions']])
         self.exclude_data_tensor = tuple([
             d for d in collected['exclude_data_tensor']])
-
-        for b in self.model_blocks:
-            self.max_dim_sizes.update(b.max_dim_size)
 
         super().__init__(*args, **kwargs)
 
