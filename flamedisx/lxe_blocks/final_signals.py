@@ -108,6 +108,8 @@ class MakeS1(MakeFinalSignals):
         'photoelectron_gain_std',
         's1_acceptance') + special_model_functions
 
+    max_dim_size = {'photoelectrons_detected': 120}
+
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
 
@@ -145,6 +147,8 @@ class MakeS2(MakeFinalSignals):
          'electron_gain_std',
          's2_acceptance')
         + special_model_functions)
+
+    max_dim_size = {'electrons_detected': 120}
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):

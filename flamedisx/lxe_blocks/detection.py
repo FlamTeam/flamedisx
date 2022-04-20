@@ -108,6 +108,8 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
     model_functions = ('photon_detection_eff',) + special_model_functions
 
+    max_dim_size = {'photons_produced': 100}
+
     photon_detection_eff = 0.1
 
     def photon_acceptance(self, photons_detected, min_photons=3):
@@ -135,6 +137,8 @@ class DetectElectrons(DetectPhotonsOrElectrons):
 
     special_model_functions = ('electron_acceptance', 'electron_loss')
     model_functions = ('electron_detection_eff',) + special_model_functions
+
+    max_dim_size = {'electrons_produced': 100}
 
     @staticmethod
     def electron_detection_eff(drift_time, *,
