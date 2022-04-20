@@ -280,7 +280,7 @@ class Source:
 
         # A source may choose to fill these in for improved bounds computation.
         # See bounds.py for details
-        self.MC_reservoir = pd.DataFrame()
+        self.mc_reservoir = pd.DataFrame()
         self.prior_PDFs_LB = tuple(dict())
         self.prior_PDFs_UB = tuple(dict())
 

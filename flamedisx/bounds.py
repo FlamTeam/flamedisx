@@ -106,7 +106,7 @@ def get_priors(source, reservoir, prior_dims,
     accurate Bayes bounds. Separate priors calculated for estimating upper and
     lower bounds.
 
-    :param reservoir: MC reservoir filtered for prior estimationn
+    :param reservoir: MC reservoir filtered for prior estimation
     :param prior_dims: tuple of dimensions we are obtaining priors for
     :param prior_data_cols: column numbers in reservoir corresponding to prior_dims
     :param filter_data_cols: column numbers in reservoir corresponding to dimensions
