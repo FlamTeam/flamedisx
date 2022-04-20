@@ -262,6 +262,10 @@ class BlockModelSource(fd.Source):
         # Instantiate the blocks.
         self.model_blocks = tuple([b(self) for b in self.model_blocks])
 
+        # We want to make sure that we don't override a dimension's max_dim_size
+        # somewhere else by accident; check none of them appear in multiple blocks
+        updated_max_dim_size = []
+
         for b in self.model_blocks:
             # Maybe someome forgot a comma in a tuple specification
             for k in collected:
@@ -270,6 +274,7 @@ class BlockModelSource(fd.Source):
                         f"{k} in {b} should be a tuple, not a {type(k)}")
 
             self.max_dim_sizes.update(b.max_dim_size)
+            updated_max_dim_size.extend(list(b.max_dim_size.keys()))
 
             # Call the setup method. This method is not really needed anymore;
             # blocks can simply override __init__ for setup, as long as they
@@ -293,6 +298,10 @@ class BlockModelSource(fd.Source):
             # (because the same-named block attribute wasn't changed).
             # Sorry. I can't use properties to prevent writing, since
             # those are class-bound.
+
+        assert len(set(updated_max_dim_size)) == len(updated_max_dim_size), \
+            "You changed a dimension's max_dim_size in more than one place (block). \
+            Please fix this, then try again!"
 
         # The source may declare additional frozen data methods
         collected['frozen_model_functions'] += self.frozen_model_functions
