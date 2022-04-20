@@ -489,17 +489,17 @@ class BlockModelSource(fd.Source):
             b.simulate(d)
         return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
 
-    def get_priors(self, MC_reservoir, data):
+    def get_priors(self, data):
         """Obtain priors on certain hidden variable dimensions, to obtain more
         accurate Bayes bounds.
 
-        Requires filling in a MC_reservoir during the source's annotate(). The
+        Requires populating source.mc_reservoir during the source's annotate(). The
         source should also set prior_dimensions, which is a list of
         [(prior_dims), (filter_dims)]. For each batch of events, the extremal
         bounds values from annotate() for (filter_dims) are used to filter the
-        MC_reservoir to obtain bounds on (prior_dims).
+        MC reservoir to obtain bounds on (prior_dims).
         """
-        if MC_reservoir.empty:
+        if self.mc_reservoir.empty:
             return
 
         for set in self.prior_dimensions:
@@ -508,9 +508,9 @@ class BlockModelSource(fd.Source):
 
             prior_data_columns, filter_data_columns = [], []
             for dim in prior_dims:
-                prior_data_columns.append(MC_reservoir.columns.get_loc(dim))
+                prior_data_columns.append(self.mc_reservoir.columns.get_loc(dim))
             for dim in filter_dims:
-                filter_data_columns.append(MC_reservoir.columns.get_loc(dim))
+                filter_data_columns.append(self.mc_reservoir.columns.get_loc(dim))
 
             for batch in range(self.n_batches):
                 df_batch = data[batch * self.batch_size:(batch + 1) * self.batch_size]
@@ -521,7 +521,7 @@ class BlockModelSource(fd.Source):
                 for dim in filter_dims:
                     filter_dims_max.append(max(df_batch[dim + '_max']))
 
-                fd.bounds.get_priors(self, MC_reservoir.values, prior_dims,
+                fd.bounds.get_priors(self, self.mc_reservoir.values, prior_dims,
                                      prior_data_columns, filter_data_columns,
                                      filter_dims_min, filter_dims_max)
 
@@ -535,7 +535,7 @@ class BlockModelSource(fd.Source):
 
         # Next, we obtain any desired hidden variable priors, in case we want
         # to improve the bounds estimation for any hidden variables.
-        self.get_priors(self.MC_reservoir, self.data)
+        self.get_priors(self.data)
 
         # If any blocks want to do bounds estimation differently, using either
         # the calculated priors or bounds on hidden variables deeper than themselves,
