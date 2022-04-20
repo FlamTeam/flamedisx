@@ -102,7 +102,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
                     normal_dist_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
                                                               scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10)
-                    p_nq = normal_dist_nq.cdf(nq - _ions_produced + 0.5) - \
+                    p_nq = normal_dist_nq.cdf(nq - _ions_produced + 0.5) \
                         - normal_dist_nq.cdf(nq - _ions_produced - 0.5)
 
             recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
