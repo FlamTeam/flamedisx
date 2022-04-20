@@ -14,6 +14,8 @@ class MakeS1Photoelectrons(fd.Block):
 
     model_functions = ('double_pe_fraction',)
 
+    max_dim_size = {'photons_detected': 100}
+
     double_pe_fraction = 0.219
 
     def _compute(self, data_tensor, ptensor,

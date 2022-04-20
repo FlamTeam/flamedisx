@@ -19,6 +19,8 @@ class MakeERQuanta(fd.Block):
     depends_on = ((('energy',), 'rate_vs_energy'),)
     model_functions = ('work',)
 
+    max_dim_size = {'quanta_produced': 100}
+
     work = DEFAULT_WORK_PER_QUANTUM
 
     def _compute(self,
