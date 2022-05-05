@@ -443,10 +443,10 @@ class LogLikelihood:
         ll = self._log_likelihood_inner(
             i_batch, params_unstacked, dsetname, data_tensor, batch_info)
 
-        # Autodifferentiation. This is why we use tensorflow:
-        grad = tf.gradients(ll, grad_par_stack)[0]
+        # blindly set grad and hess to zero.
+        grad = tf.zeros_like(ll)
         if second_order:
-            return ll, grad, tf.hessians(ll, grad_par_stack)[0]
+            return ll, grad, tf.zeros_like(ll)
         return ll, grad, None
 
     def _log_likelihood_inner(self, i_batch, params,
