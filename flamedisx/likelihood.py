@@ -418,7 +418,7 @@ class LogLikelihood:
             if source_name is not None and sname != source_name:
                 continue
             mu += (self._get_rate_mult(sname, kwargs)
-                   * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
+                   * self.sources[sname].estimate_mu(**self._filter_source_kwargs(kwargs, sname)))
         return mu
 
     @tf.function
