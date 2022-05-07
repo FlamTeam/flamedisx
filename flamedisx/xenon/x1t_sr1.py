@@ -155,7 +155,8 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
 # Flamedisx sources
 ##
 class SR1Source:
-    model_attributes = ('path_cut_accept_s1',
+    model_attributes = ('s2_area_fraction_top',
+                        'path_cut_accept_s1',
                         'path_cut_accept_s2',
                         'path_s1_rly',
                         'path_s2_rly',
@@ -165,14 +166,17 @@ class SR1Source:
                         'variable_elife',
                         'default_elife',
                         'path_electron_lifetimes',
+                        'variable_drift_field',
                         'default_drift_field',
-                        's2_area_fraction_top',
+                        'path_drift_field',
+                        'path_drift_field_distortion',
+                        'path_drift_field_distortion_correction',
                         )
 
+    s2_area_fraction_top = DEFAULT_AREA_FRACTION_TOP
     drift_velocity = DEFAULT_DRIFT_VELOCITY
     default_elife = DEFAULT_ELECTRON_LIFETIME
     default_drift_field = DEFAULT_DRIFT_FIELD
-    s2_area_fraction_top = DEFAULT_AREA_FRACTION_TOP
 
     # Light yield maps
     path_s1_rly = '1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json'
@@ -199,6 +203,16 @@ class SR1Source:
     # Elife maps
     variable_elife = True
     path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
+
+    # Comsol map
+    variable_drift_field = True
+    path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
+    # Field distortion map
+    path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
+    # FDC map
+    path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     def set_defaults(self, *args, **kwargs):
         super().set_defaults(*args, **kwargs)
