@@ -241,6 +241,20 @@ class SR1Source:
         self.elife_tf, self.domain_def_elife = \
             read_maps_tf(self.path_electron_lifetimes, is_bbf=False)
 
+        # Field maps
+        self.field_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field))
+
+        # Field distortion maps
+        # cheap hack
+        aa = fd.get_nt_file(self.path_drift_field_distortion) 
+        aa['map'] = aa['r_distortion_map']
+        self.drift_field_distortion_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
+        del aa
+
+        # FDC maps
+        self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field_distortion_correction))
+
+
     def reconstruction_bias_s1(self,
                                s1,
                                s1_reconstruction_bias_pivot=\
@@ -265,11 +279,43 @@ class SR1Source:
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
 
         # Add extra needed columns
-        # TODO: Add FDC maps instead of posrec resolution
-        d['x_observed'] = np.random.normal(d['x'].values,
-                                           scale=2)  # 2cm resolution)
-        d['y_observed'] = np.random.normal(d['y'].values,
-                                           scale=2)  # 2cm resolution)
+        # x, y, z are the true positions of the event
+        #
+        # x_observed, y_observed are the reconstructed positions with 
+        # field distortion and with posrec smearing but without 
+        # field distortion correction
+        #
+        # x_fdc, y_fdc, z_fdc are the fdc-corrected positions
+        
+        # going from true position to position distorted by field
+        d['r_observed'] = self.drift_field_distortion_map(
+            np.transpose([d['r'].values,
+                          d['z'].values])) 
+        d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
+        d['y_observed'] = d['r_observed'] * np.sin(d['theta'])
+
+        # leave z intact, might want to correct this with drift velocity later
+        d['z_observed'] = d['z']
+
+        # Adding some smear according to posrec resolution
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=0.4) # 4 mm resolution)
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=0.4) # 4 mm resolution)
+        
+        # applying fdc
+        delta_r = self.fdc_map(
+            np.transpose([d['x_observed'].values,
+                          d['y_observed'].values,
+                          d['z_observed'].values,]))
+                              
+        # apply radial correction
+        with np.errstate(invalid='ignore', divide='ignore'):
+            d['r_fdc'] = d['r_observed'] + delta_r
+            scale = d['r_fdc'] / d['r_observed']
+
+        d['x_fdc'] = d['x_observed'] * scale
+        d['y_fdc'] = d['y_observed'] * scale
+        d['z_fdc'] = d['z_observed']
+        
         return d
 
     def add_extra_columns(self, d):
@@ -278,9 +324,9 @@ class SR1Source:
              np.transpose([d['x_observed'].values,
                           d['y_observed'].values]))
         d['s1_relative_ly'] = self.s1_map(
-            np.transpose([d['x'].values,
-                          d['y'].values,
-                          d['z'].values]))
+            np.transpose([d['x_fdc'].values,
+                          d['y_fdc'].values,
+                          d['z_fdc'].values]))
 
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
@@ -292,7 +338,12 @@ class SR1Source:
             else:
                 d['elife'] = self.default_elife
 
-        d['drift_field'] = self.default_drift_field
+        if self.variable_drift_field:
+            d['drift_field'] = self.field_map(
+                np.transpose([d['r'].values,
+                              d['z'].values]))
+        else:
+            d['drift_field'] = self.default_drift_field
 
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
@@ -437,9 +488,7 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
         Penning quenching is accounted in the photon detection efficiency.
         """
-        # TODO: so to make field pos-dependent, override this entire f?
-        # could be made easier...
-
+        
         # in _compute, n_events = batch_size
         # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
         # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
