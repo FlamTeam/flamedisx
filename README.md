@@ -10,7 +10,7 @@ Fast likelihood analysis in more dimensions for xenon TPCs.
 [![Join the chat at https://gitter.im/AxFoundation/strax](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/FlamTeam/flamedisx)
 
 
-Flamedisx aims to increase the practical number of dimensions and parameters in likelihoods for liquid-xenon (LXe) detectors, which are leading the field of direct dark matter detection. 
+Flamedisx aims to increase the practical number of dimensions and parameters in likelihoods for liquid-xenon (LXe) detectors, which are leading the field of direct dark matter detection.
 
 Traditionally, particle physicists compute signal and background models by filling histogram 'templates' with high-statistics Monte Carlo (MC) simulations. However, the LXe model can also be computed with a series of (large) matrix multiplications, equivalent to the integral approximated by the MC simulation. Using TensorFlow makes this computation differentiable and GPU-scalable, so it can be used practically for fitting and statistical inference.
 
@@ -26,3 +26,12 @@ To get started, [Launch our tutorial on Colaboratory](https://colab.research.goo
 Our [paper](https://arxiv.org/abs/2003.12483) gives a detailed description of Flamedisx, and compares Flamedisx quantitatively to traditional template-based methods.
 
 If you want all the details, see the [Flamedisx Documentation](https://flamedisx.readthedocs.io) and our [Notebooks repository](https://github.com/FlamTeam/flamedisx-notebooks).
+
+
+
+FlameNEST
+-----------
+
+[![arXiv](https://img.shields.io/badge/arXiv-2204.13621-b31b1b.svg)](https://arxiv.org/abs/2204.13621)
+
+Since version 1.6, flamedisx includes an implementation of electronic and nuclear recoil models from the [Noble Element Simulation Technique](https://nest.physics.ucdavis.edu/) version 2.2.2. To use this, use sources from the ``fd.nest`` subpackage, e.g. ``fd.nest.ERSource``. See the [flameNEST paper](https://arxiv.org/abs/2204.13621) for a detailed description and validation.
