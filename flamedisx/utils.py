@@ -279,3 +279,17 @@ def load_config(config_files=None):
             if not k.startswith('_')})
 
     return config
+    
+
+# Taken from straxen to filter arguments for interpolators
+@export
+def filter_kwargs(func, kwargs):
+    """Filter out keyword arguments that
+        are not in the call signature of func
+        and return filtered kwargs dictionary
+    """
+    params = inspect.signature(func).parameters
+    if any([str(p).startswith('**') for p in params.values()]):
+        # if func accepts wildcard kwargs, return all
+        return kwargs
+    return {k: v for k, v in kwargs.items() if k in params}
