@@ -18,8 +18,8 @@
 # -- Project information -----------------------------------------------------
 
 project = 'flamedisx'
-copyright = '2020, Jelle Aalbers, Bart Pelssers, V. Cristian Antochi, Pueh Leng Tan'
-author = 'Jelle Aalbers, Bart Pelssers, V. Cristian Antochi, Pueh Leng Tan'
+copyright = '2022, Flamedisx developers'
+author = 'Flamedisx developers'
 
 # The full version, including alpha/beta/rc tags
 release = '2.0.0'
