@@ -1,3 +1,17 @@
+1.6.0 / 2022-05-08
+------------------
+- NEST models for pre-quanta processes (#205)
+- Bayesian bounds estimation (#174)
+- NEST source fixes (#152)
+- Fix covariance used in `LogLikelihood.summary` (#176)
+- Avoid calculating produced_quanta = 0 case (#181)
+- `electron_loss` model function (#193)
+- XENON sources:
+  - Wall events model (#143)
+  - `double_pe_fraction` model function (#208)
+  - Updates to config defaults (#209)
+  - Configurable drift field, S2 AFT (#213, #218)
+
 1.5.0 / 2021-06-29
 ------------------
 - Variable stepping, support for high-energy models (#127)
