@@ -199,7 +199,7 @@ class InterpolatingMap:
         assert dimensions == 2, 'RectBivariateSpline interpolate maps of dimension 2'
         assert not array_valued, 'RectBivariateSpline does not support interpolating array values'
         map_data = map_data.reshape(*grid_shape)
-        kwargs = straxen.filter_kwargs(RectBivariateSpline, kwargs)
+        #kwargs = straxen.filter_kwargs(RectBivariateSpline, kwargs)
         rbs = RectBivariateSpline(grid[0], grid[1], map_data, **kwargs)
 
         def arg_formated_rbs(positions):
@@ -221,7 +221,7 @@ class InterpolatingMap:
             map_data = map_data.reshape(*grid_shape)
 
         config = dict(bounds_error=False, fill_value=None)
-        kwargs = straxen.filter_kwargs(RegularGridInterpolator, kwargs)
+        #kwargs = straxen.filter_kwargs(RegularGridInterpolator, kwargs)
         config.update(kwargs)
         
         return RegularGridInterpolator(tuple(grid), map_data, **config)
@@ -232,7 +232,7 @@ class InterpolatingMap:
             map_data = map_data.reshape((-1, map_data.shape[-1]))
         else:
             map_data = map_data.flatten()
-        kwargs = straxen.filter_kwargs(InterpolateAndExtrapolate, kwargs)
+        #kwargs = straxen.filter_kwargs(InterpolateAndExtrapolate, kwargs)
         return InterpolateAndExtrapolate(csys, map_data, array_valued=array_valued, **kwargs)
 
     def scale_coordinates(self, scaling_factor, map_name='map'):
