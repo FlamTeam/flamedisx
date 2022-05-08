@@ -280,7 +280,7 @@ def load_config(config_files=None):
             if not k.startswith('_')})
 
     return config
-    
+
 
 # Taken from straxen to filter arguments for interpolators
 @export
