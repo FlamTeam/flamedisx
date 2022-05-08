@@ -16,7 +16,7 @@ setuptools.setup(
     name='flamedisx',
     version='2.0.0',
     description='Fast likelihood analysis in more dimensions for xenon TPCs',
-    author='Jelle Aalbers, Bart Pelssers, Cristian Antochi',
+    author='Flamedisx developers',
     url='https://github.com/FlamTeam/flamedisx',
     python_requires=">=3.6",
     include_package_data=True,

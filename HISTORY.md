@@ -1,10 +1,11 @@
-1.6.0 / 2022-05-08
+2.0.0 / 2022-05-08
 ------------------
+- FlameNEST models fully implemented (https://arxiv.org/abs/2204.13621)
 - NEST models for pre-quanta processes (#205)
 - Bayesian bounds estimation (#174)
 - NEST source fixes (#152)
 - Fix covariance used in `LogLikelihood.summary` (#176)
-- Avoid calculating produced_quanta = 0 case (#181)
+- Avoid calculating `produced_quanta = 0` probability (#181)
 - `electron_loss` model function (#193)
 - XENON sources:
   - Wall events model (#143)
