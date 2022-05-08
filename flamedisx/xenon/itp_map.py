@@ -22,7 +22,8 @@ class InterpolateAndExtrapolate:
     weighted averaging between nearby points.
     """
 
-    def __init__(self, points, values, neighbours_to_use=None, array_valued=False):
+    def __init__(self, points, values,
+                 neighbours_to_use=None, array_valued=False):
         """
         :param points: array (n_points, n_dims) of coordinates
         :param values: array (n_points) of values
@@ -76,7 +77,8 @@ class InterpolatingMap:
     with the straightforward generalization to 1d and 3d.
 
     Alternatively, a grid coordinate system can be specified as follows:
-        'coordinate_system' :   [['x', [x_min, x_max, n_x]], [['y', [y_min, y_max, n_y]]
+    'coordinate_system' : [['x', [x_min, x_max, n_x]],
+                          [['y', [y_min, y_max, n_y]]
 
     Alternatively, an N-vector-valued map can be specified by an array with
     last dimension N in 'map'.
@@ -88,14 +90,15 @@ class InterpolatingMap:
         'map': 42,
         etc
 
-    Default method return inverse-distance weighted average of nearby 2 * dim points
-    Extra support includes RectBivariateSpline, RegularGridInterpolator in scipy
-    by pass keyword argument like
-        method='RectBivariateSpline'
+    Default method return inverse-distance weighted average of nearby
+    2 * dim points. Extra support includes RectBivariateSpline,
+    RegularGridInterpolator in scipy by pass keyword argument like
+    method='RectBivariateSpline'
 
     The interpolators are called with
-        'positions' :  [[x1, y1], [x2, y2], [x3, y3], [x4, y4], ...]
-        'map_name'  :  key to switch to map interpolator other than the default 'map'
+    'positions' :  [[x1, y1], [x2, y2], [x3, y3], [x4, y4], ...]
+    'map_name'  :  key to switch to map interpolator other than
+                   the default 'map'
     """
     metadata_field_names = ['timestamp', 'description', 'coordinate_system',
                             'name', 'irregular', 'compressed', 'quantized']
@@ -119,8 +122,8 @@ class InterpolatingMap:
 
             compressor, dtype, shape = self.data['compressed']
             self.data['map'] = np.frombuffer(
-                strax.io.COMPRESSORS[compressor]['decompress'](self.data['map']),
-                dtype=dtype).reshape(*shape)
+              strax.io.COMPRESSORS[compressor]['decompress'](self.data['map']),
+              dtype=dtype).reshape(*shape)
             del self.data['compressed']
         if 'quantized' in self.data:
             self.data['map'] = self.data['quantized'] * self.data['map'].astype(np.float32)
@@ -223,7 +226,7 @@ class InterpolatingMap:
         config = dict(bounds_error=False, fill_value=None)
         kwargs = fd.filter_kwargs(RegularGridInterpolator, kwargs)
         config.update(kwargs)
-        
+
         return RegularGridInterpolator(tuple(grid), map_data, **config)
 
     @staticmethod
@@ -237,7 +240,8 @@ class InterpolatingMap:
 
     def scale_coordinates(self, scaling_factor, map_name='map'):
         """Scales the coordinate system by the specified factor
-        :params scaling_factor: array (n_dim) of scaling factors if different or single scalar.
+        :params scaling_factor: array (n_dim) of scaling factors
+        if different or single scalar.
         """
         if self.dimensions == 0:
             return
