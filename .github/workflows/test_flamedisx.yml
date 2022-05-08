@@ -25,4 +25,4 @@ jobs:
         pytest
     - name: Lint with flake8
       run: |
-        flake8 --per-file-ignores="__init__.py:F401,F403" --max-line-length=120 --exclude "x1t_sr1.py, tfp_files" --count flamedisx
+        flake8 --per-file-ignores="__init__.py:F401,F403" --max-line-length=120 --exclude "x1t_sr1.py, tfp_files, itp_map.py" --count flamedisx
