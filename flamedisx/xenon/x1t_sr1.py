@@ -205,7 +205,7 @@ class SR1Source:
     path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
 
     # Comsol map
-    variable_drift_field = True
+    variable_drift_field = False
     path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Field distortion map
