@@ -59,19 +59,20 @@ class LogLikelihood:
             bounds_specified=True,
             progress=True,
             defaults=None,
+            mu_estimator=None,
             **common_param_specs):
         """
 
-        :param sources: Dictionary {datasetname : {sourcename: class,, ...}, ...}
-        or just {sourcename: class} in case you have one dataset
-        Every source name must be unique.
+        :param sources: Dictionary {datasetname : {sourcename: class,, ...}, ...},
+            or just {sourcename: class} in case you have one dataset.
+            Every source name must be unique across all datasets.
 
         :param arguments: Dictionary {sourcename: {kwarg1: value, ...}, ...}, for
-        passing source arguments
+            passing keyword arguments to source constructors.
 
-        :param data: Dictionary {datasetname: pd.DataFrame}
-        or just pd.DataFrame if you have one dataset or None if you
-        set data later.
+        :param data: Dictionary {datasetname: pd.DataFrame},
+            or just pd.DataFrame if you have one dataset,
+            or None if you set data later.
 
         :param free_rates: names of sources whose rates are floating
 
@@ -99,7 +100,18 @@ class LogLikelihood:
         :param defaults: dictionary of default parameter values to use for
             all sources.
 
-        :param **common_param_specs:  param_name = (min, max, anchors), ...
+        :param mu_estimator: how to estimate the total expected events. Can be:
+            * a fd.MuInterpolation subclass: use that class to build estimators
+                for each of the sources;
+            * a fd.MuInterplation _instance_, or any f(params) -> mu, use this
+                function directly.
+            * a dict {source_name: mu_est}, where mu_est is one of the above two,
+                to use a different estimator for different sources.
+
+        :param **common_param_specs: dict {param_name: (min, max, mu_options), ...}
+            specifying the parameters of the fit. Here min and max are bounds
+            on the parameters, and mu_options are instructions to the mu estimator.
+            By default, mu_options controls the number of interpolation anchor points.
         """
         if arguments is None:
             arguments = dict()
@@ -109,7 +121,6 @@ class LogLikelihood:
                 else:
                     for key in value:
                         arguments[key] = dict()
-
         param_defaults = dict()
 
         if defaults is None:
@@ -118,13 +129,15 @@ class LogLikelihood:
             # Only one dataset
             data = {DEFAULT_DSETNAME: data}
         if not isinstance(list(sources.values())[0], dict):
+            # Sources only specified for one dataset
+            assert len(data) == 1, "Specify which sources belong to which dataset"
             sources: ty.Dict[str, ty.Dict[str, fd.Source.__class__]] = \
                 {DEFAULT_DSETNAME: sources}
         assert data.keys() == sources.keys(), "Inconsistent dataset names"
 
         self.dsetnames = list(data.keys())
 
-        # Flatten sources and fill data for source
+        # Flatten sources, make sources <-> dataset name mappings
         self.sources: ty.Dict[str, fd.Source.__class__] = dict()
         self.dset_for_source = dict()
         self.sources_in_dset = dict()
@@ -179,19 +192,42 @@ class LogLikelihood:
         self.param_names = list(param_defaults.keys())
 
         if bounds_specified:
+            # common_param_specs's values may have 2 entries or more,
+            # depending on whether mu estimator options have been specified
+            # or not.
             self.default_bounds = {
-                p_name: (start, stop)
-                for p_name, (start, stop, n) in common_param_specs.items()}
+                p_name: (spec[0], spec[1])
+                for p_name, spec in common_param_specs.items()}
         else:
             self.default_bounds = dict()
 
-        self.mu_itps = {
-            sname: s.mu_function(
-                n_trials=n_trials,
-                progress=progress,
-                # Source will filter out the params it needs
-                **common_param_specs)
-            for sname, s in self.sources.items()}
+        if mu_estimator is None:
+            mu_estimator = fd.CrossInterpolator
+        if not isinstance(mu_estimator, dict):
+            # Use the same mu estimator for all the sources
+            # TODO: if the estimator is already built, check there is
+            # only one source. Otherwise this makes no sense.
+            mu_estimator = {sname: mu_estimator for sname in self.sources}
+
+        # Collect functions(parameters) -> expected events for each source
+        # (itps is leftover from when interpolation was the only possibility)
+        self.mu_itps = {}
+        for sname, s in self.sources.items():
+            mu_est = mu_estimator[sname]
+            if issubclass(mu_est, fd.MuEstimator):
+                # Build a new mu estimator using the source and configuration
+                mu_est = mu_est(
+                    source=s,
+                    n_trials=n_trials,
+                    progress=progress,
+                    # Source will filter out the params it needs
+                    **common_param_specs)
+            else:
+                # Assume this is an already-built estimator -- perhaps loaded
+                # from a pickle -- or some other function we can call
+                assert callable(mu_est)
+            self.mu_itps[sname] = mu_est
+
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
 
