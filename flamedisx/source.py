@@ -714,60 +714,6 @@ class Source:
             for k, v in fix_truth.items():
                 data[k] = np.ones(n_events, dtype=np.float) * v
 
-    ##
-    # Mu estimation
-    ##
-
-    def mu_function(self,
-                    interpolation_method='star',
-                    n_trials=int(1e5),
-                    progress=True,
-                    **param_specs):
-        """Return interpolator for number of expected events
-        Parameters must be specified as kwarg=(start, stop, n_anchors)
-        """
-        if interpolation_method != 'star':
-            raise NotImplementedError(
-                f"mu interpolation method {interpolation_method} "
-                f"not implemented")
-
-        # Estimate mu under the current defaults
-        base_mu = tf.constant(self.estimate_mu(n_trials=n_trials),
-                              dtype=fd.float_type())
-
-        # Estimate mus under the specified variations
-        pspaces = dict()    # parameter -> tf.linspace of anchors
-        mus = dict()        # parameter -> tensor of mus
-        _iter = param_specs.items()
-        if progress:
-            _iter = tqdm(_iter, desc="Estimating mus")
-        for pname, (start, stop, n) in _iter:
-            if pname not in self.defaults:
-                # We don't take this parameter. Consistent with __init__,
-                # don't complain and just discard it silently.
-                continue
-            # Parameters are floats, but users might input ints as anchors
-            # accidentally, triggering a confusing tensorflow device placement
-            # message
-            start, stop = float(start), float(stop)
-            pspaces[pname] = tf.linspace(start, stop, n)
-            mus[pname] = tf.convert_to_tensor(
-                 [self.estimate_mu(**{pname: x}, n_trials=n_trials)
-                  for x in np.linspace(start, stop, n)],
-                 dtype=fd.float_type())
-
-        def mu_itp(**kwargs):
-            mu = base_mu
-            for pname, v in kwargs.items():
-                mu *= tfp.math.interp_regular_1d_grid(
-                    x=v,
-                    x_ref_min=param_specs[pname][0],
-                    x_ref_max=param_specs[pname][1],
-                    y_ref=mus[pname]) / base_mu
-            return mu
-
-        return mu_itp
-
     def estimate_mu(self, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param n_trials: Number of events to simulate for estimate
@@ -809,16 +755,16 @@ class Source:
 
     def _simulate_response(self) -> pd.DataFrame:
         """Return a dataframe with simulated observed events
-        from a simulation of the detector response.
+        from simulating the detector response, using self.data.
+        Note self.data is already set to something random_truth provides.
 
         You may include a p_accepted column with probabilities
         that an event survives cuts.
-        You may have to set this to 0, of course.
 
         Do not call or duplicate annotate_data: other functions
         will call this when needed.
         """
-        raise NotImplementedError
+        return self.data
 
 
 @export
