@@ -59,7 +59,7 @@ class LogLikelihood:
             bounds_specified=True,
             progress=True,
             defaults=None,
-            mu_estimator=None,
+            mu_estimators=None,
             **common_param_specs):
         """
 
@@ -100,7 +100,7 @@ class LogLikelihood:
         :param defaults: dictionary of default parameter values to use for
             all sources.
 
-        :param mu_estimator: how to estimate the total expected events. Can be:
+        :param mu_estimators: how to estimate the total expected events. Can be:
             * a fd.MuInterpolation subclass: use that class to build estimators
                 for each of the sources;
             * a fd.MuInterplation _instance_, or any f(params) -> mu, use this
@@ -201,19 +201,18 @@ class LogLikelihood:
         else:
             self.default_bounds = dict()
 
-        if mu_estimator is None:
-            mu_estimator = fd.CrossInterpolator
-        if not isinstance(mu_estimator, dict):
+        if mu_estimators is None:
+            mu_estimators = fd.CrossInterpolator
+        if not isinstance(mu_estimators, dict):
             # Use the same mu estimator for all the sources
             # TODO: if the estimator is already built, check there is
             # only one source. Otherwise this makes no sense.
-            mu_estimator = {sname: mu_estimator for sname in self.sources}
+            mu_estimators = {sname: mu_estimators for sname in self.sources}
 
         # Collect functions(parameters) -> expected events for each source
-        # (itps is leftover from when interpolation was the only possibility)
-        self.mu_itps = {}
+        self.mu_estimators = {}
         for sname, s in self.sources.items():
-            mu_est = mu_estimator[sname]
+            mu_est = mu_estimators[sname]
             if issubclass(mu_est, fd.MuEstimator):
                 # Build a new mu estimator using the source and configuration
                 mu_est = mu_est(
@@ -226,7 +225,7 @@ class LogLikelihood:
                 # Assume this is an already-built estimator -- perhaps loaded
                 # from a pickle -- or some other function we can call
                 assert callable(mu_est)
-            self.mu_itps[sname] = mu_est
+            self.mu_estimators[sname] = mu_est
 
         # Not used, but useful for mu smoothness diagnosis
         self.param_specs = common_param_specs
@@ -447,14 +446,15 @@ class LogLikelihood:
         if dataset_name is None and source_name is None:
             raise ValueError("Provide either source or dataset name")
         mu = tf.constant(0., dtype=fd.float_type())
-        for sname, s in self.sources.items():
+        for sname in self.sources:
             if (dataset_name is not None
                     and self.dset_for_source[sname] != dataset_name):
                 continue
             if source_name is not None and sname != source_name:
                 continue
+            filtered_params = self._filter_source_kwargs(kwargs, sname)
             mu += (self._get_rate_mult(sname, kwargs)
-                   * self.mu_itps[sname](**self._filter_source_kwargs(kwargs, sname)))
+                   * self.mu_estimators[sname](**filtered_params))
         return mu
 
     @tf.function
