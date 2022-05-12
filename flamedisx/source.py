@@ -7,7 +7,6 @@ import warnings
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import tensorflow_probability as tfp
 from scipy import stats
 
 from tqdm import tqdm

@@ -86,8 +86,8 @@ def test_multisource(xes: fd.ERSource):
         data=xes.data)
 
     # Prevent jitter from mu interpolator simulation to fail test
-    itp = lf.mu_itps['er']
-    lf2.mu_itps = dict(er=itp, er2=itp)
+    itp = lf.mu_estimators['er']
+    lf2.mu_estimators = dict(er=itp, er2=itp)
 
     np.testing.assert_allclose(lf2.log_likelihood()[0],
                                l1[0],
@@ -189,8 +189,8 @@ def test_multi_dset(xes: fd.ERSource):
                   data2=xes.data.copy()))
 
     # Fix interpolator nondeterminism
-    itp = lf.mu_itps['er']
-    lf2.mu_itps = dict(er1=itp, er2=itp)
+    itp = lf.mu_estimators['er']
+    lf2.mu_estimators = dict(er1=itp, er2=itp)
 
     ll2 = lf2()
 
@@ -281,8 +281,8 @@ def test_constraint(xes: fd.ERSource):
         data=xes.data.copy())
 
     # Fix interpolator nondeterminism
-    itp = lf.mu_itps['er']
-    lf2.mu_itps = dict(er=itp)
+    itp = lf.mu_estimators['er']
+    lf2.mu_estimators = dict(er=itp)
 
     ll2 = lf2()
 

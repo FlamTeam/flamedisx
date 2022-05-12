@@ -39,7 +39,13 @@ class MuEstimator:
             # placement messages if users mix up ints and floats
             self.bounds[pname] = float(spec[0]), float(spec[1])
             if len(spec) == 3:
-                self.options[pname] = spec[2]
+                if isinstance(spec[2], dict):
+                    opts = spec[2]
+                else:
+                    # Backwards compatibility: the third element used to be
+                    # number of anchors
+                    opts = dict(n_anchors=spec[2])
+                self.options[pname] = opts
 
         # Remove parameters the source does not take
         # Consistent with Source.__init__, don't complain / discard silently.
@@ -71,7 +77,7 @@ class CrossInterpolator(MuEstimator):
         if self.progress:
             _iter = tqdm(_iter, desc="Estimating mus")
         for pname, (start, stop) in _iter:
-            n_anchors = int(self.options.get(pname, 2))
+            n_anchors = int(self.options.get(pname, {}).get('n_anchors', 2))
             self.mus[pname] = tf.convert_to_tensor(
                  [source.estimate_mu(**{pname: x}, n_trials=self.n_trials)
                   for x in np.linspace(start, stop, n_anchors)],
