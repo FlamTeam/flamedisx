@@ -484,10 +484,10 @@ class BlockModelSource(fd.Source):
     def _simulate_response(self):
         # All blocks after the first help to simulate the response
         d = self.data
-        d['p_accepted'] = 1.
+        d['p_accepted'] = 1.   # Cut on p_accepted is made in Source.simulate
         for b in self.model_blocks[1:]:
             b.simulate(d)
-        return d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
+        return d
 
     def get_priors(self, data):
         """Obtain priors on certain hidden variable dimensions, to obtain more

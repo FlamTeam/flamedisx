@@ -687,6 +687,9 @@ class Source:
                                    keep_padding=keep_padding, **params):
             # Do the forward simulation of the detector response
             d = self._simulate_response()
+            if 'p_accepted' in d.columns:
+                # Draw which events are accepted
+                d = d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
             if full_annotate:
                 # Now that we have s1 and s2 values, we can populate
                 # columns like e_vis, photon_produced_mle, etc.
@@ -804,9 +807,18 @@ class Source:
         """Draw random "deep truth" variables (energy, position) """
         raise NotImplementedError
 
-    def _simulate_response(self):
-        """Do a forward simulation of the detector response, using self.data"""
-        return self.data
+    def _simulate_response(self) -> pd.DataFrame:
+        """Return a dataframe with simulated observed events
+        from a simulation of the detector response.
+
+        You may include a p_accepted column with probabilities
+        that an event survives cuts.
+        You may have to set this to 0, of course.
+
+        Do not call or duplicate annotate_data: other functions
+        will call this when needed.
+        """
+        raise NotImplementedError
 
 
 @export
