@@ -300,6 +300,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     model_attributes = ('pretend_wimps_dont_modulate',
                         'mw',
                         'sigma_nucleon',
+                        'exposure_tonneyear',
                         'n_time_bins',
                         'energy_edges') + VariableEnergySpectrum.model_attributes
 
@@ -315,6 +316,9 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
     #: Number of time bins to use for annual modulation computation
     n_time_bins = 24
+
+    #: Exposure in tonne year
+    exposure_tonneyear = 1.
 
     #: Bin *edges* to use for energy histogram. Centers of the bins correspond
     #: to allowed energies.
@@ -351,7 +355,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
         self.energy_hist = Histdd.from_histogram(
             spectra,
-            bin_edges=(times, self.energy_edges))
+            bin_edges=(times, self.energy_edges)) * exposure_tonneyear
 
         if self.pretend_wimps_dont_modulate:
             self.energy_hist.histogram = (
