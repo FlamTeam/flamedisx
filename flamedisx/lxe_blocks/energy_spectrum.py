@@ -357,7 +357,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
         self.energy_hist = Histdd.from_histogram(
             spectra,
-            bin_edges=(times, self.energy_edges)) * exposure_tonneyear
+            bin_edges=(times, self.energy_edges)) * self.exposure_tonneyear
 
         if self.pretend_wimps_dont_modulate:
             self.energy_hist.histogram = (
