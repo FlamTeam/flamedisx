@@ -330,6 +330,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     def setup(self):
         wimp_kwargs = dict(mw=self.mw,
                            sigma_nucleon=self.sigma_nucleon,
+                           exposure_tonneyear=self.exposure_tonneyear,
                            energy_edges=self.energy_edges)
 
         # BlockModelSource is kind enough to let us change these attributes
@@ -345,7 +346,8 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
         # Transform wimp_kwargs to arguments that can be passed to wimprates
         # which means transforming es from edges to centers
-        del wimp_kwargs['energy_edges']
+        del wimp_kwargs['energy_edges'], wimp_kwargs['exposure_tonneyear']
+
         spectra = np.array([wr.rate_wimp_std(t=t,
                                              es=e_centers,
                                              **wimp_kwargs)
