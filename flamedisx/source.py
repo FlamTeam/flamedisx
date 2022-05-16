@@ -370,7 +370,9 @@ class Source:
                 # Repeat first event n_padding times and concat to rest of data
                 df_pad = self.data.iloc[np.zeros(self.n_padding)]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
-
+            elif self.n_padding == 0:
+                self.data = self.data.reset_index(drop=True)
+            
         if not data_is_annotated:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
