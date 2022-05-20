@@ -1,4 +1,4 @@
-2.0.0 / 2022-05-08
+2.0.0 / 2022-05-20
 ------------------
 - FlameNEST models fully implemented (https://arxiv.org/abs/2204.13621)
 - NEST models for pre-quanta processes (#205)
@@ -7,10 +7,13 @@
 - Fix covariance used in `LogLikelihood.summary` (#176)
 - Avoid calculating `produced_quanta = 0` probability (#181)
 - `electron_loss` model function (#193)
+- Add exposure parameter to WIMPEnergySpectrum (#223)
+- Always reset data index (#225)
 - XENON sources:
   - Wall events model (#143)
   - `double_pe_fraction` model function (#208)
   - Updates to config defaults (#209)
+  - Spatially dependent drift field map (#221)
   - Configurable drift field, S2 AFT (#213, #218)
 
 1.5.0 / 2021-06-29
