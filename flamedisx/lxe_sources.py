@@ -109,6 +109,7 @@ class S2OnlyERSource(fd.BlockModelSource):
         fd.FixedShapeEnergySpectrum,
         fd.MakeERQuanta,
         fd.MakePhotonsElectronsBetaBinomial,
+        fd.DumpPhotons,
         fd.DetectElectrons,
         fd.MakeS2)
 
@@ -128,6 +129,6 @@ class S2OnlyERSource(fd.BlockModelSource):
             + er_pel_c)
         return fd.safe_p(qy * 13.7e-3)
 
-    final_dimensions = ('s2')
+    final_dimensions = ('photons_detected', 's2')
     no_step_dimensions = ()
 

@@ -10,6 +10,7 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
+import pdb as pdb
 class DetectPhotonsOrElectrons(fd.Block):
     """Common code for DetectPhotons and DetectElectrons"""
 
@@ -160,4 +161,96 @@ class DetectElectrons(DetectPhotonsOrElectrons):
                  electrons_produced, electrons_detected):
         return super()._compute(quanta_produced=electrons_produced,
                                 quanta_detected=electrons_detected,
+                                data_tensor=data_tensor, ptensor=ptensor)
+
+
+#######################################################################################
+class Testtest(fd.Block):
+    """Common code for DetectPhotons and DetectElectrons"""
+
+    model_attributes = ('check_efficiencies',)
+
+    # Whether to check if all events have a positive detection efficiency.
+    # As with check_acceptances in MakeFinalSignals, you may have to
+    # turn this off, depending on your application.
+    check_efficiencies = True
+
+    quanta_name: str
+
+    # Prevent pycharm warnings:
+    source: fd.Source
+    gimme: ty.Callable
+    gimme_numpy: ty.Callable
+
+    def _compute(self, data_tensor, ptensor,
+                 quanta_produced, quanta_detected):
+        p = self.gimme(self.quanta_name + '_detection_eff',
+                       data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+
+        result = tfp.distributions.Binomial(
+                total_count=quanta_produced,
+                probs=tf.cast(p, dtype=fd.float_type())
+            ).prob(quanta_detected)
+
+
+
+        return tf.ones_like(result)
+
+    def _simulate(self, d):
+        d[self.quanta_name + 's_detected'] = 0
+       
+    def _annotate(self, d):
+        # Get efficiency
+        # need to think properly about this
+        eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
+        
+        # Check for bad efficiencies
+        if self.check_efficiencies and np.any(eff <= 0):
+            raise ValueError(f"Found event with nonpositive {self.quanta_name} "
+                             "detection efficiency: did you apply and "
+                             "configure your cuts correctly?")
+
+        # Estimate produced quanta
+        # Totally hacking this. Almost like saturated model?
+        # Saying that the MLE for photons produced is the number of photons
+        # produced in this particular instance 
+        n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
+            d[self.quanta_name + 's_produced']
+
+        # Estimating the spread in number of produced quanta is tricky since
+        # the number of detected quanta is itself uncertain.
+        # TODO: where did this derivation come from again?
+        q = (1 - eff) / eff
+        _std = (q + (q ** 2 + 4 * n_prod_mle * q) ** 0.5) / 2
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            d[self.quanta_name + 's_produced_' + bound] = intify(
+                n_prod_mle + sign * self.source.max_sigma * _std
+            ).clip(0, None).astype(np.int)
+
+@export
+class DumpPhotons(Testtest):
+    dimensions = ('photons_produced', 'photons_detected')
+
+    special_model_functions = ('photon_acceptance', 'penning_quenching_eff')
+    model_functions = ('photon_detection_eff',) + special_model_functions
+
+    max_dim_size = {'photons_produced': 100}
+
+    photon_detection_eff = 0.1
+    quanta_name = 'photon'
+
+    def photon_acceptance(self, photons_detected):
+        # does not matter how many photons were detectd
+        return tf.ones_like(photons_detected)
+
+    @staticmethod
+    def penning_quenching_eff(nph):
+        return 1. + 0. * nph
+
+    def _compute(self, data_tensor, ptensor,
+                 photons_produced, photons_detected):
+        return super()._compute(quanta_produced=photons_produced,
+                                quanta_detected=photons_detected,
                                 data_tensor=data_tensor, ptensor=ptensor)
