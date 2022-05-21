@@ -10,7 +10,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-import pdb as pdb
 class DetectPhotonsOrElectrons(fd.Block):
     """Common code for DetectPhotons and DetectElectrons"""
 
@@ -191,8 +190,6 @@ class Testtest(fd.Block):
                 total_count=quanta_produced,
                 probs=tf.cast(p, dtype=fd.float_type())
             ).prob(quanta_detected)
-
-
 
         return tf.ones_like(result)
 
