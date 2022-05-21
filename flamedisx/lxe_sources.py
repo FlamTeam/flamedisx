@@ -101,3 +101,33 @@ class SpatialRateNRSource(NRSource):
 @export
 class WIMPSource(NRSource):
     model_blocks = (fd.WIMPEnergySpectrum,) + NRSource.model_blocks[1:]
+
+
+@export
+class ERS2OnlySource(fd.BlockModelSource):
+    model_blocks = (
+        fd.FixedShapeEnergySpectrum,
+        fd.MakeERQuanta,
+        fd.MakePhotonsElectronsBetaBinomial,
+        fd.DetectElectrons,
+        fd.MakeS2)
+
+    @staticmethod
+    def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
+                   er_pel_e0=5.):
+        """Fraction of ER quanta that become electrons
+        Simplified form from Jelle's thesis
+        """
+        # The original model depended on energy, but in flamedisx
+        # it has to be a direct function of nq.
+        e_kev_sortof = nq * 13.7e-3
+        eps = fd.tf_log10(e_kev_sortof / er_pel_e0 + 1e-9)
+        qy = (
+            er_pel_a * eps ** 2
+            + er_pel_b * eps
+            + er_pel_c)
+        return fd.safe_p(qy * 13.7e-3)
+
+    final_dimensions = ('s2')
+    no_step_dimensions = ()
+
