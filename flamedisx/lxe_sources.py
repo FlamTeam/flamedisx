@@ -104,7 +104,7 @@ class WIMPSource(NRSource):
 
 
 @export
-class ERS2OnlySource(fd.BlockModelSource):
+class S2OnlyERSource(fd.BlockModelSource):
     model_blocks = (
         fd.FixedShapeEnergySpectrum,
         fd.MakeERQuanta,

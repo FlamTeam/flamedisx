@@ -562,3 +562,44 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
 @export
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
     pass
+
+
+# S2 only source
+@export
+class SR1S2OnlyERSource(SR1Source, fd.S2OnlyERSource):
+
+    @staticmethod
+    def p_electron(nq, drift_field, *, W=13.7e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+                   gamma_er=0.031 , omega_er=31., delta_er=0.24):
+        # gamma_er from paper 0.124/4
+        #F = tf.constant(self.default_drift_field, dtype=fd.float_type())
+
+        if tf.is_tensor(nq):
+            # in _compute, n_events = batch_size
+            # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+            # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+
+            drift_field = drift_field[:, None]
+
+        e_kev = nq * W
+        fi = 1. / (1. + mean_nexni)
+        ni, nex = nq * fi, nq * (1. - fi)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-delta_er)
+
+        # delta_er and gamma_er are highly correlated
+        # F **(-delta_er) set to constant
+        r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
+        r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
+        p_el = ni * (1. - r_er) / nq
+        return fd.safe_p(p_el)
+
+    @staticmethod
+    def p_electron_fluctuation(nq, q2=0.034, q3_nq=124.):
+        # From SR0, BBF model, right?
+        # q3 = 1.7 keV ~= 123 quanta
+        # For SR1:
+        return tf.clip_by_value(
+            q2 * (tf.constant(1., dtype=fd.float_type()) - tf.exp(-nq / q3_nq)),
+            tf.constant(1e-4, dtype=fd.float_type()),
+            float('inf'))
+
