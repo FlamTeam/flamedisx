@@ -202,7 +202,7 @@ class LogLikelihood:
             self.default_bounds = dict()
 
         if mu_estimators is None:
-            mu_estimators = fd.CrossInterpolator
+            mu_estimators = fd.CrossInterpolatedMu
         if not isinstance(mu_estimators, dict):
             # Use the same mu estimator for all the sources
             # TODO: if the estimator is already built, check there is
