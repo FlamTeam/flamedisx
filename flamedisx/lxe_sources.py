@@ -131,4 +131,3 @@ class S2OnlyERSource(fd.BlockModelSource):
 
     final_dimensions = ('photons_detected', 's2')
     no_step_dimensions = ()
-
