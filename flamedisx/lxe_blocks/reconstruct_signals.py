@@ -101,9 +101,10 @@ class ReconstructS1(ReconstructSignals):
     signal_name = 's1'
 
     dimensions = ('s1_raw', 's1')
-    special_model_functions = ('reconstruction_bias_s1',)
+    special_model_functions = ()
     model_functions = (
-        's1_acceptance') + special_model_functions
+        's1_acceptance',
+        'reconstruction_bias_s1',) + special_model_functions
 
     max_dim_size = {'s1_raw': 120}
 
@@ -112,8 +113,7 @@ class ReconstructS1(ReconstructSignals):
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
-    @staticmethod
-    def reconstruction_bias_s1(sig):
+    def reconstruction_bias_s1(self, sig):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
@@ -135,9 +135,10 @@ class ReconstructS2(ReconstructSignals):
     signal_name = 's2'
 
     dimensions = ('s2_raw', 's2')
-    special_model_functions = ('reconstruction_bias_s2',)
+    special_model_functions = ()
     model_functions = (
-        ('s2_acceptance')
+        ('s2_acceptance',
+        'reconstruction_bias_s2',)
         + special_model_functions)
 
     max_dim_size = {'s2_raw': 120}
@@ -147,8 +148,7 @@ class ReconstructS2(ReconstructSignals):
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
-    @staticmethod
-    def reconstruction_bias_s2(sig):
+    def reconstruction_bias_s2(self, sig):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
