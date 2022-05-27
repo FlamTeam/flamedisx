@@ -28,15 +28,14 @@ class ReconstructSignals(fd.Block):
     gimme: ty.Callable
     gimme_numpy: ty.Callable
 
-    quanta_name: str
+    raw_signal_name: str
     signal_name: str
 
     def _simulate(self, d):
         d[self.signal_name] = stats.norm.rvs(
-            loc=(d[self.quanta_name + 's_detected']
-                 * self.gimme_numpy(self.quanta_name + '_gain_mean')),
-            scale=(d[self.quanta_name + 's_detected']**0.5
-                   * self.gimme_numpy(self.quanta_name + '_gain_std')))
+            loc=(d[self.raw_signal_name] * self.gimme_numpy(self.raw_signal_name + '_gain_mean')),
+            scale=(d[self.raw_signal_name + 's_detected']**0.5
+                   * self.gimme_numpy(self.raw_signal_name + '_gain_std')))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -45,10 +44,10 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy(self.quanta_name + '_gain_mean')
-        s = self.gimme_numpy(self.quanta_name + '_gain_std')
+        m = self.gimme_numpy(self.raw_signal_name + '_gain_mean')
+        s = self.gimme_numpy(self.raw_signal_name + '_gain_std')
 
-        mle = d[self.quanta_name + 's_detected_mle'] = \
+        mle = d[self.raw_signal_name + 's_detected_mle'] = \
             (d[self.signal_name] / m).clip(0, None)
         scale = mle**0.5 * s / m
 
@@ -57,7 +56,7 @@ class ReconstructSignals(fd.Block):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d[self.quanta_name + 's_detected_' + bound] = intify(
+            d[self.raw_signal_name + 's_detected_' + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(np.int)
 
@@ -65,10 +64,10 @@ class ReconstructSignals(fd.Block):
                  quanta_detected, s_observed,
                  data_tensor, ptensor):
         # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
+        mean_per_q = self.gimme(self.raw_signal_name + '_gain_mean',
                                 data_tensor=data_tensor,
                                 ptensor=ptensor)[:, o, o]
-        std_per_q = self.gimme(self.quanta_name + '_gain_std',
+        std_per_q = self.gimme(self.raw_signal_name + '_gain_std',
                                data_tensor=data_tensor,
                                ptensor=ptensor)[:, o, o]
 
@@ -81,7 +80,7 @@ class ReconstructSignals(fd.Block):
         ).prob(s_observed)
 
         # Add detection/selection efficiency
-        result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
+        result *= self.gimme(SIGNAL_NAMES[self.signal_name] + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
         return result
 
@@ -98,20 +97,15 @@ class ReconstructSignals(fd.Block):
 @export
 class ReconstructS1(ReconstructSignals):
 
-    quanta_name = 'photoelectron'
+    raw_signal_name = 's1_raw'
     signal_name = 's1'
 
     dimensions = ('s1_raw', 's1')
     special_model_functions = ('reconstruction_bias_s1',)
     model_functions = (
-        'photoelectron_gain_mean',
-        'photoelectron_gain_std',
         's1_acceptance') + special_model_functions
 
     max_dim_size = {'s1_raw': 120}
-
-    photoelectron_gain_mean = 1.
-    photoelectron_gain_std = 0.5
 
     def s1_acceptance(self, s1, s1_min=2, s1_max=70):
         return tf.where((s1 < s1_min) | (s1 > s1_max),
@@ -137,24 +131,16 @@ class ReconstructS1(ReconstructSignals):
 @export
 class ReconstructS2(ReconstructSignals):
 
-    quanta_name = 'electron'
+    raw_signal_name = 's2_raw'
     signal_name = 's2'
 
     dimensions = ('s2_raw', 's2')
     special_model_functions = ('reconstruction_bias_s2',)
     model_functions = (
-        ('electron_gain_mean',
-         'electron_gain_std',
-         's2_acceptance')
+        ('s2_acceptance')
         + special_model_functions)
 
     max_dim_size = {'s2_raw': 120}
-
-    @staticmethod
-    def electron_gain_mean(z, *, g2=20):
-        return g2 * tf.ones_like(z)
-
-    electron_gain_std = 5.
 
     def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
         return tf.where((s2 < s2_min) | (s2 > s2_max),
