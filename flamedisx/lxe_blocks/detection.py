@@ -195,12 +195,12 @@ class Testtest(fd.Block):
 
     def _simulate(self, d):
         d[self.quanta_name + 's_detected'] = 0
-       
+
     def _annotate(self, d):
         # Get efficiency
         # need to think properly about this
         eff = self.gimme_numpy(self.quanta_name + '_detection_eff')
-        
+
         # Check for bad efficiencies
         if self.check_efficiencies and np.any(eff <= 0):
             raise ValueError(f"Found event with nonpositive {self.quanta_name} "
@@ -210,7 +210,7 @@ class Testtest(fd.Block):
         # Estimate produced quanta
         # Totally hacking this. Almost like saturated model?
         # Saying that the MLE for photons produced is the number of photons
-        # produced in this particular instance 
+        # produced in this particular instance
         n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
             d[self.quanta_name + 's_produced']
 
@@ -225,6 +225,7 @@ class Testtest(fd.Block):
             d[self.quanta_name + 's_produced_' + bound] = intify(
                 n_prod_mle + sign * self.source.max_sigma * _std
             ).clip(0, None).astype(np.int)
+
 
 @export
 class DumpPhotons(Testtest):
