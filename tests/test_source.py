@@ -35,10 +35,10 @@ n_events = 2
 
 def dummy_data():
     return pd.DataFrame(
-        [dict(s1_raw=56., s2_raw=2905., drift_time=143465.,
+        [dict(s1=56., s2=2905., drift_time=143465.,
               x=2., y=0.4, z=-20, r=2.1, theta=0.1,
               event_time=1579784955000000000),
-         dict(s1_raw=23, s2_raw=1080., drift_time=445622.,
+         dict(s1=23, s2=1080., drift_time=445622.,
               x=1.12, y=0.35, z=-59., r=1., theta=0.3,
               event_time=1579784956000000000)])
 
@@ -83,8 +83,8 @@ def test_fetch(xes):
     assert data_tensor is not None
     print(data_tensor.shape)
     np.testing.assert_almost_equal(
-        xes._fetch('s1_raw', data_tensor),
-        xes.data['s1_raw'].values)
+        xes._fetch('s1', data_tensor),
+        xes.data['s1'].values)
 
 
 def test_gimme(xes: fd.ERSource):
@@ -311,13 +311,13 @@ def test_set_data(xes: fd.ERSource):
     data1 = xes.data
     data2 = pd.concat([data1.copy(),
                        data1.iloc[:1].copy()])
-    data2['s1_raw'] *= 0.9
+    data2['s1'] *= 0.9
     data3 = pd.concat([data2, data2.iloc[:1]])
 
     # Setting temporarily
     with xes._set_temporarily(data2):
-        np.testing.assert_array_equal(xes.data['s1_raw'], data2['s1_raw'])
-    np.testing.assert_array_equal(xes.data['s1_raw'], data1['s1_raw'])
+        np.testing.assert_array_equal(xes.data['s1'], data2['s1'])
+    np.testing.assert_array_equal(xes.data['s1'], data1['s1'])
 
     # Setting defaults temporarily (see PR #110)
     with xes._set_temporarily(data2, elife=100e3):
@@ -328,12 +328,12 @@ def test_set_data(xes: fd.ERSource):
     xes.set_data(data2)
     assert xes.data is not data1
     np.testing.assert_array_equal(
-        xes.data['s1_raw'].values,
-        data3['s1_raw'].values)
+        xes.data['s1'].values,
+        data3['s1'].values)
 
     np.testing.assert_almost_equal(
-        xes._fetch('s1_raw', data_tensor=xes.data_tensor[0]).numpy(),
-        data2['s1_raw'].values[:2].astype('float32'))
+        xes._fetch('s1', data_tensor=xes.data_tensor[0]).numpy(),
+        data2['s1'].values[:2].astype('float32'))
 
     # Test batching stuff has been updated
     assert xes.n_batches == 2
