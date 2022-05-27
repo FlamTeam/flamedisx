@@ -124,14 +124,14 @@ class MakeS1(MakeFinalSignals):
     model_functions = (
         'photoelectron_gain_mean',
         'photoelectron_gain_std',
-        's1_acceptance') + special_model_functions
+        's1_raw_acceptance') + special_model_functions
 
     max_dim_size = {'photoelectrons_detected': 120}
 
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
 
-    def s1_acceptance(self, s1_raw, s1_min=2, s1_max=70):
+    def s1_raw_acceptance(self, s1_raw, s1_min=2, s1_max=70):
         return tf.where((s1_raw < s1_min) | (s1_raw > s1_max),
                         tf.zeros_like(s1_raw, dtype=fd.float_type()),
                         tf.ones_like(s1_raw, dtype=fd.float_type()))
@@ -163,7 +163,7 @@ class MakeS2(MakeFinalSignals):
     model_functions = (
         ('electron_gain_mean',
          'electron_gain_std',
-         's2_acceptance')
+         's2_raw_acceptance')
         + special_model_functions)
 
     max_dim_size = {'electrons_detected': 120}
@@ -174,7 +174,7 @@ class MakeS2(MakeFinalSignals):
 
     electron_gain_std = 5.
 
-    def s2_acceptance(self, s2_raw, s2_min=2, s2_max=6000):
+    def s2_raw_acceptance(self, s2_raw, s2_min=2, s2_max=6000):
         return tf.where((s2_raw < s2_min) | (s2_raw > s2_max),
                         tf.zeros_like(s2_raw, dtype=fd.float_type()),
                         tf.ones_like(s2_raw, dtype=fd.float_type()))
