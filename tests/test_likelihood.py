@@ -13,10 +13,10 @@ n_events = 2
 @pytest.fixture(params=["ER", "NR"])
 def xes(request):
     # warnings.filterwarnings("error")
-    data = pd.DataFrame([dict(s1_raw=56., s2_raw=2905., drift_time=143465.,
+    data = pd.DataFrame([dict(s1=56., s2=2905., drift_time=143465.,
                               x=2., y=0.4, z=-20, r=2.1, theta=0.1,
                               event_time=15e17),
-                         dict(s1_raw=23, s2_raw=1080., drift_time=445622.,
+                         dict(s1=23, s2=1080., drift_time=445622.,
                               x=1.12, y=0.35, z=-59., r=1., theta=0.3,
                               event_time=15e17)])
     if request.param == 'ER':
@@ -167,7 +167,7 @@ def test_retrace_set_data(xes: fd.ERSource):
     ll1 = lf()
 
     new_data = xes.data.copy()
-    new_data['s2_raw'] *= 2
+    new_data['s2'] *= 2
     lf.set_data(new_data)
 
     ll2 = lf()
@@ -223,7 +223,7 @@ def test_simulate_column(xes):
 def test_set_data(xes: fd.ERSource):
     data1 = xes.data
     data2 = pd.concat([data1.copy(), data1.iloc[:1].copy()])
-    data2['s1_raw'] *= 0.7
+    data2['s1'] *= 0.7
 
     data3 = pd.concat([data2, data2.iloc[:1]])
 
@@ -244,29 +244,29 @@ def test_set_data(xes: fd.ERSource):
 
     # Test S1 columns are the same (DFs are annotated)
     # Here we don't have any padding since batch_size is n_events
-    pd.testing.assert_series_equal(internal_data('er1', 's1_raw'), data1['s1_raw'])
-    pd.testing.assert_series_equal(internal_data('er2', 's1_raw'), data2['s1_raw'])
+    pd.testing.assert_series_equal(internal_data('er1', 's1'), data1['s1'])
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data2['s1'])
 
     # Set new data for only one dataset
     lf.set_data(dict(data1=data2))
 
     # Test S1 columns are the same (DFs are annotated)
     # Here we might have padding
-    pd.testing.assert_series_equal(internal_data('er1', 's1_raw'), data2['s1_raw'])
-    pd.testing.assert_series_equal(internal_data('er2', 's1_raw'), data2['s1_raw'])
+    pd.testing.assert_series_equal(internal_data('er1', 's1'), data2['s1'])
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data2['s1'])
 
     # Set new data for both datasets
     lf.set_data(dict(data1=data1,
                      data2=data3))
 
     # Test S1 columns are the same (DFs are annotated)
-    pd.testing.assert_series_equal(internal_data('er1', 's1_raw'), data1['s1_raw'])
-    pd.testing.assert_series_equal(internal_data('er2', 's1_raw'), data3['s1_raw'])
+    pd.testing.assert_series_equal(internal_data('er1', 's1'), data1['s1'])
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data3['s1'])
 
     # Test padding for smaller dsets
     lf.set_data(dict(data2=data1))
 
-    pd.testing.assert_series_equal(internal_data('er2', 's1_raw'), data1['s1_raw'])
+    pd.testing.assert_series_equal(internal_data('er2', 's1'), data1['s1'])
 
 
 def test_constraint(xes: fd.ERSource):
