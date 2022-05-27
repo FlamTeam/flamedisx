@@ -10,7 +10,7 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
+SIGNAL_NAMES = dict(photoelectron='s1_raw', electron='s2_raw')
 
 
 class MakeFinalSignals(fd.Block):
@@ -117,9 +117,9 @@ class MakeFinalSignals(fd.Block):
 class MakeS1(MakeFinalSignals):
 
     quanta_name = 'photoelectron'
-    signal_name = 's1'
+    signal_name = 's1_raw'
 
-    dimensions = ('photoelectrons_detected', 's1')
+    dimensions = ('photoelectrons_detected', 's1_raw')
     special_model_functions = ('reconstruction_bias_s1',)
     model_functions = (
         'photoelectron_gain_mean',
@@ -131,10 +131,10 @@ class MakeS1(MakeFinalSignals):
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
 
-    def s1_acceptance(self, s1, s1_min=2, s1_max=70):
-        return tf.where((s1 < s1_min) | (s1 > s1_max),
-                        tf.zeros_like(s1, dtype=fd.float_type()),
-                        tf.ones_like(s1, dtype=fd.float_type()))
+    def s1_acceptance(self, s1_raw, s1_min=2, s1_max=70):
+        return tf.where((s1_raw < s1_min) | (s1_raw > s1_max),
+                        tf.zeros_like(s1_raw, dtype=fd.float_type()),
+                        tf.ones_like(s1_raw, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_s1(sig):
@@ -145,10 +145,10 @@ class MakeS1(MakeFinalSignals):
         return reconstruction_bias
 
     def _compute(self, data_tensor, ptensor,
-                 photoelectrons_detected, s1):
+                 photoelectrons_detected, s1_raw):
         return super()._compute(
             quanta_detected=photoelectrons_detected,
-            s_observed=s1,
+            s_observed=s1_raw,
             data_tensor=data_tensor, ptensor=ptensor)
 
 
@@ -156,9 +156,9 @@ class MakeS1(MakeFinalSignals):
 class MakeS2(MakeFinalSignals):
 
     quanta_name = 'electron'
-    signal_name = 's2'
+    signal_name = 's2_raw'
 
-    dimensions = ('electrons_detected', 's2')
+    dimensions = ('electrons_detected', 's2_raw')
     special_model_functions = ('reconstruction_bias_s2',)
     model_functions = (
         ('electron_gain_mean',
@@ -174,10 +174,10 @@ class MakeS2(MakeFinalSignals):
 
     electron_gain_std = 5.
 
-    def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
-        return tf.where((s2 < s2_min) | (s2 > s2_max),
-                        tf.zeros_like(s2, dtype=fd.float_type()),
-                        tf.ones_like(s2, dtype=fd.float_type()))
+    def s2_acceptance(self, s2_raw, s2_min=2, s2_max=6000):
+        return tf.where((s2_raw < s2_min) | (s2_raw > s2_max),
+                        tf.zeros_like(s2_raw, dtype=fd.float_type()),
+                        tf.ones_like(s2_raw, dtype=fd.float_type()))
 
     @staticmethod
     def reconstruction_bias_s2(sig):
@@ -188,8 +188,8 @@ class MakeS2(MakeFinalSignals):
         return reconstruction_bias
 
     def _compute(self, data_tensor, ptensor,
-                 electrons_detected, s2):
+                 electrons_detected, s2_raw):
         return super()._compute(
             quanta_detected=electrons_detected,
-            s_observed=s2,
+            s_observed=s2_raw,
             data_tensor=data_tensor, ptensor=ptensor)
