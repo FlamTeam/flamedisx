@@ -63,21 +63,18 @@ class ReconstructSignals(fd.Block):
     def _compute(self,
                  quanta_detected, s_observed,
                  data_tensor, ptensor):
-        # Lookup signal gain mean and std per detected quanta
-        mean_per_q = self.gimme(self.raw_signal_name + '_gain_mean',
-                                data_tensor=data_tensor,
-                                ptensor=ptensor)[:, o, o]
-        std_per_q = self.gimme(self.raw_signal_name + '_gain_std',
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)[:, o, o]
-
-        mean = quanta_detected * mean_per_q
-        std = quanta_detected ** 0.5 * std_per_q
+        # ASK JORAN PROPERLY 
+        bias = self.gimme('reconstruction_bias_compute_' + self.signal_name,
+                          data_tensor=data_tensor,
+                          ptensor=ptensor)[:, o, o]
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
+        smear = self.gimme('reconstruction_smear_compute_' + self.signal_name,
+                           data_tensor=data_tensor,
+                           ptensor=ptensor)[:, o, o] + 1e-10
+
         result = tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).prob(s_observed)
+            loc=(s_observed/bias), scale=smear).prob(s_observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.signal_name] + '_acceptance',
