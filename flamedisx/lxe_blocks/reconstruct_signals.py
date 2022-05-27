@@ -33,9 +33,9 @@ class ReconstructSignals(fd.Block):
 
     def _simulate(self, d):
         d[self.signal_name] = stats.norm.rvs(
-            loc=(d[self.raw_signal_name] * self.gimme_numpy(self.raw_signal_name + '_gain_mean')),
-            scale=(d[self.raw_signal_name + 's_detected']**0.5
-                   * self.gimme_numpy(self.raw_signal_name + '_gain_std')))
+            loc=(d[self.raw_signal_name] *
+                 self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name)),
+            scale=(self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name)))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -56,7 +56,7 @@ class ReconstructSignals(fd.Block):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d[self.raw_signal_name + 's_detected_' + bound] = intify(
+            d[self.raw_signal_name + '_' + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(np.int)
 
@@ -104,7 +104,11 @@ class ReconstructS1(ReconstructSignals):
     special_model_functions = ()
     model_functions = (
         's1_acceptance',
-        'reconstruction_bias_s1',) + special_model_functions
+        'reconstruction_bias_simulate_s1',
+        'reconstruction_smear_simulate_s1',
+        'reconstruction_bias_compute_s1',
+        'reconstruction_smear_compute_s1',
+        ) + special_model_functions
 
     max_dim_size = {'s1_raw': 120}
 
@@ -113,12 +117,35 @@ class ReconstructS1(ReconstructSignals):
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
-    def reconstruction_bias_s1(self, sig):
+    # Getting from s1_raw -> s1
+    def reconstruction_bias_simulate_s1(self, sig):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
-        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return reconstruction_bias
+        return tf.ones_like(sig, dtype=fd.float_type())
+
+    def reconstruction_smear_simulate_s1(self, sig):
+        """ Dummy method for pax s2 reconstruction bias spread. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        # Trying to simulate dirac delta
+        # TODO: find what number to put here safely
+        return tf.ones_like(sig, dtype=fd.float_type())*1e-45
+
+    # Getting from s1 -> s1_raw
+    def reconstruction_bias_compute_s1(self, sig):
+        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        return tf.ones_like(sig, dtype=fd.float_type())
+
+    def reconstruction_smear_compute_s1(self, sig):
+        """ Dummy method for pax s2 reconstruction bias spread. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        # Trying to simulate dirac delta
+        # TODO: find what number to put here safely
+        return tf.ones_like(sig, dtype=fd.float_type())*1e-45
 
     def _compute(self, data_tensor, ptensor,
                  s1_raw, s1):
@@ -138,7 +165,11 @@ class ReconstructS2(ReconstructSignals):
     special_model_functions = ()
     model_functions = (
         ('s2_acceptance',
-        'reconstruction_bias_s2',)
+        'reconstruction_bias_simulate_s2',
+        'reconstruction_smear_simulate_s2',
+        'reconstruction_bias_compute_s2',
+        'reconstruction_smear_compute_s2',
+        )
         + special_model_functions)
 
     max_dim_size = {'s2_raw': 120}
@@ -148,12 +179,35 @@ class ReconstructS2(ReconstructSignals):
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
-    def reconstruction_bias_s2(self, sig):
+    # Getting from s2_raw -> s2
+    def reconstruction_bias_simulate_s2(self, sig):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
-        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return reconstruction_bias
+        return tf.ones_like(sig, dtype=fd.float_type())
+
+    def reconstruction_smear_simulate_s2(self, sig):
+        """ Dummy method for pax s2 reconstruction bias spread. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        # Trying to simulate dirac delta
+        # TODO: find what number to put here safely
+        return tf.ones_like(sig, dtype=fd.float_type())*1e-45
+
+    # Getting from s2 -> s2_raw
+    def reconstruction_bias_compute_s2(self, sig):
+        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        return tf.ones_like(sig, dtype=fd.float_type())
+
+    def reconstruction_smear_compute_s2(self, sig):
+        """ Dummy method for pax s2 reconstruction bias spread. Overwrite
+        it in source specific class. See x1t_sr1.py for example.
+        """
+        # Trying to simulate dirac delta
+        # TODO: find what number to put here safely
+        return tf.ones_like(sig, dtype=fd.float_type())*1e-45
 
     def _compute(self, data_tensor, ptensor,
                  s2_raw, s2):
