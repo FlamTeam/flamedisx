@@ -254,27 +254,35 @@ class SR1Source:
         # FDC maps
         self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field_distortion_correction))
 
+    # Forward simulation
+    # S1
+    def reconstruction_bias_simulate_s1(self, s1_raw):
+        return tf.ones_like(s1_raw, dtype=fd.float_type())
 
-    def reconstruction_bias_s1(self,
-                               s1_raw,
-                               s1_reconstruction_bias_pivot=\
-                                   DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        return calculate_reconstruction_bias(
-            s1_raw,
-            self.recon_map_s1_tf,
-            self.domain_def_s1,
-            pivot_pt=s1_reconstruction_bias_pivot)
+    def reconstruction_smear_simulate_s1(self, s1_raw):
+        return tf.zeros_like(s1_raw, dtype=fd.float_type())+1e-45
+    # S2
+    def reconstruction_bias_simulate_s2(self, s2_raw):
+        return tf.ones_like(s2_raw, dtype=fd.float_type())
 
-    def reconstruction_bias_s2(self,
-                               s2_raw,
-                               s2_reconstruction_bias_pivot=\
-                                   DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        return calculate_reconstruction_bias(
-            s2_raw,
-            self.recon_map_s2_tf,
-            self.domain_def_s2,
-            pivot_pt=s2_reconstruction_bias_pivot)
+    def reconstruction_smear_simulate_s2(self, s2_raw):
+        return tf.zeros_like(s2_raw, dtype=fd.float_type())+1e-45
 
+    # Backwards computation
+    # S1
+    def reconstruction_bias_compute_s1(self, s1):
+        return tf.ones_like(s1, dtype=fd.float_type())
+
+    def reconstruction_smear_compute_s1(self, s1):
+        return tf.zeros_like(s1, dtype=fd.float_type())+1e-45
+    # S2
+    def reconstruction_bias_compute_s2(self, s2):
+        return tf.ones_like(s2, dtype=fd.float_type())
+
+    def reconstruction_smear_compute_s2(self, s2):
+        return tf.zeros_like(s2, dtype=fd.float_type())+1e-45
+
+    # Not sure what random truth is for
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
 
