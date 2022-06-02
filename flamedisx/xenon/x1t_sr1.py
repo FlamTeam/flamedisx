@@ -160,8 +160,14 @@ class SR1Source:
                         'path_cut_accept_s2',
                         'path_s1_rly',
                         'path_s2_rly',
-                        'path_reconstruction_bias_mean_s1',
-                        'path_reconstruction_bias_mean_s2',
+                        'path_reconstruction_bias_simulate_s1',
+                        'path_reconstruction_smear_simulate_s1',
+                        'path_reconstruction_bias_simulate_s2',
+                        'path_reconstruction_smear_simulate_s2',                                   
+                        'path_reconstruction_bias_compute_s1',
+                        'path_reconstruction_smear_compute_s1',
+                        'path_reconstruction_bias_compute_s2',
+                        'path_reconstruction_smear_compute_s2',
                         'path_reconstruction_efficiencies_s1',
                         'variable_elife',
                         'default_elife',
@@ -187,12 +193,15 @@ class SR1Source:
     path_cut_accept_s2 = ('cut_acceptance/XENON1T/S2AcceptanceSR1_v7_Median.json',)
 
     # Pax reconstruction bias maps
-    path_reconstruction_bias_mean_s1 = (
-        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanUppers_SR1_v2.json')
-    path_reconstruction_bias_mean_s2 = (
-        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanUppers_SR1_v2.json')
+    path_reconstruction_bias_simulate_s1 = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_simulate_s1 = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_std.json',)
+    path_reconstruction_bias_simulate_s2 = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_simulate_s2 = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_std.json',)
+
+    path_reconstruction_bias_compute_s1 = ('nt_maps/reconstruction_bias/s1_compute_reconstruction_bias_median.json',)
+    path_reconstruction_smear_compute_s1 = ('nt_maps/reconstruction_bias/s1_compute_reconstruction_bias_std.json',)
+    path_reconstruction_bias_compute_s2 = ('nt_maps/reconstruction_bias/s2_compute_reconstruction_bias_median.json',)
+    path_reconstruction_smear_compute_s2 = ('nt_maps/reconstruction_bias/s2_compute_reconstruction_bias_std.json',)
 
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
     path_reconstruction_efficiencies_s1 = (
@@ -232,10 +241,24 @@ class SR1Source:
             read_maps_tf(self.path_reconstruction_efficiencies_s1, is_bbf=True)
 
         # Loading reconstruction bias map
-        self.recon_map_s1_tf, self.domain_def_s1 = \
-            read_maps_tf(self.path_reconstruction_bias_mean_s1, is_bbf=True)
-        self.recon_map_s2_tf, self.domain_def_s2 = \
-            read_maps_tf(self.path_reconstruction_bias_mean_s2, is_bbf=True)
+        # S1
+        self.recon_bias_simulate_s1_tf, self.domain_def_bias_simulate_s1 = \
+            read_maps_tf(self.path_reconstruction_bias_simulate_s1, is_bbf=False)
+        self.recon_smear_simulate_s1_tf, self.domain_def_smear_simulate_s1 = \
+            read_maps_tf(self.path_reconstruction_smear_simulate_s1, is_bbf=False)
+        self.recon_bias_compute_s1_tf, self.domain_def_bias_compute_s1 = \
+            read_maps_tf(self.path_reconstruction_bias_compute_s1, is_bbf=False)
+        self.recon_smear_compute_s1_tf, self.domain_def_smear_compute_s1 = \
+            read_maps_tf(self.path_reconstruction_smear_compute_s1, is_bbf=False)
+        # S2
+        self.recon_bias_simulate_s2_tf, self.domain_def_bias_simulate_s2 = \
+            read_maps_tf(self.path_reconstruction_bias_simulate_s2, is_bbf=False)
+        self.recon_smear_simulate_s2_tf, self.domain_def_smear_simulate_s2 = \
+            read_maps_tf(self.path_reconstruction_smear_simulate_s2, is_bbf=False)
+        self.recon_bias_compute_s2_tf, self.domain_def_bias_compute_s2 = \
+            read_maps_tf(self.path_reconstruction_bias_compute_s2, is_bbf=False)
+        self.recon_smear_compute_s2_tf, self.domain_def_smear_compute_s2 = \
+            read_maps_tf(self.path_reconstruction_smear_compute_s2, is_bbf=False)
 
         # Loading electron lifetime map
         self.elife_tf, self.domain_def_elife = \
@@ -257,30 +280,83 @@ class SR1Source:
     # Forward simulation
     # S1
     def reconstruction_bias_simulate_s1(self, s1_raw):
-        return tf.ones_like(s1_raw, dtype=fd.float_type())
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        itp_bias = interpolate_tf(s1_raw,
+                self.recon_bias_simulate_s1_tf[0],
+                self.domain_def_bias_simulate_s1)
+
+        #return tf.ones_like(s1_raw, dtype=fd.float_type())
+        return itp_bias + tf.ones_like(s1_raw, dtype=fd.float_type())
 
     def reconstruction_smear_simulate_s1(self, s1_raw):
-        return tf.zeros_like(s1_raw, dtype=fd.float_type())+1e-45
+        itp_smear = interpolate_tf(s1_raw,
+                self.recon_smear_simulate_s1_tf[0],
+                self.domain_def_smear_simulate_s1)
+
+        #return tf.zeros_like(s1_raw, dtype=fd.float_type())+1e-45
+        return itp_smear+1e-45
+
     # S2
     def reconstruction_bias_simulate_s2(self, s2_raw):
-        return tf.ones_like(s2_raw, dtype=fd.float_type())
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        itp_bias = interpolate_tf(s2_raw,
+                self.recon_bias_simulate_s2_tf[0],
+                self.domain_def_bias_simulate_s2)
+
+        #return tf.ones_like(s2_raw, dtype=fd.float_type())
+        return itp_bias + tf.ones_like(s2_raw, dtype=fd.float_type())
 
     def reconstruction_smear_simulate_s2(self, s2_raw):
-        return tf.zeros_like(s2_raw, dtype=fd.float_type())+1e-45
+        itp_smear = interpolate_tf(s2_raw,
+                self.recon_smear_simulate_s2_tf[0],
+                self.domain_def_smear_simulate_s2)
+        
+        #return tf.zeros_like(s1_raw, dtype=fd.float_type())+1e-45
+        return itp_smear+1e-45
+
 
     # Backwards computation
     # S1
     def reconstruction_bias_compute_s1(self, s1):
-        return tf.ones_like(s1, dtype=fd.float_type())
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        itp_bias = interpolate_tf(s1,
+                self.recon_bias_compute_s1_tf[0],
+                self.domain_def_bias_compute_s1)
+
+        #return tf.ones_like(s1, dtype=fd.float_type())
+        return itp_bias + tf.ones_like(s1, dtype=fd.float_type())
 
     def reconstruction_smear_compute_s1(self, s1):
-        return tf.zeros_like(s1, dtype=fd.float_type())+1e-45
+        itp_smear = interpolate_tf(s1,
+                self.recon_smear_compute_s1_tf[0],
+                self.domain_def_smear_compute_s1)
+
+        tf.print('why')
+
+        #return tf.zeros_like(s1, dtype=fd.float_type())+1e-45
+        return itp_smear+1e-45
+
     # S2
     def reconstruction_bias_compute_s2(self, s2):
-        return tf.ones_like(s2, dtype=fd.float_type())
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        itp_bias = interpolate_tf(s2,
+                self.recon_bias_compute_s2_tf[0],
+                self.domain_def_bias_compute_s2)
+
+        #return tf.ones_like(s2, dtype=fd.float_type())
+        return itp_bias + tf.ones_like(s2, dtype=fd.float_type())
 
     def reconstruction_smear_compute_s2(self, s2):
-        return tf.zeros_like(s2, dtype=fd.float_type())+1e-45
+        itp_smear = interpolate_tf(s2,
+                self.recon_smear_compute_s2_tf[0],
+                self.domain_def_smear_compute_s2)
+
+        #return tf.zeros_like(s2, dtype=fd.float_type())+1e-45
+        return itp_smear+1e-45
 
     # Not sure what random truth is for
     def random_truth(self, n_events, fix_truth=None, **params):
