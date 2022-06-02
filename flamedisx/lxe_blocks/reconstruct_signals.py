@@ -59,12 +59,14 @@ class ReconstructSignals(fd.Block):
             ).clip(0, None).astype(np.int)
 
     def _compute(self,
-                 quanta_detected, s_observed,
+                 s_observed,
                  data_tensor, ptensor):
-        # ASK JORAN PROPERLY 
+        # bias = reconstructed_area/raw_area
         bias = self.gimme('reconstruction_bias_compute_' + self.signal_name,
                           data_tensor=data_tensor,
                           ptensor=ptensor)[:, o, o]
+        mu = s_observed/bias
+        #mu = bias * s_raw # somehow this gives inf in likelihood somewhere
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         smear = self.gimme('reconstruction_smear_compute_' + self.signal_name,
@@ -72,7 +74,7 @@ class ReconstructSignals(fd.Block):
                            ptensor=ptensor)[:, o, o] + 1e-10
 
         result = tfp.distributions.Normal(
-            loc=(s_observed/bias), scale=smear).prob(s_observed)
+            loc=mu, scale=smear).prob(s_observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(self.signal_name + '_acceptance',
@@ -145,7 +147,6 @@ class ReconstructS1(ReconstructSignals):
     def _compute(self, data_tensor, ptensor,
                  s1_raw, s1):
         return super()._compute(
-            quanta_detected=s1_raw,
             s_observed=s1,
             data_tensor=data_tensor, ptensor=ptensor)
 
@@ -207,6 +208,5 @@ class ReconstructS2(ReconstructSignals):
     def _compute(self, data_tensor, ptensor,
                  s2_raw, s2):
         return super()._compute(
-            quanta_detected=s2_raw,
             s_observed=s2,
             data_tensor=data_tensor, ptensor=ptensor)
