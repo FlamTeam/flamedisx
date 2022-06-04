@@ -30,12 +30,17 @@ class ReconstructSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
+        bias = self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name,
+                     bonus_arg=d[self.raw_signal_name].values)
+        mu = d[self.raw_signal_name] * bias
+
+        # loading this with 1e-15 to be symmetric with _compute
+        smear = self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name,
+                     bonus_arg=d[self.raw_signal_name].values) + 1e-15
+
         d[self.signal_name] = stats.norm.rvs(
-            loc=(d[self.raw_signal_name] *
-                 self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name,
-                     bonus_arg=d[self.raw_signal_name].values)),
-            scale=(self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name,
-                     bonus_arg=d[self.raw_signal_name].values)))
+            loc=mu,
+            scale=smear)
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
         # TODO: This is a bit of a kludge
@@ -80,9 +85,18 @@ class ReconstructSignals(fd.Block):
         result = tfp.distributions.Normal(
             loc=mu, scale=smear).prob(s_observed)
 
+        tf.print(self.raw_signal_name, s_raw)
+        tf.print(self.signal_name, s_observed)
+        tf.print('bias: ', bias)
+        tf.print('smear: ', smear)
+        tf.print('mu: ', mu)
+        tf.print('prob before eff: ', result)
+
         # Add detection/selection efficiency
         result *= self.gimme(self.signal_name + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        tf.print('prob after eff: ', result)
+
         return result
 
     def check_data(self):
