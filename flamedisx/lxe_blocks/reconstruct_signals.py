@@ -32,9 +32,10 @@ class ReconstructSignals(fd.Block):
     def _simulate(self, d):
         d[self.signal_name] = stats.norm.rvs(
             loc=(d[self.raw_signal_name] *
-                 self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name)),
-            scale=(self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name)))
-
+                 self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name,
+                     bonus_arg=d[self.raw_signal_name].values)),
+            scale=(self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name,
+                     bonus_arg=d[self.raw_signal_name].values)))
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
         # TODO: This is a bit of a kludge
@@ -42,12 +43,13 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        bias = self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name)
+        bias = self.gimme_numpy('reconstruction_bias_compute_' + self.signal_name)
+        smear = self.gimme_numpy('reconstruction_smear_compute_' + self.signal_name)
         mle = d[self.raw_signal_name + '_mle'] = \
-            (d[self.signal_name] * bias).clip(0, None)
+            (d[self.signal_name] / bias).clip(0, None)
 
         # The amount that you could have been smeared by from the raw signals
-        scale = self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name)
+        scale = mle**0.5 * smear/bias
 
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
@@ -59,26 +61,37 @@ class ReconstructSignals(fd.Block):
             ).clip(0, None).astype(np.int)
 
     def _compute(self,
+                 s_raw,
                  s_observed,
                  data_tensor, ptensor):
         # bias = reconstructed_area/raw_area
-        bias = self.gimme('reconstruction_bias_compute_' + self.signal_name,
+        bias = self.gimme('reconstruction_bias_simulate_' + self.signal_name,
                           data_tensor=data_tensor,
+                          bonus_arg=s_raw,
                           ptensor=ptensor)[:, o, o]
-        mu = s_observed/bias
-        #mu = bias * s_raw # somehow this gives inf in likelihood somewhere
+
+        mu2 = s_observed/bias # incorrect but runs
+
+        # conceptually correct but somehow gives zero prob because s_raw is
+        # stuck at integers
+        mu = s_raw * bias
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
-        smear = self.gimme('reconstruction_smear_compute_' + self.signal_name,
+        smear = self.gimme('reconstruction_smear_simulate_' + self.signal_name,
                            data_tensor=data_tensor,
-                           ptensor=ptensor)[:, o, o] + 1e-10
+                           bonus_arg=s_raw,
+                           ptensor=ptensor)[:, o, o] + 1e-15
 
         result = tfp.distributions.Normal(
             loc=mu, scale=smear).prob(s_observed)
 
+        tf.print('prob before eff: ', result)
+
         # Add detection/selection efficiency
         result *= self.gimme(self.signal_name + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        tf.print('prob after eff: ', result)
+        tf.print('*****')
         return result
 
     def check_data(self):
@@ -98,11 +111,11 @@ class ReconstructS1(ReconstructSignals):
     signal_name = 's1'
 
     dimensions = ('s1_raw', 's1')
-    special_model_functions = ()
+    special_model_functions = (
+        'reconstruction_bias_simulate_s1',
+        'reconstruction_smear_simulate_s1',)
     model_functions = (
         's1_acceptance',
-        'reconstruction_bias_simulate_s1',
-        'reconstruction_smear_simulate_s1',
         'reconstruction_bias_compute_s1',
         'reconstruction_smear_compute_s1',
         ) + special_model_functions
@@ -124,10 +137,12 @@ class ReconstructS1(ReconstructSignals):
     def reconstruction_smear_simulate_s1(self, s1_raw):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
+
+        Simulating dirac delta. Loading of this number done in main _compute
+        function. Keeping this number as zero here to avoid loading done in
+        multiple places.
         """
-        # Trying to simulate dirac delta
-        # TODO: find what number to put here safely
-        return tf.ones_like(s1_raw, dtype=fd.float_type())*1e-45
+        return tf.zeros_like(s1_raw, dtype=fd.float_type())
 
     # Getting from s1 -> s1_raw
     def reconstruction_bias_compute_s1(self, s1):
@@ -139,14 +154,17 @@ class ReconstructS1(ReconstructSignals):
     def reconstruction_smear_compute_s1(self, s1):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
+        
+        Simulating dirac delta. Loading of this number done in main _compute
+        function. Keeping this number as zero here to avoid loading done in
+        multiple places.
         """
-        # Trying to simulate dirac delta
-        # TODO: find what number to put here safely
-        return tf.ones_like(s1, dtype=fd.float_type())*1e-45
+        return tf.zeros_like(s1, dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor,
                  s1_raw, s1):
         return super()._compute(
+            s_raw=s1_raw,
             s_observed=s1,
             data_tensor=data_tensor, ptensor=ptensor)
 
@@ -158,11 +176,12 @@ class ReconstructS2(ReconstructSignals):
     signal_name = 's2'
 
     dimensions = ('s2_raw', 's2')
-    special_model_functions = ()
-    model_functions = (
-        ('s2_acceptance',
+    special_model_functions = (
         'reconstruction_bias_simulate_s2',
         'reconstruction_smear_simulate_s2',
+ )
+    model_functions = (
+        ('s2_acceptance',
         'reconstruction_bias_compute_s2',
         'reconstruction_smear_compute_s2',
         )
@@ -185,10 +204,12 @@ class ReconstructS2(ReconstructSignals):
     def reconstruction_smear_simulate_s2(self, s2_raw):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
+
+        Simulating dirac delta. Loading of this number done in main _compute
+        function. Keeping this number as zero here to avoid loading done in
+        multiple places.
         """
-        # Trying to simulate dirac delta
-        # TODO: find what number to put here safely
-        return tf.ones_like(s2_raw, dtype=fd.float_type())*1e-45
+        return tf.zeros_like(s2_raw, dtype=fd.float_type())
 
     # Getting from s2 -> s2_raw
     def reconstruction_bias_compute_s2(self, s2):
@@ -200,13 +221,16 @@ class ReconstructS2(ReconstructSignals):
     def reconstruction_smear_compute_s2(self, s2):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
+
+        Simulating dirac delta. Loading of this number done in main _compute
+        function. Keeping this number as zero here to avoid loading done in
+        multiple places.
         """
-        # Trying to simulate dirac delta
-        # TODO: find what number to put here safely
-        return tf.ones_like(s2, dtype=fd.float_type())*1e-45
+        return tf.ones_like(s2, dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor,
                  s2_raw, s2):
         return super()._compute(
+            s_raw=s2_raw,
             s_observed=s2,
             data_tensor=data_tensor, ptensor=ptensor)
