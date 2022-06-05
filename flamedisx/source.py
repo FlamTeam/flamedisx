@@ -394,6 +394,12 @@ class Source:
         """Set self.data_tensor to a big tensor of shape:
           (n_batches, events_per_batch, n_columns_in_data_tensor)
         """
+        shape = [self.n_batches, self.batch_size, self.n_columns_in_data_tensor]
+        if not self.column_index:
+            # We want no columns from the data, so
+            self.data_tensor = tf.zeros(shape, dtype=fd.float_type())
+            return
+
         # First, build a list of (n_events, 1 or column_width) tensors
         result = []
         for column in self.column_index:
@@ -415,9 +421,7 @@ class Source:
 
         # Concat these and shape them to the batch size
         result = tf.concat(result, axis=1)
-        self.data_tensor = tf.reshape(
-            result,
-            [self.n_batches, -1, self.n_columns_in_data_tensor])
+        self.data_tensor = tf.reshape(result, shape)
 
     def cap_dimsizes(self, dim, cap):
         if dim in self.no_step_dimensions:

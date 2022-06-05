@@ -213,7 +213,7 @@ class LogLikelihood:
         self.mu_estimators = {}
         for sname, s in self.sources.items():
             mu_est = mu_estimators[sname]
-            if issubclass(mu_est, fd.MuEstimator):
+            if fd.is_mu_estimator_class(mu_est):
                 # Build a new mu estimator using the source and configuration
                 mu_est = mu_est(
                     source=s,
@@ -221,10 +221,12 @@ class LogLikelihood:
                     progress=progress,
                     # Source will filter out the params it needs
                     **common_param_specs)
+            elif isinstance(mu_est, fd.MuEstimator):
+                # This is an already-built estimator -- perhaps loaded
+                # from a pickle
+                pass
             else:
-                # Assume this is an already-built estimator -- perhaps loaded
-                # from a pickle -- or some other function we can call
-                assert callable(mu_est)
+                raise ValueError(f"Invalid mu estimator {mu_est}")
             self.mu_estimators[sname] = mu_est
 
         # Not used, but useful for mu smoothness diagnosis
@@ -260,7 +262,7 @@ class LogLikelihood:
                 s.set_data(None)
                 return
 
-        batch_info = np.zeros((len(self.dsetnames), 3), dtype=np.int)
+        batch_info = np.zeros((len(self.dsetnames), 3), dtype=int)
 
         for sname, source in self.sources.items():
             dname = self.dset_for_source[sname]
@@ -374,20 +376,34 @@ class LogLikelihood:
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
             n_batches = self.sources[self.sources_in_dset[dsetname][0]].n_batches
+            if n_batches == 0:
+                # Signal _log_likelihood to do a 'dummy batch' without data,
+                # just to get the mu and constraint terms
+                n_batches = 1
+                empty_batch = True
+            else:
+                empty_batch = False
 
             for i_batch in range(n_batches):
                 # Iterating over tf.range seems much slower!
+                if empty_batch:
+                    batch_data_tensor = None
+                else:
+                    batch_data_tensor = self.data_tensors[dsetname][i_batch]
                 results = self._log_likelihood(
                     tf.constant(i_batch, dtype=fd.int_type()),
                     dsetname=dsetname,
-                    data_tensor=self.data_tensors[dsetname][i_batch],
+                    data_tensor=batch_data_tensor,
                     batch_info=self.batch_info,
                     omit_grads=omit_grads,
                     second_order=second_order,
+                    empty_batch=empty_batch,
                     **params)
                 ll += results[0].numpy().astype(np.float64)
 
                 if self.param_names:
+                    if results[1] is None:
+                        raise ValueError("TensorFlow returned None as gradient!")
                     llgrad += results[1].numpy().astype(np.float64)
                     if second_order:
                         llgrad2 += results[2].numpy().astype(np.float64)
@@ -460,7 +476,8 @@ class LogLikelihood:
     @tf.function
     def _log_likelihood(self,
                         i_batch, dsetname, data_tensor, batch_info,
-                        omit_grads=tuple(), second_order=False, **params):
+                        omit_grads=tuple(), second_order=False,
+                        empty_batch=False, **params):
         # Stack the params to create a single node
         # to differentiate with respect to.
         grad_par_stack = tf.stack([
@@ -474,10 +491,23 @@ class LogLikelihood:
             tf.unstack(grad_par_stack)))
         for k in omit_grads:
             params_unstacked[k] = params[k]
+        del params    # Do not reuse accidentally!
 
         # Forward computation
-        ll = self._log_likelihood_inner(
-            i_batch, params_unstacked, dsetname, data_tensor, batch_info)
+        if empty_batch:
+            ll = 0
+        else:
+            ll = self._log_likelihood_inner(
+                i_batch, params_unstacked, dsetname, data_tensor, batch_info)
+
+        # Add mu once (to the first batch)
+        # and constraint really only once (to first batch of first dataset)
+        ll += tf.where(
+            tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
+            - self.mu(dataset_name=dsetname, **params_unstacked),
+            0.)
+        if dsetname == self.dsetnames[0]:
+            ll += self.log_constraint(**params_unstacked)
 
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]
@@ -520,14 +550,6 @@ class LogLikelihood:
                      batch_size - n_padding,
                      batch_size)
         ll = tf.reduce_sum(tf.math.log(drs[:n]))
-
-        # Add mu once (to the first batch)
-        # and constraint really only once (to first batch of first dataset)
-        ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
-                       - self.mu(dataset_name=dsetname, **params)
-                       + (self.log_constraint(**params)
-                          if dsetname == self.dsetnames[0] else 0.),
-                       0.)
         return ll
 
     def guess(self) -> ty.Dict[str, float]:
