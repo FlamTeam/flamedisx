@@ -357,15 +357,15 @@ class Source:
         self.n_padding = 0
         self.n_events = len(self.data)
         self.n_batches = np.ceil(
-            self.n_events / self.batch_size).astype(np.int)
+            self.n_events / self.batch_size).astype(int)
 
         if not _skip_tf_init:
             # Extend dataframe with events to nearest batch_size multiple
             # We're using actual events for padding, since using zeros or
-            # nans caused problems with gradient calculation
-            # padded events are clipped when summing likelihood terms
+            # NaNs caused problems with gradient calculation.
+            # Padded events are clipped when summing likelihood terms.
             self.n_padding = self.n_batches * self.batch_size - len(self.data)
-            if self.n_padding > 0:
+            if self.n_padding:
                 # Repeat first event n_padding times and concat to rest of data
                 df_pad = self.data.iloc[np.zeros(self.n_padding)]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
@@ -711,7 +711,7 @@ class Source:
         """
         if fix_truth is not None:
             for k, v in fix_truth.items():
-                data[k] = np.ones(n_events, dtype=np.float) * v
+                data[k] = np.ones(n_events, dtype=float) * v
 
     def estimate_mu(self, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
@@ -750,7 +750,8 @@ class Source:
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw random "deep truth" variables (energy, position) """
-        raise NotImplementedError
+        print(f"{self.__class__.__name__} cannot generate events, skipping")
+        return pd.DataFrame()
 
     def _simulate_response(self) -> pd.DataFrame:
         """Return a dataframe with simulated observed events
@@ -764,6 +765,9 @@ class Source:
         will call this when needed.
         """
         return self.data
+
+    def calculate_dimsizes_special(self):
+        pass
 
 
 @export
@@ -789,10 +793,3 @@ class ColumnSource(Source):
 
     def _differential_rate(self, data_tensor, ptensor):
         return self._fetch(self.column, data_tensor)
-
-    def random_truth(self, n_events, fix_truth=None, **params):
-        print(f"{self.__class__.__name__} cannot generate events, skipping")
-        return pd.DataFrame()
-
-    def calculate_dimsizes_special(self):
-        pass
