@@ -116,8 +116,8 @@ class SimulateEachCallMu(MuEstimator):
     def build(self, source: fd.Source):
         self.source = source
 
-    def __call__(self, **kwargs):
-        return self.source.estimate_mu(**kwargs)
+    def __call__(self, **params):
+        return self.source.estimate_mu(**params)
 
 
 @export
@@ -128,8 +128,12 @@ class ConstantMu(MuEstimator):
     def build(self, source: fd.Source):
         self.mu = source.estimate_mu(n_trials=self.n_trials)
 
-    def __call__(self, **kwargs):
-        return self.mu
+    def __call__(self, **params):
+        result = self.mu
+        # Add zero terms so gradient evaluates to 0, not None
+        for pname, value in params.items():
+            result += 0 * value
+        return result
 
 
 @export
@@ -156,10 +160,13 @@ class CombinedMu(MuEstimator):
 
     def build(self, source: fd.Source):
         # Check the sub_estimators option is specified correctly
-        # Note we copy self.options['spec_dict'], since we mutate it later
-        assert self.options.get('spec_dict'), "Use CombinedMu.from_estimators"
-        spec_dict = {**self.options['spec_dict']}
-        params_specified = sum([spec['params'] for spec in spec_dict])
+        assert 'spec_dict' in self.options, "Use CombinedMu.from_estimators"
+        spec_dict = {
+            tuple(params) if isinstance(params, (list, tuple)) else (params,): est
+            for params, est in self.options['spec_dict'].items()
+        }
+
+        params_specified = sum([params for params in spec_dict.keys()], tuple())
         if len(set(params_specified)) != len(params_specified):
             raise ValueError("CombinedMu specification duplicates parameters")
 
@@ -169,7 +176,7 @@ class CombinedMu(MuEstimator):
             spec_dict[tuple(missing_params)] = self.options['default']
 
         # Build sub-estimators (for different parameter sets)
-        self.estimators = []
+        self.estimators = dict()
         for spec, est in spec_dict.items():
             if isinstance(est, fd.MuEstimator):
                 # Already-initialized estimator, e.g. loaded from pickle
@@ -182,10 +189,10 @@ class CombinedMu(MuEstimator):
                 est_options = est.get('options', dict())
                 n_trials = est.get('n_trials', self.n_trials)
                 progress = est.get('progress', self.progress)
-            elif issubclass(est, fd.MuEstimator):
-                # We just got a class name -- use default options
+            elif is_mu_estimator_class(est):
+                # We just got a class; don't pass any options
                 est_class = est
-                est_options = est.get('options', dict())
+                est_options = dict()
                 n_trials = self.n_trials
                 progress = self.progress
             else:
@@ -194,11 +201,11 @@ class CombinedMu(MuEstimator):
 
             # Create pname -> (min, max, options) dict for this estimator
             param_specs = {
-                pname: self.bounds[pname] + (self.param_options[pname],)
-                for pname in spec['params']}
+                pname: self.bounds[pname] + (self.param_options.get(pname, dict()),)
+                for pname in spec}
             # Finally, build the estimator
-            self.estimators.append(est_class)(
-                source=self.source,
+            self.estimators[spec] = est_class(
+                source=source,
                 n_trials=n_trials,
                 progress=progress,
                 options=est_options,
@@ -207,15 +214,15 @@ class CombinedMu(MuEstimator):
 
         # Get base mus: mus estimated at the default values by the different
         # estimators
-        self.base_mus = [e() for e in self.estimators]
+        self.base_mus = [e() for e in self.estimators.values()]
         # Compute the mean. TODO: weight appropriately if n_trials varies?
         self.mean_base_mu = float(np.mean(self.base_mus))
 
     def __call__(self, **kwargs):
         # Predicted mus by each estimator
         pred_mus = [
-            est(**{k: v for k, v in kwargs.items() if k in spec['params']})
-            for est, spec in self.options['sub_estimator_specs'].items()]
+            est(**{k: v for k, v in kwargs.items() if k in params})
+            for params, est in self.estimators.items()]
         # Relative increase over base mu
         pred_increase = [
             pred_mu / base_mu
@@ -232,3 +239,13 @@ class GridInterpolatedMu:
 
     def build(self, source: fd.Source):
         raise NotImplementedError
+
+
+@export
+def is_mu_estimator_class(x):
+    if isinstance(x, partial):
+        return is_mu_estimator_class(x.func)
+    if type(x) != type:
+        # x is no class (issubclass would crash, annoyingly)
+        return False
+    return issubclass(x, fd.MuEstimator)
