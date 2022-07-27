@@ -26,6 +26,7 @@ DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
 DEFAULT_DRIFT_FIELD = 81.
 DEFAULT_SURVIVAL_PROBABILITY = 1.
+DEFAULT_CHARGE_INSENSITIVE_VOLUME = 1.
 
 DEFAULT_DRIFT_VELOCITY = 6.77*1e-5     # cm/ns, Valerio's note
 
@@ -162,6 +163,7 @@ class SR1Source:
     default_elife = DEFAULT_ELECTRON_LIFETIME
     default_drift_field = DEFAULT_DRIFT_FIELD
     default_survival_probability = DEFAULT_SURVIVAL_PROBABILITY
+    default_charge_insensitive_volume = DEFAULT_CHARGE_INSENSITIVE_VOLUME
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
@@ -184,6 +186,7 @@ class SR1Source:
                         'path_drift_velocity',
                         'survival_flag',
                         'path_survival_map',
+                        'civ_flag',
                         'path_CIV_map',
                         )
 
@@ -204,6 +207,7 @@ class SR1Source:
     # Survival and CIV maps
     survival_flag = True
     path_survival_map = 'nt_maps/ftoschi/field_dependent_radius_depth_maps_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_QPTFE_0d5n_0d4p.json'
+    civ_flag = True
     path_CIV_map = 'nt_maps/zihao/XENONnT_SR0_CIV_v1.json'
 
     # Drift velocity map
@@ -394,9 +398,12 @@ class SR1Source:
         else:
             d['survival_probability'] = self.default_survival_probability
 
-        d['charge_insensitive_volume'] = tf.clip_by_value(self.CIV_map(
-                np.transpose([d['r'].values,
-                              d['z'].values])),0.,1.)
+        if self.civ_flag:
+            d['charge_insensitive_volume'] = tf.clip_by_value(self.CIV_map(
+                    np.transpose([d['r'].values,
+                                d['z'].values])),0.,1.)
+        else:
+            d['charge_insensitive_volume'] = self.default_charge_insensitive_volume
 
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
