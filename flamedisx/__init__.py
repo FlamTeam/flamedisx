@@ -3,6 +3,7 @@ __version__ = '2.0.0'
 from .utils import *
 from .source import *
 from .block_source import *
+from .templates import *
 from .likelihood import *
 from .inference import *
 from .bounds import *
