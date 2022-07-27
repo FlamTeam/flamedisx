@@ -24,7 +24,6 @@ def test_template():
     # TODO: should set seed...
     d2 = st.simulate(int(1e6))
     mh2 = Histdd(d2, axis_names=['s1', 's2'], bins=mh.bin_edges)
-    mh2.plot()
     assert np.abs(np.mean(
         (mh2.histogram - mh.histogram)
         /(mh.histogram + mh2.histogram + 0.1))) < 0.1
