@@ -25,6 +25,7 @@ DEFAULT_ELECTRON_LIFETIME = 641e3
 DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
 DEFAULT_DRIFT_FIELD = 81.
+DEFAULT_SURVIVAL_PROBABILITY = 1.
 
 DEFAULT_DRIFT_VELOCITY = 6.77*1e-5     # cm/ns, Valerio's note
 
@@ -160,6 +161,7 @@ class SR1Source:
     drift_velocity = DEFAULT_DRIFT_VELOCITY
     default_elife = DEFAULT_ELECTRON_LIFETIME
     default_drift_field = DEFAULT_DRIFT_FIELD
+    default_survival_probability = DEFAULT_SURVIVAL_PROBABILITY
 
     model_attributes = ('path_cut_accept_s1',
                         'path_cut_accept_s2',
@@ -179,9 +181,13 @@ class SR1Source:
                         'path_drift_field_distortion_correction',
                         'default_drift_velocity',
                         'variable_drift_velocity',
-                        'path_drift_velocity'
+                        'path_drift_velocity',
+                        'survival_flag',
+                        'path_survival_map',
+                        'path_CIV_map',
                         )
 
+    
     # Light yield maps
     path_s1_rly = '1t_maps/XENON1T_s1_xyz_ly_kr83m-SR1_pax-664_fdc-adcorrtpf.json'
     path_s2_rly = '1t_maps/XENON1T_s2_xy_ly_SR1_v2.2.json'
@@ -194,6 +200,11 @@ class SR1Source:
     set_field_distortion = True
     path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
     path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+
+    # Survival and CIV maps
+    survival_flag = True
+    path_survival_map = 'nt_maps/ftoschi/field_dependent_radius_depth_maps_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_QPTFE_0d5n_0d4p.json'
+    path_CIV_map = 'nt_maps/zihao/XENONnT_SR0_CIV_v1.json'
 
     # Drift velocity map
     default_drift_velocity = DEFAULT_DRIFT_VELOCITY
@@ -222,6 +233,9 @@ class SR1Source:
     variable_elife = True
     path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
 
+
+
+
     def set_defaults(self, *args, **kwargs):
         super().set_defaults(*args, **kwargs)
 
@@ -241,6 +255,16 @@ class SR1Source:
         aa['map'] = aa['r_distortion_map']
         self.drift_field_distortion_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
         del aa
+
+        # Survival and CIV maps
+        # cheap hack
+        aa = fd.get_nt_file(self.path_survival_map) 
+        bb = fd.get_nt_file(self.path_CIV_map) 
+        aa['map'] = aa['survival_probability_map']
+        bb['map'] = bb['map']
+        self.survival_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
+        self.CIV_map = fd.InterpolatingMap(bb, method='RectBivariateSpline')
+        del aa, bb
 
         # FDC maps
         self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field_distortion_correction))
@@ -363,6 +387,17 @@ class SR1Source:
         else:
             d['drift_field'] = self.default_drift_field
 
+        if self.survival_flag:
+            d['survival_probability'] = tf.clip_by_value(self.survival_map(
+                np.transpose([d['r'].values,
+                              d['z'].values])),0.,1.)
+        else:
+            d['survival_probability'] = self.default_survival_probability
+
+        d['charge_insensitive_volume'] = tf.clip_by_value(self.CIV_map(
+                np.transpose([d['r'].values,
+                              d['z'].values])),0.,1.)
+
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
         if 'elife' not in d.columns:
@@ -388,9 +423,19 @@ class SR1Source:
     @staticmethod
     def electron_detection_eff(drift_time,
                                elife,
+                               survival_probability,
                                *,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
-        return extraction_eff * tf.exp(-drift_time / elife)
+        # electron_detection_eff comprises both the elife and the CIV effects
+        return tf.clip_by_value(extraction_eff * tf.exp(-drift_time / elife) * (survival_probability) ,1e-18,1) 
+
+    @staticmethod
+    def extraction_eff(electrons_produced,
+                        charge_insensitive_volume,
+                        *,
+                        w_ext_eff_max=DEFAULT_EXTRACTION_EFFICIENCY):
+        # the extraction_eff includes CIV effects
+        return w_ext_eff_max*charge_insensitive_volume
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
