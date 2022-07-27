@@ -206,9 +206,9 @@ class SR1Source:
 
     # Survival and CIV maps
     survival_flag = True
-    path_survival_map = 'nt_maps/ftoschi/field_dependent_radius_depth_maps_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_QPTFE_0d5n_0d4p.json'
+    path_survival_map = 'nt_maps/field_dependent_radius_depth_maps_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_QPTFE_0d5n_0d4p.json'
     civ_flag = True
-    path_CIV_map = 'nt_maps/zihao/XENONnT_SR0_CIV_v1.json'
+    path_CIV_map = 'nt_maps/XENONnT_SR0_CIV_v1.json'
 
     # Drift velocity map
     default_drift_velocity = DEFAULT_DRIFT_VELOCITY
