@@ -252,7 +252,9 @@ class GridInterpolatedMu(MuEstimator):
         self.param_lowers = param_lowers
         self.param_uppers = param_uppers
 
-        grid_dict = {pname: np.linspace(start, stop, int(self.param_options.get(pname, {}).get('n_anchors', 3))) for pname, (start, stop) in _iter}
+        grid_dict = {pname: np.linspace(start, stop,
+                                        int(self.param_options.get(pname, {}).get('n_anchors', 3)))
+                     for pname, (start, stop) in _iter}
         param_grid = list(ParameterGrid(grid_dict))
 
         if self.progress:
@@ -279,6 +281,7 @@ class GridInterpolatedMu(MuEstimator):
                                                      x_ref_max=self.param_uppers,
                                                      y_ref=self.mu_grid,
                                                      axis=-n_params)[0]
+
 
 @export
 def is_mu_estimator_class(x):
