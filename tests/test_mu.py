@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from scipy.interpolate import interpn
 
 import flamedisx as fd
 
@@ -61,6 +62,11 @@ def test_cross_interpolation():
         * np.interp(0.5, [-1, 1], [mu_func(-1)/base_mu, mu_func(1)/base_mu])
         * np.interp(0.3, [-1, 1], [mu_func(0, -1)/base_mu, mu_func(0, 1)/base_mu])))
 
+    # Check that we agree exactly at the cross centre
+    mu_est_centre = -ll(x=0, y=0)
+
+    assert np.isclose(mu_est_centre, mu_func(0, 0))
+
 
 def test_double_cross():
     # Combining cross interpolators is the same as doing
@@ -94,3 +100,28 @@ def test_constant_mu():
         print(f"Testing {mu_est}...")
         assert fd.LogLikelihood(**opts, mu_estimators=mu_est)() == -42
         print(f"Testing {mu_est} succeeded!")
+
+
+def test_grid_interpolation():
+    ll = fd.LogLikelihood(**ll_options, mu_estimators=fd.GridInterpolatedMu)
+
+    # Interpolate both variables
+    mu_est = -ll(x=0.5, y=0.3)
+
+    points = ([-1, 0, 1], [-1, 0, 1])
+    mu_grid = mu_func(*np.meshgrid(*points, indexing='ij'))
+
+    assert np.isclose(mu_est, interpn(points, mu_grid, np.array([0.5, 0.3])))
+
+    # Check that ordering doesn't change the result
+    mu_est_xy = ll.mu_estimators['bla'](**{'x': 0.5,
+                                           'y': 0.3}).numpy()
+    mu_est_yx = ll.mu_estimators['bla'](**{'y': 0.3,
+                                           'x': 0.5}).numpy()
+
+    assert np.isclose(mu_est_xy, mu_est_yx)
+
+    # Check that we agree exactly at one of the grid corners
+    mu_est_corner = -ll(x=-1, y=-1)
+
+    assert np.isclose(mu_est_corner, mu_func(-1, -1))
