@@ -62,11 +62,6 @@ def test_cross_interpolation():
         * np.interp(0.5, [-1, 1], [mu_func(-1)/base_mu, mu_func(1)/base_mu])
         * np.interp(0.3, [-1, 1], [mu_func(0, -1)/base_mu, mu_func(0, 1)/base_mu])))
 
-    # Check that we agree exactly at the cross centre
-    mu_est_centre = -ll(x=0, y=0)
-
-    assert np.isclose(mu_est_centre, mu_func(0, 0))
-
 
 def test_double_cross():
     # Combining cross interpolators is the same as doing
