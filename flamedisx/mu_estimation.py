@@ -239,23 +239,43 @@ class GridInterpolatedMu(MuEstimator):
     """Linearly interpolate the estimated mu on an n-dimensional grid"""
 
     def build(self, source: fd.Source):
-        _iter = self.bounds.items()
-        if self.progress:
-            _iter = tqdm(_iter, desc="Estimating mus")
+        _iter = dict(sorted(self.bounds.items())).items()
+
+        param_lowers = []
+        param_uppers = []
+        for pname, (start, stop) in _iter:
+            param_lowers.append(start)
+            param_uppers.append(stop)
+
+        self.param_lowers = param_lowers
+        self.param_uppers = param_uppers
 
         grid_dict = {pname: np.linspace(start, stop, int(self.param_options.get(pname, {}).get('n_anchors', 2))) for pname, (start, stop) in _iter}
         param_grid = list(ParameterGrid(grid_dict))
 
+        if self.progress:
+            param_grid = tqdm(param_grid, desc="Estimating mus")
+
         mu_grid = []
         for params in param_grid:
             mu_grid.append(source.estimate_mu(**params, n_trials=self.n_trials))
-        mu_grid = np.array_split(mu_grid, 2)
+        mu_grid = np.array_split(mu_grid, 3)
 
         self.mu_grid = tf.convert_to_tensor(mu_grid, fd.float_type())
 
-    def __call__(self, **params):
-        raise NotImplementedError
+    def __call__(self, **kwargs):
+        assert(dict(sorted(self.bounds.items())).keys() == dict(sorted(kwargs.items())).keys())
 
+        n_params = len(kwargs)
+        params = []
+        for pname, v in dict(sorted(kwargs.items())).items():
+            params.append(v)
+
+        return tfp.math.batch_interp_regular_nd_grid([params],
+                                                     x_ref_min=self.param_lowers,
+                                                     x_ref_max=self.param_uppers,
+                                                     y_ref=self.mu_grid,
+                                                     axis=-n_params)[0]
 
 @export
 def is_mu_estimator_class(x):
