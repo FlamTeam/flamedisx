@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 import tensorflow as tf
 import tensorflow_probability as tfp
+from sklearn.model_selection import ParameterGrid
 
 import flamedisx as fd
 
@@ -234,10 +235,25 @@ class CombinedMu(MuEstimator):
 
 
 @export
-class GridInterpolatedMu:
+class GridInterpolatedMu(MuEstimator):
     """Linearly interpolate the estimated mu on an n-dimensional grid"""
 
     def build(self, source: fd.Source):
+        _iter = self.bounds.items()
+        if self.progress:
+            _iter = tqdm(_iter, desc="Estimating mus")
+
+        grid_dict = {pname: np.linspace(start, stop, int(self.param_options.get(pname, {}).get('n_anchors', 2))) for pname, (start, stop) in _iter}
+        param_grid = list(ParameterGrid(grid_dict))
+
+        mu_grid = []
+        for params in param_grid:
+            mu_grid.append(source.estimate_mu(**params, n_trials=self.n_trials))
+        mu_grid = np.array_split(mu_grid, 2)
+
+        self.mu_grid = tf.convert_to_tensor(mu_grid, fd.float_type())
+
+    def __call__(self, **params):
         raise NotImplementedError
 
 
