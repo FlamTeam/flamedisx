@@ -243,9 +243,11 @@ class GridInterpolatedMu(MuEstimator):
 
         param_lowers = []
         param_uppers = []
+        grid_shape = ()
         for pname, (start, stop) in _iter:
             param_lowers.append(start)
             param_uppers.append(stop)
+            grid_shape += (int(self.param_options.get(pname, {}).get('n_anchors', 2)),)
 
         self.param_lowers = param_lowers
         self.param_uppers = param_uppers
@@ -259,12 +261,13 @@ class GridInterpolatedMu(MuEstimator):
         mu_grid = []
         for params in param_grid:
             mu_grid.append(source.estimate_mu(**params, n_trials=self.n_trials))
-        mu_grid = np.array_split(mu_grid, 3)
+        mu_grid = np.asarray(mu_grid).reshape(grid_shape)
 
         self.mu_grid = tf.convert_to_tensor(mu_grid, fd.float_type())
 
     def __call__(self, **kwargs):
-        assert(dict(sorted(self.bounds.items())).keys() == dict(sorted(kwargs.items())).keys())
+        assert(dict(sorted(self.bounds.items())).keys() == dict(sorted(kwargs.items())).keys()), \
+            "Must pass the same parameters to the grid interpolator that the grid was built with"
 
         n_params = len(kwargs)
         params = []
