@@ -247,12 +247,12 @@ class GridInterpolatedMu(MuEstimator):
         for pname, (start, stop) in _iter:
             param_lowers.append(start)
             param_uppers.append(stop)
-            grid_shape += (int(self.param_options.get(pname, {}).get('n_anchors', 2)),)
+            grid_shape += (int(self.param_options.get(pname, {}).get('n_anchors', 3)),)
 
         self.param_lowers = param_lowers
         self.param_uppers = param_uppers
 
-        grid_dict = {pname: np.linspace(start, stop, int(self.param_options.get(pname, {}).get('n_anchors', 2))) for pname, (start, stop) in _iter}
+        grid_dict = {pname: np.linspace(start, stop, int(self.param_options.get(pname, {}).get('n_anchors', 3))) for pname, (start, stop) in _iter}
         param_grid = list(ParameterGrid(grid_dict))
 
         if self.progress:
