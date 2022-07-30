@@ -1,4 +1,6 @@
-import tensorflow as tf
+import random
+import string
+
 from multihist import Histdd
 import pandas as pd
 
@@ -8,7 +10,7 @@ export, __all__ = fd.exporter()
 
 
 @export
-class TemplateSource(fd.Source):
+class TemplateSource(fd.ColumnSource):
     """Source that looks up precomputed differential rates in a template
     (probably a histogram from a simulation).
 
@@ -51,56 +53,42 @@ class TemplateSource(fd.Source):
                 template, bin_edges = template.histogram, template.bin_edges
             else:
                 raise ValueError("Need histogram, bin_edges, and axis_names")
+
         if not axis_names or len(axis_names) != len(template.shape):
             raise ValueError("Axis names missing or mismatched")
-
-        # Use multihist's bin volume and centers helpers
-        self._mh = Histdd.from_histogram(template, bin_edges=bin_edges)
-
-        if events_per_bin:
-            # Histogram is events/bin
-            diff_rate = template / self._mh.bin_volumes()
-        else:
-            # Histogram is a diff rate
-            diff_rate = template
-            self._mh *= self._mh.bin_volumes()
-
-        self.mu = fd.np_to_tf(self._mh.n)
-        self.diff_rate = fd.np_to_tf(diff_rate)
-        self.bin_edges = fd.np_to_tf(bin_edges)
-        self.bin_centers = fd.np_to_tf(self._mh.bin_centers())
-        self.all_axis_bin_centers = fd.np_to_tf([
-            self._mh.all_axis_bin_centers(i)
-            for i in range(len(axis_names))])
         self.final_dimensions = axis_names
+
+        # Build a diff rate and events/bin multihist from the template
+        _mh = Histdd.from_histogram(template, bin_edges=bin_edges)
+        if events_per_bin:
+            self._mh_events_per_bin = _mh
+            self._mh_diff_rate = _mh / _mh.bin_volumes()
+        else:
+            self._mh_events_per_bin = _mh * _mh.bin_volumes()
+            self._mh_diff_rate = _mh
+
+        self.mu = fd.np_to_tf(self._mh_events_per_bin.n)
+
+        # Generate a random column name to use to store the diff rates
+        # of observed events
+        self.column = (
+            'template_diff_rate_'
+            + ''.join(random.choices(string.ascii_lowercase, k=8)))
 
         super().__init__(*args, **kwargs)
 
-    def estimate_mu(self, n_trials=None, **params):
-        return self.mu
-
-    def _differential_rate(self, data_tensor, ptensor):
-        # Find indices of observed events
-        indices = [
-            # -1 since bin number 0 is past 1 edge
-            tf.clip_by_value(
-                -1 + tf.searchsorted(
-                    self.bin_edges[dim_i],
-                    self._fetch(dim, data_tensor)),
-                0,
-                len(self.bin_edges[dim_i] - 2)
-            )
-            for dim_i, dim in enumerate(self.final_dimensions)
-        ]
-        # Look them up in the template
-        return tf.gather_nd(self.diff_rate, tf.stack(indices, axis=-1))
+    def _annotate(self):
+        """Add columns needed in inference to self.data
+        """
+        self.data[self.column] = self._mh_diff_rate.lookup(
+            *[self.data[x] for x in self.final_dimensions])
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
         """Simulate n events.
         """
         if fix_truth:
-            raise NotImplementedError("HistogramSource does not yet support fix_truth")
+            raise NotImplementedError("TemplateSource does not yet support fix_truth")
         assert isinstance(n_events, (int, float)), \
             f"n_events must be an int or float, not {type(n_events)}"
 
@@ -109,4 +97,4 @@ class TemplateSource(fd.Source):
 
         return pd.DataFrame(dict(zip(
             self.final_dimensions,
-            self._mh.get_random(n_events).T)))
+            self._mh_events_per_bin.get_random(n_events).T)))
