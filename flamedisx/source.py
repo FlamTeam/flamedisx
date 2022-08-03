@@ -807,9 +807,7 @@ class FastSource(ColumnSource):
     def __init__(self, source_type=None, *args, **kwargs):
         assert(source_type is not None), "Must pass a source type to FastSource"
         source = source_type(*args, **kwargs)
-        self.data_reservoir = source.simulate(int(1e3))
-
-        assert(len(self.data_reservoir) >= int(1e2))
+        self.data_reservoir = source.simulate(int(1e5))
 
         self.column = 'diff_rate'
         self.mu = source.estimate_mu()
