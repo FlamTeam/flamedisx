@@ -797,3 +797,31 @@ class ColumnSource(Source):
 
     def _differential_rate(self, data_tensor, ptensor):
         return self._fetch(self.column, data_tensor)
+
+
+@export
+class FastSource(ColumnSource):
+    """
+    """
+
+    def __init__(self, source_type=None, *args, **kwargs):
+        assert(source_type is not None), "Must pass a source type to FastSource"
+        source = source_type(*args, **kwargs)
+        self.data_reservoir = source.simulate(int(1e3))
+
+        assert(len(self.data_reservoir) >= int(1e2))
+
+        self.column = 'diff_rate'
+        self.mu = source.estimate_mu()
+
+        source.set_data(self.data_reservoir)
+        self.data_reservoir[self.column] = source.batched_differential_rate()
+
+        super().__init__(*args, **kwargs)
+
+    def random_truth(self, n_events, fix_truth=None, **params):
+        if fix_truth is not None:
+            raise NotImplementedError("FastSource does not yet support fix_truth")
+        if len(params):
+            raise NotImplementedError("FastSource does not yet support alternative parameters in simulate")
+        return self.data_reservoir.sample(n_events, replace=True)
