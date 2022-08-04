@@ -800,41 +800,78 @@ class ColumnSource(Source):
 
 
 @export
-class FastSource(ColumnSource):
+class MasterFastSource():
     """
     """
 
-    def __init__(self, source_type=None, source_name=None, data_dict=None, *args, **kwargs):
-        assert(source_type is not None), "Must pass a source type to FastSource"
-        assert(source_name is not None), "Must pass a source name to FastSource"
-        assert(isinstance(data_dict, dict)), "Must pass a dictionary of dataframes to FastSource"
-        assert (source_name in data_dict), "This FastSource's source name must exist in data_dict"
+    def __init__(self,
+                 sources: ty.Dict[str, Source.__class__] = None,
+                 arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None):
+        assert isinstance(sources, dict), "Must pass a dictionary of sources to MasterFastSource"
 
-        self.source = source_type(*args, **kwargs)
-        self.source_name = source_name
+        if arguments is None:
+            arguments = dict()
+            for key, value in sources.items():
+                if type(value) is not dict:
+                    arguments[key] = dict()
+                else:
+                    for key in value:
+                        arguments[key] = dict()
 
-        self.column = f'{source_name}_diff_rate'
-        self.mu = self.source.estimate_mu()
+        self.sources = sources
+        self.arguments = arguments
 
-        self.pre_compute(data_dict)
-
-        super().__init__(*args, **kwargs)
-
-    def pre_compute(self, data_dict=None):
+    def pre_compute(self,
+                    data_dict: ty.Dict[str, pd.DataFrame] = None):
+        assert isinstance(data_dict, dict), "Must pass a dictionary of dataframes to pre_compute()"
 
         dfs = []
         for key, df in data_dict.items():
             df['source'] = key
             dfs.append(df)
+        data_reservoir = pd.concat(dfs, ignore_index=True)
 
-        self.data_reservoir = pd.concat(dfs, ignore_index=True)
-        self.source.set_data(self.data_reservoir)
-        self.data_reservoir[self.column] = self.source.batched_differential_rate()
+        for sname, sclass in self.sources.items():
+            source = sclass(**(self.arguments.get(sname)))
+            source.set_data(data_reservoir)
+            data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+
+        return data_reservoir
+
+
+@export
+class FastSource(ColumnSource):
+    """
+    """
+
+    def __init__(self, source_type=None, source_name=None,
+                 source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
+                 *args, **kwargs):
+        assert(source_type is not None), "Must pass a source type to FastSource"
+        assert source_name is not None, "Must pass a source name to FastSource"
+
+        if source_kwargs is None:
+            source_kwargs = dict()
+
+        self.source_name = source_name
+        self.reservoir = None
+        source = source_type(**source_kwargs)
+
+        self.column = f'{source_name}_diff_rate'
+        self.mu = source.estimate_mu()
+
+        super().__init__(*args, **kwargs)
+
+    def set_reservoir(self, data):
+        assert self.source_name in data['source'].values, "The reservoir must contain events from this source type"
+
+        self.reservoir = data
 
     def random_truth(self, n_events, fix_truth=None, **params):
+        assert self.reservoir is not None, "Must first call set_reservoir() for FastSource to simulate"
         if fix_truth is not None:
             raise NotImplementedError("FastSource does not yet support fix_truth")
         if len(params):
             raise NotImplementedError("FastSource does not yet support alternative parameters in simulate")
 
-        return self.data_reservoir[self.data_reservoir['source'] == self.source_name].sample(n_events, replace=True)
+        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=True)
