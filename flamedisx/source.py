@@ -804,22 +804,37 @@ class FastSource(ColumnSource):
     """
     """
 
-    def __init__(self, source_type=None, *args, **kwargs):
+    def __init__(self, source_type=None, source_name=None, data_dict=None, *args, **kwargs):
         assert(source_type is not None), "Must pass a source type to FastSource"
-        source = source_type(*args, **kwargs)
-        self.data_reservoir = source.simulate(int(1e5))
+        assert(source_name is not None), "Must pass a source name to FastSource"
+        assert(isinstance(data_dict, dict)), "Must pass a dictionary of dataframes to FastSource"
+        assert (source_name in data_dict), "This FastSource's source name must exist in data_dict"
 
-        self.column = 'diff_rate'
-        self.mu = source.estimate_mu()
+        self.source = source_type(*args, **kwargs)
+        self.source_name = source_name
 
-        source.set_data(self.data_reservoir)
-        self.data_reservoir[self.column] = source.batched_differential_rate()
+        self.column = f'{source_name}_diff_rate'
+        self.mu = self.source.estimate_mu()
+
+        self.pre_compute(data_dict)
 
         super().__init__(*args, **kwargs)
+
+    def pre_compute(self, data_dict=None):
+
+        dfs = []
+        for key, df in data_dict.items():
+            df['source'] = key
+            dfs.append(df)
+
+        self.data_reservoir = pd.concat(dfs, ignore_index=True)
+        self.source.set_data(self.data_reservoir)
+        self.data_reservoir[self.column] = self.source.batched_differential_rate()
 
     def random_truth(self, n_events, fix_truth=None, **params):
         if fix_truth is not None:
             raise NotImplementedError("FastSource does not yet support fix_truth")
         if len(params):
             raise NotImplementedError("FastSource does not yet support alternative parameters in simulate")
-        return self.data_reservoir.sample(n_events, replace=True)
+
+        return self.data_reservoir[self.data_reservoir['source'] == self.source_name].sample(n_events, replace=True)
