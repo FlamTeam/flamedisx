@@ -434,7 +434,7 @@ class SR1Source:
                                *,
                                extraction_eff=DEFAULT_EXTRACTION_EFFICIENCY):
         # electron_detection_eff comprises both the elife and the CIV effects
-        return tf.clip_by_value(extraction_eff * tf.exp(-drift_time / elife) * (survival_probability) ,1e-18,1) 
+        return tf.clip_by_value(extraction_eff * tf.exp(-drift_time / elife) * tf.clip_by_value(survival_probability,0,1) ,1e-18,1) 
 
     @staticmethod
     def extraction_eff(electrons_produced,
@@ -442,7 +442,7 @@ class SR1Source:
                         *,
                         w_ext_eff_max=DEFAULT_EXTRACTION_EFFICIENCY):
         # the extraction_eff includes CIV effects
-        return w_ext_eff_max*charge_insensitive_volume
+        return w_ext_eff_max*tf.clip_by_value(charge_insensitive_volume0,1)
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
