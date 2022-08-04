@@ -392,16 +392,16 @@ class SR1Source:
             d['drift_field'] = self.default_drift_field
 
         if self.survival_flag:
-            d['survival_probability'] = tf.clip_by_value(self.survival_map(
+            d['survival_probability'] = self.survival_map(
                 np.transpose([d['r'].values,
-                              d['z'].values])),0.,1.)
+                              d['z'].values]))
         else:
             d['survival_probability'] = self.default_survival_probability
 
         if self.civ_flag:
-            d['charge_insensitive_volume'] = tf.clip_by_value(self.CIV_map(
+            d['charge_insensitive_volume'] = self.CIV_map(
                     np.transpose([d['r'].values,
-                                d['z'].values])),0.,1.)
+                                d['z'].values]))
         else:
             d['charge_insensitive_volume'] = self.default_charge_insensitive_volume
 
