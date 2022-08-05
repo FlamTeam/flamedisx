@@ -844,17 +844,19 @@ class FastSource(ColumnSource):
     """
     """
 
-    def __init__(self, source_type=None, source_name=None,
+    def __init__(self, source_type: Source.__class__ = None, source_name: str = None,
                  source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
+                 reservoir: pd.DataFrame = None,
                  *args, **kwargs):
         assert(source_type is not None), "Must pass a source type to FastSource"
         assert source_name is not None, "Must pass a source name to FastSource"
+        assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
 
         if source_kwargs is None:
             source_kwargs = dict()
 
         self.source_name = source_name
-        self.reservoir = None
+        self.reservoir = reservoir
         source = source_type(**source_kwargs)
 
         self.column = f'{source_name}_diff_rate'
@@ -862,13 +864,7 @@ class FastSource(ColumnSource):
 
         super().__init__(*args, **kwargs)
 
-    def set_reservoir(self, data):
-        assert self.source_name in data['source'].values, "The reservoir must contain events from this source type"
-
-        self.reservoir = data
-
     def random_truth(self, n_events, fix_truth=None, **params):
-        assert self.reservoir is not None, "Must first call set_reservoir() for FastSource to simulate"
         if fix_truth is not None:
             raise NotImplementedError("FastSource does not yet support fix_truth")
         if len(params):
