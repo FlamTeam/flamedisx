@@ -800,10 +800,8 @@ class ColumnSource(Source):
 
 
 def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
-                        arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
-                        data_dict: ty.Dict[str, pd.DataFrame] = None):
+                        arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None):
     assert isinstance(sources, dict), "Must pass a dictionary of sources to FastSourceReservoir()"
-    assert isinstance(data_dict, dict), "Must pass a dictionary of dataframes to FastSourceReservoir()"
 
     if arguments is None:
         arguments = dict()
@@ -814,10 +812,23 @@ def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
                 for key in value:
                     arguments[key] = dict()
 
+    default_reservoir_size = int(1e5)
+
     dfs = []
-    for key, df in data_dict.items():
-        df['source'] = key
-        dfs.append(df)
+    for sname, sclass in sources.items():
+        reservoir_size = default_reservoir_size
+        source = sclass()
+        smu = source.estimate_mu()
+        while(True):
+            sdata = source.simulate(reservoir_size)
+            if len(sdata) >= smu * 1000:
+                sdata['source'] = sname
+                dfs.append(sdata)
+                break
+            else:
+                print(f'Not enough statistics generated for reservoir for {sname}; increasing simulation statistics')
+                reservoir_size = int(reservoir_size * 10)
+
     data_reservoir = pd.concat(dfs, ignore_index=True)
 
     for sname, sclass in sources.items():
