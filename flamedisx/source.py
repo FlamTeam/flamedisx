@@ -799,44 +799,33 @@ class ColumnSource(Source):
         return self._fetch(self.column, data_tensor)
 
 
-@export
-class MasterFastSource():
-    """
-    """
+def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
+                        arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
+                        data_dict: ty.Dict[str, pd.DataFrame] = None):
+    assert isinstance(sources, dict), "Must pass a dictionary of sources to FastSourceReservoir()"
+    assert isinstance(data_dict, dict), "Must pass a dictionary of dataframes to FastSourceReservoir()"
 
-    def __init__(self,
-                 sources: ty.Dict[str, Source.__class__] = None,
-                 arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None):
-        assert isinstance(sources, dict), "Must pass a dictionary of sources to MasterFastSource"
-
-        if arguments is None:
-            arguments = dict()
-            for key, value in sources.items():
-                if type(value) is not dict:
+    if arguments is None:
+        arguments = dict()
+        for key, value in sources.items():
+            if type(value) is not dict:
+                arguments[key] = dict()
+            else:
+                for key in value:
                     arguments[key] = dict()
-                else:
-                    for key in value:
-                        arguments[key] = dict()
 
-        self.sources = sources
-        self.arguments = arguments
+    dfs = []
+    for key, df in data_dict.items():
+        df['source'] = key
+        dfs.append(df)
+    data_reservoir = pd.concat(dfs, ignore_index=True)
 
-    def pre_compute(self,
-                    data_dict: ty.Dict[str, pd.DataFrame] = None):
-        assert isinstance(data_dict, dict), "Must pass a dictionary of dataframes to pre_compute()"
+    for sname, sclass in sources.items():
+        source = sclass(**(arguments.get(sname)))
+        source.set_data(data_reservoir)
+        data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
 
-        dfs = []
-        for key, df in data_dict.items():
-            df['source'] = key
-            dfs.append(df)
-        data_reservoir = pd.concat(dfs, ignore_index=True)
-
-        for sname, sclass in self.sources.items():
-            source = sclass(**(self.arguments.get(sname)))
-            source.set_data(data_reservoir)
-            data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
-
-        return data_reservoir
+    return data_reservoir
 
 
 @export
