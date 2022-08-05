@@ -812,22 +812,16 @@ def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
                 for key in value:
                     arguments[key] = dict()
 
-    default_reservoir_size = int(1e5)
+    default_ntoys = 100
 
     dfs = []
     for sname, sclass in sources.items():
-        reservoir_size = default_reservoir_size
         source = sclass()
-        smu = source.estimate_mu()
-        while(True):
-            sdata = source.simulate(reservoir_size)
-            if len(sdata) >= smu * 1000:
-                sdata['source'] = sname
-                dfs.append(sdata)
-                break
-            else:
-                print(f'Not enough statistics generated for reservoir for {sname}; increasing simulation statistics')
-                reservoir_size = int(reservoir_size * 10)
+        n_simulate = int(default_ntoys * source.mu_before_efficiencies())
+
+        sdata = source.simulate(n_simulate)
+        sdata['source'] = sname
+        dfs.append(sdata)
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
 
