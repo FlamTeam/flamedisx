@@ -238,6 +238,12 @@ class CombinedMu(MuEstimator):
 class GridInterpolatedMu(MuEstimator):
     """Linearly interpolate the estimated mu on an n-dimensional grid"""
 
+    def __init__(self, *args, **kwargs):
+        if ('n_trials' not in kwargs) or (kwargs['n_trials'] is None):
+            kwargs['n_trials'] = int(1e6)
+
+        super().__init__(*args, **kwargs)
+
     def build(self, source: fd.Source):
         param_lowers = []
         param_uppers = []
@@ -246,7 +252,7 @@ class GridInterpolatedMu(MuEstimator):
         for pname, (start, stop) in self.bounds.items():
             param_lowers.append(start)
             param_uppers.append(stop)
-            n_anchors = int(self.param_options.get(pname, {}).get('n_anchors', 2))
+            n_anchors = int(self.param_options.get(pname, {}).get('n_anchors', 3))
             grid_shape += (n_anchors,)
             grid_dict[pname] = np.linspace(start, stop, n_anchors)
 

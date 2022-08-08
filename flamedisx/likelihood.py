@@ -54,7 +54,7 @@ class LogLikelihood:
             batch_size=10,
             max_sigma=None,
             max_sigma_outer=None,
-            n_trials=int(1e5),
+            n_trials=None,
             log_constraint=None,
             bounds_specified=True,
             progress=True,
