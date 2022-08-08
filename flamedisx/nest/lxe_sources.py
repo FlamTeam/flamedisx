@@ -221,13 +221,12 @@ class nestERSource(nestSource):
                                            4.285781736)),
                                  m10)
 
-        coeff_TI = pow(1. / XENON_REF_DENSITY, 0.3);
-        coeff_Ni = pow(1. / XENON_REF_DENSITY, 1.4);
-        coeff_OL = pow(1. / XENON_REF_DENSITY, -1.7) / fd.log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7))
+        coeff_TI = tf.cast(pow(1. / XENON_REF_DENSITY, 0.3), fd.float_type())
+        coeff_Ni = tf.cast(pow(1. / XENON_REF_DENSITY, 1.4), fd.float_type())
+        coeff_OL = tf.cast(pow(1. / XENON_REF_DENSITY, -1.7) /
+            fd.log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
 
-        Qy *= coeff_OL * fd.log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7);
-
-        print(Qy)
+        Qy *= coeff_OL * fd.log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7)
 
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
