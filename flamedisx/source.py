@@ -816,12 +816,10 @@ def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
 
     if arguments is None:
         arguments = dict()
-        for key, value in sources.items():
-            if type(value) is not dict:
-                arguments[key] = dict()
-            else:
-                for key in value:
-                    arguments[key] = dict()
+
+    for key in sources.keys():
+        if key not in arguments.keys():
+            arguments[key] = dict()
 
     if ntoys is None:
         ntoys = default_ntoys
