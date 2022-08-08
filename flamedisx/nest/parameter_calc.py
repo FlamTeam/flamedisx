@@ -125,4 +125,6 @@ def calculate_work(density):
     Wq_eV = (18.7263 - 1.01e-23 * eDensity) * 1.1716263232
     Wq_keV = Wq_eV * 1e-3
 
-    return Wq_keV
+    alpha = 0.067366 + density * 0.039693
+
+    return Wq_keV, alpha
