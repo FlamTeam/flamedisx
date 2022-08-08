@@ -442,7 +442,7 @@ class SR1Source:
                         *,
                         w_ext_eff_max=DEFAULT_EXTRACTION_EFFICIENCY):
         # the extraction_eff includes CIV effects
-        return w_ext_eff_max*tf.clip_by_value(charge_insensitive_volume0,1)
+        return w_ext_eff_max*tf.clip_by_value(charge_insensitive_volume,0,1)
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
