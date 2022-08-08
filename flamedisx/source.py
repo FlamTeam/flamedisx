@@ -866,7 +866,7 @@ class FastSource(ColumnSource):
                  source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
                  reservoir: pd.DataFrame = None,
                  *args, **kwargs):
-        assert(source_type is not None), "Must pass a source type to FastSource"
+        assert source_type is not None, "Must pass a source type to FastSource"
         assert source_name is not None, "Must pass a source name to FastSource"
         assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
 
