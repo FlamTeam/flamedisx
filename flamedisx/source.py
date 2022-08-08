@@ -800,7 +800,18 @@ class ColumnSource(Source):
 
 
 def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
-                        arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None):
+                        arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
+                        ntoys: int = None):
+    """Generate an annotated reservoir of evennts to be used in FastSource s.
+
+    Arguments:
+        - sources: dictionary of {source name: base flamedisx source class}
+            that will be used in the anlysis.
+        - arguments: dictionary of {source name: {kwarg1: value1, ...}}
+            giving kwargs to be passed to each base source constructor.
+    """
+    default_ntoys = 1000
+
     assert isinstance(sources, dict), "Must pass a dictionary of sources to FastSourceReservoir()"
 
     if arguments is None:
@@ -812,12 +823,13 @@ def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
                 for key in value:
                     arguments[key] = dict()
 
-    default_ntoys = 100
+    if ntoys is None:
+        ntoys = default_ntoys
 
     dfs = []
     for sname, sclass in sources.items():
         source = sclass()
-        n_simulate = int(default_ntoys * source.mu_before_efficiencies())
+        n_simulate = int(ntoys * source.mu_before_efficiencies())
 
         sdata = source.simulate(n_simulate)
         sdata['source'] = sname
@@ -835,7 +847,21 @@ def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
 
 @export
 class FastSource(ColumnSource):
-    """
+    """Source that looks up precomputed differential rates in a column source,
+    with the added ability to simulate.
+
+    Arguments:
+        - source_type: base flamedisx source class.
+        - source_name: name given to the base source; must match the source name
+            in the reservoir.
+        - source_kwargs: any kwargs needed to instantiate the base source.
+        - reservoir: dataframe of events with a column 'source' showing the
+            {source_name} of the base source each event came from, and columns
+            '{sorce_name}_diff_rate' with the differential rate of each event
+            computed under all base sources that will have a FastSource used
+            in the analysis.
+
+    For other arguments, see flamedisx.source.Source
     """
 
     def __init__(self, source_type: Source.__class__ = None, source_name: str = None,
