@@ -373,3 +373,40 @@ def test_config(xes):
     b = [_b for _b in xes.model_blocks
          if isinstance(_b, fd.DetectPhotons)][0]
     assert b.photon_detection_eff == 0.11
+
+
+def test_FastSource():
+    # Create a reservoir from fd.ERSource and fd.NRSource
+    res = fd.source.FastSourceReservoir(sources=dict(er=fd.ERSource, nr=fd.NRSource),
+                                        arguments = dict(er={'batch_size': 100}, nr={'batch_size': 100}),
+                                        ntoys=1)
+
+    # Create ER and NR FastSource s
+    s_er = fd.FastSource(source_type=fd.ERSource, source_name='er', reservoir=res)
+    s_nr = fd.FastSource(source_type=fd.NRSource, source_name='nr', reservoir=res)
+
+    # Generate events from both FastSource s
+    d_er = s_er.simulate(2)
+    d_nr = s_nr.simulate(2)
+
+    # Check we simulated from the correct sources
+    assert d_er['source'].values.all() == 'er'
+    assert d_nr['source'].values.all() == 'nr'
+
+    # Compute differential rates
+    s_er.set_data(d_er)
+    dr_data_er_source_er = s_er.batched_differential_rate()
+    s_nr.set_data(d_er)
+    dr_data_er_source_nr = s_nr.batched_differential_rate()
+
+    s_er.set_data(d_nr)
+    dr_data_nr_source_er = s_er.batched_differential_rate()
+    s_nr.set_data(d_nr)
+    dr_data_nr_source_nr = s_nr.batched_differential_rate()
+
+    # Check the differential rates are as expected
+    assert (dr_data_er_source_er == d_er['er_diff_rate'].values).all()
+    assert (dr_data_er_source_nr == d_er['nr_diff_rate'].values).all()
+
+    assert (dr_data_nr_source_er == d_nr['er_diff_rate'].values).all()
+    assert (dr_data_nr_source_nr == d_nr['nr_diff_rate'].values).all()
