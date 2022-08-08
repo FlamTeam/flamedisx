@@ -294,3 +294,12 @@ def filter_kwargs(func, kwargs):
         # if func accepts wildcard kwargs, return all
         return kwargs
     return {k: v for k, v in kwargs.items() if k in params}
+
+
+@export
+def log10(x):
+    """Tensorflow does not support log_10, so we need our own
+    """
+    numerator = tf.math.log(x)
+    denominator = tf.math.log(tf.constant(10, dtype=numerator.dtype))
+    return numerator / denominator

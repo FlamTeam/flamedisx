@@ -45,7 +45,7 @@ class nestSource(fd.BlockModelSource):
         #
         self.drift_velocity = fd_nest.calculate_drift_velocity(
             self.drift_field, self.density, self.temperature)
-        self.Wq_keV = fd_nest.calculate_work(self.density)
+        self.Wq_keV, self.alpha = fd_nest.calculate_work(self.density)
 
         # energy_spectrum.py
         self.radius = config.getfloat('NEST', 'radius_config')
@@ -206,20 +206,28 @@ class nestERSource(nestSource):
     def mean_yield_electron(self, energy):
         Wq_eV = self.Wq_keV * 1e3
 
-        QyLvllowE = tf.cast(1e3 / Wq_eV + 6.5 * (1. - 1. / (1. + pow(self.drift_field / 47.408, 1.9851))),
-                            fd.float_type())
-        HiFieldQy = tf.cast(1. + 0.4607 / pow(1. + pow(self.drift_field / 621.74, -2.2717), 53.502),
-                            fd.float_type())
-        QyLvlmedE = tf.cast(32.988 - 32.988 / (1. +
-                            pow(self.drift_field / (0.026715 * tf.exp(self.density / 0.33926)), 0.6705)),
-                            fd.float_type())
-        QyLvlmedE *= HiFieldQy
-        DokeBirks = tf.cast(1652.264 + (1.415935e10 - 1652.264) / (1. + pow(self.drift_field / 0.02673144, 1.564691)),
-                            fd.float_type())
-        LET_power = tf.cast(-2., fd.float_type())
-        QyLvlhighE = tf.cast(28., fd.float_type())
-        Qy = QyLvlmedE + (QyLvllowE - QyLvlmedE) / pow(1. + 1.304 * pow(energy, 2.1393), 0.35535) + \
-            QyLvlhighE / (1. + DokeBirks * pow(energy, LET_power))
+        Nq = energy * 1e3 / Wq_eV
+
+        m1 = 30.66 + (6.1978 - 30.66) / pow(1. + pow(self.drift_field / 73.855, 2.0318), 0.41883)
+        m5 = Nq / energy / (1 + self.alpha * tf.math.erf(0.05 * energy)) - m1
+        m10 = (0.0508273937 + (0.1166087199 - 0.0508273937) / (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592)))
+
+        Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.log10(self.drift_field) * 0.13946236 + 0.52561312),
+                                                    1.82217496 + (2.82528809 - 1.82217496) /
+                                                        (1 + pow(self.drift_field / 144.65029656, -2.80532006)))),
+                                          0.3344049589) + \
+            m5 + (0. - m5) / pow((1. + pow(energy / (7.02921301 + (98.27936794 - 7.02921301) /
+                (1. + pow(self.drift_field / 256.48156448, 1.29119251))),
+                                           4.285781736)),
+                                 m10)
+
+        coeff_TI = pow(1. / XENON_REF_DENSITY, 0.3);
+        coeff_Ni = pow(1. / XENON_REF_DENSITY, 1.4);
+        coeff_OL = pow(1. / XENON_REF_DENSITY, -1.7) / fd.log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7))
+
+        Qy *= coeff_OL * fd.log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7);
+
+        print(Qy)
 
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
@@ -251,9 +259,7 @@ class nestERSource(nestSource):
         return Fano + 0.0015 * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
 
     def exciton_ratio(self, energy):
-        alf = 0.067366 + self.density * 0.039693
-
-        return alf * tf.math.erf(0.05 * energy)
+        return self.alpha * tf.math.erf(0.05 * energy)
 
     def skewness(self, nq_mean):
         energy = self.Wq_keV * nq_mean
@@ -286,9 +292,11 @@ class nestERSource(nestSource):
         ni = args[3]
 
         elec_frac = nel_mean / nq_mean
-        ampl = tf.cast(0.14 + (0.043 - 0.14) / (1. + pow(self.drift_field / 1210., 1.25)), fd.float_type())
+        ampl = tf.cast(0.086036 + (0.0553 - 0.086036) /
+            pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
+                       fd.float_type())
         wide = tf.cast(0.205, fd.float_type())
-        cntr = tf.cast(0.5, fd.float_type())
+        cntr = tf.cast(0.45, fd.float_type())
         skew = tf.cast(-0.2, fd.float_type())
         norm = tf.cast(0.988, fd.float_type())
 
@@ -363,10 +371,8 @@ class nestNRSource(nestSource):
 
         ex_ratio = nex / ni
 
-        alf = 0.067366 + self.density * 0.039693
-
-        ex_ratio = tf.where(tf.logical_and(ex_ratio < alf, energy > 100.),
-                            alf * tf.ones_like(ex_ratio, dtype=fd.float_type()),
+        ex_ratio = tf.where(tf.logical_and(ex_ratio < self.alpha, energy > 100.),
+                            self.alpha * tf.ones_like(ex_ratio, dtype=fd.float_type()),
                             ex_ratio)
         ex_ratio = tf.where(tf.logical_and(ex_ratio > 1., energy < 1.),
                             tf.ones_like(ex_ratio, dtype=fd.float_type()),
