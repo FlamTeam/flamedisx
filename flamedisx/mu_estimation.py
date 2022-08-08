@@ -2,13 +2,13 @@
 Routines for estimating the total expected events
 and its variation with parameters.
 """
+import itertools
 from functools import partial
 
 import numpy as np
 from tqdm import tqdm
 import tensorflow as tf
 import tensorflow_probability as tfp
-from sklearn.model_selection import ParameterGrid
 
 import flamedisx as fd
 
@@ -239,48 +239,44 @@ class GridInterpolatedMu(MuEstimator):
     """Linearly interpolate the estimated mu on an n-dimensional grid"""
 
     def build(self, source: fd.Source):
-        _iter = dict(sorted(self.bounds.items())).items()
-
         param_lowers = []
         param_uppers = []
         grid_shape = ()
-        for pname, (start, stop) in _iter:
+        grid_dict = dict()
+        for pname, (start, stop) in self.bounds.items():
             param_lowers.append(start)
             param_uppers.append(stop)
-            grid_shape += (int(self.param_options.get(pname, {}).get('n_anchors', 3)),)
+            n_anchors = int(self.param_options.get(pname, {}).get('n_anchors', 2))
+            grid_shape += (n_anchors,)
+            grid_dict[pname] = np.linspace(start, stop, n_anchors)
 
-        self.param_lowers = param_lowers
-        self.param_uppers = param_uppers
+        self.param_lowers = fd.np_to_tf(np.asarray(param_lowers))
+        self.param_uppers = fd.np_to_tf(np.asarray(param_uppers))
 
-        grid_dict = {pname: np.linspace(start, stop,
-                                        int(self.param_options.get(pname, {}).get('n_anchors', 3)))
-                     for pname, (start, stop) in _iter}
-        param_grid = list(ParameterGrid(grid_dict))
-
+        # Convert dict of anchors to a list of grid points
+        # (like sklearn.ParameterGrid)
+        keys, values = grid_dict.keys(), grid_dict.values()
+        param_grid = [dict(zip(keys, v)) for v in itertools.product(*values)]
         if self.progress:
             param_grid = tqdm(param_grid, desc="Estimating mus")
 
-        mu_grid = []
-        for params in param_grid:
-            mu_grid.append(source.estimate_mu(**params, n_trials=self.n_trials))
-        mu_grid = np.asarray(mu_grid).reshape(grid_shape)
-
-        self.mu_grid = tf.convert_to_tensor(mu_grid, fd.float_type())
+        mu_grid = [
+            source.estimate_mu(**params, n_trials=self.n_trials)
+            for params in param_grid
+        ]
+        self.mu_grid = fd.np_to_tf(np.asarray(mu_grid).reshape(grid_shape))
 
     def __call__(self, **kwargs):
-        assert(dict(sorted(self.bounds.items())).keys() == dict(sorted(kwargs.items())).keys()), \
-            "Must pass the same parameters to the grid interpolator that the grid was built with"
+        # Match kwargs order to grid param order
+        # (LogLikelihood.mu already filtered params)
+        kwargs = {param_name: kwargs[param_name] for param_name in self.bounds}
 
-        n_params = len(kwargs)
-        params = []
-        for pname, v in dict(sorted(kwargs.items())).items():
-            params.append(v)
-
-        return tfp.math.batch_interp_regular_nd_grid([params],
-                                                     x_ref_min=self.param_lowers,
-                                                     x_ref_max=self.param_uppers,
-                                                     y_ref=self.mu_grid,
-                                                     axis=-n_params)[0]
+        return tfp.math.batch_interp_regular_nd_grid(
+            [list(kwargs.values())],
+            x_ref_min=self.param_lowers,
+            x_ref_max=self.param_uppers,
+            y_ref=self.mu_grid,
+            axis=-len(self.bounds))[0]
 
 
 @export

@@ -98,12 +98,14 @@ def test_constant_mu():
 
 
 def test_grid_interpolation():
-    ll = fd.LogLikelihood(**ll_options, mu_estimators=fd.GridInterpolatedMu)
+    ll = fd.LogLikelihood(
+        **ll_options,
+        mu_estimators=fd.GridInterpolatedMu)
 
     # Interpolate both variables
     mu_est = -ll(x=0.5, y=0.3)
 
-    points = ([-1, 0, 1], [-1, 0, 1])
+    points = ([-1, 1], [-1, 1])
     mu_grid = mu_func(*np.meshgrid(*points, indexing='ij'))
 
     assert np.isclose(mu_est, interpn(points, mu_grid, np.array([0.5, 0.3])))
