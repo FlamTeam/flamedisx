@@ -267,10 +267,10 @@ class nestERSource(nestSource):
 
         return nq
 
-    def fano_factor(self, nq_mean):
+    def fano_factor(self, nq_mean, *, er_free_a=0.0015):
         Fano = 0.12707 - 0.029623 * self.density - 0.0057042 * pow(self.density, 2.) + 0.0015957 * pow(self.density, 3.)
 
-        return Fano + 0.0015 * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
+        return Fano + er_free_a * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
 
     def exciton_ratio(self, energy):
         return self.alpha * tf.math.erf(0.05 * energy)
@@ -299,19 +299,23 @@ class nestERSource(nestSource):
 
         return skewness_masked
 
-    def variance(self, *args):
+    def variance(self, *args,
+                 er_free_b=0.046452,
+                 er_free_c=0.205,
+                 er_free_d=0.45,
+                 er_free_e=-0.2):
         nel_mean = args[0]
         nq_mean = args[1]
         recomb_p = args[2]
         ni = args[3]
 
         elec_frac = nel_mean / nq_mean
-        ampl = tf.cast(0.086036 + (0.0553 - 0.086036) /
+        ampl = tf.cast(0.086036 + (er_free_b - 0.086036) /
             pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
                        fd.float_type())
-        wide = tf.cast(0.205, fd.float_type())
-        cntr = tf.cast(0.45, fd.float_type())
-        skew = tf.cast(-0.2, fd.float_type())
+        wide = er_free_c
+        cntr = er_free_d
+        skew = er_free_e
         norm = tf.cast(0.988, fd.float_type())
 
         omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * \
@@ -415,7 +419,7 @@ class nestNRSource(nestSource):
 
     @staticmethod
     def variance(*args,
-                 nr_free_c=0.1,
+                 nr_free_c=0.04,
                  nr_free_d=0.5,
                  nr_free_e=0.19):
         nel_mean = args[0]
