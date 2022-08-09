@@ -316,7 +316,10 @@ class nestERSource(nestSource):
         wide = er_free_c
         cntr = er_free_d
         skew = er_free_e
-        norm = tf.cast(0.988, fd.float_type())
+
+        mode = cntr + 2. / (tf.sqrt(2. * pi)) * skew * wide / tf.sqrt(1. + skew * skew)
+        norm = 1. / (tf.exp(-0.5 * pow(mode - cntr, 2.) / (wide * wide)) * \
+            (1. + tf.math.erf(skew * (mode - cntr) / (wide * tf.sqrt(2.)))))
 
         omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * \
             (1. + tf.math.erf(skew * (elec_frac - cntr) / (wide * tf.sqrt(2.))))
