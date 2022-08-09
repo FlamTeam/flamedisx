@@ -398,6 +398,13 @@ class nestNRSource(nestSource):
         return nel, nq, ex_ratio
 
     @staticmethod
+    def yield_fano(nq_mean, *, nr_free_a=0.4, nr_free_b=0.4):
+        ni_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_a
+        nex_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_b
+
+        return ni_fano, nex_fano
+
+    @staticmethod
     def skewness(nq_mean, *,
                  nr_free_f=2.25):
         mask = tf.less(nq_mean, 1e4 * tf.ones_like(nq_mean))

@@ -22,8 +22,8 @@ class MakePhotonsElectronsNR(fd.Block):
 
     exclude_data_tensor = ('ions_produced_max',)
 
-    special_model_functions = ('mean_yields', 'recomb_prob', 'skewness', 'variance',
-                               'width_correction', 'mu_correction')
+    special_model_functions = ('mean_yields', 'yield_fano', 'recomb_prob', 'skewness',
+                               'variance', 'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
     def setup(self):
@@ -87,12 +87,17 @@ class MakePhotonsElectronsNR(fd.Block):
                 ex_ratio = yields[2]
                 alpha = 1. / (1. + ex_ratio)
 
+                yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=nq_mean)
+                ni_fano = yield_fano[0]
+                nex_fano = yield_fano[1]
+
                 if approx:
                     p_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                    scale=tf.sqrt(nq_mean*alpha) + 1e-10).prob(_ions_produced)
+                                                    scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10).prob(_ions_produced)
 
                     p_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                    scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10).prob(
+                                                    scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10).prob(
                                                         nq - _ions_produced)
                 else:
                     normal_dist_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
@@ -228,13 +233,17 @@ class MakePhotonsElectronsNR(fd.Block):
             ex_ratio = yields[2]
             alpha = 1. / (1. + ex_ratio)
 
-            ni_temp = np.round(stats.norm.rvs(nq*alpha, np.sqrt(nq*alpha))).astype(int)
+            yield_fano = self.gimme_numpy('yield_fano', nq)
+            ni_fano = yield_fano[0]
+            nex_fano = yield_fano[1]
+
+            ni_temp = np.round(stats.norm.rvs(nq*alpha, np.sqrt(nq*alpha*ni_fano))).astype(int)
             # Don't let number of ions go negative
             d['ions_produced'] = np.where(ni_temp < 0,
                                           ni_temp * 0,
                                           ni_temp)
 
-            nex_temp = np.round(stats.norm.rvs(nq*alpha*ex_ratio, np.sqrt(nq*alpha*ex_ratio))).astype(int)
+            nex_temp = np.round(stats.norm.rvs(nq*alpha*ex_ratio, np.sqrt(nq*alpha*ex_ratio*nex_fano))).astype(int)
             # Don't let number of excitons go negative
             nex = np.where(nex_temp < 0,
                            nex_temp * 0,
@@ -406,6 +415,6 @@ class MakePhotonsElectronER(MakePhotonsElectronsNR):
     is_ER = True
 
     special_model_functions = tuple(
-        [x for x in MakePhotonsElectronsNR.special_model_functions if x != 'mean_yields'] +
+        [x for x in MakePhotonsElectronsNR.special_model_functions if (x != 'mean_yields' and x != 'yield_fano')] +
         ['mean_yield_electron', 'mean_yield_quanta', 'fano_factor', 'exciton_ratio'])
     model_functions = special_model_functions
