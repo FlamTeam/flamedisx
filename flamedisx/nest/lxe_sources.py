@@ -127,8 +127,23 @@ class nestSource(fd.BlockModelSource):
     def electron_detection_eff(self, drift_time):
         liquid_field_interface = self.gas_field / \
             (XENON_LIQUID_DIELECTRIC / XENON_GAS_DIELECTRIC)
-        extraction_eff = -0.03754 * pow(liquid_field_interface, 2) + \
-            0.52660 * liquid_field_interface - 0.84645
+
+        em1 = 8.807528626640e4 - 2.026247730928e3 * self.temperature + \
+            1.747197309338e1 * pow(self.temperature, 2.) - \
+            6.692362929271e-2 * pow(self.temperature, 3.) + \
+            9.607626262594e-5 * pow(self.temperature, 4.)
+        em2 = 5.074800229635e5 - 1.460168019275e4 * self.temperature + \
+            1.680089978382e2 * pow(self.temperature, 2.) - \
+            9.663183204468e-1 * pow(self.temperature, 3.) + \
+            2.778229721617e-3 * pow(self.temperature, 4.) - \
+            3.194249083426e-6 * pow(self.temperature, 5.)
+        em3 = -4.659269964120e6 + 1.366555237249e5 * self.temperature - \
+            1.602830617076e3 * pow(self.temperature, 2.) + \
+            9.397480411915e-0 * pow(self.temperature, 3.) - \
+            2.754232523872e-2 * pow(self.temperature, 4.) + \
+            3.228101180588e-5 * pow(self.temperature, 5.)
+
+        extraction_eff = 1. - em1 * tf.exp(-em2 * pow(liquid_field_interface, em3))
 
         return extraction_eff * tf.exp(-drift_time / self.elife)
 
