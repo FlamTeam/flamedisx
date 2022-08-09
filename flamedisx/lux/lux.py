@@ -22,17 +22,17 @@ export, __all__ = fd.exporter()
 
 
 class LUXSource:
-    def __init__(self, *args, detector='default', **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        assert detector in ('default',)
+        
+        assert kwargs['detector'] in ('default',)
 
         assert os.path.exists(os.path.join(
-            os.path.dirname(__file__), '../nest/config/', detector + '.ini'))
+            os.path.dirname(__file__), '../nest/config/', kwargs['detector'] + '.ini'))
 
         config = configparser.ConfigParser(inline_comment_prefixes=';')
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
-                                 detector + '.ini'))
+                                 kwargs['detector'] + '.ini'))
 
         self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
         self.dt_cntr = config.getfloat('NEST', 'dt_cntr_config')
@@ -88,7 +88,9 @@ class LUXSource:
 
 @export
 class LUXERSource(LUXSource, fd.nest.nestERSource):
-    def __init__(self, *args, detector='default', **kwargs):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+             kwargs['detector'] = 'default'
         super().__init__(*args, **kwargs)
 
 
@@ -106,7 +108,9 @@ class LUXERGammaWeightedSource(LUXSource, fd.nest.nestERGammaWeightedSource):
 
 @export
 class LUXNRSource(LUXSource, fd.nest.nestNRSource):
-    def __init__(self, *args, detector='default', **kwargs):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+             kwargs['detector'] = 'default'
         super().__init__(*args, **kwargs)
 
 
