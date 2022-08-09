@@ -20,7 +20,7 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default',)
+        assert detector in ('default', 'XENONnT')
 
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), 'config/', detector + '.ini'))
