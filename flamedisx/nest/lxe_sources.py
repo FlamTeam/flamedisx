@@ -75,10 +75,12 @@ class nestSource(fd.BlockModelSource):
 
         # final_signals.py
         self.spe_res = config.getfloat('NEST', 'spe_res_config')
+        self.s1_mean_mult = fd_nest.calculate_s1_mean_mult(self.spe_res)
         self.S1_noise = config.getfloat('NEST', 'S1_noise_config')
         self.S2_noise = config.getfloat('NEST', 'S2_noise_config')
 
         self.S1_min = config.getfloat('NEST', 'S1_min_config')
+        self.s2_mean_mult = 1.
         self.S1_max = config.getfloat('NEST', 'S1_max_config')
         self.S2_min = config.getfloat('NEST', 'S2_min_config')
         self.S2_max = config.getfloat('NEST', 'S2_max_config')
@@ -183,6 +185,12 @@ class nestSource(fd.BlockModelSource):
         return 1. - (1. - eff_trunc) / (1. + self.double_pe_fraction)
 
     # final_signals.py
+
+    def s1_spe_mean(self, n_pe):
+        return self.s1_mean_mult * n_pe
+
+    def s2_spe_mean(self, n_pe):
+        return self.s2_mean_mult * n_pe
 
     def s1_spe_smearing(self, n_pe):
         return tf.sqrt(
@@ -305,7 +313,7 @@ class nestERSource(nestSource):
         return skewness_masked
 
     def variance(self, *args,
-                 er_free_b=0.046452,
+                 er_free_b=0.0553,
                  er_free_c=0.205,
                  er_free_d=0.45,
                  er_free_e=-0.2):
@@ -410,7 +418,7 @@ class nestNRSource(nestSource):
         return nel, nq, ex_ratio
 
     @staticmethod
-    def yield_fano(nq_mean, *, nr_free_a=0.4, nr_free_b=0.4):
+    def yield_fano(nq_mean, *, nr_free_a=1., nr_free_b=1.):
         ni_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_a
         nex_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_b
 
@@ -427,7 +435,7 @@ class nestNRSource(nestSource):
 
     @staticmethod
     def variance(*args,
-                 nr_free_c=0.04,
+                 nr_free_c=0.1,
                  nr_free_d=0.5,
                  nr_free_e=0.19):
         nel_mean = args[0]
