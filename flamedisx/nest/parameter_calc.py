@@ -128,3 +128,13 @@ def calculate_work(density):
     alpha = 0.067366 + density * 0.039693
 
     return Wq_keV, alpha
+
+
+@export
+def calculate_s1_mean_mult(spe_res):
+    TruncGaussAlpha = -1. / spe_res
+    LittlePhi_Alpha = 1. / (np.sqrt(2. * np.pi)) * np.exp(-0.5 * TruncGaussAlpha * TruncGaussAlpha)
+    BigPhi_Alpha = 0.5 * (1. + np.erf(TruncGaussAlpha / np.sqrt(2.)));
+    NewMean = 1. + (LittlePhi_Alpha / (1. - BigPhi_Alpha)) spe_res
+
+    return 1. / NewMean
