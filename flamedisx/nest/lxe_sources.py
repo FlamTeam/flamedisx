@@ -15,8 +15,6 @@ o = tf.newaxis
 GAS_CONSTANT = 8.314
 N_AVAGADRO = 6.0221409e23
 A_XENON = 131.293
-XENON_LIQUID_DIELECTRIC = 1.85
-XENON_GAS_DIELECTRIC = 1.00126
 XENON_REF_DENSITY = 2.90
 
 
@@ -59,6 +57,7 @@ class nestSource(fd.BlockModelSource):
         self.g1 = config.getfloat('NEST', 'g1_config')
         self.min_photons = config.getint('NEST', 'min_photons_config')
         self.elife = config.getint('NEST', 'elife_config')
+        self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
 
         # secondary_quanta_generation.py
         self.gas_gap = config.getfloat('NEST', 'gas_gap_config')
@@ -127,27 +126,7 @@ class nestSource(fd.BlockModelSource):
         return self.g1 * tf.ones_like(z)
 
     def electron_detection_eff(self, drift_time):
-        liquid_field_interface = self.gas_field / \
-            (XENON_LIQUID_DIELECTRIC / XENON_GAS_DIELECTRIC)
-
-        em1 = 8.807528626640e4 - 2.026247730928e3 * self.temperature + \
-            1.747197309338e1 * pow(self.temperature, 2.) - \
-            6.692362929271e-2 * pow(self.temperature, 3.) + \
-            9.607626262594e-5 * pow(self.temperature, 4.)
-        em2 = 5.074800229635e5 - 1.460168019275e4 * self.temperature + \
-            1.680089978382e2 * pow(self.temperature, 2.) - \
-            9.663183204468e-1 * pow(self.temperature, 3.) + \
-            2.778229721617e-3 * pow(self.temperature, 4.) - \
-            3.194249083426e-6 * pow(self.temperature, 5.)
-        em3 = -4.659269964120e6 + 1.366555237249e5 * self.temperature - \
-            1.602830617076e3 * pow(self.temperature, 2.) + \
-            9.397480411915e-0 * pow(self.temperature, 3.) - \
-            2.754232523872e-2 * pow(self.temperature, 4.) + \
-            3.228101180588e-5 * pow(self.temperature, 5.)
-
-        extraction_eff = 1. - em1 * tf.exp(-em2 * pow(liquid_field_interface, em3))
-
-        return extraction_eff * tf.exp(-drift_time / self.elife)
+        return self.extraction_eff * tf.exp(-drift_time / self.elife)
 
     def s2_photon_detection_eff(self, z):
         return self.g1_gas * tf.ones_like(z)

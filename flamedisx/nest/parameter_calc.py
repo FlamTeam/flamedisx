@@ -12,6 +12,8 @@ XENON_VDW_A = 0.4250
 XENON_VDW_B = 5.105e-5
 A_XENON = 131.293
 Z_XENON = 54
+XENON_LIQUID_DIELECTRIC = 1.85
+XENON_GAS_DIELECTRIC = 1.00126
 
 
 @export
@@ -129,6 +131,30 @@ def calculate_work(density):
     alpha = 0.067366 + density * 0.039693
 
     return Wq_keV, alpha
+
+@export
+def calculate_extraction_eff(gas_field, temperature):
+    liquid_field_interface = gas_field / \
+        (XENON_LIQUID_DIELECTRIC / XENON_GAS_DIELECTRIC)
+
+    em1 = 8.807528626640e4 - 2.026247730928e3 * temperature + \
+        1.747197309338e1 * pow(temperature, 2.) - \
+        6.692362929271e-2 * pow(temperature, 3.) + \
+        9.607626262594e-5 * pow(temperature, 4.)
+    em2 = 5.074800229635e5 - 1.460168019275e4 * temperature + \
+        1.680089978382e2 * pow(temperature, 2.) - \
+        9.663183204468e-1 * pow(temperature, 3.) + \
+        2.778229721617e-3 * pow(temperature, 4.) - \
+        3.194249083426e-6 * pow(temperature, 5.)
+    em3 = -4.659269964120e6 + 1.366555237249e5 * temperature - \
+        1.602830617076e3 * pow(temperature, 2.) + \
+        9.397480411915e-0 * pow(temperature, 3.) - \
+        2.754232523872e-2 * pow(temperature, 4.) + \
+        3.228101180588e-5 * pow(temperature, 5.)
+
+    extraction_eff = 1. - em1 * np.exp(-em2 * pow(liquid_field_interface, em3))
+
+    return extraction_eff
 
 
 @export
