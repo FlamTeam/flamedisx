@@ -30,9 +30,9 @@ class MakeFinalSignals(fd.Block):
     def _simulate(self, d):
         d[self.signal_name] = stats.norm.rvs(
             loc=(self.gimme_numpy(self.signal_name + '_spe_mean',
-                   d[self.signal_name + '_photoelectrons_detected'])),
+                   d[self.signal_name + '_photoelectrons_detected'].values)),
             scale=(self.gimme_numpy(self.signal_name + '_spe_smearing',
-                   d[self.signal_name + '_photoelectrons_detected'])))
+                   d[self.signal_name + '_photoelectrons_detected'].values)))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -59,7 +59,11 @@ class MakeFinalSignals(fd.Block):
     def _compute(self,
                  photoelectrons_detected, s_observed,
                  data_tensor, ptensor):
-        mean = photoelectrons_detected
+        mean = self.gimme(
+            self.signal_name + '_spe_mean',
+            bonus_arg=photoelectrons_detected,
+            data_tensor=data_tensor,
+            ptensor=ptensor)
         std = self.gimme(
             self.signal_name + '_spe_smearing',
             bonus_arg=photoelectrons_detected,
@@ -92,7 +96,7 @@ class MakeS1(MakeFinalSignals):
     signal_name = 's1'
 
     dimensions = ('s1_photoelectrons_detected', 's1')
-    special_model_functions = ('s1_spe_smearing', 'reconstruction_bias_s1')
+    special_model_functions = ('s1_spe_mean', 's1_spe_smearing', 'reconstruction_bias_s1')
     model_functions = ('s1_acceptance',) + special_model_functions
 
     max_dim_size = {'s1_photoelectrons_detected': 120}
@@ -124,7 +128,7 @@ class MakeS2(MakeFinalSignals):
     signal_name = 's2'
 
     dimensions = ('s2_photoelectrons_detected', 's2')
-    special_model_functions = ('s2_spe_smearing', 'reconstruction_bias_s2')
+    special_model_functions = ('s2_spe_mean', 's2_spe_smearing', 'reconstruction_bias_s2')
     model_functions = ('s2_acceptance',) + special_model_functions
 
     max_dim_size = {'s2_photoelectrons_detected': 120}
