@@ -293,9 +293,14 @@ class nestERSource(nestSource):
             1. / (1. + tf.exp(-1. * (energy - E2) / E3)) * cc1 * tf.exp(-1. * energy / E1) * \
             tf.exp(-1. * tf.sqrt(self.drift_field) / tf.sqrt(F1))
 
-        mask = tf.less(nq_mean, 10000*tf.ones_like(nq_mean))
+        mask_quanta = tf.less(nq_mean, 10000*tf.ones_like(nq_mean))
+        mask_field_low = tf.greater(self.drift_field*tf.ones_like(nq_mean), 50.*tf.ones_like(nq_mean))
+        mask_field_high = tf.less(self.drift_field*tf.ones_like(nq_mean), 2000.*tf.ones_like(nq_mean))
+
+        mask_product = tf.logical_and(mask_quanta, tf.logical_and(mask_field_low, mask_field_high))
+
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
-        skewness_masked = tf.multiply(skewness, tf.cast(mask, fd.float_type()))
+        skewness_masked = tf.multiply(skewness, tf.cast(mask_product, fd.float_type()))
 
         return skewness_masked
 
