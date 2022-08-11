@@ -55,7 +55,6 @@ class nestSource(fd.BlockModelSource):
 
         # detection.py / pe_detection.py / double_pe.py / final_signals.py
         self.g1 = config.getfloat('NEST', 'g1_config')
-        self.min_photons = config.getint('NEST', 'min_photons_config')
         self.elife = config.getint('NEST', 'elife_config')
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
         self.spe_res = config.getfloat('NEST', 'spe_res_config')
@@ -63,7 +62,7 @@ class nestSource(fd.BlockModelSource):
         self.spe_eff = config.getfloat('NEST', 'spe_eff_config')
         self.num_pmts = config.getfloat('NEST', 'num_pmts_config')
         self.double_pe_fraction = config.getfloat('NEST', 'double_pe_fraction_config')
-        self.coin_table = fd_nest.get_coin_table(self.min_photons, self.num_pmts, self.spe_res,
+        self.coin_table = fd_nest.get_coin_table(config.getint('NEST', 'coin_level_config'), self.num_pmts, self.spe_res,
                                                  self.spe_thr, self.spe_eff, self.double_pe_fraction)
 
         # secondary_quanta_generation.py
@@ -72,13 +71,12 @@ class nestSource(fd.BlockModelSource):
         self.s2Fano = config.getfloat('NEST', 's2Fano_config')
 
         # final_signals.py
-        self.spe_res = config.getfloat('NEST', 'spe_res_config')
         self.s1_mean_mult = fd_nest.calculate_s1_mean_mult(self.spe_res)
+        self.s2_mean_mult = 1.
         self.S1_noise = config.getfloat('NEST', 'S1_noise_config')
         self.S2_noise = config.getfloat('NEST', 'S2_noise_config')
 
         self.S1_min = config.getfloat('NEST', 'S1_min_config')
-        self.s2_mean_mult = 1.
         self.S1_max = config.getfloat('NEST', 'S1_max_config')
         self.S2_min = config.getfloat('NEST', 'S2_min_config')
         self.S2_max = config.getfloat('NEST', 'S2_max_config')

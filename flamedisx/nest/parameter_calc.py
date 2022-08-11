@@ -170,8 +170,8 @@ def calculate_s1_mean_mult(spe_res):
 
 
 @export
-def get_coin_table(min_photons, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fraction):
-    assert min_photons <= 3, 'This logic will not work well for coincidence levels higher than 3'
+def get_coin_table(coin_level, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fraction):
+    assert coin_level <= 3, 'This logic will not work well for coincidence levels higher than 3'
     coin_dict = dict()
     coin_table = []
 
@@ -181,7 +181,7 @@ def get_coin_table(min_photons, num_pmts, spe_res, spe_thr, spe_eff, double_pe_f
         i = spike
         while (i  > 0):
             denom += special.binom(num_pmts, i)
-            if (i >= min_photons):
+            if (i >= coin_level):
                 numer += special.binom(num_pmts, i)
             i -= 1
         coin_dict[spike] = numer / denom
