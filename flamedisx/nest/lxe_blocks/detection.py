@@ -2,6 +2,7 @@ import typing as ty
 
 import numpy as np
 from scipy import stats
+from scipy import special
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -143,11 +144,51 @@ class DetectPhotons(DetectPhotonsOrElectrons):
         """
         return tf.ones_like(r, dtype=fd.float_type())
 
+    def get_prob(spike, min_photons, num_pmts):
+        numer = 0.
+        denom = 0.
+
+        if (spike < min_photons):
+            return 0.
+
+        i = spike
+        while (i  > 0):
+            denom += special.binom(num_pmts, i)
+            if (i >= min_photons):
+                numer += special.binom(num_pmts, i)
+            i -= 1
+
+        return numer / denom
+
+    vget_prob = np.vectorize(get_prob, excluded=['min_photons', 'num_pmts'])
+
     def photon_acceptance(self, photons_detected):
-        return tf.where(
-            photons_detected < self.source.min_photons,
-            tf.zeros_like(photons_detected, dtype=fd.float_type()),
-            tf.ones_like(photons_detected, dtype=fd.float_type()))
+        BigPhi_alpha_SPE = 0.5 * (1. + tf.math.erf(-1. / self.source.spe_res / tf.sqrt(2.)))
+        BigPhi_xi_SPE = 0.5 * (1. + tf.math.erf((self.source.S1_min - 1.) / self.source.spe_res / tf.sqrt(2.)))
+        sPE_belowThresh_percentile = (BigPhi_xi_SPE - BigPhi_alpha_SPE) / (1. - BigPhi_alpha_SPE)
+
+        BigPhi_alpha_DPE = 0.5 * (1. + tf.math.erf(-2. / (tf.sqrt(2.) * self.source.spe_res) / tf.sqrt(2.)))
+        BigPhi_xi_DPE = 0.5 * (1. + tf.math.erf((self.source.S1_min - 2.) / (tf.sqrt(2.) * self.source.spe_res) / tf.sqrt(2.)))
+        dPE_belowThresh_percentile = (BigPhi_xi_DPE - BigPhi_alpha_DPE) / (1. - BigPhi_alpha_DPE)
+
+        belowThresh_percentile = sPE_belowThresh_percentile * (1. - self.source.double_pe_fraction) + \
+            dPE_belowThresh_percentile * self.source.double_pe_fraction
+
+        eff = tf.where(self.source.spe_eff < 1.,
+                       self.source.spe_eff + (1. - self.source.spe_eff) / (2. * self.source.num_pmts) * photons_detected,
+                       self.source.spe_eff)
+        eff_trunc = tf.cast(tf.where(eff > 1., 1., eff), fd.float_type())
+
+        spikes = stats.binom.rvs(n=photons_detected, p=(eff_trunc * (1. - belowThresh_percentile)))
+
+        probs = self.vget_prob(spikes, self.source.min_photons, self.source.num_pmts)
+
+        return probs
+
+        # return tf.where(
+        #     photons_detected < self.source.min_photons,
+        #     tf.zeros_like(photons_detected, dtype=fd.float_type()),
+        #     tf.ones_like(photons_detected, dtype=fd.float_type()))
 
     quanta_name = 'photon'
 
