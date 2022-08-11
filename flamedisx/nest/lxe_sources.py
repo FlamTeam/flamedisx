@@ -58,6 +58,7 @@ class nestSource(fd.BlockModelSource):
         self.min_photons = config.getint('NEST', 'min_photons_config')
         self.elife = config.getint('NEST', 'elife_config')
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
+        self.coin_table = fd_nest.get_coin_table(self.min_photons, config.getfloat('NEST', 'num_pmts_config'))
 
         # secondary_quanta_generation.py
         self.gas_gap = config.getfloat('NEST', 'gas_gap_config')

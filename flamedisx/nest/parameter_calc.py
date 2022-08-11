@@ -165,3 +165,21 @@ def calculate_s1_mean_mult(spe_res):
     NewMean = 1. + (LittlePhi_Alpha / (1. - BigPhi_Alpha)) * spe_res
 
     return 1. / NewMean
+
+@export
+def get_coin_table(min_photons, num_pmts):
+    assert min_photons <= 3, 'This logic will not work well for coincidence levels higher than 3'
+    coin_table = []
+
+    for spike in np.arange(1, 6):
+        numer = 0.
+        denom = 0.
+        i = spike
+        while (i  > 0):
+            denom += special.binom(num_pmts, i)
+            if (i >= min_photons):
+                numer += special.binom(num_pmts, i)
+            i -= 1
+        coin_table.append(numer / denom)
+
+    return coin_table
