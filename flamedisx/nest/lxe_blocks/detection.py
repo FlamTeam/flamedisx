@@ -2,7 +2,6 @@ import typing as ty
 
 import numpy as np
 from scipy import stats
-from scipy import special
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -144,24 +143,6 @@ class DetectPhotons(DetectPhotonsOrElectrons):
         """
         return tf.ones_like(r, dtype=fd.float_type())
 
-    def get_prob(spike, min_photons, num_pmts):
-        numer = 0.
-        denom = 0.
-
-        if (spike < min_photons):
-            return 0.
-
-        i = spike
-        while (i  > 0):
-            denom += special.binom(num_pmts, i)
-            if (i >= min_photons):
-                numer += special.binom(num_pmts, i)
-            i -= 1
-
-        return numer / denom
-
-    vget_prob = np.vectorize(get_prob, excluded=['min_photons', 'num_pmts'])
-
     def photon_acceptance(self, photons_detected):
         BigPhi_alpha_SPE = 0.5 * (1. + tf.math.erf(-1. / self.source.spe_res / tf.sqrt(2.)))
         BigPhi_xi_SPE = 0.5 * (1. + tf.math.erf((self.source.S1_min - 1.) / self.source.spe_res / tf.sqrt(2.)))
@@ -179,11 +160,20 @@ class DetectPhotons(DetectPhotonsOrElectrons):
                        self.source.spe_eff)
         eff_trunc = tf.cast(tf.where(eff > 1., 1., eff), fd.float_type())
 
-        spikes = stats.binom.rvs(n=photons_detected, p=(eff_trunc * (1. - belowThresh_percentile)))
+        p = eff_trunc * (1. - belowThresh_percentile)
 
-        probs = self.vget_prob(spikes, self.source.min_photons, self.source.num_pmts)
+        coin_table = self.source.coin_table
 
-        return probs
+        probs = tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(1) * coin_table[0] \
+            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(2) * coin_table[1] \
+            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(3) * coin_table[2] \
+            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(4) * coin_table[3] \
+            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(5) * coin_table[4] \
+
+        return tf.where(
+            photons_detected <= 5,
+            probs,
+            tf.ones_like(photons_detected, dtype=fd.float_type()))
 
         # return tf.where(
         #     photons_detected < self.source.min_photons,
