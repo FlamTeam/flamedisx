@@ -102,7 +102,7 @@ class MakeS1(MakeFinalSignals):
     max_dim_size = {'s1_photoelectrons_detected': 120}
 
     def s1_acceptance(self, s1):
-        return tf.where((s1 < self.source.S1_min) | (s1 > self.source.S1_max),
+        return tf.where((s1 < self.source.S1_min) | (s1 < self.source.spe_thr) | (s1 > self.source.S1_max),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 

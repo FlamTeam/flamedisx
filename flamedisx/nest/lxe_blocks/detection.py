@@ -144,35 +144,18 @@ class DetectPhotons(DetectPhotonsOrElectrons):
         return tf.ones_like(r, dtype=fd.float_type())
 
     def photon_acceptance(self, photons_detected):
-        BigPhi_alpha_SPE = 0.5 * (1. + tf.math.erf(-1. / self.source.spe_res / tf.sqrt(2.)))
-        BigPhi_xi_SPE = 0.5 * (1. + tf.math.erf((self.source.S1_min - 1.) / self.source.spe_res / tf.sqrt(2.)))
-        sPE_belowThresh_percentile = (BigPhi_xi_SPE - BigPhi_alpha_SPE) / (1. - BigPhi_alpha_SPE)
+        coin_table = tf.constant(self.source.coin_table)
 
-        BigPhi_alpha_DPE = 0.5 * (1. + tf.math.erf(-2. / (tf.sqrt(2.) * self.source.spe_res) / tf.sqrt(2.)))
-        BigPhi_xi_DPE = 0.5 * (1. + tf.math.erf((self.source.S1_min - 2.) / (tf.sqrt(2.) * self.source.spe_res) / tf.sqrt(2.)))
-        dPE_belowThresh_percentile = (BigPhi_xi_DPE - BigPhi_alpha_DPE) / (1. - BigPhi_alpha_DPE)
+        ph_det_mask = tf.where(
+            photons_detected <= 5,
+            photons_detected,
+            tf.zeros_like(photons_detected, dtype=fd.int_type()))
 
-        belowThresh_percentile = sPE_belowThresh_percentile * (1. - self.source.double_pe_fraction) + \
-            dPE_belowThresh_percentile * self.source.double_pe_fraction
-
-        eff = tf.where(self.source.spe_eff < 1.,
-                       self.source.spe_eff + (1. - self.source.spe_eff) / (2. * self.source.num_pmts) * photons_detected,
-                       self.source.spe_eff)
-        eff_trunc = tf.cast(tf.where(eff > 1., 1., eff), fd.float_type())
-
-        p = eff_trunc * (1. - belowThresh_percentile)
-
-        coin_table = self.source.coin_table
-
-        probs = tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(1) * coin_table[0] \
-            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(2) * coin_table[1] \
-            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(3) * coin_table[2] \
-            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(4) * coin_table[3] \
-            + tfp.distributions.Binomial(total_count=tf.cast(photons_detected, fd.float_type()), probs=tf.cast(p, dtype=fd.float_type())).prob(5) * coin_table[4] \
+        acceptance_temp = tf.cast(tf.gather(coin_table, ph_det_mask), fd.float_type())
 
         return tf.where(
             photons_detected <= 5,
-            probs,
+            acceptance_temp,
             tf.ones_like(photons_detected, dtype=fd.float_type()))
 
         # return tf.where(

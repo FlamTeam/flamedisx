@@ -53,25 +53,23 @@ class nestSource(fd.BlockModelSource):
         self.z_bottom = self.z_topDrift - self.drift_velocity * \
             config.getfloat('NEST', 'dt_max_config')
 
-        # detection.py
+        # detection.py / pe_detection.py / double_pe.py / final_signals.py
         self.g1 = config.getfloat('NEST', 'g1_config')
         self.min_photons = config.getint('NEST', 'min_photons_config')
         self.elife = config.getint('NEST', 'elife_config')
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
-        self.coin_table = fd_nest.get_coin_table(self.min_photons, config.getfloat('NEST', 'num_pmts_config'))
+        self.spe_res = config.getfloat('NEST', 'spe_res_config')
+        self.spe_thr = config.getfloat('NEST', 'spe_thr_config')
+        self.spe_eff = config.getfloat('NEST', 'spe_eff_config')
+        self.num_pmts = config.getfloat('NEST', 'num_pmts_config')
+        self.double_pe_fraction = config.getfloat('NEST', 'double_pe_fraction_config')
+        self.coin_table = fd_nest.get_coin_table(self.min_photons, self.num_pmts, self.spe_res,
+                                                 self.spe_thr, self.spe_eff, self.double_pe_fraction)
 
         # secondary_quanta_generation.py
         self.gas_gap = config.getfloat('NEST', 'gas_gap_config')
         self.g1_gas = config.getfloat('NEST', 'g1_gas_config')
         self.s2Fano = config.getfloat('NEST', 's2Fano_config')
-
-        # double_pe.py
-        self.double_pe_fraction = config.getfloat(
-            'NEST', 'double_pe_fraction_config')
-
-        # pe_detection.py
-        self.spe_eff = config.getfloat('NEST', 'spe_eff_config')
-        self.num_pmts = config.getfloat('NEST', 'num_pmts_config')
 
         # final_signals.py
         self.spe_res = config.getfloat('NEST', 'spe_res_config')
