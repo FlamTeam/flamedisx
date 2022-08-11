@@ -148,7 +148,7 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 
         ph_det_mask = tf.where(
             photons_detected <= 5,
-            photons_detected,
+            tf.cast(photons_detected, fd.int_type()),
             tf.zeros_like(photons_detected, dtype=fd.int_type()))
 
         acceptance_temp = tf.cast(tf.gather(coin_table, ph_det_mask), fd.float_type())
