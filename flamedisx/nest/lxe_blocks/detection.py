@@ -158,11 +158,6 @@ class DetectPhotons(DetectPhotonsOrElectrons):
             acceptance_temp,
             tf.ones_like(photons_detected, dtype=fd.float_type()))
 
-        # return tf.where(
-        #     photons_detected < self.source.min_photons,
-        #     tf.zeros_like(photons_detected, dtype=fd.float_type()),
-        #     tf.ones_like(photons_detected, dtype=fd.float_type()))
-
     quanta_name = 'photon'
 
     def _compute(self, data_tensor, ptensor,
