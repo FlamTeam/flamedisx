@@ -2,6 +2,7 @@ import sys
 
 import numpy as np
 from scipy import special
+from scipy import stats
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -132,6 +133,7 @@ def calculate_work(density):
 
     return Wq_keV, alpha
 
+
 @export
 def calculate_extraction_eff(gas_field, temperature):
     liquid_field_interface = gas_field / \
@@ -166,9 +168,11 @@ def calculate_s1_mean_mult(spe_res):
 
     return 1. / NewMean
 
+
 @export
-def get_coin_table(min_photons, num_pmts):
+def get_coin_table(min_photons, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fraction):
     assert min_photons <= 3, 'This logic will not work well for coincidence levels higher than 3'
+    coin_dict = dict()
     coin_table = []
 
     for spike in np.arange(1, 6):
@@ -180,6 +184,31 @@ def get_coin_table(min_photons, num_pmts):
             if (i >= min_photons):
                 numer += special.binom(num_pmts, i)
             i -= 1
-        coin_table.append(numer / denom)
+        coin_dict[spike] = numer / denom
+
+    BigPhi_alpha_SPE = 0.5 * (1. + special.erf(-1. / spe_res / np.sqrt(2.)))
+    BigPhi_xi_SPE = 0.5 * (1. + special.erf((spe_thr - 1.) / spe_res / np.sqrt(2.)))
+    sPE_belowThresh_percentile = (BigPhi_xi_SPE - BigPhi_alpha_SPE) / (1. - BigPhi_alpha_SPE)
+
+    BigPhi_alpha_DPE = 0.5 * (1. + special.erf(-2. / (np.sqrt(2.) * spe_res) / np.sqrt(2.)))
+    BigPhi_xi_DPE = 0.5 * (1. + special.erf((spe_thr - 2.) / (np.sqrt(2.) * spe_res) / np.sqrt(2.)))
+    dPE_belowThresh_percentile = (BigPhi_xi_DPE - BigPhi_alpha_DPE) / (1. - BigPhi_alpha_DPE)
+
+    belowThresh_percentile = sPE_belowThresh_percentile * (1. - double_pe_fraction) + \
+        dPE_belowThresh_percentile * double_pe_fraction
+
+    for ph_det in np.arange(0, 6):
+        spe_eff_mod = spe_eff
+        if (spe_eff_mod < 1.):
+            spe_eff_mod += (1. - spe_eff_mod) / (2. * num_pmts) * ph_det
+        if (spe_eff_mod > 1.):
+            spe_eff_mod = 1.
+        p = spe_eff_mod * (1. - belowThresh_percentile)
+
+        binom_prob = 0
+        for spike in np.arange(1, 6):
+            binom_prob += stats.binom.pmf(spike, ph_det, p) * coin_dict[spike]
+
+        coin_table.append(binom_prob)
 
     return coin_table
