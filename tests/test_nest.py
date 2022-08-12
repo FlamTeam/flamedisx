@@ -40,6 +40,6 @@ def test_nest_source():
     # manually updates the values below.
     np.testing.assert_allclose(
         dr.numpy(),
-        [1.9269697e-05, 4.2966261e-05],
+        [1.837623e-05, 4.047864e-05],
         # For some reason, we get different values on different machines
         rtol=5e-3)
