@@ -88,7 +88,7 @@ class MakePhotonsElectronsNR(fd.Block):
                 alpha = 1. / (1. + ex_ratio)
 
                 yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
-                                    bonus_arg=nq_mean)
+                                        bonus_arg=nq_mean)
                 ni_fano = yield_fano[0]
                 nex_fano = yield_fano[1]
 
