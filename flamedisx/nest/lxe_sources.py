@@ -344,19 +344,20 @@ class nestNRSource(nestSource):
 
     # quanta_splitting.py
 
-    def mean_yields(self, energy, *,
-                    nr_nuis_a=11.,
-                    nr_nuis_b=1.1,
-                    nr_nuis_c=0.0480,
-                    nr_nuis_d=-0.0533,
-                    nr_nuis_e=12.6,
-                    nr_nuis_f=0.3,
-                    nr_nuis_g=2.,
-                    nr_nuis_h=0.3,
-                    nr_nuis_i=2,
-                    nr_nuis_j=0.5,
-                    nr_nuis_k=1.,
-                    nr_nuis_l=1.):
+    def mean_yields(self, energy):
+        nr_nuis_a=11.
+        nr_nuis_b=1.1
+        nr_nuis_c=0.0480
+        nr_nuis_d=-0.0533
+        nr_nuis_e=12.6
+        nr_nuis_f=0.3
+        nr_nuis_g=2.
+        nr_nuis_h=0.3
+        nr_nuis_i=2
+        nr_nuis_j=0.5
+        nr_nuis_k=1.
+        nr_nuis_l=1.
+
         TIB = nr_nuis_c * pow(self.drift_field, nr_nuis_d) * pow(self.density / XENON_REF_DENSITY, 0.3)
         Qy = 1. / (TIB * pow(energy + nr_nuis_e, nr_nuis_j))
         Qy *= (1. - (1. / pow(1. + pow(energy / nr_nuis_f, nr_nuis_g), nr_nuis_k)))
@@ -396,15 +397,19 @@ class nestNRSource(nestSource):
         return nel, nq, ex_ratio
 
     @staticmethod
-    def yield_fano(nq_mean, *, nr_free_a=1., nr_free_b=1.):
+    def yield_fano(nq_mean):
+        nr_free_a=1.
+        nr_free_b=1.
+
         ni_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_a
         nex_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_b
 
         return ni_fano, nex_fano
 
     @staticmethod
-    def skewness(nq_mean, *,
-                 nr_free_f=2.25):
+    def skewness(nq_mean):
+        nr_free_f=2.25
+
         mask = tf.less(nq_mean, 1e4 * tf.ones_like(nq_mean))
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_f
         skewness_masked = tf.multiply(skewness, tf.cast(mask, fd.float_type()))
@@ -412,14 +417,15 @@ class nestNRSource(nestSource):
         return skewness_masked
 
     @staticmethod
-    def variance(*args,
-                 nr_free_c=0.1,
-                 nr_free_d=0.5,
-                 nr_free_e=0.19):
+    def variance(*args):
         nel_mean = args[0]
         nq_mean = args[1]
         recomb_p = args[2]
         ni = args[3]
+
+        nr_free_c=0.1
+        nr_free_d=0.5
+        nr_free_e=0.19
 
         elec_frac = nel_mean / nq_mean
 
