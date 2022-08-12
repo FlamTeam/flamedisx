@@ -90,7 +90,7 @@ class XENONnTSource:
                 np.transpose([d['x'].values,
                               d['y'].values,
                               d['z'].values]))
-            d['s2_relative_ly'] = self.s2map(
+            d['s2_relative_ly'] = self.s2_map(
                 np.transpose([d['x'].values,
                               d['y'].values]))
         else:
