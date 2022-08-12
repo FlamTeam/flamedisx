@@ -30,7 +30,7 @@ class MakeFinalSignals(fd.Block):
     def _simulate(self, d):
         d[self.signal_name] = stats.norm.rvs(
             loc=(self.gimme_numpy(self.signal_name + '_spe_mean',
-                   d[self.signal_name + '_photoelectrons_detected'].values)),
+                 d[self.signal_name + '_photoelectrons_detected'].values)),
             scale=(self.gimme_numpy(self.signal_name + '_spe_smearing',
                    d[self.signal_name + '_photoelectrons_detected'].values)))
 

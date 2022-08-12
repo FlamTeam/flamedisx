@@ -163,7 +163,7 @@ def calculate_extraction_eff(gas_field, temperature):
 def calculate_s1_mean_mult(spe_res):
     TruncGaussAlpha = -1. / spe_res
     LittlePhi_Alpha = 1. / (np.sqrt(2. * np.pi)) * np.exp(-0.5 * TruncGaussAlpha * TruncGaussAlpha)
-    BigPhi_Alpha = 0.5 * (1. + special.erf(TruncGaussAlpha / np.sqrt(2.)));
+    BigPhi_Alpha = 0.5 * (1. + special.erf(TruncGaussAlpha / np.sqrt(2.)))
     NewMean = 1. + (LittlePhi_Alpha / (1. - BigPhi_Alpha)) * spe_res
 
     return 1. / NewMean
@@ -184,7 +184,7 @@ def get_coin_table(coin_level, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fr
         numer = 0.
         denom = 0.
         i = spike
-        while (i  > 0):
+        while (i > 0):
             denom += special.binom(num_pmts, i)
             if (i >= coin_level):
                 numer += special.binom(num_pmts, i)

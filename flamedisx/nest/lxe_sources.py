@@ -62,8 +62,9 @@ class nestSource(fd.BlockModelSource):
         self.spe_eff = config.getfloat('NEST', 'spe_eff_config')
         self.num_pmts = config.getfloat('NEST', 'num_pmts_config')
         self.double_pe_fraction = config.getfloat('NEST', 'double_pe_fraction_config')
-        self.coin_table = fd_nest.get_coin_table(config.getint('NEST', 'coin_level_config'), self.num_pmts, self.spe_res,
-                                                 self.spe_thr, self.spe_eff, self.double_pe_fraction)
+        self.coin_table = fd_nest.get_coin_table(config.getint('NEST', 'coin_level_config'), self.num_pmts,
+                                                 self.spe_res, self.spe_thr, self.spe_eff,
+                                                 self.double_pe_fraction)
 
         # secondary_quanta_generation.py
         self.gas_gap = config.getfloat('NEST', 'gas_gap_config')
@@ -207,23 +208,24 @@ class nestERSource(nestSource):
 
         Nq = energy * 1e3 / Wq_eV
 
-        m1 = tf.cast(30.66 + (6.1978 - 30.66) / pow(1. + pow(self.drift_field / 73.855, 2.0318), 0.41883), fd.float_type())
+        m1 = tf.cast(30.66 + (6.1978 - 30.66) / pow(1. + pow(self.drift_field / 73.855, 2.0318), 0.41883),
+                     fd.float_type())
         m5 = tf.cast(Nq / energy / (1 + self.alpha * tf.math.erf(0.05 * energy)), fd.float_type()) - m1
-        m10 = tf.cast((0.0508273937 + (0.1166087199 - 0.0508273937) / (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592))), fd.float_type())
+        m10 = tf.cast((0.0508273937 + (0.1166087199 - 0.0508273937) /
+                      (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592))),
+                      fd.float_type())
 
         Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.log10(self.drift_field) * 0.13946236 + 0.52561312),
                                                     1.82217496 + (2.82528809 - 1.82217496) /
-                                                        (1 + pow(self.drift_field / 144.65029656, -2.80532006)))),
+                                                    (1 + pow(self.drift_field / 144.65029656, -2.80532006)))),
                                           0.3344049589) + \
             m5 + (0. - m5) / pow((1. + pow(energy / (7.02921301 + (98.27936794 - 7.02921301) /
-                (1. + pow(self.drift_field / 256.48156448, 1.29119251))),
-                                           4.285781736)),
-                                 m10)
+                                 (1. + pow(self.drift_field / 256.48156448, 1.29119251))), 4.285781736)), m10)
 
         coeff_TI = tf.cast(pow(1. / XENON_REF_DENSITY, 0.3), fd.float_type())
         coeff_Ni = tf.cast(pow(1. / XENON_REF_DENSITY, 1.4), fd.float_type())
         coeff_OL = tf.cast(pow(1. / XENON_REF_DENSITY, -1.7) /
-            fd.log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
+                           fd.log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
 
         Qy *= coeff_OL * fd.log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7)
 
@@ -252,7 +254,7 @@ class nestERSource(nestSource):
         return tf.cast(nq, fd.float_type())
 
     def fano_factor(self, nq_mean):
-        er_free_a=0.0015
+        er_free_a = 0.0015
         Fano = 0.12707 - 0.029623 * self.density - 0.0057042 * pow(self.density, 2.) + 0.0015957 * pow(self.density, 3.)
 
         return Fano + er_free_a * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
@@ -295,22 +297,22 @@ class nestERSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        er_free_b=0.0553
-        er_free_c=0.205
-        er_free_d=0.45
-        er_free_e=-0.2
+        er_free_b = 0.0553
+        er_free_c = 0.205
+        er_free_d = 0.45
+        er_free_e = -0.2
 
         elec_frac = nel_mean / nq_mean
         ampl = tf.cast(0.086036 + (er_free_b - 0.086036) /
-            pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
+                       pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
                        fd.float_type())
         wide = er_free_c
         cntr = er_free_d
         skew = er_free_e
 
         mode = cntr + 2. / (tf.sqrt(2. * pi)) * skew * wide / tf.sqrt(1. + skew * skew)
-        norm = 1. / (tf.exp(-0.5 * pow(mode - cntr, 2.) / (wide * wide)) * \
-            (1. + tf.math.erf(skew * (mode - cntr) / (wide * tf.sqrt(2.)))))
+        norm = 1. / (tf.exp(-0.5 * pow(mode - cntr, 2.) / (wide * wide)) *
+                     (1. + tf.math.erf(skew * (mode - cntr) / (wide * tf.sqrt(2.)))))
 
         omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * \
             (1. + tf.math.erf(skew * (elec_frac - cntr) / (wide * tf.sqrt(2.))))
@@ -345,18 +347,18 @@ class nestNRSource(nestSource):
     # quanta_splitting.py
 
     def mean_yields(self, energy):
-        nr_nuis_a=11.
-        nr_nuis_b=1.1
-        nr_nuis_c=0.0480
-        nr_nuis_d=-0.0533
-        nr_nuis_e=12.6
-        nr_nuis_f=0.3
-        nr_nuis_g=2.
-        nr_nuis_h=0.3
-        nr_nuis_i=2
-        nr_nuis_j=0.5
-        nr_nuis_k=1.
-        nr_nuis_l=1.
+        nr_nuis_a = 11.
+        nr_nuis_b = 1.1
+        nr_nuis_c = 0.0480
+        nr_nuis_d = -0.0533
+        nr_nuis_e = 12.6
+        nr_nuis_f = 0.3
+        nr_nuis_g = 2.
+        nr_nuis_h = 0.3
+        nr_nuis_i = 2
+        nr_nuis_j = 0.5
+        nr_nuis_k = 1.
+        nr_nuis_l = 1.
 
         TIB = nr_nuis_c * pow(self.drift_field, nr_nuis_d) * pow(self.density / XENON_REF_DENSITY, 0.3)
         Qy = 1. / (TIB * pow(energy + nr_nuis_e, nr_nuis_j))
@@ -398,8 +400,8 @@ class nestNRSource(nestSource):
 
     @staticmethod
     def yield_fano(nq_mean):
-        nr_free_a=1.
-        nr_free_b=1.
+        nr_free_a = 1.
+        nr_free_b = 1.
 
         ni_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_a
         nex_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_b
@@ -408,7 +410,7 @@ class nestNRSource(nestSource):
 
     @staticmethod
     def skewness(nq_mean):
-        nr_free_f=2.25
+        nr_free_f = 2.25
 
         mask = tf.less(nq_mean, 1e4 * tf.ones_like(nq_mean))
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_f
@@ -423,9 +425,9 @@ class nestNRSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        nr_free_c=0.1
-        nr_free_d=0.5
-        nr_free_e=0.19
+        nr_free_c = 0.1
+        nr_free_d = 0.5
+        nr_free_e = 0.19
 
         elec_frac = nel_mean / nq_mean
 
