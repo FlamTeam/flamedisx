@@ -207,9 +207,9 @@ class nestERSource(nestSource):
 
         Nq = energy * 1e3 / Wq_eV
 
-        m1 = 30.66 + (6.1978 - 30.66) / pow(1. + pow(self.drift_field / 73.855, 2.0318), 0.41883)
-        m5 = Nq / energy / (1 + self.alpha * tf.math.erf(0.05 * energy)) - m1
-        m10 = (0.0508273937 + (0.1166087199 - 0.0508273937) / (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592)))
+        m1 = tf.cast(30.66 + (6.1978 - 30.66) / pow(1. + pow(self.drift_field / 73.855, 2.0318), 0.41883), fd.float_type())
+        m5 = tf.cast(Nq / energy / (1 + self.alpha * tf.math.erf(0.05 * energy)), fd.float_type()) - m1
+        m10 = tf.cast((0.0508273937 + (0.1166087199 - 0.0508273937) / (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592))), fd.float_type())
 
         Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.log10(self.drift_field) * 0.13946236 + 0.52561312),
                                                     1.82217496 + (2.82528809 - 1.82217496) /
@@ -249,7 +249,7 @@ class nestERSource(nestSource):
 
         nq = nel_mean + nph
 
-        return nq
+        return tf.cast(nq, fd.float_type())
 
     def fano_factor(self, nq_mean, *, er_free_a=0.0015):
         Fano = 0.12707 - 0.029623 * self.density - 0.0057042 * pow(self.density, 2.) + 0.0015957 * pow(self.density, 3.)
