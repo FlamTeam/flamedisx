@@ -44,15 +44,22 @@ class XENONnTSource:
 
         self.extraction_eff = 0.52
 
-    def electron_gain_mean(self):
+    @staticmethod
+    def electron_gain_mean():
         elYield = 31.2
-
         return tf.cast(elYield, fd.float_type())[o]
 
     def electron_gain_std(self):
         elYield = 31.2
-
         return tf.sqrt(self.s2Fano * elYield)[o]
+
+    @staticmethod
+    def photon_detection_eff(z, *, g1=0.126):
+        return g1 * tf.ones_like(z)
+
+    @staticmethod
+    def s2_photon_detection_eff(z, *, g1_gas=0.851):
+        return g1_gas * tf.ones_like(z)
 
 
 @export
