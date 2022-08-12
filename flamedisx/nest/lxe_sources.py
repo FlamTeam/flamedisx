@@ -251,7 +251,8 @@ class nestERSource(nestSource):
 
         return tf.cast(nq, fd.float_type())
 
-    def fano_factor(self, nq_mean, *, er_free_a=0.0015):
+    def fano_factor(self, nq_mean):
+        er_free_a=0.0015
         Fano = 0.12707 - 0.029623 * self.density - 0.0057042 * pow(self.density, 2.) + 0.0015957 * pow(self.density, 3.)
 
         return Fano + er_free_a * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
@@ -288,15 +289,16 @@ class nestERSource(nestSource):
 
         return skewness_masked
 
-    def variance(self, *args,
-                 er_free_b=0.0553,
-                 er_free_c=0.205,
-                 er_free_d=0.45,
-                 er_free_e=-0.2):
+    def variance(self, *args):
         nel_mean = args[0]
         nq_mean = args[1]
         recomb_p = args[2]
         ni = args[3]
+
+        er_free_b=0.0553
+        er_free_c=0.205
+        er_free_d=0.45
+        er_free_e=-0.2
 
         elec_frac = nel_mean / nq_mean
         ampl = tf.cast(0.086036 + (er_free_b - 0.086036) /
