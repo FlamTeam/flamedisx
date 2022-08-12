@@ -60,9 +60,9 @@ class XENONnTSource:
         self.extraction_eff = 0.52
 
     @staticmethod
-    def electron_gain_mean():
+    def electron_gain_mean(s2_relative_ly):
         elYield = 31.2
-        return tf.cast(elYield, fd.float_type())[o]
+        return tf.cast(elYield, fd.float_type()) * s2_relative_ly
 
     def electron_gain_std(self):
         elYield = 31.2
@@ -79,8 +79,8 @@ class XENONnTSource:
     def s1_posDependence(self, s1_relative_ly):
         return s1_relative_ly
 
-    def s2_posDependence(self, s2_relative_ly):
-        return s2_relative_ly
+    def s2_posDependence(self, r):
+        return tf.ones_like(r)
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
