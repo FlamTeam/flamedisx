@@ -1,8 +1,6 @@
 """Matthew Syzdagis' mock-up of the XENONnT detector implementation
 
 """
-import tensorflow as tf
-
 import configparser
 import os
 
@@ -46,7 +44,7 @@ class XENONnTSource:
 class XENONnTERSource(XENONnTSource, fd.nest.nestERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-             kwargs['detector'] = 'XENONnT'
+            kwargs['detector'] = 'XENONnT'
         super().__init__(*args, **kwargs)
 
 
@@ -54,5 +52,5 @@ class XENONnTERSource(XENONnTSource, fd.nest.nestERSource):
 class XENONnTNRSource(XENONnTSource, fd.nest.nestNRSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-             kwargs['detector'] = 'XENONnT'
+            kwargs['detector'] = 'XENONnT'
         super().__init__(*args, **kwargs)
