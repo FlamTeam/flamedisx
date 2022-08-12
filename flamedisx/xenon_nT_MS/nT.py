@@ -1,6 +1,7 @@
 """Matthew Syzdagis' mock-up of the XENONnT detector implementation
 
 """
+import numpy as np
 import tensorflow as tf
 
 import configparser
@@ -22,6 +23,9 @@ o = tf.newaxis
 
 
 class XENONnTSource:
+    path_s1_rly = '...'
+    path_s2_rly = '...'
+
     def __init__(self, *args, **kwargs):
         assert kwargs['detector'] in ('XENONnT',)
 
@@ -43,6 +47,14 @@ class XENONnTSource:
          self.density,
          config.getfloat('NEST', 'temperature_config')).item()
 
+        try:
+            self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
+            self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
+        except Exception:
+            print("Could not load maps; setting position corrections to 1")
+            self.s1_map = None
+            self.s2_map = None
+
         super().__init__(*args, **kwargs)
 
         self.extraction_eff = 0.52
@@ -63,6 +75,35 @@ class XENONnTSource:
     @staticmethod
     def s2_photon_detection_eff(z, *, g1_gas=0.851):
         return g1_gas * tf.ones_like(z)
+
+    def s1_posDependence(self, s1_relative_ly):
+        return s1_relative_ly
+
+    def s2_posDependence(self, s2_relative_ly):
+        return s2_relative_ly
+
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+
+        if (self.s1_map is not None) and (self.s2_map is not None):
+            d['s1_relative_ly'] = self.s1_map(
+                np.transpose([d['x'].values,
+                              d['y'].values,
+                              d['z'].values]))
+            d['s2_relative_ly'] = self.s2map(
+                np.transpose([d['x'].values,
+                              d['y'].values]))
+        else:
+            d['s1_relative_ly'] = np.ones_like(d['x'].values)
+            d['s2_relative_ly'] = np.ones_like(d['x'].values)
+
+        if 's1' in d.columns:
+            d['cs1'] = d['s1'] / d['s1_relative_ly']
+        if 's2' in d.columns:
+            d['cs2'] = (
+                d['s2']
+                / d['s2_relative_ly']
+                * np.exp(d['drift_time'] / self.elife))
 
 
 @export
