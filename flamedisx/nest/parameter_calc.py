@@ -175,6 +175,11 @@ def get_coin_table(coin_level, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fr
     coin_dict = dict()
     coin_table = []
 
+    if (coin_level == 0):
+        for ph_det in np.arange(0, 6):
+            coin_table.append(1.)
+        return coin_table
+
     for spike in np.arange(1, 6):
         numer = 0.
         denom = 0.
