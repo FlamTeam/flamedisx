@@ -81,7 +81,7 @@ class LUXSource:
 class LUXERSource(LUXSource, fd.nest.nestERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-             kwargs['detector'] = 'default'
+            kwargs['detector'] = 'default'
         super().__init__(*args, **kwargs)
 
 
@@ -101,5 +101,5 @@ class LUXERGammaWeightedSource(LUXSource, fd.nest.nestERGammaWeightedSource):
 class LUXNRSource(LUXSource, fd.nest.nestNRSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-             kwargs['detector'] = 'default'
+            kwargs['detector'] = 'default'
         super().__init__(*args, **kwargs)
