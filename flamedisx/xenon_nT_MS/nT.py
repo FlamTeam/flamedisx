@@ -10,6 +10,7 @@ import os
 
 import flamedisx as fd
 from .. import nest as fd_nest
+from .. import xenon_nT_MS as fd_nT
 
 import math as m
 pi = tf.constant(m.pi)
@@ -121,14 +122,9 @@ class XENONnTSource:
                              f"and/or 'energy', but it contains: {d.keys()}")
         return d
 
-    @staticmethod
-    def electron_gain_mean(s2_relative_ly):
+    def electron_gain(self, s2_relative_ly):
         elYield = 31.2
-        return tf.cast(elYield, fd.float_type()) * s2_relative_ly
-
-    def electron_gain_std(self, z):
-        elYield = 31.2
-        return tf.sqrt(self.s2Fano * elYield) * tf.ones_like(z)
+        return elYield * s2_relative_ly
 
     @staticmethod
     def photon_detection_eff(z, *, g1=0.126):
@@ -186,6 +182,18 @@ class XENONnTERSource(XENONnTSource, fd.nest.nestERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'XENONnT'
         super().__init__(*args, **kwargs)
+
+    model_blocks = (
+        fd_nest.FixedShapeEnergySpectrumER,
+        fd_nest.MakePhotonsElectronER,
+        fd_nest.DetectPhotons,
+        fd_nest.MakeS1Photoelectrons,
+        fd_nest.DetectS1Photoelectrons,
+        fd_nest.MakeS1,
+        fd_nT.DetectElectronsMod,
+        fd_nest.DetectS2Photons,
+        fd_nest.MakeS2Photoelectrons,
+        fd_nest.MakeS2)
 
     def variance(self, *args):
         nel_mean = args[0]
