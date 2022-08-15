@@ -23,8 +23,8 @@ o = tf.newaxis
 
 
 class XENONnTSource:
-    path_s1_rly = '...'
-    path_s2_rly = '...'
+    path_s1_rly = 'nt_maps/XnT_S1_xyz_MLP_v0.3_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_v0d677.json'
+    path_s2_rly = 'nt_maps/XENONnT_s2_xy_map_v4_210503_mlp_3_in_1_iterated.json'
 
     def __init__(self, *args, **kwargs):
         assert kwargs['detector'] in ('XENONnT',)
@@ -46,6 +46,11 @@ class XENONnTSource:
          config.getfloat('NEST', 'drift_field_config'),
          self.density,
          config.getfloat('NEST', 'temperature_config')).item()
+
+        self.cS1_min = config.getfloat('NEST', 'cS1_min_config')
+        self.cS1_max = config.getfloat('NEST', 'cS1_max_config')
+        self.cS2_min = config.getfloat('NEST', 'cS2_min_config')
+        self.cS2_max = config.getfloat('NEST', 'cS2_max_config')
 
         try:
             self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
@@ -81,6 +86,18 @@ class XENONnTSource:
 
     def s2_posDependence(self, r):
         return tf.ones_like(r)
+
+    def s1_acceptance(self, s1, cs1):
+        return tf.where((s1 < self.S1_min) | (s1 < self.spe_thr) | (s1 > self.S1_max) | \
+                        (cs1 < self.cS1_min) | (cs1 > self.cS1_max),
+                        tf.zeros_like(s1, dtype=fd.float_type()),
+                        tf.ones_like(s1, dtype=fd.float_type()))
+
+    def s2_acceptance(self, s2, cs2):
+        return tf.where((s2 < self.S2_min) | (s2 > self.S2_max) | \
+                        (cs2 < self.cS2_min) | (cs2 > self.cS2_max),
+                        tf.zeros_like(s2, dtype=fd.float_type()),
+                        tf.ones_like(s2, dtype=fd.float_type()))
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
