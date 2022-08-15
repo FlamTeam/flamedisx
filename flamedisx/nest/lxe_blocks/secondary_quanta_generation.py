@@ -50,7 +50,7 @@ class MakeS2Photons(fd.Block):
             supports = [np.linspace(np.floor(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 0.9),
                         np.ceil(out_bound / self.gimme_numpy('electron_gain_mean')[0] * 1.1), 1000).astype(int)
                         for out_bound in out_bounds]
-            mus = supports * self.gimme_numpy('electron_gain_mean')
+            mus = [gain * support for gain, support in zip(self.gimme_numpy('electron_gain_mean'), supports)]
             sigmas = np.sqrt(supports * self.gimme_numpy('electron_gain_std')**2)
             rvs = [out_bound * np.ones_like(support)
                    for out_bound, support in zip(out_bounds, supports)]
