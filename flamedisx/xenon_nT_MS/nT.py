@@ -126,9 +126,9 @@ class XENONnTSource:
         elYield = 31.2
         return tf.cast(elYield, fd.float_type()) * s2_relative_ly
 
-    def electron_gain_std(self):
+    def electron_gain_std(self, z):
         elYield = 31.2
-        return tf.sqrt(self.s2Fano * elYield)[o]
+        return tf.sqrt(self.s2Fano * elYield) * tf.ones_like(z)
 
     @staticmethod
     def photon_detection_eff(z, *, g1=0.126):
