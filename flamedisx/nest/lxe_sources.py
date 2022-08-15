@@ -131,21 +131,21 @@ class nestSource(fd.BlockModelSource):
 
     # secondary_quanta_generation.py
 
-    def electron_gain_mean(self):
+    def electron_gain_mean(self, z):
         elYield = (
             0.137 * self.gas_field * 1e3 -
             4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
             * self.gas_gap * 0.1
 
-        return tf.cast(elYield, fd.float_type())[o]
+        return tf.cast(elYield, fd.float_type()) * tf.ones_like(z)
 
-    def electron_gain_std(self):
+    def electron_gain_std(self, z):
         elYield = (
             0.137 * self.gas_field * 1e3 -
             4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
             * self.gas_gap * 0.1
 
-        return tf.sqrt(self.s2Fano * elYield)[o]
+        return tf.sqrt(self.s2Fano * elYield) * tf.ones_like(z)
 
     # pe_detection.py
 
