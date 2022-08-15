@@ -194,6 +194,8 @@ def bayes_bounds_normal(supports, rvs_normal, mus_normal, sigmas_normal):
     """
     assert (np.shape(rvs_normal) == np.shape(mus_normal) == np.shape(sigmas_normal) == np.shape(supports)), \
         "Shapes of supports, rvs_normal, mus_normal and sigmas_normal must be equal"
+    assert (len(np.nonzero([np.sum(sigma_normal) for sigma_normal in sigmas_normal])[0]) > 0), \
+        "Logic will not work for a normal distribution with 0 standard deviation; you should probably deprecate a block"
 
     pdfs = [stats.norm.pdf(rv_normal, mu_normal, sigma_normal)
             for rv_normal, mu_normal, sigma_normal in zip(rvs_normal, mus_normal, sigmas_normal)]
