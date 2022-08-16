@@ -24,7 +24,7 @@ export, __all__ = fd.exporter()
 class LUXSource:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         assert kwargs['detector'] in ('default',)
 
         assert os.path.exists(os.path.join(
