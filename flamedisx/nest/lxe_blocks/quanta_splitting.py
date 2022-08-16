@@ -305,8 +305,10 @@ class MakePhotonsElectronsNR(fd.Block):
             nq = self.gimme_numpy('mean_yields', energy)[1]
             ex_ratio = self.gimme_numpy('mean_yields', energy)[2]
             alpha = 1. / (1. + ex_ratio)
+            ni_fano = self.gimme_numpy('yield_fano', nq)[0]
+
             ions_mean = nq * alpha
-            ions_std = np.sqrt(nq * alpha)
+            ions_std = np.sqrt(nq * alpha * ni_fano)
 
             ions_produced_min = np.floor(ions_mean - self.source.max_sigma * ions_std).astype(int)
             ions_produced_max = np.ceil(ions_mean + self.source.max_sigma * ions_std).astype(int)

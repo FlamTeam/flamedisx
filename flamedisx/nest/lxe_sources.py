@@ -384,7 +384,7 @@ class nestNRSource(nestSource):
 
         nex = nq - ni
 
-        ex_ratio = nex / ni
+        ex_ratio = tf.cast(nex / ni, fd.float_type())
 
         ex_ratio = tf.where(tf.logical_and(ex_ratio < self.alpha, energy > 100.),
                             self.alpha * tf.ones_like(ex_ratio, dtype=fd.float_type()),
