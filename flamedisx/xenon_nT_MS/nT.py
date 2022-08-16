@@ -40,18 +40,13 @@ class XENONnTSource:
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
                                  kwargs['detector'] + '.ini'))
 
-        self.density = fd_nest.calculate_density(
-            config.getfloat('NEST', 'temperature_config'),
-            config.getfloat('NEST', 'pressure_config')).item()
-        self.drift_velocity = fd_nest.calculate_drift_velocity(
-         config.getfloat('NEST', 'drift_field_config'),
-         self.density,
-         config.getfloat('NEST', 'temperature_config')).item()
+        self.drift_velocity = config.getfloat('NEST', 'drift_velocity_config')
 
         self.z_top = config.getfloat('NEST', 'z_top_config')
         self.z_bottom = config.getfloat('NEST', 'z_bottom_config')
 
-        self.extraction_eff = 0.52
+        self.extraction_eff = config.getfloat('NEST', 'extraction_eff_config')
+        self.elYield = config.getfloat('NEST', 'elYield_config')
 
         self.cS1_min = config.getfloat('NEST', 'cS1_min_config')
         self.cS1_max = config.getfloat('NEST', 'cS1_max_config')
@@ -66,66 +61,8 @@ class XENONnTSource:
             self.s1_map = None
             self.s2_map = None
 
-    def draw_positions(self, n_events, **params):
-        """Return dictionary with x, y, z, r, theta, drift_time
-        randomly drawn.
-        """
-        data = dict()
-        data['r'] = (np.random.rand(n_events) * self.radius**2)**0.5
-        data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
-        data['z'] = np.random.uniform(self.z_bottom, self.z_top,
-                                      size=n_events)
-        data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
-
-        data['drift_time'] = -data['z'] / self.drift_velocity
-        return data
-
-    def validate_fix_truth(self, d):
-        """Clean fix_truth, ensure all needed variables are present
-           Compute derived variables.
-        """
-        # When passing in an event as DataFrame we select and set
-        # only these columns:
-        cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']
-        if d is None:
-            return dict()
-        elif isinstance(d, pd.DataFrame):
-            # This is useful, since it allows you to fix_truth with an
-            # observed event.
-            # Assume fix_truth is a one-line dataframe with at least
-            # cols columns
-            return d[cols].iloc[0].to_dict()
-        elif isinstance(d, pd.Series):
-            # This is useful, since it allows you to fix_truth with an
-            # observed event.
-            # Assume fix_truth is a one-line series with at least
-            # cols columns
-            return d[cols].to_dict()
-        else:
-            assert isinstance(d, dict), \
-                "fix_truth needs to be a DataFrame, dict, or None"
-
-        if 'z' in d:
-            # Position is fixed. Ensure both Cartesian and polar coordinates
-            # are available, and compute drift_time from z.
-            if 'x' in d and 'y' in d:
-                d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
-            elif 'r' in d and 'theta' in d:
-                d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
-            else:
-                raise ValueError("When fixing position, give (x, y, z), "
-                                 "or (r, theta, z).")
-            d['drift_time'] = -d['z'] / self.drift_velocity
-        elif 'event_time' not in d and 'energy' not in d:
-            # Neither position, time, nor energy given
-            raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
-                             "and/or ['r', 'theta', 'z'] and/or 'event_time' "
-                             f"and/or 'energy', but it contains: {d.keys()}")
-        return d
-
     def electron_gain(self, s2_relative_ly):
-        elYield = 31.2
-        return elYield * s2_relative_ly
+        return self.elYield * s2_relative_ly
 
     @staticmethod
     def photon_detection_eff(z, *, g1=0.126):
@@ -135,10 +72,12 @@ class XENONnTSource:
     def s2_photon_detection_eff(z, *, g1_gas=0.851):
         return g1_gas * tf.ones_like(z)
 
-    def s1_posDependence(self, s1_relative_ly):
+    @staticmethod
+    def s1_posDependence(s1_relative_ly):
         return s1_relative_ly
 
-    def s2_posDependence(self, r):
+    @staticmethod
+    def s2_posDependence(r):
         return tf.ones_like(r)
 
     def s1_acceptance(self, s1, cs1):

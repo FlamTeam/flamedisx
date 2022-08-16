@@ -66,7 +66,8 @@ class LUXSource:
 
         return finalCorr / finalCorr_0
 
-    def s2_posDependence(self, r):
+    @staticmethod
+    def s2_posDependence(r):
         """
         Returns position-dependent S2 scale factor.
         Requires r to be in cm, and in the FV.
