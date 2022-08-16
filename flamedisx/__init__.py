@@ -42,6 +42,10 @@ from . import lux
 # Access through fd.xenon_nT_MS.xxx
 from . import xenon_nT_MS
 
+# LZ models
+# Access through fd.lz.xxx
+from . import lz
+
 # Custom TFP files
 # Access through fd.tfp_files.xxx
 from . import tfp_files
