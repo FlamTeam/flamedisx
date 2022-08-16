@@ -1,5 +1,3 @@
-import typing as ty
-
 import numpy as np
 from scipy import stats
 import tensorflow as tf
@@ -23,7 +21,7 @@ class DetectElectronsMod(fd.Block):
         gain = self.gimme('electron_gain',
                           data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
-        # Need to divide by gain at the end, else it gets absorbed into the stepping correction
+        # Need to divide by gain at the end, else it gets absorbed into the stepping correction
         result = tfp.distributions.Binomial(
                 total_count=electrons_produced,
                 probs=tf.cast(p, dtype=fd.float_type())
@@ -44,7 +42,7 @@ class DetectElectronsMod(fd.Block):
         gains = self.gimme_numpy('electron_gain')
 
         for suffix, bound, intify in (('_min', 'lower', np.floor),
-                              ('_max', 'upper', np.ceil)):
+                                      ('_max', 'upper', np.ceil)):
             out_bounds = intify(d['s2_photons_produced' + suffix] / gains)
             supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10.),
                                     1000).astype(int) for out_bound, eff in zip(out_bounds, effs)]
@@ -71,7 +69,7 @@ class DetectElectronsMod(fd.Block):
                 batch * self.source.batch_size:(batch + 1) * self.source.batch_size]
 
             for suffix, bound, intify in (('_min', 'lower', np.floor),
-                                  ('_max', 'upper', np.ceil)):
+                                          ('_max', 'upper', np.ceil)):
                 out_bounds = intify(d_batch['s2_photons_produced' + suffix] / gains)
                 supports = [np.linspace(out_bound, np.ceil(out_bound / eff * 10.),
                                         1000).astype(int) for out_bound, eff in zip(out_bounds, effs)]

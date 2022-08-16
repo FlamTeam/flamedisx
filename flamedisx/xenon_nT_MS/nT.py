@@ -142,13 +142,13 @@ class XENONnTSource:
         return tf.ones_like(r)
 
     def s1_acceptance(self, s1, cs1):
-        return tf.where((s1 < self.S1_min) | (s1 < self.spe_thr) | (s1 > self.S1_max) | \
+        return tf.where((s1 < self.S1_min) | (s1 < self.spe_thr) | (s1 > self.S1_max) |
                         (cs1 < self.cS1_min) | (cs1 > self.cS1_max),
                         tf.zeros_like(s1, dtype=fd.float_type()),
                         tf.ones_like(s1, dtype=fd.float_type()))
 
     def s2_acceptance(self, s2, cs2):
-        return tf.where((s2 < self.S2_min) | (s2 > self.S2_max) | \
+        return tf.where((s2 < self.S2_min) | (s2 > self.S2_max) |
                         (cs2 < self.cS2_min) | (cs2 > self.cS2_max),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
