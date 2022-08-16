@@ -29,6 +29,8 @@ class XENONnTSource:
     path_s2_rly = 'nt_maps/XENONnT_s2_xy_map_v4_210503_mlp_3_in_1_iterated.json'
 
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         assert kwargs['detector'] in ('XENONnT',)
 
         assert os.path.exists(os.path.join(
@@ -46,6 +48,11 @@ class XENONnTSource:
          self.density,
          config.getfloat('NEST', 'temperature_config')).item()
 
+        self.z_top = config.getfloat('NEST', 'z_top_config')
+        self.z_bottom = config.getfloat('NEST', 'z_bottom_config')
+
+        self.extraction_eff = 0.52
+
         self.cS1_min = config.getfloat('NEST', 'cS1_min_config')
         self.cS1_max = config.getfloat('NEST', 'cS1_max_config')
         self.cS2_min = config.getfloat('NEST', 'cS2_min_config')
@@ -58,12 +65,6 @@ class XENONnTSource:
             print("Could not load maps; setting position corrections to 1")
             self.s1_map = None
             self.s2_map = None
-
-        super().__init__(*args, **kwargs)
-
-        self.extraction_eff = 0.52
-        self.z_top = config.getfloat('NEST', 'z_top_config')
-        self.z_bottom = config.getfloat('NEST', 'z_bottom_config')
 
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
