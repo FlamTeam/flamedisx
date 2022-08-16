@@ -19,6 +19,8 @@ export, __all__ = fd.exporter()
 
 class LUXSource:
     def __init__(self, *args, detector='default', **kwargs):
+        super().__init__(*args, **kwargs)
+
         assert detector in ('default',)
 
         assert os.path.exists(os.path.join(
@@ -38,8 +40,6 @@ class LUXSource:
          config.getfloat('NEST', 'drift_field_config'),
          self.density,
          config.getfloat('NEST', 'temperature_config')).item()
-
-        super().__init__(*args, **kwargs)
 
     def s1_posDependence(self, r, z):
         """
