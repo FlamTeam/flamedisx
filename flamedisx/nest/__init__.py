@@ -13,3 +13,5 @@ from .lxe_sources import *
 
 from .lxe_source_groups import *
 from .source_group import *
+
+from .calibration_sources import *

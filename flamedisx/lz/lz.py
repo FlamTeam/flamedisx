@@ -47,3 +47,11 @@ class LZNRSource(LZSource, fd.nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
         super().__init__(*args, **kwargs)
+
+
+@export
+class LZCH3TSource(LZSource, fd.nest.CH3TSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
