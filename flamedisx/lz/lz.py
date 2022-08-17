@@ -30,6 +30,8 @@ class LZSource:
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
                                  kwargs['detector'] + '.ini'))
 
+        self.drift_velocity = self.drift_velocity * 0.96 / 0.95
+
 
 @export
 class LZERSource(LZSource, fd.nest.nestERSource):
