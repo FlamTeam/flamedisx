@@ -2,6 +2,7 @@
 
 """
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 import configparser
@@ -26,7 +27,13 @@ o = tf.newaxis
 class XENONnTSource:
     path_s1_rly = 'nt_maps/XnT_S1_xyz_MLP_v0.3_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_v0d677.json'
     path_s2_rly = 'nt_maps/XENONnT_s2_xy_map_v4_210503_mlp_3_in_1_iterated.json'
-
+    
+    # Combined cuts acceptances
+    #path_cut_accept_s1 = ('cut_acceptance/XENONnT/S1AcceptanceSR0_v1_Lower.json',)
+    #path_cut_accept_s2 = ('cut_acceptance/XENONnT/S2AcceptanceSR0_v1_Lower.json',)
+    path_cut_accept_s1 = ('cut_acceptance/XENONnT/cS1AcceptanceSR0_v3_Median.json',)
+    path_cut_accept_s2 = ('cut_acceptance/XENONnT/cS2AcceptanceSR0_v3_Median.json',)
+   
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -59,6 +66,12 @@ class XENONnTSource:
             print("Could not load maps; setting position corrections to 1")
             self.s1_map = None
             self.s2_map = None
+            
+        # Loading combined cut acceptances
+        self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
+            fd.xenon.x1t_sr1.read_maps_tf(self.path_cut_accept_s1, is_bbf=True)
+        self.cut_accept_map_s2, self.cut_accept_domain_s2 = \
+            fd.xenon.x1t_sr1.read_maps_tf(self.path_cut_accept_s2, is_bbf=True)
 
     def electron_gain(self, s2_relative_ly):
         return self.elYield * s2_relative_ly
@@ -80,16 +93,32 @@ class XENONnTSource:
         return tf.ones_like(r)
 
     def s1_acceptance(self, s1, cs1):
-        return tf.where((s1 < self.S1_min) | (s1 < self.spe_thr) | (s1 > self.S1_max) |
-                        (cs1 < self.cS1_min) | (cs1 > self.cS1_max),
-                        tf.zeros_like(s1, dtype=fd.float_type()),
-                        tf.ones_like(s1, dtype=fd.float_type()))
+
+        acceptance = tf.where((s1 >= self.spe_thr) & 
+                        (s1 >= self.S1_min) & (s1 <= self.S1_max) &
+                        (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
+                        tf.ones_like(s1, dtype=fd.float_type()), # if condition non-zero
+                        tf.zeros_like(s1, dtype=fd.float_type())) # if false
+
+        # multiplying by combined cut acceptance
+        acceptance *= fd.xenon.x1t_sr1.interpolate_tf(cs1,
+                                     self.cut_accept_map_s1[0],
+                                     self.cut_accept_domain_s1)
+
+        return acceptance
 
     def s2_acceptance(self, s2, cs2):
-        return tf.where((s2 < self.S2_min) | (s2 > self.S2_max) |
-                        (cs2 < self.cS2_min) | (cs2 > self.cS2_max),
-                        tf.zeros_like(s2, dtype=fd.float_type()),
-                        tf.ones_like(s2, dtype=fd.float_type()))
+        acceptance =  tf.where((s2 >= self.S2_min) & (s2 <= self.S2_max) &
+                        (cs2 >= self.cS2_min) & (cs2 <= self.cS2_max),
+                        tf.ones_like(s2, dtype=fd.float_type()),
+                        tf.zeros_like(s2, dtype=fd.float_type()))
+        
+        # multiplying by combined cut acceptance
+        acceptance *= fd.xenon.x1t_sr1.interpolate_tf(cs2,
+                                     self.cut_accept_map_s2[0],
+                                     self.cut_accept_domain_s2)
+
+        return acceptance
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
