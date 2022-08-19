@@ -89,7 +89,7 @@ class XENONnTSource:
             self.spe_res * self.spe_res * n_pe +
             S1_noise * S1_noise * n_pe * n_pe)
 
-    def s2_spe_smearing(self, n_pe, *, , S2_noise=0.):
+    def s2_spe_smearing(self, n_pe, *, S2_noise=0.):
         return tf.sqrt(
             self.spe_res * self.spe_res * n_pe +
             S2_noise * S2_noise * n_pe * n_pe)
