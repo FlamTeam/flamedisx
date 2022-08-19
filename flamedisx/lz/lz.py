@@ -59,13 +59,21 @@ class LZSource:
             d['s1_pos_corr'] = self.s1_map(
                 np.transpose([d['x'].values,
                               d['y'].values,
-                              d['drift_time'].values]))
+                              d['drift_time'].values * 1e-9 / 1e-6]))
             d['s2_pos_corr'] = self.s2_map(
                 np.transpose([d['x'].values,
                               d['y'].values]))
         else:
             d['s1_pos_corr'] = np.ones_like(d['x'].values)
             d['s2_pos_corr'] = np.ones_like(d['x'].values)
+
+        if 's1' in d.columns:
+            d['cs1'] = d['s1'] / d['s1_pos_corr']
+        if 's2' in d.columns:
+            d['cs2'] = (
+                d['s2']
+                / d['s2_pos_corr']
+                * np.exp(d['drift_time'] / self.elife))
 
 
 @export
