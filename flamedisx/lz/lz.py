@@ -6,11 +6,27 @@ import tensorflow as tf
 
 import configparser
 import os
+import pandas as pd
 
 import flamedisx as fd
 from .. import nest as fd_nest
 
 export, __all__ = fd.exporter()
+
+
+##
+# Useful functions
+##
+
+
+def interpolate_acceptance(arg, domain, acceptances):
+    """ Function to interpolate signal acceptance curves
+    :param arg: argument values for domain interpolation
+    :param domain: domain values from interpolation map
+    :param acceptances: acceptance values from interpolation map
+    :return: Tensor of interpolated map values (same shape as x)
+    """
+    return np.interp(x=arg, xp=domain, fp=acceptances)
 
 
 ##
@@ -44,6 +60,21 @@ class LZSource:
             self.s1_map = None
             self.s2_map = None
 
+        try:
+            df_S1_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'acceptance_curves/cS1_acceptance_curve.pkl'))
+            df_S2_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'acceptance_curves/cS2_acceptance_curve.pkl'))
+
+            self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction) # phd to phe
+            self.cs1_acc_curve = df_S1_acc['cS1_acceptance'].values
+
+            self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + np.log10(1 + self.double_pe_fraction) # log_10(phd) to log_10(phe)
+            self.log10_cs2_acc_curve = df_S2_acc['cS2_acceptance'].values
+        except Exception:
+            print("Could not load acceptance curves; setting to 1")
+
+            self.cs1_acc_domain = None
+            self.log10_cs2_acc_domain = None
+
     @staticmethod
     def s1_posDependence(s1_pos_corr):
         return s1_pos_corr
@@ -67,13 +98,30 @@ class LZSource:
             d['s1_pos_corr'] = np.ones_like(d['x'].values)
             d['s2_pos_corr'] = np.ones_like(d['x'].values)
 
-        if 's1' in d.columns:
+        if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr']
-        if 's2' in d.columns:
+        if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr']
                 * np.exp(d['drift_time'] / self.elife))
+
+        if 'cs1' in d.columns:
+            if self.cs1_acc_domain is not None:
+                d['cs1_acc_curve'] = interpolate_acceptance(
+                    d['cs1'].values,
+                    self.cs1_acc_domain,
+                    self.cs1_acc_curve)
+            else:
+                d['cs1_acc_curve'] = np.ones_like(d['cs1'].values)
+        if 'cs2' in d.columns:
+            if self.log10_cs2_acc_domain is not None:
+                d['cs2_acc_curve'] = interpolate_acceptance(
+                    np.log10(d['cs2'].values),
+                    self.log10_cs2_acc_domain,
+                    self.log10_cs2_acc_curve)
+            else:
+                d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
 
 
 @export
