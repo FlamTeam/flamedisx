@@ -90,6 +90,12 @@ class LUXGammaSource(LUXSource, fd.nest.nestGammaSource):
 
 
 @export
+class LUXERGammaWeightedSource(LUXSource, fd.nest.nestERGammaWeightedSource):
+    def __init__(self, *args, detector='default', **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+@export
 class LUXNRSource(LUXSource, fd.nest.nestNRSource):
     def __init__(self, *args, detector='default', **kwargs):
         super().__init__(*args, **kwargs)
