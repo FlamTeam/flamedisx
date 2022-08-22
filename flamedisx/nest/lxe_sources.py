@@ -441,6 +441,36 @@ class nestNRSource(nestSource):
 
 
 @export
+class nestGammaSource(nestERSource):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def mean_yield_electron(self, energy):
+        Wq_eV = self.Wq_keV * 1e3
+        m3 = 2.
+        m4 = 2.
+        m6 = 0.
+
+        m1 = 33.951 + (3.3284 - 33.951) / (1. + pow(self.drift_field / 165.34, .72665))
+        m2 = 1000 / Wq_eV
+        m5 = 23.156 + (10.737 - 23.156) / (1. + pow(self.drift_field / 34.195, .87459))
+        densCorr = 240720. / pow(self.density, 8.2076)
+        m7 = 66.825 + (829.25 - 66.825) / (1. + pow(self.drift_field / densCorr, .83344))
+
+        m8 = 2.
+
+        Qy = m1 + (m2 - m1) / (1. + pow(energy / m3, m4)) + m5 + (m6 - m5) / (1. + pow(energy / m7, m8))
+
+        nel_temp = Qy * energy
+        # Don't let number of electrons go negative
+        nel = tf.where(nel_temp < 0,
+                    0 * nel_temp,
+                    nel_temp)
+
+        return nel
+
+
+@export
 class nestSpatialRateERSource(nestERSource):
     model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestERSource.model_blocks[1:]
 
