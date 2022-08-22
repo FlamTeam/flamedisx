@@ -471,6 +471,30 @@ class nestGammaSource(nestERSource):
 
 
 @export
+class nestERGammaWeightedSource(nestERSource):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def mean_yield_electron(self, energy):
+        weight_param_a = 0.23
+        weight_param_b = 0.77
+        weight_param_c = 2.95
+        weight_param_d = -1.44
+        weight_param_e = 421.15
+        weight_param_f = 3.27
+
+        weightG = weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
+            (tf.math.log(energy) + weight_param_d)) * \
+            (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f))))
+        weightB = 1. - weightG
+
+        nel_gamma = nestGammaSource.mean_yield_electron(self, energy)
+        nel_beta = nestERSource.mean_yield_electron(self, energy)
+
+        return nel_gamma * weightG + nel_beta * weightB
+
+
+@export
 class nestSpatialRateERSource(nestERSource):
     model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestERSource.model_blocks[1:]
 
