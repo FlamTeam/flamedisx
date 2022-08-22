@@ -6,4 +6,4 @@ wimprates==0.3.2
 tqdm==4.64.0
 tensorflow==2.9.1
 tensorflow_probability==0.17.0
-iminuit==2.15.2
+iminuit==2.16.0
