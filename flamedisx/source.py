@@ -799,34 +799,24 @@ class ColumnSource(Source):
         return self._fetch(self.column, data_tensor)
 
 
-def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
-                        arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
-                        ntoys: int = None):
-    """Generate an annotated reservoir of evennts to be used in FastSource s.
+def make_event_reservoir(ntoys: int = None,
+                        **sources):
+    """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
     Arguments:
-        - sources: dictionary of {source name: base flamedisx source class}
-            that will be used in the anlysis.
-        - arguments: dictionary of {source name: {kwarg1: value1, ...}}
-            giving kwargs to be passed to each base source constructor.
+        - ntoys: number of toy MCs this reservoir will be used to generate (optional).
+        - sources: pass in source instances to be used to build the reservoir, like
+            'source1'=source1(args, kwargs), 'source2'=source2(args, kwargs), ...
     """
     default_ntoys = 1000
 
-    assert isinstance(sources, dict), "Must pass a dictionary of sources to FastSourceReservoir()"
-
-    if arguments is None:
-        arguments = dict()
-
-    for key in sources.keys():
-        if key not in arguments.keys():
-            arguments[key] = dict()
+    assert len(sources) is not 0, "Must pass at least one source instance to FastSourceReservoir()"
 
     if ntoys is None:
         ntoys = default_ntoys
 
     dfs = []
-    for sname, sclass in sources.items():
-        source = sclass()
+    for sname, source in sources.items():
         n_simulate = int(ntoys * source.mu_before_efficiencies())
 
         sdata = source.simulate(n_simulate)
@@ -835,8 +825,7 @@ def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
 
-    for sname, sclass in sources.items():
-        source = sclass(**(arguments.get(sname)))
+    for sname, source in sources.items():
         source.set_data(data_reservoir)
         data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
 
@@ -844,7 +833,7 @@ def FastSourceReservoir(sources: ty.Dict[str, Source.__class__] = None,
 
 
 @export
-class FastSource(ColumnSource):
+class FrozenReservoirSourc(ColumnSource):
     """Source that looks up precomputed differential rates in a column source,
     with the added ability to simulate.
 
