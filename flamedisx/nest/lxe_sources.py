@@ -464,8 +464,8 @@ class nestGammaSource(nestERSource):
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
         nel = tf.where(nel_temp < 0,
-                    0 * nel_temp,
-                    nel_temp)
+                       0 * nel_temp,
+                       nel_temp)
 
         return nel
 
@@ -484,8 +484,9 @@ class nestERGammaWeightedSource(nestERSource):
         weight_param_f = 3.27
 
         weightG = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
-            (tf.math.log(energy) + weight_param_d)) * \
-            (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))), fd.float_type())
+                          (tf.math.log(energy) + weight_param_d)) *
+                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
+                          fd.float_type())
         weightB = tf.cast(1. - weightG, fd.float_type())
 
         nel_gamma = tf.cast(nestGammaSource.mean_yield_electron(self, energy), fd.float_type())
