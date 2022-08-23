@@ -377,7 +377,7 @@ def test_config(xes):
 
 def test_FrozenReservoirSource():
     # Create a reservoir from fd.ERSource and fd.NRSource
-    res = fd.source.FrozenReservoirSource(ntoys=1,
+    res = fd.frozen_reservoir.make_event_reservoir(ntoys=1,
                                         er=fd.ERSource(batch_size=100), nr=fd.NRSource(batch_size=100))
 
     # Create ER and NR FrozenReservoirSource s
