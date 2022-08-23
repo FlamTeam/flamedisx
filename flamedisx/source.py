@@ -810,7 +810,7 @@ def make_event_reservoir(ntoys: int = None,
     """
     default_ntoys = 1000
 
-    assert len(sources) is not 0, "Must pass at least one source instance to FastSourceReservoir()"
+    assert len(sources) is not 0, "Must pass at least one source instance to make_event_reservoir()"
 
     if ntoys is None:
         ntoys = default_ntoys
@@ -833,7 +833,7 @@ def make_event_reservoir(ntoys: int = None,
 
 
 @export
-class FrozenReservoirSourc(ColumnSource):
+class FrozenReservoirSource(ColumnSource):
     """Source that looks up precomputed differential rates in a column source,
     with the added ability to simulate.
 
@@ -845,7 +845,7 @@ class FrozenReservoirSourc(ColumnSource):
         - reservoir: dataframe of events with a column 'source' showing the
             {source_name} of the base source each event came from, and columns
             '{sorce_name}_diff_rate' with the differential rate of each event
-            computed under all base sources that will have a FastSource used
+            computed under all base sources that will have a FrozenReservoirSource used
             in the analysis.
 
     For other arguments, see flamedisx.source.Source
@@ -855,8 +855,8 @@ class FrozenReservoirSourc(ColumnSource):
                  source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
                  reservoir: pd.DataFrame = None,
                  *args, **kwargs):
-        assert source_type is not None, "Must pass a source type to FastSource"
-        assert source_name is not None, "Must pass a source name to FastSource"
+        assert source_type is not None, "Must pass a source type to FrozenReservoirSource"
+        assert source_name is not None, "Must pass a source name to FrozenReservoirSource"
         assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
 
         if source_kwargs is None:
@@ -873,8 +873,8 @@ class FrozenReservoirSourc(ColumnSource):
 
     def random_truth(self, n_events, fix_truth=None, **params):
         if fix_truth is not None:
-            raise NotImplementedError("FastSource does not yet support fix_truth")
+            raise NotImplementedError("FrozenReservoirSource does not yet support fix_truth")
         if len(params):
-            raise NotImplementedError("FastSource does not yet support alternative parameters in simulate")
+            raise NotImplementedError("FrozenReservoirSource does not yet support alternative parameters in simulate")
 
         return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=True)
