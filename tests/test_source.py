@@ -375,17 +375,16 @@ def test_config(xes):
     assert b.photon_detection_eff == 0.11
 
 
-def test_FastSource():
+def test_FrozenReservoirSource():
     # Create a reservoir from fd.ERSource and fd.NRSource
-    res = fd.source.FastSourceReservoir(sources=dict(er=fd.ERSource, nr=fd.NRSource),
-                                        arguments = dict(er={'batch_size': 100}, nr={'batch_size': 100}),
-                                        ntoys=1)
+    res = fd.source.FrozenReservoirSource(ntoys=1,
+                                        er=fd.ERSource(batch_size=100), nr=fd.NRSource(batch_size=100))
 
-    # Create ER and NR FastSource s
-    s_er = fd.FastSource(source_type=fd.ERSource, source_name='er', reservoir=res)
-    s_nr = fd.FastSource(source_type=fd.NRSource, source_name='nr', reservoir=res)
+    # Create ER and NR FrozenReservoirSource s
+    s_er = fd.FrozenReservoirSource(source_type=fd.ERSource, source_name='er', reservoir=res)
+    s_nr = fd.FrozenReservoirSource(source_type=fd.NRSource, source_name='nr', reservoir=res)
 
-    # Generate events from both FastSource s
+    # Generate events from both FrozenReservoirSource s
     d_er = s_er.simulate(2)
     d_nr = s_nr.simulate(2)
 
