@@ -146,3 +146,21 @@ class Xe127Source(fd_nest.nestERGammaWeightedSource):
 
         self.energies = tf.convert_to_tensor(df_127Xe['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_127Xe['spectrum_value_norm'].values, dtype=fd.float_type())
+
+
+@export
+class B8Source(fd_nest.nestNRSource):
+    """NR background source from 8B solar neutrinos.
+    Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
+    Normalise such that the sum of rates_vs_energy is 1.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+        super().__init__(*args, **kwargs)
+
+        df_8B = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/8B_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_8B['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_8B['spectrum_value_norm'].values, dtype=fd.float_type())
