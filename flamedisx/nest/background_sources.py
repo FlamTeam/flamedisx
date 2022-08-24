@@ -97,8 +97,8 @@ class vERSource(fd_nest.nestERSource):
 @export
 class Ar37Source(fd_nest.nestERSource):
     """Background source for the electron capture decay of 37Ar.
-    Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
-    Normalise such that the sum of rates_vs_energy is 1.
+    Reads in energy spectrum from .pkl file. Normalise such that the sum of
+    rates_vs_energy is 1.
     """
 
     def __init__(self, *args, **kwargs):
@@ -110,3 +110,39 @@ class Ar37Source(fd_nest.nestERSource):
 
         self.energies = tf.convert_to_tensor(df_37Ar['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_37Ar['spectrum_value_norm'].values, dtype=fd.float_type())
+
+
+@export
+class Xe124Source(fd_nest.nestERGammaWeightedSource):
+    """Background source for the electron capture decay of 124Xe.
+    Reads in energy spectrum from .pkl file. Normalise such that the sum of
+    rates_vs_energy is 1.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+        super().__init__(*args, **kwargs)
+
+        df_124Xe = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/124Xe_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_124Xe['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_124Xe['spectrum_value_norm'].values, dtype=fd.float_type())
+
+
+@export
+class Xe127Source(fd_nest.nestERGammaWeightedSource):
+    """Background source for the electron capture decay of 127Xe.
+    Reads in energy spectrum from .pkl file. Normalise such that the sum of
+    rates_vs_energy is 1.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+        super().__init__(*args, **kwargs)
+
+        df_127Xe = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/127Xe_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_127Xe['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_127Xe['spectrum_value_norm'].values, dtype=fd.float_type())
