@@ -133,6 +133,22 @@ class LZERSource(LZSource, fd.nest.nestERSource):
 
 
 @export
+class LZGammaSource(LZSource, fd.nest.nestGammaSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZERGammaWeightedSource(LZSource, fd.nest.nestERGammaWeightedSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
 class LZNRSource(LZSource, fd.nest.nestNRSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
