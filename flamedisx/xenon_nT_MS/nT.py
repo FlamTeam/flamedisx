@@ -2,7 +2,6 @@
 
 """
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 import configparser
@@ -29,8 +28,6 @@ class XENONnTSource:
     path_s2_rly = 'nt_maps/XENONnT_s2_xy_map_v4_210503_mlp_3_in_1_iterated.json'
 
     # Combined cuts acceptances
-    #path_cut_accept_s1 = ('cut_acceptance/XENONnT/S1AcceptanceSR0_v1_Lower.json',)
-    #path_cut_accept_s2 = ('cut_acceptance/XENONnT/S2AcceptanceSR0_v1_Lower.json',)
     path_cut_accept_s1 = ('cut_acceptance/XENONnT/cS1AcceptanceSR0_v3_Median.json',)
     path_cut_accept_s2 = ('cut_acceptance/XENONnT/cS2AcceptanceSR0_v3_Median.json',)
 
@@ -105,28 +102,28 @@ class XENONnTSource:
     def s1_acceptance(self, s1, cs1):
 
         acceptance = tf.where((s1 >= self.spe_thr) &
-                        (s1 >= self.S1_min) & (s1 <= self.S1_max) &
-                        (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
-                        tf.ones_like(s1, dtype=fd.float_type()), # if condition non-zero
-                        tf.zeros_like(s1, dtype=fd.float_type())) # if false
+                              (s1 >= self.S1_min) & (s1 <= self.S1_max) &
+                              (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
+                              tf.ones_like(s1, dtype=fd.float_type()),  # if condition non-zero
+                              tf.zeros_like(s1, dtype=fd.float_type()))  # if false
 
         # multiplying by combined cut acceptance
         acceptance *= fd.xenon.x1t_sr1.interpolate_tf(cs1,
-                                     self.cut_accept_map_s1[0],
-                                     self.cut_accept_domain_s1)
+                                                      self.cut_accept_map_s1[0],
+                                                      self.cut_accept_domain_s1)
 
         return acceptance
 
     def s2_acceptance(self, s2, cs2):
-        acceptance =  tf.where((s2 >= self.S2_min) & (s2 <= self.S2_max) &
-                        (cs2 >= self.cS2_min) & (cs2 <= self.cS2_max),
-                        tf.ones_like(s2, dtype=fd.float_type()),
-                        tf.zeros_like(s2, dtype=fd.float_type()))
+        acceptance = tf.where((s2 >= self.S2_min) & (s2 <= self.S2_max) &
+                              (cs2 >= self.cS2_min) & (cs2 <= self.cS2_max),
+                              tf.ones_like(s2, dtype=fd.float_type()),
+                              tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
         acceptance *= fd.xenon.x1t_sr1.interpolate_tf(cs2,
-                                     self.cut_accept_map_s2[0],
-                                     self.cut_accept_domain_s2)
+                                                      self.cut_accept_map_s2[0],
+                                                      self.cut_accept_domain_s2)
 
         return acceptance
 
