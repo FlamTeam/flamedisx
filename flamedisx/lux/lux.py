@@ -97,13 +97,17 @@ class LUXERSource(LUXSource, fd.nest.nestERSource):
 
 @export
 class LUXGammaSource(LUXSource, fd.nest.nestGammaSource):
-    def __init__(self, *args, detector='default', **kwargs):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
         super().__init__(*args, **kwargs)
 
 
 @export
 class LUXERGammaWeightedSource(LUXSource, fd.nest.nestERGammaWeightedSource):
-    def __init__(self, *args, detector='default', **kwargs):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
         super().__init__(*args, **kwargs)
 
 
