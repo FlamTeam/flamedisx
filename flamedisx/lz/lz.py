@@ -2,14 +2,12 @@
 
 """
 import numpy as np
-import tensorflow as tf
 
 import configparser
 import os
 import pandas as pd
 
 import flamedisx as fd
-from .. import nest as fd_nest
 
 export, __all__ = fd.exporter()
 
@@ -65,13 +63,16 @@ class LZSource:
             self.s2_map = None
 
         try:
-            df_S1_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'acceptance_curves/cS1_acceptance_curve.pkl'))
-            df_S2_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'acceptance_curves/cS2_acceptance_curve.pkl'))
+            df_S1_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__),
+                                       'acceptance_curves/cS1_acceptance_curve.pkl'))
+            df_S2_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__),
+                                       'acceptance_curves/cS2_acceptance_curve.pkl'))
 
-            self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction) # phd to phe
+            self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction)  # phd to phe
             self.cs1_acc_curve = df_S1_acc['cS1_acceptance'].values
 
-            self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + np.log10(1 + self.double_pe_fraction) # log_10(phd) to log_10(phe)
+            self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + \
+                np.log10(1 + self.double_pe_fraction)  # log_10(phd) to log_10(phe)
             self.log10_cs2_acc_curve = df_S2_acc['cS2_acceptance'].values
         except Exception:
             print("Could not load acceptance curves; setting to 1")

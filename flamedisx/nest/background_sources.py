@@ -30,7 +30,7 @@ class BetaSource(fd_nest.nestERSource):
         85Kr relative to 0.3ppt.
     """
 
-    def __init__(self, *args, weights = (1, 1, 1,), **kwargs):
+    def __init__(self, *args, weights=(1, 1, 1,), **kwargs):
         assert len(weights) == 3, "Weights must be a tuple of length 3"
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
