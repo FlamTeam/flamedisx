@@ -15,3 +15,4 @@ from .lxe_source_groups import *
 from .source_group import *
 
 from .calibration_sources import *
+from .background_sources import *
