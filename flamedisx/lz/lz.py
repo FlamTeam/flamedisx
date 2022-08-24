@@ -33,6 +33,10 @@ def interpolate_acceptance(arg, domain, acceptances):
 # Flamedisx sources
 ##
 
+##
+# Common to all LZ sources
+##
+
 
 class LZSource:
     path_s1_corr = '/Users/Robert/s1_map_22Apr22.json'
@@ -124,6 +128,11 @@ class LZSource:
                 d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
 
 
+##
+# Different interaction types: flat spectra
+##
+
+
 @export
 class LZERSource(LZSource, fd.nest.nestERSource):
     def __init__(self, *args, **kwargs):
@@ -156,8 +165,74 @@ class LZNRSource(LZSource, fd.nest.nestNRSource):
         super().__init__(*args, **kwargs)
 
 
+##
+# Calibration sources
+##
+
+
 @export
 class LZCH3TSource(LZSource, fd.nest.CH3TSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+##
+# Background sources
+##
+
+
+@export
+class LZBetaSource(LZSource, fd.nest.BetaSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZXe136Source(LZSource, fd.nest.Xe136Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZvERSource(LZSource, fd.nest.vERSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZAr37Source(LZSource, fd.nest.Ar37Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZXe124Source(LZSource, fd.nest.Xe124Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZXe127Source(LZSource, fd.nest.Xe127Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZB8Source(LZSource, fd.nest.B8Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
