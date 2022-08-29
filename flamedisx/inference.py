@@ -121,7 +121,7 @@ class Objective:
                     f"Bound on {k} was passed, but this is not among "
                     f"the parameters of the fit ({self.arg_names})")
         for p in self.arg_names:
-            if p.endswith('_rate_multiplier'):
+            if p.endswith('_rate_multiplier') and p not in bounds.keys():
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
         self.normed_bounds = dict()    # Set in process_guess
