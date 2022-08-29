@@ -76,9 +76,23 @@ class FrequentistUpperLimitRatesOnly():
         self.log_likelihood.set_data(data)
 
     def test_statistic_tmu_tilde(self, mu_test):
+        fix_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
         guess_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
+        guess_dict_nuisance = dict()
 
         for source_name in self.secondary_source_names:
             guess_dict[f'{source_name}_rate_multiplier'] = 1.
+            guess_dict_nuisance[f'{source_name}_rate_multiplier'] = 1.
+
+        bf_conditional = self.log_likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
 
         bf_unconditional = self.log_likelihood.bestfit(guess=guess_dict)
+
+        if bf_unconditional[f'{self.primary_source_name}_rate_multiplier'] < 0.:
+            fix_dict[f'{self.primary_source_name}_rate_multiplier'] = 0.
+            bf_unconditional = self.log_likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
+
+        ll_conditional = self.log_likelihood(**bf_conditional)
+        ll_unconditional = self.log_likelihood(**bf_unconditional)
+
+        return -2. * (ll_conditional - ll_unconditional)
