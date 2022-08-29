@@ -23,7 +23,7 @@ class FrequentistUpperLimitRatesOnly():
             max_sigma_outer=None,
             n_trials=None,
             defaults=None,
-            ntoys=1):
+            ntoys=1000):
 
         if arguments is None:
             arguments = dict()
