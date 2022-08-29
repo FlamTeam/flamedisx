@@ -37,6 +37,7 @@ class FrequentistUpperLimitRatesOnly():
 
         self.primary_source_name = primary_source_name
         self.ntoys = ntoys
+        self.ts_dists = dict()
 
         # Create sources
         self.sources = {
@@ -69,6 +70,11 @@ class FrequentistUpperLimitRatesOnly():
             default_rm_bounds[source_name] = (None, None)
 
         self.log_likelihood.set_rate_multiplier_bounds(**default_rm_bounds)
+
+    def get_test_stat_dists(self, mus_test):
+        for mu_test in mus_test:
+            ts_dist = toy_test_statistic_dist(mu_test)
+            self.ts_dists[mu_test] = ts_dist
 
     def toy_test_statistic_dist(self, mu_test):
         rm_value_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
