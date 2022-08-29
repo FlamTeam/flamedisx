@@ -36,6 +36,7 @@ class FrequentistUpperLimitRatesOnly():
             defaults = dict()
 
         self.primary_source_name = primary_source_name
+        self.ntoys = ntoys
 
         # Create sources
         self.sources = {
@@ -69,11 +70,21 @@ class FrequentistUpperLimitRatesOnly():
 
         self.log_likelihood.set_rate_multiplier_bounds(**default_rm_bounds)
 
-    def toy_data(self):
-        return self.log_likelihood.simulate()
+    def toy_test_statistic_dist(self, mu_test):
+        rm_value_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
 
-    def set_data(self, data):
-        self.log_likelihood.set_data(data)
+        for source_name in self.secondary_source_names:
+            rm_value_dict[f'{source_name}_rate_multiplier'] = 1.
+
+        ts_values = []
+
+        for toy in range(self.ntoys):
+            toy_data = self.log_likelihood.simulate(**rm_value_dict)
+            self.log_likelihood.set_data(toy_data)
+
+            ts_values.append(self.test_statistic_tmu_tilde(mu_test))
+
+        return ts_values
 
     def test_statistic_tmu_tilde(self, mu_test):
         fix_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
