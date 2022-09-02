@@ -26,6 +26,12 @@ o = tf.newaxis
 class XENONnTSource:
     path_s1_rly = 'nt_maps/XnT_S1_xyz_MLP_v0.3_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_v0d677.json'
     path_s2_rly = 'nt_maps/XENONnT_s2_xy_map_v4_210503_mlp_3_in_1_iterated.json'
+    
+    # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
+    path_reconstruction_efficiencies_s1 = (
+        'reconstruction_efficiency/XENONnT/RecEfficiencyLowers_XENONnT_SR0_3fold_WFSim_v4.json',
+        'reconstruction_efficiency/XENONnT/RecEfficiencyMedians_XENONnT_SR0_3fold_WFSim_v4.json',
+        'reconstruction_efficiency/XENONnT/RecEfficiencyUppers_XENONnT_SR0_3fold_WFSim_v4.json')
 
     # Combined cuts acceptances
     path_cut_accept_s1 = ('cut_acceptance/XENONnT/cS1AcceptanceSR0_v3_Median.json',)
@@ -64,6 +70,10 @@ class XENONnTSource:
             self.s1_map = None
             self.s2_map = None
 
+        # Loading reconstruction efficiencies map
+        self.recon_eff_map_s1, self.domain_def_ph = \
+            fd.xenon.x1t_sr1.read_maps_tf(self.path_reconstruction_efficiencies_s1, is_bbf=True)
+
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
             fd.xenon.x1t_sr1.read_maps_tf(self.path_cut_accept_s1, is_bbf=True)
@@ -98,6 +108,15 @@ class XENONnTSource:
     @staticmethod
     def s2_posDependence(r):
         return tf.ones_like(r)
+    
+    def photon_acceptance(self,
+                          photons_detected,
+                          s1_reconstruction_efficiency_pivot=0.):
+        return fd.xenon.x1t_sr1.calculate_reconstruction_efficiency(
+            photons_detected,
+            self.recon_eff_map_s1,
+            self.domain_def_ph,
+            s1_reconstruction_efficiency_pivot)
 
     def s1_acceptance(self, s1, cs1):
 
