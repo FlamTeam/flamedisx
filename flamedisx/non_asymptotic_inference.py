@@ -73,7 +73,7 @@ class FrequentistUpperLimitRatesOnly():
                                                     batch_size=batch_size,
                                                     free_rates=tuple([sname for sname in sources.keys()]))
 
-        default_rm_bounds = {self.primary_source_name: (None, None)}
+        default_rm_bounds = {self.primary_source_name: (-5., 50.}
         for source_name in self.secondary_source_names:
             default_rm_bounds[source_name] = (None, None)
 
@@ -82,8 +82,10 @@ class FrequentistUpperLimitRatesOnly():
 
     def get_interval(self, mus_test=None, data=None):
         self.get_test_stat_dists(mus_test=mus_test)
-        self.get_observed_test_stats(mus_test=mus_test)
+        self.get_observed_test_stats(mus_test=mus_test, data=data)
         self.get_p_vals()
+
+        print(self.p_vals)
 
     def get_test_stat_dists(self, mus_test=None):
         assert mus_test is not None, 'Must pass in mus to be scanned over'
