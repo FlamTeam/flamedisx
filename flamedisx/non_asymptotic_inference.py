@@ -80,9 +80,15 @@ class FrequentistUpperLimitRatesOnly():
         self.log_likelihood_fast.set_rate_multiplier_bounds(**default_rm_bounds)
         self.log_likelihood_full.set_rate_multiplier_bounds(**default_rm_bounds)
 
+    def get_interval(self, mus_test=None, data=None):
+        self.get_test_stat_dists(mus_test=mus_test)
+        self.get_observed_test_stats(mus_test=mus_test)
+        self.get_p_vals()
+
     def get_test_stat_dists(self, mus_test=None):
         assert mus_test is not None, 'Must pass in mus to be scanned over'
 
+        self.test_stat_dists = dict()
         for mu_test in tqdm(mus_test, desc='Scanning over mus'):
             ts_dist = self.toy_test_statistic_dist(mu_test)
             self.test_stat_dists[mu_test] = ts_dist
@@ -95,13 +101,23 @@ class FrequentistUpperLimitRatesOnly():
 
         ts_values = []
 
-        for toy in tqdm(range(self.ntoys), desc='Doing toys', leave=False):
+        for toy in tqdm(range(self.ntoys), desc='Doing toys'):
             toy_data = self.log_likelihood_fast.simulate(**rm_value_dict)
             self.log_likelihood_fast.set_data(toy_data)
 
             ts_values.append(self.test_statistic_tmu_tilde(mu_test))
 
         return ts_values
+
+    def get_observed_test_stats(self, mus_test=None, data=None):
+        assert mus_test is not None, 'Must pass in mus to be scanned over'
+        assert data is not None, 'Must pass in data'
+
+        self.log_likelihood_full.set_data(data)
+
+        self.observed_test_stats = dict()
+        for mu_test in tqdm(mus_test, desc='Scanning over mus'):
+            self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, observed=True)
 
     def test_statistic_tmu_tilde(self, mu_test, observed=False):
         fix_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
@@ -130,21 +146,13 @@ class FrequentistUpperLimitRatesOnly():
 
         return -2. * (ll_conditional - ll_unconditional)
 
-    def get_observed_test_stats(self, mus_test=None, data=None):
-        assert mus_test is not None, 'Must pass in mus to be scanned over'
-        assert data is not None, 'Must pass in data'
-
-        self.log_likelihood_full.set_data(data)
-
-        for mu_test in tqdm(mus_test, desc='Scanning over mus'):
-            self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, observed=True)
-
     def get_p_vals(self):
         assert len(self.test_stat_dists) > 0, 'Must generate test statistic distributions first'
         assert len(self.observed_test_stats) > 0, 'Must calculate observed test statistics first'
         assert self.test_stat_dists.keys() == self.observed_test_stats.keys(), \
             'Must get test statistic distributions and observed test statistics with the same mu values'
 
+        self.p_vals = dict()
         for mu_test in self.observed_test_stats.keys():
             self.p_vals[mu_test] = (100. - stats.percentileofscore(self.test_stat_dists[mu_test],
                                                                   self.observed_test_stats[mu_test])) / 100.
