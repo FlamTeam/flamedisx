@@ -135,13 +135,13 @@ class FrequentistUpperLimitRatesOnly():
         else:
             likelihood = self.log_likelihood_fast
 
-        bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
+        bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
 
-        bf_unconditional = likelihood.bestfit(guess=guess_dict)
+        bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
         if bf_unconditional[f'{self.primary_source_name}_rate_multiplier'] < 0.:
             fix_dict[f'{self.primary_source_name}_rate_multiplier'] = 0.
-            bf_unconditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
+            bf_unconditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
 
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)

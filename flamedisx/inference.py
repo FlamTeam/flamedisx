@@ -74,7 +74,8 @@ class Objective:
                  use_hessian=True,
                  return_errors=False,
                  optimizer_kwargs: dict = None,
-                 allow_failure=False):
+                 allow_failure=False,
+                 suppress_warnings=False):
         if guess is None:
             guess = dict()
         if fix is None:
@@ -275,17 +276,19 @@ class Objective:
         params = {**self._array_to_dict(x), **self.fix}
         for k, v in params.items():
             if np.isnan(v):
-                warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
-                              OptimizerWarning)
+                if suppress_warnings is False:
+                    warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
+                                  OptimizerWarning)
                 return self.nan_result()
             if k in self.bounds:
                 b = self.bounds[k]
                 if not ((b[0] is None or b[0] <= v)
                         and (b[1] is None or v <= b[1])):
-                    warnings.warn(
-                        f"Optimizer requested likelihood at {k} = {v}, "
-                        f"which is outside the bounds {b}.",
-                        OptimizerWarning)
+                    if suppress_warnings is False:
+                        warnings.warn(
+                            f"Optimizer requested likelihood at {k} = {v}, "
+                            f"which is outside the bounds {b}.",
+                            OptimizerWarning)
                     return self.nan_result()
 
         result = self._inner_fun_and_grad(params)
@@ -305,16 +308,19 @@ class Objective:
 
         x_desc = dict(zip(self.arg_names, x))
         if np.isnan(y):
-            warnings.warn(f"Objective at {x_desc} is Nan!",
-                          OptimizerWarning)
+            if suppress_warnings is False:
+                warnings.warn(f"Objective at {x_desc} is Nan!",
+                              OptimizerWarning)
             result = self.nan_result()
         elif np.any(np.isnan(grad)):
-            warnings.warn(f"Objective at {x_desc} has NaN gradient {grad}",
-                          OptimizerWarning)
+            if suppress_warnings is False:
+                warnings.warn(f"Objective at {x_desc} has NaN gradient {grad}",
+                              OptimizerWarning)
             result = self.nan_result()
         elif hess is not None and np.any(np.isnan(hess)):
-            warnings.warn(f"Objective at {x_desc} has NaN Hessian {hess}",
-                          OptimizerWarning)
+            if suppress_warnings is False:
+                warnings.warn(f"Objective at {x_desc} has NaN Hessian {hess}",
+                              OptimizerWarning)
             result = self.nan_result()
         else:
             result = ObjectiveResult(fun=y, grad=grad, hess=hess)
@@ -378,9 +384,10 @@ class Objective:
             if k in self.fix:
                 continue
             if self.guess[k] == v:
-                warnings.warn(
-                    f"Optimizer returned {k} = {v}, equal to the guess",
-                    OptimizerWarning)
+                if suppress_warnings is False:
+                    warnings.warn(
+                        f"Optimizer returned {k} = {v}, equal to the guess",
+                        OptimizerWarning)
 
         result = {**result, **self.fix}
         # TODO: return ll_val, use it
