@@ -142,7 +142,7 @@ class FrequentistUpperLimitRatesOnly():
     def get_p_vals(self):
         assert len(self.test_stat_dists) > 0, 'Must generate test statistic distributions first'
         assert len(self.observed_test_stats) > 0, 'Must calculate observed test statistics first'
-        assert self.test_stat_dists.keys() = self.observed_test_stats.keys(), \
+        assert self.test_stat_dists.keys() == self.observed_test_stats.keys(), \
             'Must get test statistic distributions and observed test statistics with the same mu values'
 
         for mu_test in self.observed_test_stats.keys():
