@@ -1,6 +1,6 @@
 import flamedisx as fd
 import numpy as np
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import typing as ty
 
 export, __all__ = fd.exporter()
@@ -39,6 +39,7 @@ class FrequentistUpperLimitRatesOnly():
         self.primary_source_name = primary_source_name
         self.ntoys = ntoys
         self.ts_dists = dict()
+        self.observed_test_stats = dict()
 
         # Create sources
         self.sources = {
@@ -72,7 +73,9 @@ class FrequentistUpperLimitRatesOnly():
 
         self.log_likelihood.set_rate_multiplier_bounds(**default_rm_bounds)
 
-    def get_test_stat_dists(self, mus_test):
+    def get_test_stat_dists(self, mus_test=None):
+        assert mus_test is not None, 'Must pass in mus to be scanned over'
+
         for mu_test in tqdm(mus_test, desc='Scanning over mus'):
             ts_dist = self.toy_test_statistic_dist(mu_test)
             self.ts_dists[mu_test] = ts_dist
@@ -85,7 +88,7 @@ class FrequentistUpperLimitRatesOnly():
 
         ts_values = []
 
-        for toy in tqdm(range(self.ntoys), desc='Doing toys'):
+        for toy in tqdm(range(self.ntoys), desc='Doing toys', leave=False):
             toy_data = self.log_likelihood.simulate(**rm_value_dict)
             self.log_likelihood.set_data(toy_data)
 
@@ -114,3 +117,12 @@ class FrequentistUpperLimitRatesOnly():
         ll_unconditional = self.log_likelihood(**bf_unconditional)
 
         return -2. * (ll_conditional - ll_unconditional)
+
+    def get_observed_test_stats(self, mus_test=None, data=None):
+        assert mus_test is not None, 'Must pass in mus to be scanned over'
+        assert data is not None, 'Must pass in data'
+
+        self.log_likelihood.set_data(data)
+
+        for mu_test in mus_test:
+            self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test)
