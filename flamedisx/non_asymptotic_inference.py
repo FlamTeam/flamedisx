@@ -73,7 +73,7 @@ class FrequentistUpperLimitRatesOnly():
                                                     batch_size=batch_size,
                                                     free_rates=tuple([sname for sname in sources.keys()]))
 
-        default_rm_bounds = {self.primary_source_name: (-5., 50.}
+        default_rm_bounds = {self.primary_source_name: (-5., 50.)}
         for source_name in self.secondary_source_names:
             default_rm_bounds[source_name] = (None, None)
 
