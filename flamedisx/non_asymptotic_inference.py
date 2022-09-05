@@ -1,6 +1,6 @@
 import flamedisx as fd
 import numpy as np
-from tqdm import tqdms
+from tqdm import tqdm
 import typing as ty
 
 export, __all__ = fd.exporter()
