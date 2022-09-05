@@ -1,5 +1,6 @@
 import flamedisx as fd
 import numpy as np
+from tqdm import tqdms
 import typing as ty
 
 export, __all__ = fd.exporter()
@@ -72,7 +73,7 @@ class FrequentistUpperLimitRatesOnly():
         self.log_likelihood.set_rate_multiplier_bounds(**default_rm_bounds)
 
     def get_test_stat_dists(self, mus_test):
-        for mu_test in mus_test:
+        for mu_test in tqdm(mus_test, desc='Scanning over mus'):
             ts_dist = toy_test_statistic_dist(mu_test)
             self.ts_dists[mu_test] = ts_dist
 
@@ -84,7 +85,7 @@ class FrequentistUpperLimitRatesOnly():
 
         ts_values = []
 
-        for toy in range(self.ntoys):
+        for toy in tqdm(range(self.n_toys), desc='Doing toys'):
             toy_data = self.log_likelihood.simulate(**rm_value_dict)
             self.log_likelihood.set_data(toy_data)
 
