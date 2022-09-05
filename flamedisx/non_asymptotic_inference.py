@@ -59,19 +59,24 @@ class FrequentistUpperLimitRatesOnly():
         # Create frozen source reservoir
         reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.sources)
 
-        # Create likelihood
-        self.log_likelihood = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname, sclass in sources.items()},
-                                               arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': reservoir}
-                                                            for sname, sclass in sources.items()},
-                                               progress=False,
-                                               batch_size=batch_size,
-                                               free_rates=tuple([sname for sname in sources.keys()]))
+        # Create likelihoods
+        self.log_likelihood_fast = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname, sclass in sources.items()},
+                                                    arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': reservoir}
+                                                                 for sname, sclass in sources.items()},
+                                                    progress=False,
+                                                    batch_size=batch_size,
+                                                    free_rates=tuple([sname for sname in sources.keys()]))
+        self.log_likelihood_full = fd.LogLikelihood(sources=sources,
+                                                    progress=False,
+                                                    batch_size=batch_size,
+                                                    free_rates=tuple([sname for sname in sources.keys()]))
 
         default_rm_bounds = {self.primary_source_name: (None, None)}
         for source_name in self.secondary_source_names:
             default_rm_bounds[source_name] = (None, None)
 
-        self.log_likelihood.set_rate_multiplier_bounds(**default_rm_bounds)
+        self.log_likelihood_fast.set_rate_multiplier_bounds(**default_rm_bounds)
+        self.log_likelihood_full.set_rate_multiplier_bounds(**default_rm_bounds)
 
     def get_test_stat_dists(self, mus_test=None):
         assert mus_test is not None, 'Must pass in mus to be scanned over'
@@ -89,14 +94,14 @@ class FrequentistUpperLimitRatesOnly():
         ts_values = []
 
         for toy in tqdm(range(self.ntoys), desc='Doing toys', leave=False):
-            toy_data = self.log_likelihood.simulate(**rm_value_dict)
-            self.log_likelihood.set_data(toy_data)
+            toy_data = self.log_likelihood_fast.simulate(**rm_value_dict)
+            self.log_likelihood_fast.set_data(toy_data)
 
             ts_values.append(self.test_statistic_tmu_tilde(mu_test))
 
         return ts_values
 
-    def test_statistic_tmu_tilde(self, mu_test):
+    def test_statistic_tmu_tilde(self, mu_test, observed=False):
         fix_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
         guess_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
         guess_dict_nuisance = dict()
@@ -105,16 +110,21 @@ class FrequentistUpperLimitRatesOnly():
             guess_dict[f'{source_name}_rate_multiplier'] = 1.
             guess_dict_nuisance[f'{source_name}_rate_multiplier'] = 1.
 
-        bf_conditional = self.log_likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
+        if observed is True:
+            likelihood = self.log_likelihood_full
+        else:
+            likelihood = self.log_likelihood_fast
 
-        bf_unconditional = self.log_likelihood.bestfit(guess=guess_dict)
+        bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
+
+        bf_unconditional = likelihood.bestfit(guess=guess_dict)
 
         if bf_unconditional[f'{self.primary_source_name}_rate_multiplier'] < 0.:
             fix_dict[f'{self.primary_source_name}_rate_multiplier'] = 0.
-            bf_unconditional = self.log_likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
+            bf_unconditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance)
 
-        ll_conditional = self.log_likelihood(**bf_conditional)
-        ll_unconditional = self.log_likelihood(**bf_unconditional)
+        ll_conditional = likelihood(**bf_conditional)
+        ll_unconditional = likelihood(**bf_unconditional)
 
         return -2. * (ll_conditional - ll_unconditional)
 
@@ -122,7 +132,7 @@ class FrequentistUpperLimitRatesOnly():
         assert mus_test is not None, 'Must pass in mus to be scanned over'
         assert data is not None, 'Must pass in data'
 
-        self.log_likelihood.set_data(data)
+        self.log_likelihood_full.set_data(data)
 
         for mu_test in mus_test:
-            self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test)
+            self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, observed=True)
