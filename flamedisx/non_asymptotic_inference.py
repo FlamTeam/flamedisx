@@ -1,5 +1,6 @@
 import flamedisx as fd
 import numpy as np
+from scipy import stats
 from tqdm.auto import tqdm
 import typing as ty
 
@@ -38,8 +39,9 @@ class FrequentistUpperLimitRatesOnly():
 
         self.primary_source_name = primary_source_name
         self.ntoys = ntoys
-        self.ts_dists = dict()
+        self.test_stat_dists = dict()
         self.observed_test_stats = dict()
+        self.p_vals = dict()
 
         # Create sources
         self.sources = {
@@ -83,7 +85,7 @@ class FrequentistUpperLimitRatesOnly():
 
         for mu_test in tqdm(mus_test, desc='Scanning over mus'):
             ts_dist = self.toy_test_statistic_dist(mu_test)
-            self.ts_dists[mu_test] = ts_dist
+            self.test_stat_dists[mu_test] = ts_dist
 
     def toy_test_statistic_dist(self, mu_test):
         rm_value_dict = {f'{self.primary_source_name}_rate_multiplier': mu_test}
@@ -134,5 +136,15 @@ class FrequentistUpperLimitRatesOnly():
 
         self.log_likelihood_full.set_data(data)
 
-        for mu_test in mus_test:
+        for mu_test in tqdm(mus_test, desc='Scanning over mus'):
             self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, observed=True)
+
+    def get_p_vals(self):
+        assert len(self.test_stat_dists) > 0, 'Must generate test statistic distributions first'
+        assert len(self.observed_test_stats) > 0, 'Must calculate observed test statistics first'
+        assert self.test_stat_dists.keys() = self.observed_test_stats.keys(), \
+            'Must get test statistic distributions and observed test statistics with the same mu values'
+
+        for mu_test in self.observed_test_stats.keys():
+            self.p_vals[mu_test] = (100. - stats.percentileofscore(self.test_stat_dists[mu_test],
+                                                                  self.observed_test_stats[mu_test])) / 100.
