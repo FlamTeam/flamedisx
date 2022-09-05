@@ -576,7 +576,8 @@ class LogLikelihood:
                 return_errors=False,
                 nan_val=float('inf'),
                 optimizer_kwargs=None,
-                allow_failure=False):
+                allow_failure=False,
+                suppress_warnings=False):
         """Return best-fit parameter dict
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
@@ -637,6 +638,7 @@ class LogLikelihood:
             return_errors=return_errors,
             optimizer_kwargs=optimizer_kwargs,
             allow_failure=allow_failure,
+            suppress_warnings=suppress_warnings,
         ).minimize()
         if get_lowlevel_result or get_history:
             return res
@@ -682,6 +684,7 @@ class LogLikelihood:
             optimizer_kwargs=None,
             use_hessian=True,
             allow_failure=False,
+            suppress_warnings=False
     ):
         """Return frequentist limit or confidence interval.
 
@@ -781,6 +784,7 @@ class LogLikelihood:
                 use_hessian=use_hessian,
                 optimizer_kwargs=optimizer_kwargs,
                 allow_failure=allow_failure,
+                suppress_warnings=suppress_warnings,
 
                 # To IntervalObjective
                 target_parameter=parameter,
