@@ -74,7 +74,7 @@ class FrequentistUpperLimitRatesOnly():
 
     def get_test_stat_dists(self, mus_test):
         for mu_test in tqdm(mus_test, desc='Scanning over mus'):
-            ts_dist = toy_test_statistic_dist(mu_test)
+            ts_dist = self.toy_test_statistic_dist(mu_test)
             self.ts_dists[mu_test] = ts_dist
 
     def toy_test_statistic_dist(self, mu_test):
