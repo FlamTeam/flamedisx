@@ -85,7 +85,7 @@ class FrequentistUpperLimitRatesOnly():
 
         ts_values = []
 
-        for toy in tqdm(range(self.n_toys), desc='Doing toys'):
+        for toy in tqdm(range(self.ntoys), desc='Doing toys'):
             toy_data = self.log_likelihood.simulate(**rm_value_dict)
             self.log_likelihood.set_data(toy_data)
 
