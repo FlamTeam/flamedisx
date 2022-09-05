@@ -29,9 +29,9 @@ class XENONnTSource:
     
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
     path_reconstruction_efficiencies_s1 = (
-        'reconstruction_efficiency/XENONnT/RecEfficiencyLowers_XENONnT_SR0_3fold_WFSim_v4.json',
-        'reconstruction_efficiency/XENONnT/RecEfficiencyMedians_XENONnT_SR0_3fold_WFSim_v4.json',
-        'reconstruction_efficiency/XENONnT/RecEfficiencyUppers_XENONnT_SR0_3fold_WFSim_v4.json')
+        'reconstruction_efficiency/XENONnT/RecEfficiencyLowers_XENONnT_SR0_3fold_WFSim_v5.json',
+        'reconstruction_efficiency/XENONnT/RecEfficiencyMedians_XENONnT_SR0_3fold_WFSim_v5.json',
+        'reconstruction_efficiency/XENONnT/RecEfficiencyUppers_XENONnT_SR0_3fold_WFSim_v5.json')
 
     # Combined cuts acceptances
     path_cut_accept_s1 = ('cut_acceptance/XENONnT/cS1AcceptanceSR0_v3_Median.json',)
