@@ -60,6 +60,74 @@ class FrequentistUpperLimitRatesOnly():
         # Create frozen source reservoir
         self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
 
+    def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
+        fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        guess_dict_nuisance = dict()
+
+        for source_name in self.background_source_names:
+            guess_dict[f'{source_name}_rate_multiplier'] = 1.
+            guess_dict_nuisance[f'{source_name}_rate_multiplier'] = 1.
+
+        bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
+
+        bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
+
+        if bf_unconditional[f'{signal_source_name}_rate_multiplier'] < 0.:
+            fix_dict[f'{signal_source_name}_rate_multiplier'] = 0.
+            bf_unconditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
+
+        ll_conditional = likelihood(**bf_conditional)
+        ll_unconditional = likelihood(**bf_unconditional)
+
+        return -2. * (ll_conditional - ll_unconditional)
+
+    def get_test_stat_dists(self, mus_test=None):
+        assert mus_test is not None, 'Must pass in mus to be scanned over'
+
+        self.test_stat_dists = dict()
+        for signal_source in self.signal_source_names:
+            test_stat_dists = dict()
+
+            # Create likelihood
+            sources = dict()
+            for background_source in self.background_source_names:
+                sources[background_source] = self.sources[background_source]
+            sources[signal_source] = self.sources[signal_source]
+
+            likelihood_fast = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
+                                               arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': self.reservoir}
+                                                            for sname, sclass in sources.items()},
+                                               progress=False,
+                                               batch_size=self.batch_size,
+                                               free_rates=tuple([sname for sname in sources.keys()]))
+
+            default_rm_bounds = {signal_source: (-5., 50.)}
+            for source_name in self.background_source_names:
+                default_rm_bounds[source_name] = (None, None)
+            likelihood_fast.set_rate_multiplier_bounds(**default_rm_bounds)
+
+            for mu_test in tqdm(mus_test, desc='Scanning over mus'):
+                ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
+                test_stat_dists[mu_test] = ts_dist
+
+            self.test_stat_dists[signal_source] = test_stat_dists
+
+    def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
+        rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        for source_name in self.background_source_names:
+            rm_value_dict[f'{source_name}_rate_multiplier'] = 1.
+
+        ts_values = []
+
+        for toy in tqdm(range(self.ntoys), desc='Doing toys'):
+            toy_data = likelihood_fast.simulate(**rm_value_dict)
+            likelihood_fast.set_data(toy_data)
+
+            ts_values.append(self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast))
+
+        return ts_values
+
     def get_interval(self, mus_test=None, data=None, conf_level=0.1, return_p_vals=False):
         self.log_likelihood_full = fd.LogLikelihood(sources=sources,
                                                     progress=False,
@@ -103,52 +171,6 @@ class FrequentistUpperLimitRatesOnly():
         else:
             return lower_lim, upper_lim
 
-    def get_test_stat_dists(self, mus_test=None):
-        assert mus_test is not None, 'Must pass in mus to be scanned over'
-
-        self.test_stat_dists = dict()
-        for signal_source in self.signal_source_names:
-            test_stat_dists = dict()
-
-            # Create likelihood
-            sources = dict()
-            for background_source in self.background_source_names:
-                sources[background_source] = self.sources[background_source]
-            sources[signal_source] = self.sources[signal_source]
-
-            self.log_likelihood_fast = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
-                                                        arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': self.reservoir}
-                                                                     for sname, sclass in sources.items()},
-                                                        progress=False,
-                                                        batch_size=self.batch_size,
-                                                        free_rates=tuple([sname for sname in sources.keys()]))
-
-            default_rm_bounds = {signal_source: (-5., 50.)}
-            for source_name in self.background_source_names:
-                default_rm_bounds[source_name] = (None, None)
-            self.log_likelihood_fast.set_rate_multiplier_bounds(**default_rm_bounds)
-
-            for mu_test in tqdm(mus_test, desc='Scanning over mus'):
-                ts_dist = self.toy_test_statistic_dist(mu_test, signal_source)
-                test_stat_dists[mu_test] = ts_dist
-
-            self.test_stat_dists[signal_source] = test_stat_dists
-
-    def toy_test_statistic_dist(self, mu_test, signal_source_name):
-        rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-        for source_name in self.background_source_names:
-            rm_value_dict[f'{source_name}_rate_multiplier'] = 1.
-
-        ts_values = []
-
-        for toy in tqdm(range(self.ntoys), desc='Doing toys'):
-            toy_data = self.log_likelihood_fast.simulate(**rm_value_dict)
-            self.log_likelihood_fast.set_data(toy_data)
-
-            ts_values.append(self.test_statistic_tmu_tilde(mu_test, signal_source_name))
-
-        return ts_values
-
     def get_observed_test_stats(self, mus_test=None, data=None):
         assert mus_test is not None, 'Must pass in mus to be scanned over'
         assert data is not None, 'Must pass in data'
@@ -158,33 +180,6 @@ class FrequentistUpperLimitRatesOnly():
         self.observed_test_stats = dict()
         for mu_test in tqdm(mus_test, desc='Scanning over mus'):
             self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, observed=True)
-
-    def test_statistic_tmu_tilde(self, mu_test, signal_source_name, observed=False):
-        fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-        guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-        guess_dict_nuisance = dict()
-
-        for source_name in self.background_source_names:
-            guess_dict[f'{source_name}_rate_multiplier'] = 1.
-            guess_dict_nuisance[f'{source_name}_rate_multiplier'] = 1.
-
-        if observed is True:
-            likelihood = self.log_likelihood_full
-        else:
-            likelihood = self.log_likelihood_fast
-
-        bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
-
-        bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
-
-        if bf_unconditional[f'{signal_source_name}_rate_multiplier'] < 0.:
-            fix_dict[f'{signal_source_name}_rate_multiplier'] = 0.
-            bf_unconditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
-
-        ll_conditional = likelihood(**bf_conditional)
-        ll_unconditional = likelihood(**bf_unconditional)
-
-        return -2. * (ll_conditional - ll_unconditional)
 
     def get_p_vals(self):
         assert len(self.test_stat_dists) > 0, 'Must generate test statistic distributions first'
