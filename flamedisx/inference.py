@@ -94,6 +94,7 @@ class Objective:
         self.return_errors = return_errors
         self.optimizer_kwargs = optimizer_kwargs
         self.allow_failure = allow_failure
+        self.suppress_warnings = suppress_warnings
 
         # The if is only here to support MockInference with static arg_names
         if self.arg_names is None:
@@ -276,7 +277,7 @@ class Objective:
         params = {**self._array_to_dict(x), **self.fix}
         for k, v in params.items():
             if np.isnan(v):
-                if suppress_warnings is False:
+                if self.suppress_warnings is False:
                     warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
                                   OptimizerWarning)
                 return self.nan_result()
@@ -284,7 +285,7 @@ class Objective:
                 b = self.bounds[k]
                 if not ((b[0] is None or b[0] <= v)
                         and (b[1] is None or v <= b[1])):
-                    if suppress_warnings is False:
+                    if self.suppress_warnings is False:
                         warnings.warn(
                             f"Optimizer requested likelihood at {k} = {v}, "
                             f"which is outside the bounds {b}.",
@@ -308,17 +309,17 @@ class Objective:
 
         x_desc = dict(zip(self.arg_names, x))
         if np.isnan(y):
-            if suppress_warnings is False:
+            if self.suppress_warnings is False:
                 warnings.warn(f"Objective at {x_desc} is Nan!",
                               OptimizerWarning)
             result = self.nan_result()
         elif np.any(np.isnan(grad)):
-            if suppress_warnings is False:
+            if self.suppress_warnings is False:
                 warnings.warn(f"Objective at {x_desc} has NaN gradient {grad}",
                               OptimizerWarning)
             result = self.nan_result()
         elif hess is not None and np.any(np.isnan(hess)):
-            if suppress_warnings is False:
+            if self.suppress_warnings is False:
                 warnings.warn(f"Objective at {x_desc} has NaN Hessian {hess}",
                               OptimizerWarning)
             result = self.nan_result()
@@ -384,7 +385,7 @@ class Objective:
             if k in self.fix:
                 continue
             if self.guess[k] == v:
-                if suppress_warnings is False:
+                if self.suppress_warnings is False:
                     warnings.warn(
                         f"Optimizer returned {k} = {v}, equal to the guess",
                         OptimizerWarning)
