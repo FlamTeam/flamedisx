@@ -40,8 +40,10 @@ class FrequentistUpperLimitRatesOnly():
 
         self.signal_source_names = signal_source_names
         self.background_source_names = background_source_names
+
         self.ntoys = ntoys
         self.batch_size = batch_size
+
         self.test_stat_dists = dict()
         self.observed_test_stats = dict()
         self.p_vals = dict()
@@ -128,16 +130,38 @@ class FrequentistUpperLimitRatesOnly():
 
         return ts_values
 
+    def get_observed_test_stats(self, mus_test=None, data=None):
+        assert mus_test is not None, 'Must pass in mus to be scanned over'
+        assert data is not None, 'Must pass in data'
+
+        self.observed_test_stats = dict()
+        for signal_source in self.signal_source_names:
+            observed_test_stats = dict()
+
+            # Create likelihood
+            sources = dict()
+            for background_source in self.background_source_names:
+                sources[background_source] = self.sources[background_source]
+            sources[signal_source] = self.sources[signal_source]
+
+            likelihood_full = fd.LogLikelihood(sources=sources,
+                                               progress=False,
+                                               batch_size=self.batch_size,
+                                               free_rates=tuple([sname for sname in sources.keys()]))
+
+            default_rm_bounds = {signal_source: (-5., 50.)}
+            for source_name in self.background_source_names:
+                default_rm_bounds[source_name] = (None, None)
+            likelihood_full.set_rate_multiplier_bounds(**default_rm_bounds)
+
+            likelihood_full.set_data(data)
+
+            for mu_test in tqdm(mus_test, desc='Scanning over mus'):
+                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full)
+
+            self.observed_test_stats[signal_source] = observed_test_stats
+
     def get_interval(self, mus_test=None, data=None, conf_level=0.1, return_p_vals=False):
-        self.log_likelihood_full = fd.LogLikelihood(sources=sources,
-                                                    progress=False,
-                                                    batch_size=self.batch_size,
-                                                    free_rates=tuple([sname for sname in sources.keys()]))
-
-        self.log_likelihood_full.set_rate_multiplier_bounds(**default_rm_bounds)
-
-        self.get_test_stat_dists(mus_test=mus_test)
-        self.get_observed_test_stats(mus_test=mus_test, data=data)
         self.get_p_vals()
 
         mus = list(self.p_vals.keys())
@@ -170,16 +194,6 @@ class FrequentistUpperLimitRatesOnly():
             return self.p_vals, lower_lim, upper_lim
         else:
             return lower_lim, upper_lim
-
-    def get_observed_test_stats(self, mus_test=None, data=None):
-        assert mus_test is not None, 'Must pass in mus to be scanned over'
-        assert data is not None, 'Must pass in data'
-
-        self.log_likelihood_full.set_data(data)
-
-        self.observed_test_stats = dict()
-        for mu_test in tqdm(mus_test, desc='Scanning over mus'):
-            self.observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, observed=True)
 
     def get_p_vals(self):
         assert len(self.test_stat_dists) > 0, 'Must generate test statistic distributions first'
