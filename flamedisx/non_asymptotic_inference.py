@@ -80,12 +80,43 @@ class FrequentistUpperLimitRatesOnly():
         self.log_likelihood_fast.set_rate_multiplier_bounds(**default_rm_bounds)
         self.log_likelihood_full.set_rate_multiplier_bounds(**default_rm_bounds)
 
-    def get_interval(self, mus_test=None, data=None):
+    def get_interval(self, mus_test=None, data=None, conf_level=0.1):
         self.get_test_stat_dists(mus_test=mus_test)
         self.get_observed_test_stats(mus_test=mus_test, data=data)
         self.get_p_vals()
 
         print(self.p_vals)
+
+        mus = list(self.p_vals.keys())
+        pvals = list(self.p_vals.values())
+
+        upper_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) < 0.).flatten()
+        lower_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) > 0.).flatten()
+
+        print(upper_lims)
+        print(lower_lims)
+
+        if len(lower_lims > 0):
+            lower_mu_left = mus[lower_lims[0]]
+            lower_mu_right = mus[lower_lims[0] + 1]
+            lower_pval_left = pvals[lower_lims[0]]
+            lower_pval_right = pvals[lower_lims[0] + 1]
+
+            lower_gradient = (lower_pval_right - lower_pval_left) / (lower_mu_right - lower_mu_left)
+            lower_lim = conf_level / lower_gradient + lower_mu_left
+        else:
+            lower_lim = None
+
+        assert(len(upper_lims) > 0), 'No upper limit found!'
+        upper_mu_left = mus[upper_lims[-1]]
+        upper_mu_right = mus[upper_lims[-1] + 1]
+        upper_pval_left = pvals[upper_lims[-1]]
+        upper_pval_right = pvals[upper_lims[-1] + 1]
+
+        upper_gradient = (upper_pval_right - upper_pval_left) / (upper_mu_right - upper_mu_left)
+        upper_lim = conf_level / upper_gradient + upper_mu_left
+
+        return lower_lim, upper_lim
 
     def get_test_stat_dists(self, mus_test=None):
         assert mus_test is not None, 'Must pass in mus to be scanned over'
