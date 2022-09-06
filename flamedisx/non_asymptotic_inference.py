@@ -106,9 +106,9 @@ class FrequentistUpperLimitRatesOnly():
     def get_test_stat_dists(self, mus_test=None):
         assert mus_test is not None, 'Must pass in mus to be scanned over'
 
-        self.test_stat_dists_all = dict()
+        self.test_stat_dists = dict()
         for signal_source in self.signal_source_names:
-            self.test_stat_dists = dict()
+            test_stat_dists = dict()
 
             # Create likelihood
             sources = dict()
@@ -130,7 +130,9 @@ class FrequentistUpperLimitRatesOnly():
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source)
-                self.test_stat_dists[mu_test] = ts_dist
+                test_stat_dists[mu_test] = ts_dist
+
+            self.test_stat_dists[signal_source] = test_stat_dists
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name):
         rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
