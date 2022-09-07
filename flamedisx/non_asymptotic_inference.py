@@ -1,6 +1,7 @@
 import flamedisx as fd
 import numpy as np
 from scipy import stats
+import pickle as pkl
 from tqdm.auto import tqdm
 import typing as ty
 
@@ -84,7 +85,14 @@ class FrequentistUpperLimitRatesOnly():
 
         return -2. * (ll_conditional - ll_unconditional)
 
-    def get_test_stat_dists(self, mus_test=None):
+    def get_test_stat_dists(self, mus_test=None, output=False, input_path=None):
+        if input_path is not None:
+            try:
+                self.test_stat_dists = pkl.load(open(input_path, 'rb'))
+                return
+            except Exception:
+                print("Could not load TS distributions; re-calculating")
+
         assert mus_test is not None, 'Must pass in mus to be scanned over'
 
         self.test_stat_dists = dict()
@@ -115,6 +123,10 @@ class FrequentistUpperLimitRatesOnly():
 
             self.test_stat_dists[signal_source] = test_stat_dists
 
+            if output is True:
+                pkl.dump(self.test_stat_dists, open('test_stat_dists.pkl', 'wb'))
+
+
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
         rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
         for source_name in self.background_source_names:
@@ -130,7 +142,14 @@ class FrequentistUpperLimitRatesOnly():
 
         return ts_values
 
-    def get_observed_test_stats(self, mus_test=None, data=None):
+    def get_observed_test_stats(self, mus_test=None, data=None, output=False, input_path=None):
+        if input_path is not None:
+            try:
+                self.observed_test_stats = pkl.load(open(input_path, 'rb'))
+                return
+            except Exception:
+                print("Could not load observed test statistics; re-calculating")
+
         assert mus_test is not None, 'Must pass in mus to be scanned over'
         assert data is not None, 'Must pass in data'
 
@@ -160,6 +179,9 @@ class FrequentistUpperLimitRatesOnly():
                 observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full)
 
             self.observed_test_stats[signal_source] = observed_test_stats
+
+            if output is True:
+                pkl.dump(self.observed_test_stats, open('observed_test_stats.pkl', 'wb'))
 
     def get_interval(self, mus_test=None, data=None, conf_level=0.1, return_p_vals=False):
         self.get_p_vals()
