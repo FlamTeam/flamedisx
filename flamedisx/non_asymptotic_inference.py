@@ -27,7 +27,8 @@ class FrequentistUpperLimitRatesOnly():
             max_sigma_outer=None,
             n_trials=None,
             defaults=None,
-            ntoys=1000):
+            ntoys=1000,
+            skip_reservoir=False):
 
         if arguments is None:
             arguments = dict()
@@ -60,8 +61,11 @@ class FrequentistUpperLimitRatesOnly():
                           **defaults)
             for sname, sclass in sources.items()}
 
-        # Create frozen source reservoir
-        self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
+        if skip_reservoir:
+            self.reservoir = None
+        else:
+            # Create frozen source reservoir
+            self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
         fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
@@ -94,6 +98,7 @@ class FrequentistUpperLimitRatesOnly():
                 print("Could not load TS distributions; re-calculating")
 
         assert mus_test is not None, 'Must pass in mus to be scanned over'
+        assert self.reservoir is not None, 'Must popualte frozen source reservoir'
 
         self.test_stat_dists = dict()
         for signal_source in self.signal_source_names:
