@@ -183,47 +183,62 @@ class FrequentistUpperLimitRatesOnly():
             if output is True:
                 pkl.dump(self.observed_test_stats, open('observed_test_stats.pkl', 'wb'))
 
-    def get_interval(self, mus_test=None, data=None, conf_level=0.1, return_p_vals=False):
+    def get_p_vals(self):
+        self.p_vals = dict()
+        for signal_source in self.signal_source_names:
+            test_stat_dists = self.test_stat_dists[signal_source]
+            observed_test_stats = self.observed_test_stats[signal_source]
+
+            assert len(test_stat_dists) > 0, f'Must generate test statistic distributions first for {signal_source}'
+            assert len(observed_test_stats) > 0, f'Must calculate observed test statistics first for {signal_source}'
+            assert test_stat_dists.keys() == observed_test_stats.keys(), \
+                f'Must get test statistic distributions and observed test statistics for {signal_source} with the same mu values'
+
+            p_vals = dict()
+            for mu_test in observed_test_stats.keys():
+                p_vals[mu_test] = (100. - stats.percentileofscore(self.test_stat_dists[mu_test],
+                                                                      self.observed_test_stats[mu_test])) / 100.
+
+            self.p_vals[signal_source] = p_vals
+
+    def get_interval(self, conf_level=0.1, return_p_vals=False):
         self.get_p_vals()
 
-        mus = list(self.p_vals.keys())
-        pvals = list(self.p_vals.values())
+        lower_lims = dict()
+        upper_lims = dict()
+        for signal_source in self.signal_source_names:
+            these_pvals = self.p_vals[signal_source]
 
-        upper_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) < 0.).flatten()
-        lower_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) > 0.).flatten()
+            mus = list(these_pvals.keys())
+            pvals = list(these_pvals.values())
 
-        if len(lower_lims > 0):
-            lower_mu_left = mus[lower_lims[0]]
-            lower_mu_right = mus[lower_lims[0] + 1]
-            lower_pval_left = pvals[lower_lims[0]]
-            lower_pval_right = pvals[lower_lims[0] + 1]
+            upper_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) < 0.).flatten()
+            lower_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) > 0.).flatten()
 
-            lower_gradient = (lower_pval_right - lower_pval_left) / (lower_mu_right - lower_mu_left)
-            lower_lim = (conf_level - lower_pval_left) / lower_gradient + lower_mu_left
-        else:
-            lower_lim = None
+            if len(lower_lims > 0):
+                lower_mu_left = mus[lower_lims[0]]
+                lower_mu_right = mus[lower_lims[0] + 1]
+                lower_pval_left = pvals[lower_lims[0]]
+                lower_pval_right = pvals[lower_lims[0] + 1]
 
-        assert(len(upper_lims) > 0), 'No upper limit found!'
-        upper_mu_left = mus[upper_lims[-1]]
-        upper_mu_right = mus[upper_lims[-1] + 1]
-        upper_pval_left = pvals[upper_lims[-1]]
-        upper_pval_right = pvals[upper_lims[-1] + 1]
+                lower_gradient = (lower_pval_right - lower_pval_left) / (lower_mu_right - lower_mu_left)
+                lower_lim = (conf_level - lower_pval_left) / lower_gradient + lower_mu_left
+            else:
+                lower_lim = None
 
-        upper_gradient = (upper_pval_right - upper_pval_left) / (upper_mu_right - upper_mu_left)
-        upper_lim = (conf_level - upper_pval_left) / upper_gradient + upper_mu_left
+            assert(len(upper_lims) > 0), 'No upper limit found!'
+            upper_mu_left = mus[upper_lims[-1]]
+            upper_mu_right = mus[upper_lims[-1] + 1]
+            upper_pval_left = pvals[upper_lims[-1]]
+            upper_pval_right = pvals[upper_lims[-1] + 1]
+
+            upper_gradient = (upper_pval_right - upper_pval_left) / (upper_mu_right - upper_mu_left)
+            upper_lim = (conf_level - upper_pval_left) / upper_gradient + upper_mu_left
+
+            lower_lims[signal_source] = lower_lim
+            upper_lims[signal_source] = upper_lim
 
         if return_p_vals is True:
-            return self.p_vals, lower_lim, upper_lim
+            return self.p_vals, lower_lims, upper_lims
         else:
-            return lower_lim, upper_lim
-
-    def get_p_vals(self):
-        assert len(self.test_stat_dists) > 0, 'Must generate test statistic distributions first'
-        assert len(self.observed_test_stats) > 0, 'Must calculate observed test statistics first'
-        assert self.test_stat_dists.keys() == self.observed_test_stats.keys(), \
-            'Must get test statistic distributions and observed test statistics with the same mu values'
-
-        self.p_vals = dict()
-        for mu_test in self.observed_test_stats.keys():
-            self.p_vals[mu_test] = (100. - stats.percentileofscore(self.test_stat_dists[mu_test],
-                                                                  self.observed_test_stats[mu_test])) / 100.
+            return lower_lims, upper_lims
