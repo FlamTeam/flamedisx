@@ -201,16 +201,16 @@ class FrequentistUpperLimitRatesOnly():
 
             p_vals = dict()
             for mu_test in observed_test_stats.keys():
-                p_vals[mu_test] = (100. - stats.percentileofscore(self.test_stat_dists[mu_test],
-                                                                      self.observed_test_stats[mu_test])) / 100.
+                p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
+                                                                  observed_test_stats[mu_test])) / 100.
 
             self.p_vals[signal_source] = p_vals
 
     def get_interval(self, conf_level=0.1, return_p_vals=False):
         self.get_p_vals()
 
-        lower_lims = dict()
-        upper_lims = dict()
+        lower_lim_all = dict()
+        upper_lim_all = dict()
         for signal_source in self.signal_source_names:
             these_pvals = self.p_vals[signal_source]
 
@@ -240,10 +240,10 @@ class FrequentistUpperLimitRatesOnly():
             upper_gradient = (upper_pval_right - upper_pval_left) / (upper_mu_right - upper_mu_left)
             upper_lim = (conf_level - upper_pval_left) / upper_gradient + upper_mu_left
 
-            lower_lims[signal_source] = lower_lim
-            upper_lims[signal_source] = upper_lim
+            lower_lim_all[signal_source] = lower_lim
+            upper_lim_all[signal_source] = upper_lim
 
         if return_p_vals is True:
-            return self.p_vals, lower_lims, upper_lims
+            return self.p_vals, lower_lim_all, upper_lim_all
         else:
-            return lower_lims, upper_lims
+            return lower_lim_all, upper_lim_all
