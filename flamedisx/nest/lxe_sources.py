@@ -215,7 +215,7 @@ class nestERSource(nestSource):
                       (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592))),
                       fd.float_type())
 
-        Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.tf_log10(tf.cast(self.drift_field, fd.float_type())) * \
+        Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.tf_log10(tf.cast(self.drift_field, fd.float_type())) *
                                                     0.13946236 + 0.52561312),
                                                     1.82217496 + (2.82528809 - 1.82217496) /
                                                     (1 + pow(self.drift_field / 144.65029656, -2.80532006)))),
