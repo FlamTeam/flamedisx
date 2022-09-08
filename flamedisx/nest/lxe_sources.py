@@ -215,7 +215,8 @@ class nestERSource(nestSource):
                       (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592))),
                       fd.float_type())
 
-        Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.log10(self.drift_field) * 0.13946236 + 0.52561312),
+        Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.tf_log10(tf.cast(self.drift_field, fd.float_type())) * \
+                                                    0.13946236 + 0.52561312),
                                                     1.82217496 + (2.82528809 - 1.82217496) /
                                                     (1 + pow(self.drift_field / 144.65029656, -2.80532006)))),
                                           0.3344049589) + \
@@ -225,9 +226,9 @@ class nestERSource(nestSource):
         coeff_TI = tf.cast(pow(1. / XENON_REF_DENSITY, 0.3), fd.float_type())
         coeff_Ni = tf.cast(pow(1. / XENON_REF_DENSITY, 1.4), fd.float_type())
         coeff_OL = tf.cast(pow(1. / XENON_REF_DENSITY, -1.7) /
-                           fd.log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
+                           fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
 
-        Qy *= coeff_OL * fd.log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7)
+        Qy *= coeff_OL * fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7)
 
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
