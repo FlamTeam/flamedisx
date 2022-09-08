@@ -58,6 +58,9 @@ class Source:
     #: for which the domain is always a single interval of integers
     no_step_dimensions: ty.Tuple[str] = tuple()
 
+    #: inner_dimensions which take non-integer values
+    non_integer_dimensions: ty.Tuple[str] = tuple()
+
     #: Names of dimensions of hidden variables for which
     #: dimsize calculations are NOT done here (but in user-defined code)
     #: but for which we DO track _min and _dimsizes
@@ -444,6 +447,12 @@ class Source:
             steps = tf.where((ma-mi+1) > self.dimsizes[dim],
                              tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
                              1).numpy()  # Cover to at least the upper bound
+
+            # For non-integer dimensions, always set to max_dim_size, then step in non-integers
+            if dim in self.non_integer_dimensions:
+                self.dimsizes[dim] = self.max_dim_sizes[dim]
+                steps = (ma - mi) / (self.dimsizes[dim] - 1)
+
             # Store the steps in the dataframe
             d[dim + '_steps'] = steps
 
