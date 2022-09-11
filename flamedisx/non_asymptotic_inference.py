@@ -26,6 +26,7 @@ class FrequentistUpperLimitRatesOnly():
             max_sigma=None,
             max_sigma_outer=None,
             n_trials=None,
+            rate_gaussian_constraints: ty.Dict[str, ty.Tuple[float, float]] = None,
             defaults=None,
             ntoys=1000,
             skip_reservoir=False):
@@ -40,15 +41,24 @@ class FrequentistUpperLimitRatesOnly():
         if defaults is None:
             defaults = dict()
 
+        if rate_gaussian_constraints is None:
+            rate_gaussian_constraints = dict()
+
         self.signal_source_names = signal_source_names
         self.background_source_names = background_source_names
 
         self.ntoys = ntoys
         self.batch_size = batch_size
 
+        self.rate_gaussian_constraints = {f'{key}_rate_multiplier': value for key, value in rate_gaussian_constraints.items()}
+
         self.test_stat_dists = dict()
         self.observed_test_stats = dict()
         self.p_vals = dict()
+
+        self.rm_bounds=dict()
+        for source_name in self.background_source_names:
+            self.rm_bounds[source_name] = (0., 2.)
 
         # Create sources
         self.sources = sources
@@ -117,10 +127,9 @@ class FrequentistUpperLimitRatesOnly():
                                                batch_size=self.batch_size,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
-            default_rm_bounds = {signal_source: (-5., 50.)}
-            for source_name in self.background_source_names:
-                default_rm_bounds[source_name] = (None, None)
-            likelihood_fast.set_rate_multiplier_bounds(**default_rm_bounds)
+            rm_bounds = self.rm_bounds
+            rm_bounds[signal_source] = (-5., 50.)
+            likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
@@ -140,7 +149,21 @@ class FrequentistUpperLimitRatesOnly():
         ts_values = []
 
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
+            for source_name in self.background_source_names:
+                domain = np.linspace(self.rm_bounds[source_name][0], self.rm_bounds[source_name][1], 1000)
+                gaussian_constraint = self.rate_gaussian_constraints[f'{source_name}_rate_multiplier']
+                constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
+                constraint /= np.sum(constraint)
+
+                draw = np.random.choice(domain, 1, p=constraint)[0]
+                rm_value_dict[f'{source_name}_rate_multiplier'] = draw
+
+            def log_constraint(**kwargs):
+                log_constraint = sum( -0.5 * ((value - rm_value_dict[key]) / self.rate_gaussian_constraints[key][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
+                return log_constraint
+
             toy_data = likelihood_fast.simulate(**rm_value_dict)
+            likelihood_fast.set_log_constraint(log_constraint)
             likelihood_fast.set_data(toy_data)
 
             ts_values.append(self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast))
@@ -173,10 +196,9 @@ class FrequentistUpperLimitRatesOnly():
                                                batch_size=self.batch_size,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
-            default_rm_bounds = {signal_source: (-5., 50.)}
-            for source_name in self.background_source_names:
-                default_rm_bounds[source_name] = (None, None)
-            likelihood_full.set_rate_multiplier_bounds(**default_rm_bounds)
+            rm_bounds = self.rm_bounds
+            rm_bounds[signal_source] = (-5., 50.)
+            likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
 
             likelihood_full.set_data(data)
 
