@@ -240,6 +240,9 @@ class LogLikelihood:
 
         self.set_data(data)
 
+    def set_log_constraint(self, log_constraint):
+        self.log_constraint = log_constraint
+
     def set_rate_multiplier_bounds(self, **rm_bounds):
         for source, bounds in rm_bounds.items():
             self.default_bounds[f'{source}_rate_multiplier'] = bounds
