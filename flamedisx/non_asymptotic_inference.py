@@ -127,8 +127,9 @@ class FrequentistUpperLimitRatesOnly():
                                                batch_size=self.batch_size,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
-            rm_bounds = self.rm_bounds
+            rm_bounds = self.rm_bounds.copy()
             rm_bounds[signal_source] = (-5., 50.)
+
             likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
@@ -196,9 +197,9 @@ class FrequentistUpperLimitRatesOnly():
                                                batch_size=self.batch_size,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
-            rm_bounds = self.rm_bounds
+            rm_bounds = self.rm_bounds.copy()
             rm_bounds[signal_source] = (-5., 50.)
-            likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
+            likelihood_full.set_rate_multiplier_bounds(**rm_bounds)
 
             likelihood_full.set_data(data)
 
