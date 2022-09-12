@@ -2,6 +2,7 @@
 
 """
 import numpy as np
+import tensorflow as tf
 
 import configparser
 import os
@@ -54,6 +55,11 @@ class LZSource:
 
         self.drift_velocity = self.drift_velocity * 0.96 / 0.95
 
+        self.cS1_min = config.getfloat('NEST', 'cS1_min_config') * (1 + self.double_pe_fraction)  # phd to phe
+        self.cS1_max = config.getfloat('NEST', 'cS1_max_config') * (1 + self.double_pe_fraction)  # phd to phe
+        self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
+        self.S2_max = config.getfloat('NEST', 'S2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
+
         try:
             self.s1_map = fd.InterpolatingMap(fd.get_resource(self.path_s1_corr))
             self.s2_map = fd.InterpolatingMap(fd.get_resource(self.path_s2_corr))
@@ -87,6 +93,33 @@ class LZSource:
     @staticmethod
     def s2_posDependence(s2_pos_corr):
         return s2_pos_corr
+
+    def s1_acceptance(self, s1, cs1):
+
+        acceptance = tf.where((s1 >= self.spe_thr) &
+                              (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
+                              tf.ones_like(s1, dtype=fd.float_type()),  # if condition non-zero
+                              tf.zeros_like(s1, dtype=fd.float_type()))  # if false
+
+        # multiplying by efficiency curve
+        acceptance *= interpolate_acceptance(cs1,
+                                             self.cs1_acc_domain,
+                                             self.cs1_acc_curve)
+
+        return acceptance
+
+    def s2_acceptance(self, s2, cs2):
+
+        acceptance = tf.where((s2 >= self.S2_min) & (s2 <= self.S2_max),
+                              tf.ones_like(s2, dtype=fd.float_type()),  # if condition non-zero
+                              tf.zeros_like(s2, dtype=fd.float_type()))  # if false
+
+        # multiplying by efficiency curve
+        acceptance *= interpolate_acceptance(fd.tf_log10(cs2),
+                                             self.log10_cs2_acc_domain,
+                                             self.log10_cs2_acc_curve)
+
+        return acceptance
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
