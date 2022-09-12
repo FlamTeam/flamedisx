@@ -199,8 +199,14 @@ class FrequentistUpperLimitRatesOnly():
 
             rm_bounds = self.rm_bounds.copy()
             rm_bounds[signal_source] = (-5., 50.)
+
             likelihood_full.set_rate_multiplier_bounds(**rm_bounds)
 
+            def log_constraint(**kwargs):
+                log_constraint = sum( -0.5 * ((value - self.rate_gaussian_constraints[key][0]) / self.rate_gaussian_constraints[key][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
+                return log_constraint
+
+            likelihood_full.set_log_constraint(log_constraint)
             likelihood_full.set_data(data)
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
