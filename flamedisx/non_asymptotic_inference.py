@@ -163,7 +163,7 @@ class FrequentistUpperLimitRatesOnly():
 
                 draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
                 rm_value_dict[f'{source_name}_rate_multiplier'] = draw
-                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] =
+                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] = \
                     (draw, tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
 
             likelihood_fast.set_constraint_extra_args(**constraint_extra_args)
@@ -212,7 +212,7 @@ class FrequentistUpperLimitRatesOnly():
 
             constraint_extra_args = dict()
             for source_name in self.background_source_names:
-                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] =
+                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] = \
                     (tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][0], fd.float_type()),
                      tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
 
