@@ -5,6 +5,8 @@ import pickle as pkl
 from tqdm.auto import tqdm
 import typing as ty
 
+import tensorflow as tf
+
 export, __all__ = fd.exporter()
 
 @export
@@ -129,8 +131,12 @@ class FrequentistUpperLimitRatesOnly():
 
             rm_bounds = self.rm_bounds.copy()
             rm_bounds[signal_source] = (-5., 50.)
-
             likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
+
+            def log_constraint(**kwargs):
+                log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
+                return log_constraint
+            likelihood_fast.set_log_constraint(log_constraint)
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
@@ -144,27 +150,25 @@ class FrequentistUpperLimitRatesOnly():
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
         rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-        for source_name in self.background_source_names:
-            rm_value_dict[f'{source_name}_rate_multiplier'] = 1.
 
         ts_values = []
 
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
+            constraint_extra_args = dict()
             for source_name in self.background_source_names:
                 domain = np.linspace(self.rm_bounds[source_name][0], self.rm_bounds[source_name][1], 1000)
                 gaussian_constraint = self.rate_gaussian_constraints[f'{source_name}_rate_multiplier']
                 constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
                 constraint /= np.sum(constraint)
 
-                draw = np.random.choice(domain, 1, p=constraint)[0]
+                draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
                 rm_value_dict[f'{source_name}_rate_multiplier'] = draw
+                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] =
+                    (draw, tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
 
-            def log_constraint(**kwargs):
-                log_constraint = sum( -0.5 * ((value - rm_value_dict[key]) / self.rate_gaussian_constraints[key][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
-                return log_constraint
+            likelihood_fast.set_constraint_extra_args(**constraint_extra_args)
 
             toy_data = likelihood_fast.simulate(**rm_value_dict)
-            likelihood_fast.set_log_constraint(log_constraint)
             likelihood_fast.set_data(toy_data)
 
             ts_values.append(self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast))
@@ -199,14 +203,21 @@ class FrequentistUpperLimitRatesOnly():
 
             rm_bounds = self.rm_bounds.copy()
             rm_bounds[signal_source] = (-5., 50.)
-
             likelihood_full.set_rate_multiplier_bounds(**rm_bounds)
 
             def log_constraint(**kwargs):
-                log_constraint = sum( -0.5 * ((value - self.rate_gaussian_constraints[key][0]) / self.rate_gaussian_constraints[key][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
+                log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
                 return log_constraint
+            likelihood_fast.set_log_constraint(log_constraint)
 
-            likelihood_full.set_log_constraint(log_constraint)
+            constraint_extra_args = dict()
+            for source_name in self.background_source_names:
+                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] =
+                    (tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][0], fd.float_type()),
+                     tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
+
+            likelihood_full.set_constraint_extra_args(**constraint_extra_args)
+
             likelihood_full.set_data(data)
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
