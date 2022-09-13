@@ -29,6 +29,7 @@ class FrequentistUpperLimitRatesOnly():
             max_sigma_outer=None,
             n_trials=None,
             rate_gaussian_constraints: ty.Dict[str, ty.Tuple[float, float]] = None,
+            rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             defaults=None,
             ntoys=1000,
             skip_reservoir=False):
@@ -46,6 +47,9 @@ class FrequentistUpperLimitRatesOnly():
         if rate_gaussian_constraints is None:
             rate_gaussian_constraints = dict()
 
+        if rm_bounds is None:
+            rm_bounds=dict()
+
         self.signal_source_names = signal_source_names
         self.background_source_names = background_source_names
 
@@ -53,14 +57,11 @@ class FrequentistUpperLimitRatesOnly():
         self.batch_size = batch_size
 
         self.rate_gaussian_constraints = {f'{key}_rate_multiplier': value for key, value in rate_gaussian_constraints.items()}
+        self.rm_bounds = rm_bounds
 
         self.test_stat_dists = dict()
         self.observed_test_stats = dict()
         self.p_vals = dict()
-
-        self.rm_bounds=dict()
-        for source_name in self.background_source_names:
-            self.rm_bounds[source_name] = (0., 2.)
 
         # Create sources
         self.sources = sources
@@ -84,9 +85,13 @@ class FrequentistUpperLimitRatesOnly():
         guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
         guess_dict_nuisance = dict()
 
-        for source_name in self.background_source_names:
-            guess_dict[f'{source_name}_rate_multiplier'] = 1.
-            guess_dict_nuisance[f'{source_name}_rate_multiplier'] = 1.
+        for background_source in self.background_source_names:
+            if background_source in self.rate_gaussian_constraints:
+                guess_dict[f'{background_source}_rate_multiplier'] = self.rate_gaussian_constraints[background_source][0]
+                guess_dict_nuisance[f'{background_source}_rate_multiplier'] = self.rate_gaussian_constraints[background_source][0]
+            else:
+                guess_dict[f'{background_source}_rate_multiplier'] = 1.
+                guess_dict_nuisance[f'{background_source}_rate_multiplier'] = 1.
 
         bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
 
@@ -129,8 +134,13 @@ class FrequentistUpperLimitRatesOnly():
                                                batch_size=self.batch_size,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
-            rm_bounds = self.rm_bounds.copy()
-            rm_bounds[signal_source] = (-5., 50.)
+            rm_bounds = dict()
+            if signal_source in self.rm_bounds.keys():
+                rm_bounds[signal_source] = self.rm_bounds[signal_source]
+            for background_source in self.background_source_names:
+                if background_source in self.rm_bounds.keys():
+                    rm_bounds[background_source] = self.rm_bounds[background_source]
+
             likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
 
             def log_constraint(**kwargs):
@@ -155,16 +165,17 @@ class FrequentistUpperLimitRatesOnly():
 
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
             constraint_extra_args = dict()
-            for source_name in self.background_source_names:
-                domain = np.linspace(self.rm_bounds[source_name][0], self.rm_bounds[source_name][1], 1000)
-                gaussian_constraint = self.rate_gaussian_constraints[f'{source_name}_rate_multiplier']
+            for background_source in self.background_source_names:
+                assert background_source in self.rm_bounds.keys(), 'Must provide bounds when using a Gaussian constraint'
+                domain = np.linspace(self.rm_bounds[background_source][0], self.rm_bounds[background_source][1], 1000)
+                gaussian_constraint = self.rate_gaussian_constraints[f'{background_source}_rate_multiplier']
                 constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
                 constraint /= np.sum(constraint)
 
                 draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
-                rm_value_dict[f'{source_name}_rate_multiplier'] = draw
-                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] = \
-                    (draw, tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
+                rm_value_dict[f'{background_source}_rate_multiplier'] = draw
+                constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
+                    (draw, tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1], fd.float_type()))
 
             likelihood_fast.set_constraint_extra_args(**constraint_extra_args)
 
@@ -201,8 +212,13 @@ class FrequentistUpperLimitRatesOnly():
                                                batch_size=self.batch_size,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
-            rm_bounds = self.rm_bounds.copy()
-            rm_bounds[signal_source] = (-5., 50.)
+            rm_bounds = dict()
+            if signal_source in self.rm_bounds.keys():
+                rm_bounds[signal_source] = self.rm_bounds[signal_source]
+            for background_source in self.background_source_names:
+                if background_source in self.rm_bounds.keys():
+                    rm_bounds[background_source] = self.rm_bounds[background_source]
+
             likelihood_full.set_rate_multiplier_bounds(**rm_bounds)
 
             def log_constraint(**kwargs):
@@ -211,10 +227,10 @@ class FrequentistUpperLimitRatesOnly():
             likelihood_fast.set_log_constraint(log_constraint)
 
             constraint_extra_args = dict()
-            for source_name in self.background_source_names:
-                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] = \
-                    (tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][0], fd.float_type()),
-                     tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
+            for background_source in self.background_source_names:
+                constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
+                    (tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][0], fd.float_type()),
+                     tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1], fd.float_type()))
 
             likelihood_full.set_constraint_extra_args(**constraint_extra_args)
 
