@@ -224,7 +224,7 @@ class FrequentistUpperLimitRatesOnly():
             def log_constraint(**kwargs):
                 log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
                 return log_constraint
-            likelihood_fast.set_log_constraint(log_constraint)
+            likelihood_full.set_log_constraint(log_constraint)
 
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
