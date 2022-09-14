@@ -38,8 +38,10 @@ def interpolate_acceptance(arg, domain, acceptances):
 
 
 class LZSource:
-    path_s1_corr = '/Users/Robert/s1_map_22Apr22.json'
-    path_s2_corr = '/Users/Robert/s2_map_30Mar22.json'
+    path_s1_corr_LZAP = '/Users/Robert/s1_map_22Apr22.json'
+    path_s2_corr_LZAP = '/Users/Robert/s2_map_30Mar22.json'
+    path_s1_corr_latest = '/Users/Robert/s1_map_latest.json'
+    path_s2_corr_latest = '/Users/Robert/s2_map_latest.json'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -61,12 +63,16 @@ class LZSource:
         self.S2_max = config.getfloat('NEST', 'S2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
 
         try:
-            self.s1_map = fd.InterpolatingMap(fd.get_resource(self.path_s1_corr))
-            self.s2_map = fd.InterpolatingMap(fd.get_resource(self.path_s2_corr))
+            self.s1_map_LZAP = fd.InterpolatingMap(fd.get_resource(self.path_s1_corr_LZAP))
+            self.s2_map_LZAP = fd.InterpolatingMap(fd.get_resource(self.path_s2_corr_LZAP))
+            self.s1_map_latest = fd.InterpolatingMap(fd.get_resource(self.path_s1_corr_latest))
+            self.s2_map_latest = fd.InterpolatingMap(fd.get_resource(self.path_s2_corr_latest))
         except Exception:
             print("Could not load maps; setting position corrections to 1")
-            self.s1_map = None
-            self.s2_map = None
+            self.s1_map_LZAP = None
+            self.s2_map_LZAP = None
+            self.s1_map_latest = None
+            self.s2_map_latest = None
 
         try:
             df_S1_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__),
@@ -87,12 +93,12 @@ class LZSource:
             self.log10_cs2_acc_domain = None
 
     @staticmethod
-    def s1_posDependence(s1_pos_corr):
-        return s1_pos_corr
+    def s1_posDependence(s1_pos_corr_latest):
+        return s1_pos_corr_latest
 
     @staticmethod
-    def s2_posDependence(s2_pos_corr):
-        return s2_pos_corr
+    def s2_posDependence(s2_pos_corr_latest):
+        return s2_pos_corr_latest
 
     def s1_acceptance(self, s1, cs1, cs1_acc_curve):
 
@@ -120,24 +126,34 @@ class LZSource:
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
 
-        if (self.s1_map is not None) and (self.s2_map is not None):
-            d['s1_pos_corr'] = self.s1_map(
+        if (self.s1_map_LZAP is not None) and (self.s2_map_LZAP is not None) \
+        and (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
+            d['s1_pos_corr_LZAP'] = self.s1_map_LZAP(
                 np.transpose([d['x'].values,
                               d['y'].values,
                               d['drift_time'].values * 1e-9 / 1e-6]))
-            d['s2_pos_corr'] = self.s2_map(
+            d['s2_pos_corr_LZAP'] = self.s2_map_LZAP(
+                np.transpose([d['x'].values,
+                              d['y'].values]))
+            d['s1_pos_corr_latest'] = self.s1_map_latest(
+                np.transpose([d['x'].values,
+                              d['y'].values,
+                              d['drift_time'].values * 1e-9 / 1e-6]))
+            d['s2_pos_corr_latest'] = self.s2_map_latest(
                 np.transpose([d['x'].values,
                               d['y'].values]))
         else:
-            d['s1_pos_corr'] = np.ones_like(d['x'].values)
-            d['s2_pos_corr'] = np.ones_like(d['x'].values)
+            d['s1_pos_corr_LZAP'] = np.ones_like(d['x'].values)
+            d['s2_pos_corr_LZAP'] = np.ones_like(d['x'].values)
+            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
 
         if 's1' in d.columns and 'cs1' not in d.columns:
-            d['cs1'] = d['s1'] / d['s1_pos_corr']
+            d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
-                / d['s2_pos_corr']
+                / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / self.elife))
 
         if 'cs1' in d.columns:
