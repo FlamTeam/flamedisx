@@ -22,6 +22,8 @@ class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
         assert detector in ('default', 'XENONnT', 'lz')
 
+        self.detector = detector
+
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), 'config/', detector + '.ini'))
 
@@ -297,6 +299,9 @@ class nestERSource(nestSource):
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
         skewness_masked = tf.multiply(skewness, tf.cast(mask_product, fd.float_type()))
 
+        if self.detector == 'lz':
+            skewness_masked = tf.zeros_like(nq_mean, dtype=fd.float_type())
+
         return skewness_masked
 
     def variance(self, *args):
@@ -305,7 +310,10 @@ class nestERSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        er_free_b = 0.0553
+        if self.detector == 'lz':
+            er_free_b = 0.046452
+        else:
+            er_free_b = 0.0553
         er_free_c = 0.205
         er_free_d = 0.45
         er_free_e = -0.2

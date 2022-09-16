@@ -186,42 +186,6 @@ class LZERSource(LZSource, fd.nest.nestERSource):
             kwargs['detector'] = 'lz'
         super().__init__(*args, **kwargs)
 
-    def skewness(self, nq_mean):
-        skewness = tf.zeros_like(nq_mean, dtype=fd.float_type())
-
-        return skewness
-
-    def variance(self, *args):
-        nel_mean = args[0]
-        nq_mean = args[1]
-        recomb_p = args[2]
-        ni = args[3]
-
-        er_free_b = 0.046452
-        er_free_c = 0.205
-        er_free_d = 0.45
-        er_free_e = -0.2
-
-        elec_frac = nel_mean / nq_mean
-        ampl = tf.cast(0.086036 + (er_free_b - 0.086036) /
-                       pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
-                       fd.float_type())
-        wide = er_free_c
-        cntr = er_free_d
-        skew = er_free_e
-
-        mode = cntr + 2. / (tf.sqrt(2. * pi)) * skew * wide / tf.sqrt(1. + skew * skew)
-        norm = 1. / (tf.exp(-0.5 * pow(mode - cntr, 2.) / (wide * wide)) *
-                     (1. + tf.math.erf(skew * (mode - cntr) / (wide * tf.sqrt(2.)))))
-
-        omega = norm * ampl * tf.exp(-0.5 * pow(elec_frac - cntr, 2.) / (wide * wide)) * \
-            (1. + tf.math.erf(skew * (elec_frac - cntr) / (wide * tf.sqrt(2.))))
-        omega = tf.where(nq_mean == 0,
-                         tf.zeros_like(omega, dtype=fd.float_type()),
-                         omega)
-
-        return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
-
 
 @export
 class LZGammaSource(LZSource, fd.nest.nestGammaSource):
