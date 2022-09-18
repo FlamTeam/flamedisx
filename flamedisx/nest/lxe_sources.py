@@ -77,6 +77,8 @@ class nestSource(fd.BlockModelSource):
         self.S1_noise = config.getfloat('NEST', 'S1_noise_config')
         self.S2_noise = config.getfloat('NEST', 'S2_noise_config')
 
+        self.s2_thr = config.getfloat('NEST', 's2_thr_config')
+
         self.S1_min = config.getfloat('NEST', 'S1_min_config')
         self.S1_max = config.getfloat('NEST', 'S1_max_config')
         self.S2_min = config.getfloat('NEST', 'S2_min_config')
