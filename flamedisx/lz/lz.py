@@ -114,7 +114,8 @@ class LZSource:
 
     def s2_acceptance(self, s2, cs2, cs2_acc_curve):
 
-        acceptance = tf.where((s2 >= self.S2_min) & (s2 <= self.S2_max),
+        acceptance = tf.where((s2 >= self.s2_thr) &
+                              (s2 >= self.S2_min) & (s2 <= self.S2_max),
                               tf.ones_like(s2, dtype=fd.float_type()),  # if condition non-zero
                               tf.zeros_like(s2, dtype=fd.float_type()))  # if false
 
