@@ -39,6 +39,5 @@ class CH3TSource(fd_nest.nestERSource):
         spectrum = tf.sqrt(2. * energies * m_e) * (energies + m_e) * (qValue - energies) * (qValue - energies) * x * (1. / (1. - tf.exp(-x))) * (1.002037 - 0.001427 * B)
         spectrum = spectrum / tf.math.reduce_max(spectrum)
 
-        df_tritium = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'calibration_spectra/tritium_spectrum.pkl'))
         self.energies = tf.cast(energies, fd.float_type())
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
