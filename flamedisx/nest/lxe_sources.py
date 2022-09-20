@@ -86,6 +86,10 @@ class nestSource(fd.BlockModelSource):
         self.S2_min = config.getfloat('NEST', 'S2_min_config')
         self.S2_max = config.getfloat('NEST', 'S2_max_config')
 
+        # Useful additional parameters
+        self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
+                                       self.g1_gas, self.extraction_eff)
+
         super().__init__(*args, **kwargs)
 
     final_dimensions = ('s1', 's2')

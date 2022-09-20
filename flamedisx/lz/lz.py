@@ -157,6 +157,9 @@ class LZSource:
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / self.elife))
 
+        if 'cs1' in d.columns and 'cs2' in d.columns:
+            d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
+
         if 'cs1' in d.columns:
             if self.cs1_acc_domain is not None:
                 d['cs1_acc_curve'] = interpolate_acceptance(

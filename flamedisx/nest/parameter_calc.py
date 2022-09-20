@@ -160,6 +160,16 @@ def calculate_extraction_eff(gas_field, temperature):
 
 
 @export
+def calculate_g2(gas_field, density_gas, gas_gap, g1_gas, extraction_eff):
+    elYield = (
+        0.137 * gas_field * 1e3 -
+        4.70e-18 * (N_AVAGADRO * density_gas / A_XENON)) \
+        * gas_gap * 0.1
+
+    return elYield * g1_gas * extraction_eff
+
+
+@export
 def calculate_s1_mean_mult(spe_res):
     TruncGaussAlpha = -1. / spe_res
     LittlePhi_Alpha = 1. / (np.sqrt(2. * np.pi)) * np.exp(-0.5 * TruncGaussAlpha * TruncGaussAlpha)
