@@ -32,7 +32,9 @@ class FrequentistUpperLimitRatesOnly():
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             defaults=None,
             ntoys=1000,
-            skip_reservoir=False):
+            read_reservoir=False,
+            reservoir_path=None,
+            output_reservoir=False):
 
         if arguments is None:
             arguments = dict()
@@ -74,11 +76,20 @@ class FrequentistUpperLimitRatesOnly():
                           **defaults)
             for sname, sclass in sources.items()}
 
-        if skip_reservoir:
-            self.reservoir = None
+        if read_reservoir:
+            try:
+                self.reservoir = pkl.load(open(reservoir_path, 'rb'))
+            except Exception:
+                print("Could not load reservoir; re-calculating")
+                # Create frozen source reservoir
+                self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
         else:
             # Create frozen source reservoir
             self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
+
+        if output_reservoir:
+            self.reservoir.to_pickle('toy_reservoir.pkl')
+
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
         fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
