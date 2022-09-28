@@ -34,7 +34,8 @@ class FrequentistUpperLimitRatesOnly():
             ntoys=1000,
             read_reservoir=False,
             reservoir_path=None,
-            output_reservoir=False):
+            output_reservoir=False
+            output_name='toy_reservoir.pkl'):
 
         if arguments is None:
             arguments = dict()
@@ -88,7 +89,7 @@ class FrequentistUpperLimitRatesOnly():
             self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
 
         if output_reservoir:
-            self.reservoir.to_pickle('toy_reservoir.pkl')
+            self.reservoir.to_pickle(output_name)
 
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
