@@ -118,7 +118,7 @@ class FrequentistUpperLimitRatesOnly():
 
         return -2. * (ll_conditional - ll_unconditional)
 
-    def get_test_stat_dists(self, mus_test=None, output=False, input_path=None):
+    def get_test_stat_dists(self, mus_test=None, output=False, output_name='test_stat_dists.pkl', input_path=None):
         if input_path is not None:
             try:
                 self.test_stat_dists = pkl.load(open(input_path, 'rb'))
@@ -167,7 +167,7 @@ class FrequentistUpperLimitRatesOnly():
             self.test_stat_dists[signal_source] = test_stat_dists
 
             if output is True:
-                pkl.dump(self.test_stat_dists, open('test_stat_dists.pkl', 'wb'))
+                pkl.dump(self.test_stat_dists, open(output_name, 'wb'))
 
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
