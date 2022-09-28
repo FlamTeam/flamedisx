@@ -34,7 +34,7 @@ class FrequentistUpperLimitRatesOnly():
             ntoys=1000,
             read_reservoir=False,
             reservoir_path=None,
-            output_reservoir=False
+            output_reservoir=False,
             output_name='toy_reservoir.pkl'):
 
         if arguments is None:
