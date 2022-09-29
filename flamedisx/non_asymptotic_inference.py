@@ -63,6 +63,7 @@ class FrequentistUpperLimitRatesOnly():
         self.rm_bounds = rm_bounds
 
         self.test_stat_dists = dict()
+        self.unconditional_bfs = dict()
         self.observed_test_stats = dict()
         self.p_vals = dict()
 
@@ -116,7 +117,7 @@ class FrequentistUpperLimitRatesOnly():
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)
 
-        return -2. * (ll_conditional - ll_unconditional)
+        return -2. * (ll_conditional - ll_unconditional), bf_unconditional
 
     def get_test_stat_dists(self, mus_test=None, output=False, output_name='test_stat_dists.pkl', input_path=None):
         if input_path is not None:
@@ -130,8 +131,10 @@ class FrequentistUpperLimitRatesOnly():
         assert self.reservoir is not None, 'Must popualte frozen source reservoir'
 
         self.test_stat_dists = dict()
+        self.unconditional_bfs = dict()
         for signal_source in self.signal_source_names:
             test_stat_dists = dict()
+            unconditional_bfs = dict()
 
             # Create likelihood
             sources = dict()
@@ -162,18 +165,22 @@ class FrequentistUpperLimitRatesOnly():
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
-                test_stat_dists[mu_test] = ts_dist
+                test_stat_dists[mu_test] = ts_dist[0]
+                uconditional_bfs[mu_test] = ts_dist[1]
 
             self.test_stat_dists[signal_source] = test_stat_dists
+            self.unconditional_bfs[signal_source] = unconditional_bfs
 
             if output is True:
                 pkl.dump(self.test_stat_dists, open(output_name, 'wb'))
+                pkl.dump(self.unconditional_bfs, open(output_name[:-4] + '_fits.pkl', 'wb'))
 
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
         rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
 
         ts_values = []
+        unconditional_bfs = []
 
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
             constraint_extra_args = dict()
@@ -194,9 +201,11 @@ class FrequentistUpperLimitRatesOnly():
             toy_data = likelihood_fast.simulate(**rm_value_dict)
             likelihood_fast.set_data(toy_data)
 
-            ts_values.append(self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast))
+            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast)
+            ts_values.append(ts_result[0])
+            unnconditional_bfs.append(ts_result[1])
 
-        return ts_values
+        return ts_values, unconditional_bfs
 
     def get_observed_test_stats(self, mus_test=None, data=None, output=False, input_path=None):
         if input_path is not None:
@@ -249,7 +258,7 @@ class FrequentistUpperLimitRatesOnly():
             likelihood_full.set_data(data)
 
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
-                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full)
+                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full)[0]
 
             self.observed_test_stats[signal_source] = observed_test_stats
 
