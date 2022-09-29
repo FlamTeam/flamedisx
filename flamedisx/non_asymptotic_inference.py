@@ -166,7 +166,7 @@ class FrequentistUpperLimitRatesOnly():
             for mu_test in tqdm(mus_test, desc='Scanning over mus'):
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
                 test_stat_dists[mu_test] = ts_dist[0]
-                uconditional_bfs[mu_test] = ts_dist[1]
+                unconditional_bfs[mu_test] = ts_dist[1]
 
             self.test_stat_dists[signal_source] = test_stat_dists
             self.unconditional_bfs[signal_source] = unconditional_bfs
@@ -203,7 +203,7 @@ class FrequentistUpperLimitRatesOnly():
 
             ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast)
             ts_values.append(ts_result[0])
-            unnconditional_bfs.append(ts_result[1])
+            unconditional_bfs.append(ts_result[1])
 
         return ts_values, unconditional_bfs
 
