@@ -412,10 +412,14 @@ class Source:
           (n_batches, events_per_batch, n_columns_in_data_tensor)
         """
         if input_data_tensor is not None:
+<<<<<<< HEAD
             read_in = \
                 tf.data.TFRecordDataset(input_data_tensor).map(lambda x:
                                                                tf.io.parse_tensor(x,
                                                                                   out_type=fd.float_type()))
+=======
+            read_in = tf.data.TFRecordDataset(input_data_tensor).map(lambda x: tf.io.parse_tensor(x, out_type=fd.float_type()))
+>>>>>>> e67d03f (Enable pre-annotation, and the saving/loading of the data tensor.)
             for data_tensor in read_in:
                 self.data_tensor = data_tensor
             return
