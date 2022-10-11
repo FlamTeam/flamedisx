@@ -350,6 +350,9 @@ class Source:
                  data=None,
                  data_is_annotated=False,
                  ignore_priors=False,
+                 input_column_index=None,
+                 input_data_tensor=None,
+                 output_data_tensor=None,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  **params):
@@ -378,6 +381,12 @@ class Source:
                 df_pad = self.data.iloc[np.zeros(self.n_padding)]
                 self.data = pd.concat([self.data, df_pad], ignore_index=True)
             self.data = self.data.reset_index(drop=True)
+
+        if input_data_tensor is not None:
+            self.column_index = pkl.load(open(input_column_index, 'rb'))
+            self._populate_tensor_cache(input_data_tensor=input_data_tensor)
+            return
+
         if not data_is_annotated:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
@@ -386,7 +395,7 @@ class Source:
 
         if not _skip_tf_init:
             self._check_data()
-            self._populate_tensor_cache()
+            self._populate_tensor_cache(output_data_tensor=output_data_tensor)
 
     def _check_data(self):
         """Do any final checks on the self.data dataframe,
@@ -398,10 +407,16 @@ class Source:
                 raise ValueError(f"Data lacks required column {column}; "
                                  f"did annotation happen correctly?")
 
-    def _populate_tensor_cache(self):
+    def _populate_tensor_cache(self, input_data_tensor=None, output_data_tensor=None):
         """Set self.data_tensor to a big tensor of shape:
           (n_batches, events_per_batch, n_columns_in_data_tensor)
         """
+        if input_data_tensor is not None:
+            read_in = tf.data.TFRecordDataset(input_data_tensor).map(lambda x: tf.io.parse_tensor(x, out_type=fd.float_type()))
+            for data_tensor in read_in:
+                self.data_tensor = data_tensor
+            return
+
         shape = [self.n_batches, self.batch_size, self.n_columns_in_data_tensor]
         if not self.column_index:
             # We want no columns from the data, so
@@ -430,6 +445,11 @@ class Source:
         # Concat these and shape them to the batch size
         result = tf.concat(result, axis=1)
         self.data_tensor = tf.reshape(result, shape)
+
+        if output_data_tensor is not None:
+            write_out = tf.io.serialize_tensor(self.data_tensor)
+            with tf.io.TFRecordWriter(output_data_tensor) as writer:
+                writer.write(write_out.numpy())
 
     def cap_dimsizes(self, dim, cap):
         if dim in self.no_step_dimensions:
