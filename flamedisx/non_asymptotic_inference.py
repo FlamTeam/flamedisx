@@ -25,6 +25,7 @@ class FrequentistUpperLimitRatesOnly():
             sources: ty.Dict[str, fd.Source.__class__],
             arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
             pre_estimated_mus: ty.Dict[str, float] = None,
+            max_rm_dict: ty.Dict[str, float] = None,
             batch_size_diff_rate=100,
             batch_size_rates=10000,
             max_sigma=None,
@@ -90,7 +91,7 @@ class FrequentistUpperLimitRatesOnly():
             self.reservoir = pkl.load(open(input_reservoir, 'rb'))
         else:
             # Create frozen source reservoir
-            self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
+            self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, max_rm_dict=max_rm_dict, **self.source_objects)
 
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
