@@ -116,6 +116,7 @@ class FrozenReservoirSource(fd.ColumnSource):
     def __init__(self, source_type: fd.Source.__class__ = None, source_name: str = None,
                  source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
                  reservoir: pd.DataFrame = None,
+                 input_mu = None,
                  *args, **kwargs):
         assert source_type is not None, "Must pass a source type to FrozenReservoirSource"
         assert source_name is not None, "Must pass a source name to FrozenReservoirSource"
@@ -129,7 +130,10 @@ class FrozenReservoirSource(fd.ColumnSource):
         source = source_type(**source_kwargs)
 
         self.column = f'{source_name}_diff_rate'
-        self.mu = source.estimate_mu()
+        if input_mu is None:
+            self.mu = source.estimate_mu()
+        else:
+            self.mu = input_mu
 
         super().__init__(*args, **kwargs)
 
