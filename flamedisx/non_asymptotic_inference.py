@@ -24,7 +24,9 @@ class FrequentistUpperLimitRatesOnly():
             background_source_names,
             sources: ty.Dict[str, fd.Source.__class__],
             arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
-            batch_size=100,
+            pre_estimated_mus: ty.Dict[str, float] = None,
+            batch_size_diff_rate=100,
+            batch_size_rates=10000,
             max_sigma=None,
             max_sigma_outer=None,
             n_trials=None,
@@ -32,13 +34,17 @@ class FrequentistUpperLimitRatesOnly():
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             defaults=None,
             ntoys=1000,
-            read_reservoir=False,
-            reservoir_path=None,
-            output_reservoir=False,
-            output_name='toy_reservoir.pkl'):
+            input_reservoir=None):
 
         if arguments is None:
             arguments = dict()
+
+        if pre_estimated_mus is None:
+            self.pre_estimated_mus = dict()
+            for key in sources.keys:
+                self.pre_estimated_mus[key] = None
+        else:
+            self.pre_estimated_mus = pre_estimated_mus
 
         for key in sources.keys():
             if key not in arguments.keys():
@@ -57,7 +63,8 @@ class FrequentistUpperLimitRatesOnly():
         self.background_source_names = background_source_names
 
         self.ntoys = ntoys
-        self.batch_size = batch_size
+        self.batch_size_diff_rate = batch_size_diff_rate
+        self.batch_size_rates = batch_size_rates
 
         self.rate_gaussian_constraints = {f'{key}_rate_multiplier': value for key, value in rate_gaussian_constraints.items()}
         self.rm_bounds = rm_bounds
@@ -74,23 +81,16 @@ class FrequentistUpperLimitRatesOnly():
                           data=None,
                           max_sigma=max_sigma,
                           max_sigma_outer=max_sigma_outer,
-                          batch_size=self.batch_size,
+                          batch_size=self.batch_size_diff_rate,
                           **defaults)
             for sname, sclass in sources.items()}
 
-        if read_reservoir:
-            try:
-                self.reservoir = pkl.load(open(reservoir_path, 'rb'))
-            except Exception:
-                print("Could not load reservoir; re-calculating")
-                # Create frozen source reservoir
-                self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
+        if input_reservoir is not None:
+            # Read in frozen source reservoir
+            self.reservoir = pkl.load(open(input_reservoir, 'rb'))
         else:
             # Create frozen source reservoir
             self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, **self.source_objects)
-
-        if output_reservoir:
-            self.reservoir.to_pickle(output_name)
 
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
@@ -128,7 +128,7 @@ class FrequentistUpperLimitRatesOnly():
                 print("Could not load TS distributions; re-calculating")
 
         assert mus_test is not None, 'Must pass in mus to be scanned over'
-        assert self.reservoir is not None, 'Must popualte frozen source reservoir'
+        assert self.reservoir is not None, 'Must populate frozen source reservoir'
 
         self.test_stat_dists = dict()
         self.unconditional_bfs = dict()
@@ -143,10 +143,10 @@ class FrequentistUpperLimitRatesOnly():
             sources[signal_source] = self.sources[signal_source]
 
             likelihood_fast = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
-                                               arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': self.reservoir}
+                                               arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': self.reservoir, 'input_mu': self.pre_estimated_mus[sname]}
                                                             for sname, sclass in sources.items()},
                                                progress=False,
-                                               batch_size=self.batch_size,
+                                               batch_size=self.batch_size_rates,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
             rm_bounds = dict()
@@ -230,7 +230,7 @@ class FrequentistUpperLimitRatesOnly():
 
             likelihood_full = fd.LogLikelihood(sources=sources,
                                                progress=False,
-                                               batch_size=self.batch_size,
+                                               batch_size=self.batch_size_rates,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
             rm_bounds = dict()
