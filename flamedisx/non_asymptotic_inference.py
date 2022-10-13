@@ -163,7 +163,8 @@ class FrequentistUpperLimitRatesOnly():
                 return log_constraint
             likelihood_fast.set_log_constraint(log_constraint)
 
-            for mu_test in tqdm(mus_test, desc='Scanning over mus'):
+            these_mus_test = mus_test[signal_source]
+            for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
                 test_stat_dists[mu_test] = ts_dist[0]
                 unconditional_bfs[mu_test] = ts_dist[1]
@@ -257,7 +258,8 @@ class FrequentistUpperLimitRatesOnly():
 
             likelihood_full.set_data(data)
 
-            for mu_test in tqdm(mus_test, desc='Scanning over mus'):
+            these_mus_test = mus_test[signal_source]
+            for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
                 observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full)[0]
 
             self.observed_test_stats[signal_source] = observed_test_stats
