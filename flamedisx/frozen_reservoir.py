@@ -9,6 +9,7 @@ export, __all__ = fd.exporter()
 def make_event_reservoir(ntoys: int = None,
                          input_label=None,
                          reservoir_output_name=None,
+                         max_rm_dict=None,
                          **sources):
     """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
@@ -24,6 +25,9 @@ def make_event_reservoir(ntoys: int = None,
     if ntoys is None:
         ntoys = default_ntoys
 
+    if max_rm_dict is None:
+        max_rm_dict=dict()
+
     if input_label is not None:
         data_reservoir = pkl.load(open(f'partial_toy_reservoir{input_label}.pkl', 'rb'))
 
@@ -38,7 +42,11 @@ def make_event_reservoir(ntoys: int = None,
 
     dfs = []
     for sname, source in sources.items():
-        n_simulate = int(ntoys * source.mu_before_efficiencies())
+        if sname in max_rm_dict.keys():
+            max_rm = max_rm_dict[sname]
+        else:
+            max_rm = 1.
+        n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
 
         sdata = source.simulate(n_simulate)
         sdata['source'] = sname
@@ -58,6 +66,7 @@ def make_event_reservoir(ntoys: int = None,
 
 def make_event_reservoir_no_compute(ntoys: int = None,
                                     output_label='',
+                                    max_rm_dict=None,
                                     **sources):
     """Generate data tensor and event reservoir without differetial rates, to be used to
     generate the full reservoir for a FrozenReservoirSource. This could be useful for
@@ -77,9 +86,16 @@ def make_event_reservoir_no_compute(ntoys: int = None,
     if ntoys is None:
         ntoys = default_ntoys
 
+    if max_rm_dict is None:
+        max_rm_dict=dict()
+
     dfs = []
     for sname, source in sources.items():
-        n_simulate = int(ntoys * source.mu_before_efficiencies())
+        if sname in max_rm_dict.keys():
+            max_rm = max_rm_dict[sname]
+        else:
+            max_rm = 1.
+        n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
 
         sdata = source.simulate(n_simulate)
         sdata['source'] = sname
