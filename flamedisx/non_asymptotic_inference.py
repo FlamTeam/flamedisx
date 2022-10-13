@@ -120,13 +120,10 @@ class FrequentistUpperLimitRatesOnly():
 
         return -2. * (ll_conditional - ll_unconditional), bf_unconditional
 
-    def get_test_stat_dists(self, mus_test=None, output=False, output_name='test_stat_dists.pkl', input_path=None):
-        if input_path is not None:
-            try:
-                self.test_stat_dists = pkl.load(open(input_path, 'rb'))
-                return
-            except Exception:
-                print("Could not load TS distributions; re-calculating")
+    def get_test_stat_dists(self, mus_test=None, input_dists=None, dists_output_name=None):
+        if input_dists is not None:
+            self.test_stat_dists = pkl.load(open(input_dists, 'rb'))
+            return
 
         assert mus_test is not None, 'Must pass in mus to be scanned over'
         assert self.reservoir is not None, 'Must populate frozen source reservoir'
@@ -173,9 +170,9 @@ class FrequentistUpperLimitRatesOnly():
             self.test_stat_dists[signal_source] = test_stat_dists
             self.unconditional_bfs[signal_source] = unconditional_bfs
 
-            if output is True:
-                pkl.dump(self.test_stat_dists, open(output_name, 'wb'))
-                pkl.dump(self.unconditional_bfs, open(output_name[:-4] + '_fits.pkl', 'wb'))
+            if dists_output_name is not None:
+                pkl.dump(self.test_stat_dists, open(dists_output_name, 'wb'))
+                pkl.dump(self.unconditional_bfs, open(dists_output_name[:-4] + '_fits.pkl', 'wb'))
 
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
@@ -209,13 +206,10 @@ class FrequentistUpperLimitRatesOnly():
 
         return ts_values, unconditional_bfs
 
-    def get_observed_test_stats(self, mus_test=None, data=None, output=False, input_path=None):
-        if input_path is not None:
-            try:
-                self.observed_test_stats = pkl.load(open(input_path, 'rb'))
-                return
-            except Exception:
-                print("Could not load observed test statistics; re-calculating")
+    def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None):
+        if input_test_stats is not None:
+            self.observed_test_stats = pkl.load(open(input_test_stats, 'rb'))
+            return
 
         assert mus_test is not None, 'Must pass in mus to be scanned over'
         assert data is not None, 'Must pass in data'
@@ -265,8 +259,8 @@ class FrequentistUpperLimitRatesOnly():
 
             self.observed_test_stats[signal_source] = observed_test_stats
 
-            if output is True:
-                pkl.dump(self.observed_test_stats, open('observed_test_stats.pkl', 'wb'))
+            if test_stats_output_name is not None:
+                pkl.dump(self.observed_test_stats, open(test_stats_output_name, 'wb'))
 
     def get_p_vals(self):
         self.p_vals = dict()
