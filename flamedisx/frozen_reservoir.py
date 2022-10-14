@@ -7,6 +7,7 @@ export, __all__ = fd.exporter()
 
 
 def make_event_reservoir(ntoys: int = None,
+                         input_prefix='',
                          input_label=None,
                          reservoir_output_name=None,
                          max_rm_dict=None,
@@ -29,10 +30,10 @@ def make_event_reservoir(ntoys: int = None,
         max_rm_dict=dict()
 
     if input_label is not None:
-        data_reservoir = pkl.load(open(f'partial_toy_reservoir{input_label}.pkl', 'rb'))
+        data_reservoir = pkl.load(open(f'{input_prefix}partial_toy_reservoir{input_label}.pkl', 'rb'))
 
         for sname, source in sources.items():
-            source.set_data(data_reservoir, input_column_index=f'{sname}_column_index{input_label}.pkl', input_data_tensor=f'{sname}_data_tensor{input_label}')
+            source.set_data(data_reservoir, input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl', input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
             data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
 
         if reservoir_output_name is not None:
