@@ -65,6 +65,7 @@ def make_event_reservoir(ntoys: int = None,
 
 
 def make_event_reservoir_no_compute(ntoys: int = None,
+                                    output_prefix='',
                                     output_label='',
                                     max_rm_dict=None,
                                     **sources):
@@ -103,11 +104,11 @@ def make_event_reservoir_no_compute(ntoys: int = None,
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
 
-    data_reservoir.to_pickle(f'partial_toy_reservoir{output_label}.pkl')
+    data_reservoir.to_pickle(f'{output_prefix}partial_toy_reservoir{output_label}.pkl')
 
     for sname, source in sources.items():
-        source.set_data(data_reservoir, output_data_tensor=f'{sname}_data_tensor{output_label}')
-        pkl.dump(source.column_index, open(f'{sname}_column_index{output_label}.pkl', 'wb'))
+        source.set_data(data_reservoir, output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
+        pkl.dump(source.column_index, open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
 
 
 @export
