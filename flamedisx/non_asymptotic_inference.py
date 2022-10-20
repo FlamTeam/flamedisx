@@ -229,7 +229,7 @@ class FrequentistUpperLimitRatesOnly():
 
             likelihood_full = fd.LogLikelihood(sources=sources,
                                                progress=False,
-                                               batch_size=self.batch_size_rates,
+                                               batch_size=self.batch_size_diff_rate,
                                                free_rates=tuple([sname for sname in sources.keys()]),
                                                mu_estimators=mu_estimators)
 
