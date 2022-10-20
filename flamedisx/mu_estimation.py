@@ -126,8 +126,17 @@ class ConstantMu(MuEstimator):
     """Assume the expected number of events does not depend
     on the fitted parameters
     """
+    def __init__(self, *args, input_mu=None, **kwargs):
+        if input_mu is not None:
+            self.mu = input_mu
+        else:
+            self.mu = None
+
+        super().__init__(*args, **kwargs)
+
     def build(self, source: fd.Source):
-        self.mu = source.estimate_mu(n_trials=self.n_trials)
+        if self.mu is None:
+            self.mu = source.estimate_mu(n_trials=self.n_trials)
 
     def __call__(self, **params):
         result = self.mu
