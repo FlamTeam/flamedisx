@@ -35,14 +35,15 @@ class FrequentistUpperLimitRatesOnly():
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             defaults=None,
             ntoys=1000,
-            input_reservoir=None):
+            input_reservoir=None,
+            skip_reservoir=False):
 
         if arguments is None:
             arguments = dict()
 
         if pre_estimated_mus is None:
             self.pre_estimated_mus = dict()
-            for key in sources.keys:
+            for key in sources.keys():
                 self.pre_estimated_mus[key] = None
         else:
             self.pre_estimated_mus = pre_estimated_mus
@@ -86,12 +87,13 @@ class FrequentistUpperLimitRatesOnly():
                           **defaults)
             for sname, sclass in sources.items()}
 
-        if input_reservoir is not None:
-            # Read in frozen source reservoir
-            self.reservoir = pkl.load(open(input_reservoir, 'rb'))
-        else:
-            # Create frozen source reservoir
-            self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, max_rm_dict=max_rm_dict, **self.source_objects)
+        if not skip_reservoir:
+            if input_reservoir is not None:
+                # Read in frozen source reservoir
+                self.reservoir = pkl.load(open(input_reservoir, 'rb'))
+            else:
+                # Create frozen source reservoir
+                self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, max_rm_dict=max_rm_dict, **self.source_objects)
 
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
@@ -206,7 +208,8 @@ class FrequentistUpperLimitRatesOnly():
 
         return ts_values, unconditional_bfs
 
-    def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None):
+    def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None,
+                                mu_estimators=None):
         if input_test_stats is not None:
             self.observed_test_stats = pkl.load(open(input_test_stats, 'rb'))
             return
@@ -227,7 +230,8 @@ class FrequentistUpperLimitRatesOnly():
             likelihood_full = fd.LogLikelihood(sources=sources,
                                                progress=False,
                                                batch_size=self.batch_size_rates,
-                                               free_rates=tuple([sname for sname in sources.keys()]))
+                                               free_rates=tuple([sname for sname in sources.keys()]),
+                                               mu_estimators=mu_estimators)
 
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
