@@ -521,12 +521,12 @@ class nestERGammaWeightedSource(nestERSource):
 
 @export
 class nestSpatialRateERSource(nestERSource):
-    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestERSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrumER,) + nestERSource.model_blocks[1:]
 
 
 @export
 class nestSpatialRateNRSource(nestNRSource):
-    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestNRSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrumNR,) + nestNRSource.model_blocks[1:]
 
 
 @export
