@@ -11,17 +11,37 @@ export, __all__ = fd.exporter()
 
 @export
 class FrequentistUpperLimitRatesOnly():
-    """NOTE: currently single dataset only
+    """NOTE: currently works for a single dataset only.
 
     Arguments:
-        - xxx: yyy
+        - signal_source_names: tuple of names for signal sources (e.g. WIMPs of different
+            masses) of which we want to get limits/intervals
+        - background_source_names: tuple of names for background sources
+        - sources: dictionary {sourcename: class} of all signal and background source classes
+        - dictionary {sourcename: {kwarg1: value, ...}, ...}, for
+            passing keyword arguments to source constructors
+        - pre_estimated_mus: dictionary {sourcename: mu}, to pass in pre-estiamted mus, for consistency
+        - max_rm_dict: dictionary {sourcename: max_rm}, where max_rm is the highest rate multiplier that
+            will be used for simulating a toy dataset for a given source, to control the reservoir size
+        - batch_size_diff_rate: batch size that will be used for the reservoir differential rate computation
+        - batch_size_rates: batch size that will be used for the RM fits (can be much larger!)
+        - max_sigma: to be passed to source classes used for the reservoir
+        - max_sigma_outer: to be passed to source classes used for the reservoir
+        - rate_gaussian_constraints: dictionary {sourcename: (mu, sigma)} to pass the mean and width for
+            any Gaussian constraints on background rate multipliers
+        - rm_bounds: dictionary {sourcename: (lower, upper)} to set fit bounds on the rate multipliers
+        - defaults: dictionary of default parameter values to use for all sources
+        - ntoys: number of toys that will be run to get test statistic distributions
+        - input_reservoir: path to input reservoir, if we wish to pass this
+        - skip_reservoir: option to skip reservoir population, if no input_reservoir passed but no
+            reservoir is required (e.g. for when calculating an observed test statistic)
 
     """
 
     def __init__(
             self,
-            signal_source_names,
-            background_source_names,
+            signal_source_names: ty.tuple[str],
+            background_source_names: ty.tuple[str],
             sources: ty.Dict[str, fd.Source.__class__],
             arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
             pre_estimated_mus: ty.Dict[str, float] = None,
@@ -30,7 +50,6 @@ class FrequentistUpperLimitRatesOnly():
             batch_size_rates=10000,
             max_sigma=None,
             max_sigma_outer=None,
-            n_trials=None,
             rate_gaussian_constraints: ty.Dict[str, ty.Tuple[float, float]] = None,
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             defaults=None,
@@ -76,7 +95,7 @@ class FrequentistUpperLimitRatesOnly():
         self.observed_test_stats = dict()
         self.p_vals = dict()
 
-        # Create sources
+        # Create source instances
         self.sources = sources
         self.source_objects = {
             sname: sclass(**(arguments.get(sname)),
@@ -97,22 +116,31 @@ class FrequentistUpperLimitRatesOnly():
 
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
+        """Internal function to evaluate the test statistic of equation 11 in
+        https://arxiv.org/abs/1007.1727.
+        """
+        # To fix the signal RM in the conditional fit
         fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        # Guess each RM at the simulation value
         guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
         guess_dict_nuisance = dict()
 
         for background_source in self.background_source_names:
             if background_source in self.rate_gaussian_constraints:
+                # Guess each RM at the simulation value
                 guess_dict[f'{background_source}_rate_multiplier'] = self.rate_gaussian_constraints[background_source][0]
                 guess_dict_nuisance[f'{background_source}_rate_multiplier'] = self.rate_gaussian_constraints[background_source][0]
             else:
+                # Guess each RM at the simulation value
                 guess_dict[f'{background_source}_rate_multiplier'] = 1.
                 guess_dict_nuisance[f'{background_source}_rate_multiplier'] = 1.
 
+        # Conditional fit
         bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
-
+        # Uncnditional fit
         bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
+        # This is the upper case of equation 11
         if bf_unconditional[f'{signal_source_name}_rate_multiplier'] < 0.:
             fix_dict[f'{signal_source_name}_rate_multiplier'] = 0.
             bf_unconditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
@@ -120,10 +148,21 @@ class FrequentistUpperLimitRatesOnly():
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)
 
+        # Return the test statistic
         return -2. * (ll_conditional - ll_unconditional), bf_unconditional
 
     def get_test_stat_dists(self, mus_test=None, input_dists=None, dists_output_name=None):
+        """Get test statistic distributions.
+
+        Arguments:
+            - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
+                to be tested for each signal source
+            - input_dists: path to input test statistic distributions, if we wish to pass this
+            - dists_output_name: name of file in which to save test statistic distributions,
+                if this is desired
+        """
         if input_dists is not None:
+            # Read in test statistic distributions
             self.test_stat_dists = pkl.load(open(input_dists, 'rb'))
             return
 
@@ -132,16 +171,17 @@ class FrequentistUpperLimitRatesOnly():
 
         self.test_stat_dists = dict()
         self.unconditional_bfs = dict()
+        # Loop over signal sources
         for signal_source in self.signal_source_names:
             test_stat_dists = dict()
             unconditional_bfs = dict()
 
-            # Create likelihood
             sources = dict()
             for background_source in self.background_source_names:
                 sources[background_source] = self.sources[background_source]
             sources[signal_source] = self.sources[signal_source]
 
+            # Create likelihood of FrozenReservoirSources
             likelihood_fast = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
                                                arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': self.reservoir, 'input_mu': self.pre_estimated_mus[sname]}
                                                             for sname, sclass in sources.items()},
@@ -156,14 +196,20 @@ class FrequentistUpperLimitRatesOnly():
                 if background_source in self.rm_bounds.keys():
                     rm_bounds[background_source] = self.rm_bounds[background_source]
 
+            # Pass rate multiplier bounds to likelihood
             likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
 
+            # Set up Gaussian log constraint for background rate multipliers: we center the
+            # constraint on the value of the multipliers we simualate at for that toy
             def log_constraint(**kwargs):
                 log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
                 return log_constraint
             likelihood_fast.set_log_constraint(log_constraint)
 
+            # Save the test statistic values and unconditional best fits for each toy, for each
+            # signal RM scanned over, for this signal source
             these_mus_test = mus_test[signal_source]
+            # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
                 test_stat_dists[mu_test] = ts_dist[0]
@@ -172,36 +218,47 @@ class FrequentistUpperLimitRatesOnly():
             self.test_stat_dists[signal_source] = test_stat_dists
             self.unconditional_bfs[signal_source] = unconditional_bfs
 
+            # Output test statistic distributions and fits
             if dists_output_name is not None:
                 pkl.dump(self.test_stat_dists, open(dists_output_name, 'wb'))
                 pkl.dump(self.unconditional_bfs, open(dists_output_name[:-4] + '_fits.pkl', 'wb'))
 
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
+        """Internal function to get a test statistic distribution for a given signal source
+        and signal RM.
+        """
         rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
 
         ts_values = []
         unconditional_bfs = []
 
+        # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
+                # Prepare to sample background RMs from constraint functions
                 assert background_source in self.rm_bounds.keys(), 'Must provide bounds when using a Gaussian constraint'
                 domain = np.linspace(self.rm_bounds[background_source][0], self.rm_bounds[background_source][1], 1000)
                 gaussian_constraint = self.rate_gaussian_constraints[f'{background_source}_rate_multiplier']
                 constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
                 constraint /= np.sum(constraint)
 
+                # Sample background RMs from constraint functions
                 draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
                 rm_value_dict[f'{background_source}_rate_multiplier'] = draw
+                # Recall: we want to shift the constraint in the likelihood based on the background RMs we draw
                 constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
                     (draw, tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1], fd.float_type()))
 
+            # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood_fast.set_constraint_extra_args(**constraint_extra_args)
 
+            # Simulate and set data
             toy_data = likelihood_fast.simulate(**rm_value_dict)
             likelihood_fast.set_data(toy_data)
 
+            # Save the test statistic and unconditional best fit
             ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
