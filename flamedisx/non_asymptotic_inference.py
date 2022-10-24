@@ -10,7 +10,7 @@ import tensorflow as tf
 export, __all__ = fd.exporter()
 
 @export
-class FrequentistUpperLimitRatesOnly():
+class FrequentistIntervalRatesOnly():
     """NOTE: currently works for a single dataset only.
 
     Arguments:
