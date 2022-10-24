@@ -258,16 +258,29 @@ class FrequentistUpperLimitRatesOnly():
             toy_data = likelihood_fast.simulate(**rm_value_dict)
             likelihood_fast.set_data(toy_data)
 
-            # Save the test statistic and unconditional best fit
             ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
 
+        # Return the test statistic and unconditional best fit
         return ts_values, unconditional_bfs
 
     def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None,
                                 mu_estimators=None):
+        """Get observed test statistics.
+
+        Arguments:
+            - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
+                to be tested for each signal source
+            - data: observed dataset
+            - input_test_stats: path to input observed test statistics, if we wish to pass this
+            - test_stats_output_name: name of file in which to save observed test statistics,
+                if this is desired
+            - mu_estimators: dictionary {sourcename: fd.ConstantMu(SourceClass, mu)} if we want to use
+                the same pre-estimated mus as those used for the test statistic distribitions
+        """
         if input_test_stats is not None:
+            # Read in observed test statistics
             self.observed_test_stats = pkl.load(open(input_test_stats, 'rb'))
             return
 
@@ -275,15 +288,16 @@ class FrequentistUpperLimitRatesOnly():
         assert data is not None, 'Must pass in data'
 
         self.observed_test_stats = dict()
+        # Loop over signal sources
         for signal_source in self.signal_source_names:
             observed_test_stats = dict()
 
-            # Create likelihood
             sources = dict()
             for background_source in self.background_source_names:
                 sources[background_source] = self.sources[background_source]
             sources[signal_source] = self.sources[signal_source]
 
+            # Create likelihood of regular flamedisx sources
             likelihood_full = fd.LogLikelihood(sources=sources,
                                                progress=False,
                                                batch_size=self.batch_size_diff_rate,
@@ -297,8 +311,10 @@ class FrequentistUpperLimitRatesOnly():
                 if background_source in self.rm_bounds.keys():
                     rm_bounds[background_source] = self.rm_bounds[background_source]
 
+            # Pass rate multiplier bounds to likelihood
             likelihood_full.set_rate_multiplier_bounds(**rm_bounds)
 
+            # Set up Gaussian log constraint for background rate multipliers
             def log_constraint(**kwargs):
                 log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
                 return log_constraint
@@ -310,22 +326,30 @@ class FrequentistUpperLimitRatesOnly():
                     (tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][0], fd.float_type()),
                      tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1], fd.float_type()))
 
+            # The constraints are not shifted here
             likelihood_full.set_constraint_extra_args(**constraint_extra_args)
 
+            # Set data
             likelihood_full.set_data(data)
 
             these_mus_test = mus_test[signal_source]
+            # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
                 observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full)[0]
 
             self.observed_test_stats[signal_source] = observed_test_stats
 
+            # Output observed test statistics
             if test_stats_output_name is not None:
                 pkl.dump(self.observed_test_stats, open(test_stats_output_name, 'wb'))
 
     def get_p_vals(self):
+        """Internal function to get p-value curves.
+        """
         self.p_vals = dict()
+        # Loop over signal sources
         for signal_source in self.signal_source_names:
+            # Get test statistic distribitions and observed test statistics
             test_stat_dists = self.test_stat_dists[signal_source]
             observed_test_stats = self.observed_test_stats[signal_source]
 
@@ -335,27 +359,43 @@ class FrequentistUpperLimitRatesOnly():
                 f'Must get test statistic distributions and observed test statistics for {signal_source} with the same mu values'
 
             p_vals = dict()
+            # Loop over signal rate multipliers
             for mu_test in observed_test_stats.keys():
+                # Compute the p-value from the observed test statistic and the distribition
                 p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
                                                                   observed_test_stats[mu_test])) / 100.
 
+            # Record p-value curve
             self.p_vals[signal_source] = p_vals
 
     def get_interval(self, conf_level=0.1, return_p_vals=False):
+        """Get either upper limit, or possibly upper and lower limits.
+        Before using this get_test_stat_dists() and get_observed_test_stats() must
+        have bene called.
+
+        Arguments:
+            - conf_level: confidence level to be used for the limit/interval
+            - return_p_vals: whether or not to output the p-value curves
+        """
+        # Get the p-value curves
         self.get_p_vals()
 
         lower_lim_all = dict()
         upper_lim_all = dict()
+        # Loop over signal sources
         for signal_source in self.signal_source_names:
             these_pvals = self.p_vals[signal_source]
 
             mus = list(these_pvals.keys())
             pvals = list(these_pvals.values())
 
+            # Find points where the p-value curve cross the critical value, decreasing
             upper_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) < 0.).flatten()
+            # Find points where the p-value curve cross the critical value, increasing
             lower_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) > 0.).flatten()
 
             if len(lower_lims > 0):
+                # Take the lowest increasing crossing point, and interpolate to get an upper limit
                 lower_mu_left = mus[lower_lims[0]]
                 lower_mu_right = mus[lower_lims[0] + 1]
                 lower_pval_left = pvals[lower_lims[0]]
@@ -364,9 +404,11 @@ class FrequentistUpperLimitRatesOnly():
                 lower_gradient = (lower_pval_right - lower_pval_left) / (lower_mu_right - lower_mu_left)
                 lower_lim = (conf_level - lower_pval_left) / lower_gradient + lower_mu_left
             else:
+                # We have no lower limit
                 lower_lim = None
 
             assert(len(upper_lims) > 0), 'No upper limit found!'
+            # Take the highest decreasing crossing point, and interpolate to get an upper limit
             upper_mu_left = mus[upper_lims[-1]]
             upper_mu_right = mus[upper_lims[-1] + 1]
             upper_pval_left = pvals[upper_lims[-1]]
@@ -379,6 +421,8 @@ class FrequentistUpperLimitRatesOnly():
             upper_lim_all[signal_source] = upper_lim
 
         if return_p_vals is True:
+            # Return p-value curves, and intervals/limits
             return self.p_vals, lower_lim_all, upper_lim_all
         else:
+            # Return intervals/limits
             return lower_lim_all, upper_lim_all
