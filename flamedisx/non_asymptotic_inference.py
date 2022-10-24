@@ -40,8 +40,8 @@ class FrequentistUpperLimitRatesOnly():
 
     def __init__(
             self,
-            signal_source_names: ty.tuple[str],
-            background_source_names: ty.tuple[str],
+            signal_source_names: ty.Tuple[str],
+            background_source_names: ty.Tuple[str],
             sources: ty.Dict[str, fd.Source.__class__],
             arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
             pre_estimated_mus: ty.Dict[str, float] = None,
