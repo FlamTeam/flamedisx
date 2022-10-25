@@ -27,13 +27,15 @@ def make_event_reservoir(ntoys: int = None,
         ntoys = default_ntoys
 
     if max_rm_dict is None:
-        max_rm_dict=dict()
+        max_rm_dict = dict()
 
     if input_label is not None:
         data_reservoir = pkl.load(open(f'{input_prefix}partial_toy_reservoir{input_label}.pkl', 'rb'))
 
         for sname, source in sources.items():
-            source.set_data(data_reservoir, input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl', input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
+            source.set_data(data_reservoir,
+                            input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl',
+                            input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
             data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
 
         if reservoir_output_name is not None:
@@ -89,7 +91,7 @@ def make_event_reservoir_no_compute(ntoys: int = None,
         ntoys = default_ntoys
 
     if max_rm_dict is None:
-        max_rm_dict=dict()
+        max_rm_dict = dict()
 
     dfs = []
     for sname, source in sources.items():
@@ -134,7 +136,7 @@ class FrozenReservoirSource(fd.ColumnSource):
     def __init__(self, source_type: fd.Source.__class__ = None, source_name: str = None,
                  source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
                  reservoir: pd.DataFrame = None,
-                 input_mu = None,
+                 input_mu=None,
                  *args, **kwargs):
         assert source_type is not None, "Must pass a source type to FrozenReservoirSource"
         assert source_name is not None, "Must pass a source name to FrozenReservoirSource"

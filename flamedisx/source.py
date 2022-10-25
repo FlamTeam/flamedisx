@@ -412,7 +412,10 @@ class Source:
           (n_batches, events_per_batch, n_columns_in_data_tensor)
         """
         if input_data_tensor is not None:
-            read_in = tf.data.TFRecordDataset(input_data_tensor).map(lambda x: tf.io.parse_tensor(x, out_type=fd.float_type()))
+            read_in = \
+                tf.data.TFRecordDataset(input_data_tensor).map(lambda x:
+                                                               tf.io.parse_tensor(x,
+                                                                                  out_type=fd.float_type()))
             for data_tensor in read_in:
                 self.data_tensor = data_tensor
             return
