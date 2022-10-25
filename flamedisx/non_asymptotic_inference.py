@@ -423,7 +423,7 @@ class FrequentistIntervalRatesOnly():
                 # We have no lower limit
                 lower_lim = None
 
-            assert(len(upper_lims) > 0), 'No upper limit found!'
+            assert len(upper_lims) > 0, 'No upper limit found!'
             # Take the highest decreasing crossing point, and interpolate to get an upper limit
             upper_mu_left = mus[upper_lims[-1]]
             upper_mu_right = mus[upper_lims[-1] + 1]
