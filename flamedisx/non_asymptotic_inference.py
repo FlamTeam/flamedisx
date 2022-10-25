@@ -9,6 +9,7 @@ import tensorflow as tf
 
 export, __all__ = fd.exporter()
 
+
 @export
 class FrequentistIntervalRatesOnly():
     """NOTE: currently works for a single dataset only.
@@ -78,7 +79,7 @@ class FrequentistIntervalRatesOnly():
             rate_gaussian_constraints = dict()
 
         if rm_bounds is None:
-            rm_bounds=dict()
+            rm_bounds = dict()
 
         self.signal_source_names = signal_source_names
         self.background_source_names = background_source_names
@@ -87,7 +88,8 @@ class FrequentistIntervalRatesOnly():
         self.batch_size_diff_rate = batch_size_diff_rate
         self.batch_size_rates = batch_size_rates
 
-        self.rate_gaussian_constraints = {f'{key}_rate_multiplier': value for key, value in rate_gaussian_constraints.items()}
+        self.rate_gaussian_constraints = {f'{key}_rate_multiplier': value for
+                                          key, value in rate_gaussian_constraints.items()}
         self.rm_bounds = rm_bounds
 
         self.test_stat_dists = dict()
@@ -112,8 +114,9 @@ class FrequentistIntervalRatesOnly():
                 self.reservoir = pkl.load(open(input_reservoir, 'rb'))
             else:
                 # Create frozen source reservoir
-                self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys, max_rm_dict=max_rm_dict, **self.source_objects)
-
+                self.reservoir = fd.frozen_reservoir.make_event_reservoir(ntoys=ntoys,
+                                                                          max_rm_dict=max_rm_dict,
+                                                                          **self.source_objects)
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
         """Internal function to evaluate the test statistic of equation 11 in
@@ -128,8 +131,10 @@ class FrequentistIntervalRatesOnly():
         for background_source in self.background_source_names:
             if background_source in self.rate_gaussian_constraints:
                 # Guess each RM at the simulation value
-                guess_dict[f'{background_source}_rate_multiplier'] = self.rate_gaussian_constraints[background_source][0]
-                guess_dict_nuisance[f'{background_source}_rate_multiplier'] = self.rate_gaussian_constraints[background_source][0]
+                guess_dict[f'{background_source}_rate_multiplier'] = \
+                    self.rate_gaussian_constraints[background_source][0]
+                guess_dict_nuisance[f'{background_source}_rate_multiplier'] = \
+                    self.rate_gaussian_constraints[background_source][0]
             else:
                 # Guess each RM at the simulation value
                 guess_dict[f'{background_source}_rate_multiplier'] = 1.
@@ -183,8 +188,11 @@ class FrequentistIntervalRatesOnly():
 
             # Create likelihood of FrozenReservoirSources
             likelihood_fast = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
-                                               arguments = {sname: {'source_type': sclass, 'source_name': sname, 'reservoir': self.reservoir, 'input_mu': self.pre_estimated_mus[sname]}
-                                                            for sname, sclass in sources.items()},
+                                               arguments={sname: {'source_type': sclass,
+                                                                  'source_name': sname,
+                                                                  'reservoir': self.reservoir,
+                                                                  'input_mu': self.pre_estimated_mus[sname]}
+                                                          for sname, sclass in sources.items()},
                                                progress=False,
                                                batch_size=self.batch_size_rates,
                                                free_rates=tuple([sname for sname in sources.keys()]))
@@ -202,7 +210,9 @@ class FrequentistIntervalRatesOnly():
             # Set up Gaussian log constraint for background rate multipliers: we center the
             # constraint on the value of the multipliers we simualate at for that toy
             def log_constraint(**kwargs):
-                log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
+                log_constraint = sum(-0.5 * ((value - kwargs[f'{key}_constraint'][0]) /
+                                     kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items()
+                                     if key in self.rate_gaussian_constraints.keys())
                 return log_constraint
             likelihood_fast.set_log_constraint(log_constraint)
 
@@ -223,7 +233,6 @@ class FrequentistIntervalRatesOnly():
                 pkl.dump(self.test_stat_dists, open(dists_output_name, 'wb'))
                 pkl.dump(self.unconditional_bfs, open(dists_output_name[:-4] + '_fits.pkl', 'wb'))
 
-
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
         """Internal function to get a test statistic distribution for a given signal source
         and signal RM.
@@ -238,7 +247,8 @@ class FrequentistIntervalRatesOnly():
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
                 # Prepare to sample background RMs from constraint functions
-                assert background_source in self.rm_bounds.keys(), 'Must provide bounds when using a Gaussian constraint'
+                assert background_source in self.rm_bounds.keys(), \
+                    'Must provide bounds when using a Gaussian constraint'
                 domain = np.linspace(self.rm_bounds[background_source][0], self.rm_bounds[background_source][1], 1000)
                 gaussian_constraint = self.rate_gaussian_constraints[f'{background_source}_rate_multiplier']
                 constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
@@ -249,7 +259,8 @@ class FrequentistIntervalRatesOnly():
                 rm_value_dict[f'{background_source}_rate_multiplier'] = draw
                 # Recall: we want to shift the constraint in the likelihood based on the background RMs we draw
                 constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
-                    (draw, tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1], fd.float_type()))
+                    (draw, tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1],
+                                   fd.float_type()))
 
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood_fast.set_constraint_extra_args(**constraint_extra_args)
@@ -316,15 +327,19 @@ class FrequentistIntervalRatesOnly():
 
             # Set up Gaussian log constraint for background rate multipliers
             def log_constraint(**kwargs):
-                log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
+                log_constraint = sum(-0.5 * ((value - kwargs[f'{key}_constraint'][0]) /
+                                     kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items()
+                                     if key in self.rate_gaussian_constraints.keys())
                 return log_constraint
             likelihood_full.set_log_constraint(log_constraint)
 
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
                 constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
-                    (tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][0], fd.float_type()),
-                     tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1], fd.float_type()))
+                    (tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][0],
+                             fd.float_type()),
+                     tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1],
+                             fd.float_type()))
 
             # The constraints are not shifted here
             likelihood_full.set_constraint_extra_args(**constraint_extra_args)
@@ -356,7 +371,8 @@ class FrequentistIntervalRatesOnly():
             assert len(test_stat_dists) > 0, f'Must generate test statistic distributions first for {signal_source}'
             assert len(observed_test_stats) > 0, f'Must calculate observed test statistics first for {signal_source}'
             assert test_stat_dists.keys() == observed_test_stats.keys(), \
-                f'Must get test statistic distributions and observed test statistics for {signal_source} with the same mu values'
+                f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
+                'the same mu values'
 
             p_vals = dict()
             # Loop over signal rate multipliers
