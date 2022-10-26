@@ -237,6 +237,19 @@ class LZCH3TSource(LZSource, fd.nest.CH3TSource):
 
 
 ##
+# Signal sources
+##
+
+
+@export
+class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+##
 # Background sources
 ##
 
