@@ -34,10 +34,6 @@ class Source:
     default_max_sigma_outer = 3
     default_max_dim_size = 70
 
-    # Capping the domain size for hidden variable dimensions. Any which aren't
-    # set will default to default_max_dim_size
-    max_dim_sizes: ty.Dict[str, int] = dict()
-
     #: Names of model functions
     model_functions: ty.Tuple[str] = tuple()
 
@@ -231,6 +227,10 @@ class Source:
         assert self.bounds_prob_outer > 0., \
             "max_sigma_outer too high!"
 
+        # Capping the domain size for hidden variable dimensions. Any which aren't
+        # set will default to default_max_dim_size
+        if not hasattr(self, 'max_dim_sizes'):
+            self.max_dim_sizes = dict()
         for dim in (self.inner_dimensions + self.bonus_dimensions + self.additional_bounds_dimensions):
             if dim not in self.max_dim_sizes:
                 self.max_dim_sizes[dim] = self.default_max_dim_size
