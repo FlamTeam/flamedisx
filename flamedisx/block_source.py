@@ -266,6 +266,7 @@ class BlockModelSource(fd.Source):
         # somewhere else by accident; check none of them appear in multiple blocks
         updated_max_dim_size = []
 
+        self.max_dim_sizes = dict()
         for b in self.model_blocks:
             # Maybe someome forgot a comma in a tuple specification
             for k in collected:
