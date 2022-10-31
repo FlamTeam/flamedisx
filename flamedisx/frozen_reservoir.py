@@ -110,7 +110,8 @@ def make_event_reservoir_no_compute(ntoys: int = None,
     data_reservoir.to_pickle(f'{output_prefix}partial_toy_reservoir{output_label}.pkl')
 
     for sname, source in sources.items():
-        source.set_data(data_reservoir, output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
+        source.set_data(data_reservoir, output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}',
+                        ignore_priors=True)
         pkl.dump(source.column_index, open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
 
 
