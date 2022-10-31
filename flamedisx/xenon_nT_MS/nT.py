@@ -119,7 +119,6 @@ class XENONnTSource:
             s1_reconstruction_efficiency_pivot)
 
     def s1_acceptance(self, s1, cs1):
-
         acceptance = tf.where((s1 >= self.spe_thr) &
                               (s1 >= self.S1_min) & (s1 <= self.S1_max) &
                               (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
