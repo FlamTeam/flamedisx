@@ -379,7 +379,8 @@ class FrequentistIntervalRatesOnly():
             for mu_test in observed_test_stats.keys():
                 # Compute the p-value from the observed test statistic and the distribition
                 p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
-                                                                  observed_test_stats[mu_test])) / 100.
+                                                                  observed_test_stats[mu_test],
+                                                                  kind='weak')) / 100.
 
             # Record p-value curve
             self.p_vals[signal_source] = p_vals
