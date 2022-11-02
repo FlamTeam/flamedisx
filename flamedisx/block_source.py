@@ -32,6 +32,9 @@ class Block:
     #: _calculate_dimsizes_special().
     bonus_dimensions: ty.Tuple[ty.Tuple[str, bool]] = tuple()
 
+    #: inner_dimensions which take non-integer values
+    non_integer_dimensions: ty.Tuple[str] = tuple()
+
     #: Columns that we don't want to include in the tensor of data columns
     exclude_data_tensor: ty.Tuple[str] = tuple()
 
@@ -251,6 +254,7 @@ class BlockModelSource(fd.Source):
         # Collect attributes from the different blocks in this dictionary:
         collected = {k: [] for k in (
             'dimensions',
+            'non_integer_dimensions',
             'bonus_dimensions',
             'exclude_data_tensor',
             'model_functions',
@@ -326,6 +330,8 @@ class BlockModelSource(fd.Source):
                 continue
             setattr(self, k, getattr(self, k) + tuple(set(v)))
 
+        self.non_integer_dimensions = tuple([
+            d for d in collected['non_integer_dimensions']])
         self.inner_dimensions = tuple(
             [d for d in collected['dimensions']
                 if ((d not in self.final_dimensions)
