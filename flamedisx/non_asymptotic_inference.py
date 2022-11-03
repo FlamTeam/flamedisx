@@ -118,27 +118,15 @@ class FrequentistIntervalRatesOnly():
                                                                           max_rm_dict=max_rm_dict,
                                                                           **self.source_objects)
 
-    def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood):
+    def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood, guess_dict):
         """Internal function to evaluate the test statistic of equation 11 in
         https://arxiv.org/abs/1007.1727.
         """
         # To fix the signal RM in the conditional fit
         fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-        # Guess each RM at the simulation value
-        guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-        guess_dict_nuisance = dict()
 
-        for background_source in self.background_source_names:
-            if background_source in self.rate_gaussian_constraints:
-                # Guess each RM at the simulation value
-                guess_dict[f'{background_source}_rate_multiplier'] = \
-                    self.rate_gaussian_constraints[background_source][0]
-                guess_dict_nuisance[f'{background_source}_rate_multiplier'] = \
-                    self.rate_gaussian_constraints[background_source][0]
-            else:
-                # Guess each RM at the simulation value
-                guess_dict[f'{background_source}_rate_multiplier'] = 1.
-                guess_dict_nuisance[f'{background_source}_rate_multiplier'] = 1.
+        guess_dict_nuisance = guess_dict.copy()
+        guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
 
         # Conditional fit
         bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
@@ -269,7 +257,7 @@ class FrequentistIntervalRatesOnly():
             toy_data = likelihood_fast.simulate(**rm_value_dict)
             likelihood_fast.set_data(toy_data)
 
-            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast)
+            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast, rm_value_dict)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
 
