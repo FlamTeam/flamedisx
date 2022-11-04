@@ -130,6 +130,7 @@ class ReconstructS1(ReconstructSignals):
         ) + special_model_functions
 
     max_dim_size = {'s1_raw': 120}
+    s1_smear_load = 0.01
 
     def s1_acceptance(self, s1, s1_min=2, s1_max=70):
         return tf.where((s1 < s1_min) | (s1 > s1_max),
@@ -153,7 +154,7 @@ class ReconstructS1(ReconstructSignals):
         this dirac delta out by a small loading term of 0.001. A larger s1_raw
         max_dim_size would need a smaller loading term.
         """
-        return tf.zeros_like(s1_raw, dtype=fd.float_type())+0.001
+        return tf.zeros_like(s1_raw, dtype=fd.float_type())+self.s1_smear_load
 
     def _compute(self, data_tensor, ptensor,
                  s1_raw, s1):
@@ -180,6 +181,7 @@ class ReconstructS2(ReconstructSignals):
         + special_model_functions)
 
     max_dim_size = {'s2_raw': 120}
+    s2_smear_load = 3e-3
 
     def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
         return tf.where((s2 < s2_min) | (s2 > s2_max),
@@ -202,7 +204,7 @@ class ReconstructS2(ReconstructSignals):
         this dirac delta out by a small loading term of 0.001. A larger s2_raw
         max_dim_size would need a smaller loading term.
         """
-        return tf.zeros_like(s2_raw, dtype=fd.float_type())+0.001
+        return tf.zeros_like(s2_raw, dtype=fd.float_type())+self.s2_smear_load
 
     def _compute(self, data_tensor, ptensor,
                  s2_raw, s2):
