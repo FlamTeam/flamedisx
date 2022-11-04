@@ -12,8 +12,6 @@ o = tf.newaxis
 
 import pdb as pdb
 
-this_load_s1 = 0.001 
-this_load_s2 = 0.001
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
@@ -79,18 +77,17 @@ class ReconstructSignals(fd.Block):
                  s_raw,
                  s_observed,
                  data_tensor, ptensor):
-        # bias = reconstructed_area/raw_area
         bias = self.gimme('reconstruction_bias_' + self.signal_name,
                           data_tensor=data_tensor,
                           bonus_arg=s_raw,
                           ptensor=ptensor)
-        mu = s_raw * bias
+        mu = s_raw * bias # reconstructed_area = bias*raw_area
 
-        # add offset to std to avoid NaNs from norm.pdf if std = 0
         relative_smear = self.gimme('reconstruction_smear_' + self.signal_name,
                            data_tensor=data_tensor,
                            bonus_arg=s_raw,
-                           ptensor=ptensor) + 1e-15
+                           ptensor=ptensor)
+        # add offset to std to avoid NaNs from norm.pdf if std = 0
         smear = tf.clip_by_value(relative_smear,
                                  clip_value_min=1e-15,
                                  clip_value_max=tf.float32.max)
@@ -137,21 +134,24 @@ class ReconstructS1(ReconstructSignals):
 
     # Getting from s1_raw -> s1
     def reconstruction_bias_s1(self, s1_raw):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
+        """ Dummy method for pax s1 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         s1_raw is a float64, output is fd.float_type() which is a float32
         """
+
         return tf.ones_like(s1_raw, dtype=fd.float_type())
 
     def reconstruction_smear_s1(self, s1_raw):
-        """ Dummy method for pax s2 reconstruction bias spread. Overwrite
+        """ Dummy method for pax s1 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
-        Simulating dirac delta. Loading of this number done in main _compute
-        function. Keeping this number as zero here to avoid loading done in
-        multiple places.
+        Not quite a dirac delta, which will make this block an identity matrix
+        but computationally intractible or at least not trivially. Need to smear
+        this dirac delta out by a small loading term of 0.001. A larger s1_raw
+        max_dim_size would need a smaller loading term.
         """
-        return tf.zeros_like(s1_raw, dtype=fd.float_type())+this_load_s1
+
+        return tf.zeros_like(s1_raw, dtype=fd.float_type())+0.001
 
     def _compute(self, data_tensor, ptensor,
                  s1_raw, s1):
@@ -195,11 +195,13 @@ class ReconstructS2(ReconstructSignals):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
-        Simulating dirac delta. Loading of this number done in main _compute
-        function. Keeping this number as zero here to avoid loading done in
-        multiple places.
+        Not quite a dirac delta, which will make this block an identity matrix
+        but computationally intractible or at least not trivially. Need to smear
+        this dirac delta out by a small loading term of 0.001. A larger s2_raw
+        max_dim_size would need a smaller loading term.
         """
-        return tf.zeros_like(s2_raw, dtype=fd.float_type())+this_load_s2
+
+        return tf.zeros_like(s2_raw, dtype=fd.float_type())+0.001
 
     def _compute(self, data_tensor, ptensor,
                  s2_raw, s2):
