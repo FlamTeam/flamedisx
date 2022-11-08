@@ -78,6 +78,9 @@ class FrequentistIntervalRatesOnly():
         if rate_gaussian_constraints is None:
             rate_gaussian_constraints = dict()
 
+        for bounds in rm_bounds.values():
+            assert bounds[0] >= 0., 'Currently do not support negative rate multipliers'
+
         if rm_bounds is None:
             rm_bounds = dict()
 
@@ -133,11 +136,6 @@ class FrequentistIntervalRatesOnly():
         # Uncnditional fit
         bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
-        # This is the upper case of equation 11
-        if bf_unconditional[f'{signal_source_name}_rate_multiplier'] < 0.:
-            fix_dict[f'{signal_source_name}_rate_multiplier'] = 0.
-            bf_unconditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
-
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)
 
@@ -188,9 +186,13 @@ class FrequentistIntervalRatesOnly():
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
                 rm_bounds[signal_source] = self.rm_bounds[signal_source]
+            else:
+                rm_bounds[signal_source] = (0., None)
             for background_source in self.background_source_names:
                 if background_source in self.rm_bounds.keys():
                     rm_bounds[background_source] = self.rm_bounds[background_source]
+                else:
+                    rm_bounds[background_source] = (0., None)
 
             # Pass rate multiplier bounds to likelihood
             likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
@@ -306,9 +308,13 @@ class FrequentistIntervalRatesOnly():
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
                 rm_bounds[signal_source] = self.rm_bounds[signal_source]
+            else:
+                rm_bounds[signal_source] = (0., None)
             for background_source in self.background_source_names:
                 if background_source in self.rm_bounds.keys():
                     rm_bounds[background_source] = self.rm_bounds[background_source]
+                else:
+                    rm_bounds[background_source] = (0., None)
 
             # Pass rate multiplier bounds to likelihood
             likelihood_full.set_rate_multiplier_bounds(**rm_bounds)
