@@ -78,11 +78,11 @@ class FrequentistIntervalRatesOnly():
         if rate_gaussian_constraints is None:
             rate_gaussian_constraints = dict()
 
-        for bounds in rm_bounds.values():
-            assert bounds[0] >= 0., 'Currently do not support negative rate multipliers'
-
         if rm_bounds is None:
             rm_bounds = dict()
+        else:
+            for bounds in rm_bounds.values():
+                assert bounds[0] >= 0., 'Currently do not support negative rate multipliers'
 
         self.signal_source_names = signal_source_names
         self.background_source_names = background_source_names
