@@ -324,8 +324,26 @@ class VariableEnergySpectrum(EnergySpectrum):
                        dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy):
-        return self.gimme('energy_spectrum',
-                          data_tensor=data_tensor, ptensor=ptensor)
+        # We want to do the same trimming/stepping treatment to the values of the energy
+        # spectrum itself as we do its domain
+        left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
+        right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
+        bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
+                                             tf.less_equal(self.energies, right_bound))
+        spectrum_trim = tf.boolean_mask(self.gimme('energy_spectrum',
+                                                   data_tensor=data_tensor, ptensor=ptensor),
+                                        bool_mask,
+                                        axis=1)
+        index_step = tf.round(tf.linspace(0, tf.shape(spectrum_trim)[1] - 1,
+                                          tf.math.minimum(tf.shape(spectrum_trim)[1],
+                                                          self.source.max_dim_sizes['energy'])))
+        spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()), axis=1)
+        stepping_multiplier = tf.cast(tf.shape(spectrum_trim)[1] / tf.shape(spectrum_trim_step)[1], fd.float_type())
+
+        spectrum = tf.repeat(spectrum_trim_step * stepping_multiplier[o, o],
+                             self.source.batch_size,
+                             axis=0)
+        return spectrum
 
     def random_truth(self, n_events, fix_truth=None, **params):
         raise NotImplementedError
