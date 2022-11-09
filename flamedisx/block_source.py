@@ -62,6 +62,9 @@ class Block:
     #: for variable tensor stepping
     max_dim_size: ty.Dict[str, int] = dict()
 
+    #: Control the width of the bounds for a particular block
+    max_sigma: ty.Dict[str, float] = dict()
+
     def __init__(self, source):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
@@ -262,11 +265,13 @@ class BlockModelSource(fd.Source):
         # Instantiate the blocks.
         self.model_blocks = tuple([b(self) for b in self.model_blocks])
 
-        # We want to make sure that we don't override a dimension's max_dim_size
+        # We want to make sure that we don't override a dimension's max_dim_size or max_sigma
         # somewhere else by accident; check none of them appear in multiple blocks
         updated_max_dim_size = []
+        updated_max_sigma = []
 
         self.max_dim_sizes = dict()
+        self.max_sigmas = dict()
         for b in self.model_blocks:
             # Maybe someome forgot a comma in a tuple specification
             for k in collected:
@@ -276,6 +281,9 @@ class BlockModelSource(fd.Source):
 
             self.max_dim_sizes.update(b.max_dim_size)
             updated_max_dim_size.extend(list(b.max_dim_size.keys()))
+
+            self.max_sigmas.update(b.max_sigma)
+            updated_max_sigma.extend(list(b.max_sigma.keys()))
 
             # Call the setup method. This method is not really needed anymore;
             # blocks can simply override __init__ for setup, as long as they
@@ -302,6 +310,10 @@ class BlockModelSource(fd.Source):
 
         assert len(set(updated_max_dim_size)) == len(updated_max_dim_size), \
             "You changed a dimension's max_dim_size in more than one place (block). \
+            Please fix this, then try again!"
+
+        assert len(set(updated_max_sigma)) == len(updated_max_sigma), \
+            "You changed a dimension's max_sigma in more than one place (block). \
             Please fix this, then try again!"
 
         # The source may declare additional frozen data methods

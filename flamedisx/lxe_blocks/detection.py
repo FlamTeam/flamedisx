@@ -97,7 +97,7 @@ class DetectPhotonsOrElectrons(fd.Block):
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
             d[self.quanta_name + 's_produced_' + bound] = intify(
-                n_prod_mle + sign * self.source.max_sigma * _std
+                n_prod_mle + sign * self.source.max_sigmas[self.quanta_name + 's_produced'] * _std
             ).clip(0, None).astype(np.int)
 
 

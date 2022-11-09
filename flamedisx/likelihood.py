@@ -52,8 +52,6 @@ class LogLikelihood:
                 ty.Dict[str, pd.DataFrame]] = None,
             free_rates=None,
             batch_size=10,
-            max_sigma=None,
-            max_sigma_outer=None,
             n_trials=None,
             log_constraint=None,
             bounds_specified=True,
@@ -79,14 +77,6 @@ class LogLikelihood:
         :param batch_size: Number of events to use for a computation batch.
             Higher numbers give better performance, especially for GPUs,
             at the cost of more memory
-
-        :param max_sigma: Maximum sigma to use in bounds estimation.
-            Higher numbers give better accuracy, at the cost of performance.
-            If not specified, each source will use its own default.
-
-        :param max_sigma_outer: Maximum sigma to use in bounds estimation for outer blocks.
-            Higher numbers give better accuracy, at the cost of performance.
-            If not specified, each source will use its own default.
 
         :param n_trials: Number of Monte-Carlo trials for mu estimation.
 
@@ -165,8 +155,6 @@ class LogLikelihood:
         self.sources = {
             sname: sclass(**(arguments.get(sname)),
                           data=None,
-                          max_sigma=max_sigma,
-                          max_sigma_outer=max_sigma_outer,
                           # The source will filter out parameters it does not
                           # take
                           fit_params=list(k for k in common_param_specs.keys()),
