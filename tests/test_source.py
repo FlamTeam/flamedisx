@@ -15,6 +15,7 @@ quanta_types = ('photon', 'electron')
 o = tf.newaxis
 
 
+import pdb as pdb
 def np_lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
     returning fill_value for out-of-range indices"""
@@ -50,6 +51,7 @@ def xes(request):
     if request.param == 'ER':
         x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'NR':
+        pdb.set_trace()
         x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'WIMP':
         x = fd.WIMPSource(data.copy(), batch_size=2, max_sigma=8)
@@ -204,11 +206,13 @@ def test_detector_response(xes: fd.ERSource):
         r = r.numpy()
 
         quanta_name = block.quanta_name
+
+        pdb.set_trace()
         assert r.shape == \
                (n_events, max(xes.dimsizes[quanta_name + 's_detected']), 1)
         r = r[:, :, 0]
 
-        # r is p(S1 | detected electrons) as a function of detected electrons
+        # r is p(S1_raw | detected electrons) as a function of detected electrons
         # so the sum over r isn't meaningful (as long as we're frequentists)
 
         # Maximum likelihood est. of detected quanta is correct
