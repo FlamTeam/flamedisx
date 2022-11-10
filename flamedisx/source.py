@@ -189,6 +189,7 @@ class Source:
     def __init__(self,
                  data=None,
                  batch_size=10,
+                 max_sigma=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -222,7 +223,10 @@ class Source:
             self.max_sigmas = dict()
         for dim in (self.inner_dimensions + self.bonus_dimensions + self.additional_bounds_dimensions):
             if dim not in self.max_sigmas:
-                self.max_sigmas[dim] = self.default_max_sigma
+                if max_sigma is not None:
+                    self.max_sigmas[dim] = max_sigma
+                else:
+                    self.max_sigmas[dim] = self.default_max_sigma
 
         self.bounds_probs = dict()
         for dim, max_sigma in self.max_sigmas.items():

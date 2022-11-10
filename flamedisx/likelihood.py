@@ -52,6 +52,7 @@ class LogLikelihood:
                 ty.Dict[str, pd.DataFrame]] = None,
             free_rates=None,
             batch_size=10,
+            max_sigma=None,
             n_trials=None,
             log_constraint=None,
             bounds_specified=True,
@@ -155,6 +156,7 @@ class LogLikelihood:
         self.sources = {
             sname: sclass(**(arguments.get(sname)),
                           data=None,
+                          max_sigma=max_sigma,
                           # The source will filter out parameters it does not
                           # take
                           fit_params=list(k for k in common_param_specs.keys()),
