@@ -166,6 +166,7 @@ class FrequentistIntervalRatesOnly():
         for signal_source in self.signal_source_names:
             test_stat_dists = dict()
             unconditional_bfs = dict()
+            ts_no_signal = dict()
 
             sources = dict()
             for background_source in self.background_source_names:
@@ -214,7 +215,7 @@ class FrequentistIntervalRatesOnly():
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
                 test_stat_dists[mu_test] = ts_dist[0]
                 unconditional_bfs[mu_test] = ts_dist[1]
-                ts_no_signal = ts_dist[2]
+                ts_no_signal[mu_test] = ts_dist[2]
 
             self.test_stat_dists[signal_source] = test_stat_dists
             unconditional_best_fits[signal_source] = unconditional_bfs
