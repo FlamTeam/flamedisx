@@ -208,13 +208,6 @@ class Source:
         :param params: New defaults to for parameters, and new values for
         constant-valued model functions.
         """
-        self.bounds_prob = stats.norm.cdf(-3.)
-        self.bounds_prob_outer = stats.norm.cdf(-3.)
-        assert self.bounds_prob > 0., \
-            "max_sigma too high!"
-        assert self.bounds_prob_outer > 0., \
-            "max_sigma_outer too high!"
-
         # Capping the domain size for hidden variable dimensions. Any which aren't
         # set will default to default_max_dim_size
         if not hasattr(self, 'max_dim_sizes'):
@@ -230,6 +223,12 @@ class Source:
         for dim in (self.inner_dimensions + self.bonus_dimensions + self.additional_bounds_dimensions):
             if dim not in self.max_sigmas:
                 self.max_sigmas[dim] = self.default_max_sigma
+
+        self.bounds_probs = dict()
+        for dim, max_sigma in self.max_sigmas.items():
+            bounds_prob = stats.norm.cdf(-max_sigma)
+            assert bounds_prob > 0., "max_sigma too high!"
+            self.bounds_probs[dim] = bounds_prob
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:

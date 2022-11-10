@@ -79,10 +79,10 @@ class EnergySpectrum(fd.FirstBlock):
             # We use this filtered reservoir to estimate energy bounds
             self.source.data.loc[batch * self.source.batch_size:
                                  (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
-                np.quantile(energies, self.source.bounds_prob)
+                np.quantile(energies, self.source.bounds_probs['energy'])
             self.source.data.loc[batch * self.source.batch_size:
                                  (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
-                np.quantile(energies, 1. - self.source.bounds_prob)
+                np.quantile(energies, 1. - self.source.bounds_probs['energy'])
 
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time

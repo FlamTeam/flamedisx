@@ -52,7 +52,8 @@ class MakeFinalSignals(fd.Block):
                    for observed_signal, support in zip(observed_signals, supports)]
 
             fd.bounds.bayes_bounds(df=d, in_dim=self.signal_name + '_photoelectrons_detected',
-                                   bounds_prob=self.source.bounds_prob_outer, bound=bound,
+                                   bounds_prob=self.source.bounds_probs[self.signal_name + '_photoelectrons_detected'],
+                                   bound=bound,
                                    bound_type='normal', supports=supports,
                                    rvs_normal=rvs, mus_normal=mus, sigmas_normal=sigmas)
 
