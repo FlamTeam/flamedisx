@@ -51,9 +51,7 @@ def xes(request):
     if request.param == 'ER':
         x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'NR':
-        print('hi before')
         x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
-        print('hi after')
     elif request.param == 'WIMP':
         x = fd.WIMPSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'ER_spatial':
@@ -207,10 +205,12 @@ def test_detector_response(xes: fd.ERSource):
         r = r.numpy()
 
         quanta_name = block.quanta_name
+        signal_name = block.signal_name
 
-        pdb.set_trace()
         assert r.shape == \
-               (n_events, max(xes.dimsizes[quanta_name + 's_detected']), 1)
+               (n_events, 
+                max(xes.dimsizes[quanta_name + 's_detected']),
+                xes.dimsizes[signal_name])
         r = r[:, :, 0]
 
         # r is p(S1_raw | detected electrons) as a function of detected electrons
