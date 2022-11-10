@@ -10,8 +10,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-import pdb as pdb
-
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
@@ -33,12 +31,12 @@ class ReconstructSignals(fd.Block):
 
     def _simulate(self, d):
         bias = self.gimme_numpy(f'reconstruction_bias_{self.signal_name}_simulate',
-                     bonus_arg=d[self.raw_signal_name].values)
+                                bonus_arg=d[self.raw_signal_name].values)
         mu = d[self.raw_signal_name] * bias
 
         # clipping this to (1e-15, float32max) to be symmetric with _compute
         smear = self.gimme_numpy(f'reconstruction_smear_{self.signal_name}_simulate',
-                     bonus_arg=d[self.raw_signal_name].values)
+                                 bonus_arg=d[self.raw_signal_name].values)
         smear = np.clip(smear, 1e-15, tf.float32.max)
         # TODO: why some raw signals <=0?
         # checked 1e7 events and didn't see any raw_signals<=0..
@@ -58,9 +56,9 @@ class ReconstructSignals(fd.Block):
         # reconstructed values instead. does not matter as long as you open
         # large enough
         bias = self.gimme_numpy(f'reconstruction_bias_{self.signal_name}_annotate',
-                     bonus_arg=d[self.signal_name].values)
+                                bonus_arg=d[self.signal_name].values)
         smear = self.gimme_numpy(f'reconstruction_smear_{self.signal_name}_annotate',
-                     bonus_arg=d[self.signal_name].values)
+                                 bonus_arg=d[self.signal_name].values)
         mle = d[self.raw_signal_name + '_mle'] = \
             (d[self.signal_name] / bias).clip(0, None)
 
@@ -73,8 +71,7 @@ class ReconstructSignals(fd.Block):
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
 
-            #print(f'hi with default sigma {self.source.max_sigma}')
-            print(f'hi with special local 3 sigmas')
+            print('hi with special local 3 sigmas')
             d[self.raw_signal_name + '_' + bound] = (
                 mle + sign * 3. * scale
             ).clip(0, None)
@@ -87,12 +84,12 @@ class ReconstructSignals(fd.Block):
                           data_tensor=data_tensor,
                           bonus_arg=s_raw,
                           ptensor=ptensor)
-        mu = s_raw * bias # reconstructed_area = bias*raw_area
+        mu = s_raw * bias  # reconstructed_area = bias*raw_area
 
         relative_smear = self.gimme(f'reconstruction_smear_{self.signal_name}_simulate',
-                           data_tensor=data_tensor,
-                           bonus_arg=s_raw,
-                           ptensor=ptensor)
+                                    data_tensor=data_tensor,
+                                    bonus_arg=s_raw,
+                                    ptensor=ptensor)
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         smear = tf.clip_by_value(relative_smear,
                                  clip_value_min=1e-15,
@@ -201,8 +198,7 @@ class ReconstructS2(ReconstructSignals):
         'reconstruction_smear_s2_annotate',
         )
     model_functions = (
-        ('s2_acceptance',
-        )
+        ('s2_acceptance',)
         + special_model_functions)
 
     max_dim_size = {'s2_raw': 120}
