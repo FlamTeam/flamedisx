@@ -15,7 +15,6 @@ quanta_types = ('photon', 'electron')
 o = tf.newaxis
 
 
-import pdb as pdb
 def np_lookup_axis1(x, indices, fill_value=0):
     """Return values of x at indices along axis 1,
     returning fill_value for out-of-range indices"""
@@ -227,12 +226,12 @@ def test_reconstruction(xes: fd.ERSource):
 
         # Not numerically realistic to have dirac-delta for reconstruction bias
         # block but at least make sure that you're evaluating likelihood at
-        # finer steps than the amount the reconstruction is smearing
-        print('hi before HUNGERR')
+        # finer steps than the amount the reconstruction is smearing. Really
+        # important condition in order to get _simulate and _compute to agree
+        # with 3 sigmas
         smearing_load = getattr(block, signal_name + '_smear_load')
         print(signal_name, smearing_load)
         assert max(xes.data[signal_name+'_raw_steps']) < smearing_load
-        print('hi after. DID NOT DIE!')
 
 
 def test_detector_response(xes: fd.ERSource):
