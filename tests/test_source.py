@@ -51,8 +51,9 @@ def xes(request):
     if request.param == 'ER':
         x = fd.ERSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'NR':
-        pdb.set_trace()
+        print('hi before')
         x = fd.NRSource(data.copy(), batch_size=2, max_sigma=8)
+        print('hi after')
     elif request.param == 'WIMP':
         x = fd.WIMPSource(data.copy(), batch_size=2, max_sigma=8)
     elif request.param == 'ER_spatial':
