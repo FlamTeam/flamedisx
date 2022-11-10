@@ -296,8 +296,10 @@ class MakePhotonsElectronsNR(fd.Block):
             ions_std_upper = np.sqrt(nq_actual_upper * alpha * (1 - alpha))
             ions_std_lower = np.sqrt(nq_actual_lower * alpha * (1 - alpha))
 
-            ions_produced_min = np.floor(ions_mean_lower - self.source.max_sigmas['ions_produced'] * ions_std_lower).astype(int)
-            ions_produced_max = np.ceil(ions_mean_upper + self.source.max_sigmas['ions_produced'] * ions_std_upper).astype(int)
+            ions_produced_min = np.floor(ions_mean_lower - self.source.max_sigmas['ions_produced'] *
+                                         ions_std_lower).astype(int)
+            ions_produced_max = np.ceil(ions_mean_upper + self.source.max_sigmas['ions_produced'] *
+                                        ions_std_upper).astype(int)
 
             return (ions_produced_min, ions_produced_max)
 
