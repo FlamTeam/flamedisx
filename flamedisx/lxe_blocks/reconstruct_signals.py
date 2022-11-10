@@ -201,7 +201,7 @@ class ReconstructS2(ReconstructSignals):
         ('s2_acceptance',)
         + special_model_functions)
 
-    max_dim_size = {'s2_raw': 120}
+    max_dim_size = {'s2_raw': 360}
     s2_smear_load = 3e-3
 
     def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
