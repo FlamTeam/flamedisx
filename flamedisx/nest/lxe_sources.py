@@ -435,7 +435,7 @@ class nestNRSource(nestSource):
         omega = nr_free_c * tf.exp(-0.5 * pow(elec_frac - nr_free_d, 2.) / (nr_free_e * nr_free_e))
         omega = tf.where(nq_mean == 0,
                          tf.zeros_like(omega, dtype=fd.float_type()),
-                         omega)
+                         tf.cast(omega, dtype=fd.float_type()))
 
         return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
 
