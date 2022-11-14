@@ -350,10 +350,15 @@ class FrequentistIntervalRatesOnly():
             # Set data
             likelihood_full.set_data(data)
 
+            # Set the guesses
+            guess_dict = {f'{signal_source}_rate_multiplier': 0.}
+            for background_source in self.background_source_names:
+                guess_dict[f'{background_source}_rate_multiplier'] = 1.
+
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
-                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full)[0]
+                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full, guess_dict)[0]
 
             self.observed_test_stats[signal_source] = observed_test_stats
 
