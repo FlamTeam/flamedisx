@@ -16,6 +16,10 @@ export, __all__ = fd.exporter()
 # Flamedisx sources
 ##
 
+##
+# Common to all LUX sources
+##
+
 
 class LUXSource:
     def __init__(self, *args, detector='default', **kwargs):
@@ -77,6 +81,11 @@ class LUXSource:
         return finalCorr / 9156.3
 
 
+##
+# Different interaction types: flat spectra
+##
+
+
 @export
 class LUXERSource(LUXSource, fd.nest.nestERSource):
     def __init__(self, *args, detector='default', **kwargs):
@@ -98,4 +107,17 @@ class LUXERGammaWeightedSource(LUXSource, fd.nest.nestERGammaWeightedSource):
 @export
 class LUXNRSource(LUXSource, fd.nest.nestNRSource):
     def __init__(self, *args, detector='default', **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+##
+# Signal sources
+##
+
+
+@export
+class LUXWIMPSource(LUXSource, fd.nest.nestWIMPSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
         super().__init__(*args, **kwargs)
