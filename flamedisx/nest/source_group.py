@@ -3,6 +3,8 @@ import typing as ty
 import numpy as np
 import pandas as pd
 
+from copy import deepcopy
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 
@@ -23,7 +25,7 @@ class SourceGroup:
         assert np.all(source_group_type.rates_vs_energy.numpy() == source_group_type.rates_vs_energy.numpy()[0]), \
             "Logic here is best suited to a source_group_type with a flat FixedShapeEnergySpectrum"
 
-        self.base_source = source_group_type
+        self.base_source = deepcopy(source_group_type)
 
         if isinstance(self.base_source.model_blocks[1], fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsNR):
             self.base_source.model_blocks = (self.base_source.model_blocks[0],) + \
@@ -43,3 +45,6 @@ class SourceGroup:
         assert data is not None, "Must pass data when calling set_data()"
 
         self.base_source.set_data(data)
+
+    def get_diff_rates(self):
+        self.base_source.batched_differential_rate()
