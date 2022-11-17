@@ -24,12 +24,15 @@ class SourceGroup:
             "Logic here is best suited to a source_group_type with a flat FixedShapeEnergySpectrum"
 
         self.base_source = source_group_type
-        self.base_source.model_blocks = self.base_source.model_blocks[1:]
 
-        if isinstance(self.base_source.model_blocks[0], fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsNR):
-            self.base_source.model_blocks = (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR,) + self.base_source.model_blocks[1:]
-        elif isinstance(self.base_source.model_blocks[0], fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER):
-            self.base_source.model_blocks[0] = (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER,) + self.base_source.model_blocks[1:]
+        if isinstance(self.base_source.model_blocks[1], fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsNR):
+            self.base_source.model_blocks = (self.base_source.model_blocks[0],) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self.base_source),) + \
+                self.base_source.model_blocks[2:]
+        elif isinstance(self.base_source.model_blocks[1], fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER):
+            self.base_source.model_blocks = (self.base_source.model_blocks[0],) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self.base_source),) + \
+                self.base_source.model_blocks[2:]
         else:
             raise RuntimeError(f"Cannot handle the current block logic passing {type(source_group_type).__name__} to SourceGroup")
 
@@ -38,3 +41,5 @@ class SourceGroup:
 
     def set_data(self, data=None):
         assert data is not None, "Must pass data when calling set_data()"
+
+        self.base_source.set_data(data)
