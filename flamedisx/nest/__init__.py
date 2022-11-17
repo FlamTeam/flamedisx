@@ -11,4 +11,5 @@ from .lxe_blocks.quanta_splitting_source_group import *
 
 from .lxe_sources import *
 
+from .lxe_source_groups import *
 from .source_group import *
