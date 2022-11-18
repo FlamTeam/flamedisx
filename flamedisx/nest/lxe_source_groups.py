@@ -41,7 +41,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                     return dims, b
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
-    def _differential_rate_sides(self, data_tensor, ptensor, blocks):
+    def _differential_rate_subset(self, data_tensor, ptensor, blocks, return_dims):
         results = {}
         already_stepped = ()  # Avoid double-multiplying to account for stepping
 
@@ -99,9 +99,12 @@ class BlockModelSourceGroup(fd.BlockModelSource):
             except BlockNotFoundError:
                 continue
 
+        return({return_dims: results[return_dims]})
+
     def _differential_rate(self, data_tensor, ptensor):
-        self._differential_rate_sides(data_tensor, ptensor, self.model_blocks_left)
-        self._differential_rate_sides(data_tensor, ptensor, self.model_blocks_right)
+        left = self._differential_rate_subset(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'))
+        right = self._differential_rate_subset(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'))
+        centre = self._differential_rate_subset(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'))
 
 
 class BlockNotFoundError(Exception):
@@ -122,3 +125,7 @@ class nestNRSourceGroup(BlockModelSourceGroup, fd_nest.nestNRSource):
         fd_nest.DetectS2Photons,
         fd_nest.MakeS2Photoelectrons,
         fd_nest.MakeS2)
+
+    model_blocks_centre = (
+        fd_nest.FixedShapeEnergySpectrumNR,
+        fd_nest.SGMakePhotonsElectronsNR)
