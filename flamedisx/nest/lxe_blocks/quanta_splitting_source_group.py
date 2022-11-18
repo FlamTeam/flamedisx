@@ -144,13 +144,11 @@ class SGMakePhotonsElectronsNR(fd.Block):
             # Contract over ions_produced
             p_final = tf.reduce_sum(p_mult, 3)
 
-            r_final = p_final * rate_vs_energy
+            p_final = tf.where(tf.math.is_nan(p_final),
+                               tf.zeros_like(p_final, dtype=fd.float_type()),
+                               p_final)
 
-            r_final = tf.where(tf.math.is_nan(r_final),
-                               tf.zeros_like(r_final, dtype=fd.float_type()),
-                               r_final)
-
-            return r_final
+            return p_final
 
         def compute_single_energy_full(args):
             # Compute the block for a single energy, without approximations
@@ -181,7 +179,7 @@ class SGMakePhotonsElectronsNR(fd.Block):
         energies_below_cutoff = tf.size(tf.where(energy[0, :] < cutoff_energy))
         energies_above_cutoff = tf.size(tf.where(energy[0, :] >= cutoff_energy))
 
-        # We split the sum over energies to implement the approximate computation
+        # We split the computation over energies to implement the approximate computation
         # above the cutoff energy
         energy_full, energy_approx = tf.split(energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
         rate_vs_energy_full, rate_vs_energy_approx = \
@@ -191,20 +189,19 @@ class SGMakePhotonsElectronsNR(fd.Block):
         ion_bounds_min_full, ion_bounds_min_approx = \
             tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
-        # Sum the block result per energy over energies, separately for the
-        # energies below the cutoff and the energies above the cutoff
-        result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
-                                                      elems=[energy_full,
-                                                             rate_vs_energy_full,
-                                                             tf.transpose(ion_bounds_min_full)]),
-                                    0)
-        result_approx = tf.reduce_sum(tf.vectorized_map(compute_single_energy_approx,
-                                                        elems=[energy_approx,
-                                                               rate_vs_energy_approx,
-                                                               tf.transpose(ion_bounds_min_approx)]),
-                                      0)
+        # Combine the results over energies
+        result_full = tf.vectorized_map(compute_single_energy_full,
+                                      elems=[energy_full,
+                                      rate_vs_energy_full,
+                                      tf.transpose(ion_bounds_min_full)])
+        result_approx = tf.vectorized_map(compute_single_energy_approx,
+                                        elems=[energy_approx,
+                                        rate_vs_energy_approx,
+                                        tf.transpose(ion_bounds_min_approx)])
 
-        return (result_full + result_approx)
+        result_combine = tf.concat([result_full, result_approx], axis=0)
+
+        return result_combine
 
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...

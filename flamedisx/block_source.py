@@ -121,8 +121,8 @@ class Block:
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
-        assert len(result.shape) == len(self.dimensions) + 1, \
-            f"{self}._compute returned tensor of wrong rank!"
+        # assert len(result.shape) == len(self.dimensions) + 1, \
+        #     f"{self}._compute returned tensor of wrong rank!"
         return result
 
     def simulate(self, d: pd.DataFrame):

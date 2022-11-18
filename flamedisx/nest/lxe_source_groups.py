@@ -41,7 +41,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                     return dims, b
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
-    def _differential_rate_subset(self, data_tensor, ptensor, blocks, return_dims):
+    def _differential_rate_edges(self, data_tensor, ptensor, blocks, return_dims):
         results = {}
         already_stepped = ()  # Avoid double-multiplying to account for stepping
 
@@ -101,10 +101,57 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         return({return_dims: results[return_dims]})
 
+    def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims):
+        results = {}
+        already_stepped = ()  # Avoid double-multiplying to account for stepping
+
+        for b in self.model_blocks:
+            if b.__class__ not in blocks:
+                continue
+
+            b_dims = b.dimensions
+            # These are the the dimensions we will do variable stepping over
+            scaling_dims = b.dimensions + tuple([bonus_dimension[0] for
+                                                bonus_dimension in b.bonus_dimensions
+                                                if bonus_dimension[1] is True])
+
+            # Gather extra compute arguments.
+            kwargs = dict()
+            for dependency_dims, dependency_name in b.depends_on:
+                if dependency_dims not in results:
+                    raise ValueError(
+                        f"Block {b} depends on {dependency_dims}, but that has "
+                        f"not yet been computed")
+                kwargs[dependency_name] = results[dependency_dims]
+                kwargs.update(self._domain_dict(dependency_dims, data_tensor))
+
+            # Compute the block
+            r = b.compute(data_tensor, ptensor, **kwargs)
+
+            # Scale the block by stepped dimensions, if not already done in
+            # another block
+            for dim in scaling_dims:
+                if ((dim in self.inner_dimensions) or (dim in self.bonus_dimensions)) and \
+                        (dim not in self.no_step_dimensions) and \
+                        (dim not in already_stepped):
+                    steps = self._fetch(dim+'_steps', data_tensor=data_tensor)
+                    step_mul = tf.repeat(steps[o, :], tf.shape(r)[0], axis=0)
+                    step_mul = tf.repeat(step_mul[:, :, o],
+                                         tf.shape(r)[2], axis=2)
+                    step_mul = tf.repeat(step_mul[:, :, :, o],
+                                         tf.shape(r)[3], axis=3)
+                    r *= step_mul
+                    already_stepped += (dim,)
+
+            results[b_dims] = r
+
+        return({return_dims: results[return_dims]})
+
     def _differential_rate(self, data_tensor, ptensor):
-        left = self._differential_rate_subset(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'))
-        right = self._differential_rate_subset(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'))
-        centre = self._differential_rate_subset(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'))
+        left = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'))
+        right = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'))
+
+        centre = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'))
 
 
 class BlockNotFoundError(Exception):
