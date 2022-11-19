@@ -150,8 +150,23 @@ class BlockModelSourceGroup(fd.BlockModelSource):
     def _differential_rate(self, data_tensor, ptensor):
         left = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'))
         right = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'))
-
         centre = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'))
+
+        assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
+
+        left_dims = next(iter(left))
+        right_dims = next(iter(right))
+        centre_dims = next(iter(centre))
+
+        left_block = next(iter(left.items()))[1]
+        right_block = next(iter(right.items()))[1]
+
+        for centre_block in next(iter(centre.items()))[1]:
+            left_centre_dims, r_left_centre = self.multiply_block_results(
+                left_dims, centre_dims, left_block, centre_block)
+
+            final_dims, r = self.multiply_block_results(
+                left_centre_dims, right_dims, r_left_centre, right_block)
 
 
 class BlockNotFoundError(Exception):
