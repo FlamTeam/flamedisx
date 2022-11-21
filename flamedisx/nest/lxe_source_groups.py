@@ -16,15 +16,17 @@ class BlockModelSourceGroup(fd.BlockModelSource):
         """Return numpy array with differential rate for all events.
         """
         progress = (lambda x: x) if not progress else tqdm
-        y = []
+        energies_all = []
+        results_all = []
+
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
-            self.differential_rate(data_tensor=q, **params)
-        #     y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
-        #                                                 **params)))
-        # print(y)
+            energies, results = self.differential_rate(data_tensor=q, **params)
 
-    # def _differential_rate_left(self, data_tensor, ptensor):
+            energies_all.append(fd.tf_to_np(energies)[0])
+            results_all.append(fd.tf_to_np(results))
+
+        return energies_all, results_all
 
     @staticmethod
     def _find_block(blocks,
@@ -161,12 +163,23 @@ class BlockModelSourceGroup(fd.BlockModelSource):
         left_block = next(iter(left.items()))[1]
         right_block = next(iter(right.items()))[1]
 
+        results_collection = tf.TensorArray(fd.float_type(), size=0, dynamic_size=True)
+
+        i = tf.constant(0)
         for centre_block in next(iter(centre.items()))[1]:
             left_centre_dims, r_left_centre = self.multiply_block_results(
                 left_dims, centre_dims, left_block, centre_block)
 
             final_dims, r = self.multiply_block_results(
                 left_centre_dims, right_dims, r_left_centre, right_block)
+
+            results_collection = results_collection.write(i, tf.reshape(tf.squeeze(r), (self.batch_size,)))
+            i += 1
+
+        energies = self.model_blocks[0].domain(data_tensor=data_tensor)['energy']
+        results = results_collection.stack()
+
+        return energies, results
 
 
 class BlockNotFoundError(Exception):

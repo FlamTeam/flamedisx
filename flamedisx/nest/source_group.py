@@ -47,4 +47,6 @@ class SourceGroup:
         self.base_source.set_data(data)
 
     def get_diff_rates(self):
-        self.base_source.batched_differential_rate()
+        energies, results = self.base_source.batched_differential_rate()
+
+        return energies, results
