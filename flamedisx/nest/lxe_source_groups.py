@@ -23,7 +23,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
             q = self.data_tensor[i_batch]
             energies, results = self.differential_rate(data_tensor=q, **params)
 
-            energies_all.append(fd.tf_to_np(energies)[0])
+            energies_all.append(fd.tf_to_np(energies))
             results_all.append(fd.tf_to_np(results))
 
         return energies_all, results_all
