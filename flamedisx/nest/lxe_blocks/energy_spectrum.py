@@ -342,9 +342,8 @@ class VariableEnergySpectrum(EnergySpectrum):
         spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()), axis=1)
         stepping_multiplier = tf.cast(tf.shape(spectrum_trim)[1] / tf.shape(spectrum_trim_step)[1], fd.float_type())
 
-        spectrum = tf.repeat(spectrum_trim_step * stepping_multiplier[o, o],
-                             self.source.batch_size,
-                             axis=0)
+        spectrum = spectrum_trim_step * stepping_multiplier[o, o]
+
         return spectrum
 
     def random_truth(self, n_events, fix_truth=None, **params):
