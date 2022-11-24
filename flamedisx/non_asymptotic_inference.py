@@ -162,11 +162,13 @@ class FrequentistIntervalRatesOnly():
         self.test_stat_dists = dict()
         unconditional_best_fits = dict()
         test_stats_no_signal = dict()
+        unconditional_best_fits_no_signal = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             test_stat_dists = dict()
             unconditional_bfs = dict()
             ts_no_signal = dict()
+            unconditional_bfs_no_signal = dict()
 
             sources = dict()
             for background_source in self.background_source_names:
@@ -216,16 +218,19 @@ class FrequentistIntervalRatesOnly():
                 test_stat_dists[mu_test] = ts_dist[0]
                 unconditional_bfs[mu_test] = ts_dist[1]
                 ts_no_signal[mu_test] = ts_dist[2]
+                unconditional_bfs_no_signal[mu_test] = ts_dist[3]
 
             self.test_stat_dists[signal_source] = test_stat_dists
             unconditional_best_fits[signal_source] = unconditional_bfs
             test_stats_no_signal[signal_source] = ts_no_signal
+            unconditional_best_fits_no_signal[signal_source] = unconditional_bfs_no_signal
 
             # Output test statistic distributions and fits
             if dists_output_name is not None:
                 pkl.dump(self.test_stat_dists, open(dists_output_name, 'wb'))
                 pkl.dump(unconditional_best_fits, open(dists_output_name[:-4] + '_fits.pkl', 'wb'))
-                pkl.dump(test_stats_no_signal, open(dists_output_name[:-4] + '_test_stats_no_signal.pkl', 'wb'))
+                pkl.dump(test_stats_no_signal, open(dists_output_name[:-4] + '_no_signal.pkl', 'wb'))
+                pkl.dump(test_stats_no_signal, open(dists_output_name[:-4] + '_fits_no_signal.pkl', 'wb'))
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood_fast):
         """Internal function to get a test statistic distribution for a given signal source
@@ -236,6 +241,7 @@ class FrequentistIntervalRatesOnly():
         ts_values = []
         unconditional_bfs = []
         ts_values_no_signal = []
+        unconditional_bfs_no_signal = []
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
@@ -271,9 +277,10 @@ class FrequentistIntervalRatesOnly():
 
             if len(toy_data[toy_data['source'] == signal_source_name]) == 0:
                 ts_values_no_signal.append(ts_result[0])
+                unconditional_bfs_no_signal.append(ts_result[1])
 
         # Return the test statistic and unconditional best fit
-        return ts_values, unconditional_bfs, ts_values_no_signal
+        return ts_values, unconditional_bfs, ts_values_no_signal, unconditional_bfs_no_signal
 
     def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None,
                                 mu_estimators=None):
