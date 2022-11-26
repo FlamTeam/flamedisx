@@ -343,6 +343,7 @@ class Source:
     def set_data(self,
                  data=None,
                  data_is_annotated=False,
+                 ignore_priors=False,
                  input_column_index=None,
                  input_data_tensor=None,
                  output_data_tensor=None,
@@ -383,7 +384,7 @@ class Source:
         if not data_is_annotated:
             self.add_extra_columns(self.data)
             if not _skip_bounds_computation:
-                self._annotate()
+                self._annotate(ignore_priors=ignore_priors)
                 self._calculate_dimsizes()
 
         if not _skip_tf_init:
