@@ -43,9 +43,8 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                     return dims, b
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
-    def _differential_rate_edges(self, data_tensor, ptensor, blocks, return_dims):
+    def _differential_rate_edges(self, data_tensor, ptensor, blocks, return_dims, already_stepped):
         results = {}
-        already_stepped = ()  # Avoid double-multiplying to account for stepping
 
         for b in self.model_blocks:
             if b.__class__ not in blocks:
@@ -101,11 +100,10 @@ class BlockModelSourceGroup(fd.BlockModelSource):
             except BlockNotFoundError:
                 continue
 
-        return({return_dims: results[return_dims]})
+        return ({return_dims: results[return_dims]}), already_stepped
 
-    def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims):
+    def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims, already_stepped):
         results = {}
-        already_stepped = ()  # Avoid double-multiplying to account for stepping
 
         for b in self.model_blocks:
             if b.__class__ not in blocks:
@@ -147,12 +145,14 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
             results[b_dims] = r
 
-        return({return_dims: results[return_dims]})
+        return ({return_dims: results[return_dims]}), already_stepped
 
     def _differential_rate(self, data_tensor, ptensor):
-        left = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'))
-        right = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'))
-        centre = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'))
+        already_stepped = ()  # Avoid double-multiplying to account for stepping
+
+        left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
+        right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
+        centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped)
 
         assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
 
