@@ -44,7 +44,7 @@ class SourceGroup:
     def set_data(self, data=None):
         assert data is not None, "Must pass data when calling set_data()"
 
-        self.base_source.set_data(data)
+        self.base_source.set_data(data, ignore_priors=True)
 
     def get_diff_rates(self):
         energies, diff_rates = self.base_source.batched_differential_rate()

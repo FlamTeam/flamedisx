@@ -95,9 +95,12 @@ class DetectPhotonsOrElectrons(fd.Block):
                                    bound_type='binomial', supports=supports,
                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
-    def _annotate_special(self, d):
+    def _annotate_special(self, d, ignore_priors=False):
         # Here we obtain improved bounds on photons and electrons detected with a non-flat prior
         if self.quanta_name not in ('photon', 'electron'):
+            return False
+
+        if ignore_priors:
             return False
 
         for batch in range(self.source.n_batches):

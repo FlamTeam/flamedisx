@@ -151,10 +151,10 @@ class Block:
                           <= d[f'{dim}_max'].values), \
                 f"_annotate of {self} set misordered bounds"
 
-    def annotate_special(self, d: pd.DataFrame):
+    def annotate_special(self, d: pd.DataFrame, ignore_priors=False):
         """Will be called after annotate for any blocks which choose to implement it.
         """
-        return_value = self._annotate_special(d)
+        return_value = self._annotate_special(d, ignore_priors=ignore_priors)
         assert isinstance(return_value, bool), f"_annotate_special of {self} should return a bool"
 
         if return_value is True:
@@ -186,7 +186,7 @@ class Block:
         """Add _min and _max for each dimension to d in-place"""
         raise NotImplementedError
 
-    def _annotate_special(self, d):
+    def _annotate_special(self, d, ignore_priors=False):
         """Will be called after annotate for any blocks which choose to implement it.
 
         Return True if the block does implement this.
@@ -526,7 +526,7 @@ class BlockModelSource(fd.Source):
                                      prior_data_columns, filter_data_columns,
                                      filter_dims_min, filter_dims_max)
 
-    def _annotate(self, _skip_bounds_computation=False):
+    def _annotate(self, _skip_bounds_computation=False, ignore_priors=False):
         d = self.data
         # By going in reverse order through the blocks, we can use the bounds
         # on hidden variables closer to the final signals (easy to compute)
@@ -536,13 +536,14 @@ class BlockModelSource(fd.Source):
 
         # Next, we obtain any desired hidden variable priors, in case we want
         # to improve the bounds estimation for any hidden variables.
-        self.get_priors(self.data)
+        if ignore_priors is False:
+            self.get_priors(self.data)
 
         # If any blocks want to do bounds estimation differently, using either
         # the calculated priors or bounds on hidden variables deeper than themselves,
         # they should have overrided _annotate_special(). Now we call this.
         for b in self.model_blocks[::-1]:
-            b.annotate_special(d)
+            b.annotate_special(d, ignore_priors=ignore_priors)
 
     def mu_before_efficiencies(self, **params):
         return self.model_blocks[0].mu_before_efficiencies(**params)

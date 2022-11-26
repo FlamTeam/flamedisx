@@ -274,7 +274,7 @@ class SGMakePhotonsElectronsNR(fd.Block):
     def _annotate(self, d):
         pass
 
-    def _annotate_special(self, d):
+    def _annotate_special(self, d, **kwargs):
         # Here we manually calculate ion bounds for each energy we will sum over in the spectrum
         # Simple computation, based on forward simulation procedure
 
