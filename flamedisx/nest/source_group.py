@@ -70,6 +70,9 @@ class SourceGroup:
 
     def get_diff_rate_source(self, source):
         this_source = deepcopy(source)
+
+        assert self.base_source.batch_size == self.this_source.batch_size
+
         this_source.set_data(self.base_source.data, data_is_annotated=True)
 
         diff_rates = []
