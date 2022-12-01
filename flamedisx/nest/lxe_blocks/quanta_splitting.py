@@ -27,10 +27,14 @@ class MakePhotonsElectronsNR(fd.Block):
     model_functions = special_model_functions
 
     def setup(self):
-        self.array_columns = (('ions_produced_min',
-                               max(min(len(self.source.energies),
-                                       self.source.max_dim_sizes['energy']),
-                                   2)),)
+        if 'energy' not in self.source.no_step_dimensions:
+            self.array_columns = (('ions_produced_min',
+                                   max(min(len(self.source.energies),
+                                           self.source.max_dim_sizes['energy']),
+                                       2)),)
+        else:
+            self.array_columns = (('ions_produced_min',
+                                   max(len(self.source.energies), 2)),)
 
     def _compute(self,
                  data_tensor, ptensor,
@@ -343,13 +347,16 @@ class MakePhotonsElectronsNR(fd.Block):
                 (self.source.energies.numpy() >= energy_min) &
                 (self.source.energies.numpy() <= energy_max)]
 
-            index_step = np.round(np.linspace(0, len(energies_trim) - 1,
-                                              min(len(energies_trim), self.source.max_dim_sizes['energy']))).astype(int)
-
-            # Keep only the ion bounds corresponding to the energies in the stepped + trimmed
-            # spectrum for this batch
-            ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
-            ions_produced_max = list(np.take(ions_produced_max_full_trim, index_step))
+            if 'energy' not in self.source.no_step_dimensions:
+                index_step = np.round(np.linspace(0, len(energies_trim) - 1,
+                                                  min(len(energies_trim), self.source.max_dim_sizes['energy']))).astype(int)
+                # Keep only the ion bounds corresponding to the energies in the stepped + trimmed
+                # spectrum for this batch
+                ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
+                ions_produced_max = list(np.take(ions_produced_max_full_trim, index_step))
+            else:
+                ions_produced_min = list(ions_produced_min_full_trim)
+                ions_produced_max = list(ions_produced_max_full_trim)
 
             # For the events in the dataframe that are part of this batch, save the ion bounds at each energy
             # in the dataframe
@@ -361,7 +368,11 @@ class MakePhotonsElectronsNR(fd.Block):
 
         # If mono-energetic, one zero element at the end to get tensor dimensions
         # that match up with non-mono-energetic case; will be discarded later on
-        max_num_energies = max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)
+        if 'energy' not in self.source.no_step_dimensions:
+            max_num_energies = max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)
+        else:
+            max_num_energies = max(len(self.source.energies), 2)
+
         # Pad with 0s at the end to make each one the same size
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
 
