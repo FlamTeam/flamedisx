@@ -355,6 +355,8 @@ class MakePhotonsElectronsNR(fd.Block):
                 ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
                 ions_produced_max = list(np.take(ions_produced_max_full_trim, index_step))
             else:
+                # Keep only the ion bounds corresponding to the energies in the trimmed
+                # spectrum for this batch
                 ions_produced_min = list(ions_produced_min_full_trim)
                 ions_produced_max = list(ions_produced_max_full_trim)
 
