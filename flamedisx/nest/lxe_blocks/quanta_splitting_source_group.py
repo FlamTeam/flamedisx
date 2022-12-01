@@ -193,17 +193,37 @@ class SGMakePhotonsElectronsNR(fd.Block):
         ion_bounds_min_full, ion_bounds_min_approx = \
             tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
-        # Combine the results over energies
-        result_full = tf.vectorized_map(compute_single_energy_full,
-                                      elems=[energy_full,
-                                      rate_vs_energy_full,
-                                      tf.transpose(ion_bounds_min_full)])
-        result_approx = tf.vectorized_map(compute_single_energy_approx,
-                                        elems=[energy_approx,
-                                        rate_vs_energy_approx,
-                                        tf.transpose(ion_bounds_min_approx)])
+        result_full = []
+        for energy, rates_vs_energy, ion_bounds_min in zip(energy_full, rate_vs_energy_full, tf.transpose(ion_bounds_min_full)):
+            result_full.append(compute_single_energy_full((energy, rate_vs_energy, ion_bounds_min))[o, :, :, :])
+        if len(result_full) > 0:
+            result_full_tensor = tf.concat(result_full, axis=0)
 
-        result_combine = tf.concat([result_full, result_approx], axis=0)
+        result_approx = []
+        for energy, rates_vs_energy, ion_bounds_min in zip(energy_approx, rate_vs_energy_approx, tf.transpose(ion_bounds_min_approx)):
+            result_approx.append(compute_single_energy_approx((energy, rate_vs_energy, ion_bounds_min))[o, :, :, :])
+        if len(result_approx) > 0:
+            result_approx_tensor = tf.concat(result_approx, axis=0)
+
+        # Combine the results over energies
+        if len(result_full) > 0:
+            if len(result_approx) > 0:
+                result_combine = tf.concat([result_full_tensor, result_approx_tensor], axis=0)
+            else:
+                result_combine = result_full_tensor
+        else:
+            result_combine = result_approx_tensor
+
+        # read_in = \
+        #     tf.data.TFRecordDataset('central_block').map(lambda x:
+        #                                                    tf.io.parse_tensor(x,
+        #                                                                       out_type=fd.float_type()))
+        # for tensor in read_in:
+        #     tf.print(tensor)
+
+        write_out = tf.io.serialize_tensor(result_combine)
+        with tf.io.TFRecordWriter('central_block') as writer:
+            writer.write(write_out.numpy())
 
         return result_combine
 
@@ -352,6 +372,8 @@ class SGMakePhotonsElectronsNR(fd.Block):
                 ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
                 ions_produced_max = list(np.take(ions_produced_max_full_trim, index_step))
             else:
+                # Keep only the ion bounds corresponding to the energies in the trimmed
+                # spectrum for this batch
                 ions_produced_min = list(ions_produced_min_full_trim)
                 ions_produced_max = list(ions_produced_max_full_trim)
 
