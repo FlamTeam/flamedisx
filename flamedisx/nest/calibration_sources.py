@@ -25,7 +25,6 @@ class CH3TSource(fd_nest.nestERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         m_e = 510.9989461
         aa = 0.0072973525664
@@ -41,3 +40,5 @@ class CH3TSource(fd_nest.nestERSource):
 
         self.energies = tf.cast(energies, fd.float_type())
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
+
+        super().__init__(*args, **kwargs)

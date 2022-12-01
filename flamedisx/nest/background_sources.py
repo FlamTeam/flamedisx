@@ -34,7 +34,6 @@ class BetaSource(fd_nest.nestERSource):
         assert len(weights) == 3, "Weights must be a tuple of length 3"
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         df_214Pb = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/214Pb_spectrum.pkl'))
         df_212Pb = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/212Pb_spectrum.pkl'))
@@ -57,6 +56,8 @@ class BetaSource(fd_nest.nestERSource):
         self.energies = tf.convert_to_tensor(df_214Pb['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(combined_rates_vs_energy, dtype=fd.float_type())
 
+        super().__init__(*args, **kwargs)
+
 
 @export
 class Xe136Source(fd_nest.nestERSource):
@@ -68,12 +69,13 @@ class Xe136Source(fd_nest.nestERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         df_136Xe = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/136Xe_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_136Xe['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_136Xe['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
 
 
 @export
@@ -86,12 +88,13 @@ class vERSource(fd_nest.nestERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         df_vER = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/vER_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_vER['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_vER['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
 
 
 @export
@@ -104,12 +107,13 @@ class Ar37Source(fd_nest.nestERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         df_37Ar = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/37Ar_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_37Ar['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_37Ar['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
 
 
 @export
@@ -122,12 +126,13 @@ class Xe124Source(fd_nest.nestERGammaWeightedSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         df_124Xe = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/124Xe_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_124Xe['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_124Xe['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
 
 
 @export
@@ -140,12 +145,13 @@ class Xe127Source(fd_nest.nestERGammaWeightedSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         df_127Xe = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/127Xe_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_127Xe['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_127Xe['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
 
 
 @export
@@ -158,9 +164,10 @@ class B8Source(fd_nest.nestNRSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
-        super().__init__(*args, **kwargs)
 
         df_8B = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/8B_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_8B['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_8B['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)

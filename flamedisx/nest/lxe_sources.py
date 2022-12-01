@@ -345,6 +345,7 @@ class nestERSource(nestSource):
 
 @export
 class nestNRSource(nestSource):
+<<<<<<< HEAD
     def __init__(self, *args, energy_min=0.01, energy_max=10., num_energies=1000, energy_bin_edges=None, **kwargs):
         if not hasattr(self, 'energies'):
             if energy_bin_edges is not None:
@@ -354,6 +355,13 @@ class nestNRSource(nestSource):
                 self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
                                         fd.float_type())
                 self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+=======
+    def __init__(self, *args, energy_min=0.01, energy_max=150., num_energies=1000, **kwargs):
+        if not hasattr(self, 'energies'):
+            self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                    fd.float_type())
+            self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+>>>>>>> 422ee1c (Fix to bug with self.array_columnns for ions_produced when overriding energy spectrum.)
         super().__init__(*args, **kwargs)
 
     model_blocks = (
