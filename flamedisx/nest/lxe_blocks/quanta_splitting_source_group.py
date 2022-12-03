@@ -43,15 +43,15 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  # Bonus dimension
                  ions_produced,
                  # Dependency domain and value
-                 energy, rate_vs_energy):
+                 energy, rate_vs_energy,
+                 write_out=False):
 
         def compute_single_energy(args, approx=False):
             # Compute the block for a single energy.
             # Set approx to True for an approximate computation at higher energies
 
             energy = args[0]
-            rate_vs_energy = args[1]
-            ions_min = args[2]
+            ions_min = args[1]
 
             ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
             ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
@@ -186,22 +186,20 @@ class SGMakePhotonsElectronsNR(fd.Block):
         # We split the computation over energies to implement the approximate computation
         # above the cutoff energy
         energy_full, energy_approx = tf.split(energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
-        rate_vs_energy_full, rate_vs_energy_approx = \
-            tf.split(rate_vs_energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
         # Want to get rid of the padding of 0s at the end
         ion_bounds_min = self.source._fetch('ions_produced_min', data_tensor=data_tensor)[:, 0:tf.size(energy[0, :])]
         ion_bounds_min_full, ion_bounds_min_approx = \
             tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
         result_full = []
-        for energy, rates_vs_energy, ion_bounds_min in zip(energy_full, rate_vs_energy_full, tf.transpose(ion_bounds_min_full)):
-            result_full.append(compute_single_energy_full((energy, rate_vs_energy, ion_bounds_min))[o, :, :, :])
+        for energy, ion_bounds_min in zip(energy_full, tf.transpose(ion_bounds_min_full)):
+            result_full.append(compute_single_energy_full((energy, ion_bounds_min))[o, :, :, :])
         if len(result_full) > 0:
             result_full_tensor = tf.concat(result_full, axis=0)
 
         result_approx = []
-        for energy, rates_vs_energy, ion_bounds_min in zip(energy_approx, rate_vs_energy_approx, tf.transpose(ion_bounds_min_approx)):
-            result_approx.append(compute_single_energy_approx((energy, rate_vs_energy, ion_bounds_min))[o, :, :, :])
+        for energy, ion_bounds_min in zip(energy_approx, tf.transpose(ion_bounds_min_approx)):
+            result_approx.append(compute_single_energy_approx((energy, ion_bounds_min))[o, :, :, :])
         if len(result_approx) > 0:
             result_approx_tensor = tf.concat(result_approx, axis=0)
 

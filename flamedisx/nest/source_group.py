@@ -57,6 +57,40 @@ class SourceGroup:
         self.base_source.data = self.base_source.data[:self.base_source.n_events]
         self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
 
+    def cache_central_block(self, central_block_class, electrons_min, electrons_max, photons_min, photons_max):
+        assert self.base_source.batch_size == 1, "Need the batch size of the base source to be 1"
+        assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
+
+        while True:
+            data = self.base_source.simulate(1)
+            if len(data) > 0:
+                break
+
+        self.base_source.set_data(data, _skip_tf_init=True)
+
+        self.base_source.data['electrons_produced_min'] = electrons_min
+        self.base_source.data['electrons_produced_max'] = electrons_max
+        self.base_source.data['photons_produced_min'] = photons_min
+        self.base_source.data['photons_produced_max'] = photons_max
+        self.base_source.data['energy_min'] = self.base_source.energies[0]
+        self.base_source.data['energy_max'] = self.base_source.energies[-1]
+        self.base_source._calculate_dimsizes()
+
+        self.base_source.set_data(self.base_source.data, data_is_annotated=True)
+
+
+        for b in self.base_source.model_blocks:
+            if b.__class__ != central_block_class:
+                continue
+
+            kwargs = dict()
+            kwargs.update(self.base_source._domain_dict(('energy',), self.base_source.data_tensor[0]))
+            kwargs['rate_vs_energy'] = self.base_source.model_blocks[0]._compute(self.base_source.data_tensor[0], None, energy=None)
+            kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
+            kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
+
+            b._compute(self.base_source.data_tensor[0], None, **kwargs)
+
     @staticmethod
     def scale_by_spectrum(energies_diff_rates, spectrum_values):
         diff_rates = []

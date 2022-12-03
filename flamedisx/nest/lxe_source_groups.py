@@ -205,6 +205,15 @@ class nestERSourceGroup(BlockModelSourceGroup, fd_nest.nestERSource):
         fd_nest.FixedShapeEnergySpectrumER,
         fd_nest.SGMakePhotonsElectronER)
 
+    def __init__(self, caching=False, **kwargs):
+        if caching is True:
+            self.no_step_dimensions = self.no_step_dimensions + \
+                ('photons_produced',
+                 'electrons_produced',
+                 'energy')
+
+        super().__init__(**kwargs)
+
 
 @export
 class nestNRSourceGroup(BlockModelSourceGroup, fd_nest.nestNRSource):
