@@ -72,8 +72,8 @@ class SourceGroup:
         self.base_source.data['electrons_produced_max'] = electrons_max
         self.base_source.data['photons_produced_min'] = photons_min
         self.base_source.data['photons_produced_max'] = photons_max
-        self.base_source.data['energy_min'] = self.base_source.energies[0]
-        self.base_source.data['energy_max'] = self.base_source.energies[-1]
+        self.base_source.data['energy_min'] = fd.tf_to_np(self.base_source.energies[0])
+        self.base_source.data['energy_max'] = fd.tf_to_np(self.base_source.energies[-1])
         self.base_source._calculate_dimsizes()
 
         self.base_source.set_data(self.base_source.data, data_is_annotated=True)
