@@ -47,7 +47,7 @@ class SourceGroup:
         self.base_source.set_data(data, ignore_priors=True)
 
     def get_diff_rates(self):
-        energies, diff_rates = self.base_source.batched_differential_rate(autograph=False)
+        energies, diff_rates = self.base_source.batched_differential_rate()
 
         energies_diff_rates_all = []
         for es, drs in zip(np.concatenate(energies)[:self.base_source.n_events], np.transpose(np.concatenate(diff_rates, axis=1))[:self.base_source.n_events]):
@@ -88,6 +88,9 @@ class SourceGroup:
             kwargs['rate_vs_energy'] = self.base_source.model_blocks[0]._compute(self.base_source.data_tensor[0], None, energy=None)
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
+
+            write_out = f'central_block_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{fd.tf_to_np(self.base_source.energies[0])}_{fd.tf_to_np(self.base_source.energies[0])}_{len(fd.tf_to_np(self.base_source.energies))}'
+            kwargs['write_out'] = write_out
 
             b._compute(self.base_source.data_tensor[0], None, **kwargs)
 
