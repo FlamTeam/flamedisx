@@ -46,8 +46,23 @@ class SourceGroup:
 
         self.base_source.set_data(data, ignore_priors=True)
 
-    def get_diff_rates(self):
-        energies, diff_rates = self.base_source.batched_differential_rate()
+    def get_diff_rates(self, read_in=None):
+        if read_in is not None:
+            assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
+
+            parts = read_in.split('_')
+            self.base_source.data['electrons_produced_min'] = int(parts[3])
+            self.base_source.data['electrons_produced_max'] = int(parts[4])
+            self.base_source.data['photons_produced_min'] = int(parts[6])
+            self.base_source.data['photons_produced_max'] = int(parts[7])
+            self.base_source.data['energy_min'] = float(parts[9])
+            self.base_source.data['energy_max'] = float(parts[10])
+            assert len(fd.tf_to_np(self.base_source.energies)) == int(parts[11])
+            self.base_source._calculate_dimsizes()
+
+            self.base_source.set_data(self.base_source.data, data_is_annotated=True)
+
+        energies, diff_rates = self.base_source.batched_differential_rate(read_in=read_in)
 
         energies_diff_rates_all = []
         for es, drs in zip(np.concatenate(energies)[:self.base_source.n_events], np.transpose(np.concatenate(diff_rates, axis=1))[:self.base_source.n_events]):

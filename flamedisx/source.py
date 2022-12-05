@@ -645,15 +645,25 @@ class Source:
         self._differential_rate_tf = tf.function(
             self._differential_rate,
             input_signature=input_signature)
+        self._differential_rate_read_in_tf = tf.function(
+            self._differential_rate_read_in)
 
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
-            return self._differential_rate_tf(
-                data_tensor=data_tensor, ptensor=ptensor)
+            if kwargs['read_in'] is not None:
+                return self._differential_rate_read_in_tf(
+                    data_tensor=data_tensor, ptensor=ptensor, read_in=kwargs['read_in'])
+            else:
+                return self._differential_rate_tf(
+                    data_tensor=data_tensor, ptensor=ptensor)
         else:
-            return self._differential_rate(
-                data_tensor=data_tensor, ptensor=ptensor)
+            if kwargs['read_in'] is not None:
+                return self._differential_rate_read_in(
+                    data_tensor=data_tensor, ptensor=ptensor, read_in=kwargs['read_in'])
+            else:
+                return self._differential_rate(
+                    data_tensor=data_tensor, ptensor=ptensor)
 
     def ptensor_from_kwargs(self, **kwargs):
         return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
@@ -755,6 +765,9 @@ class Source:
     ##
 
     def _differential_rate(self, data_tensor, ptensor):
+        raise NotImplementedError
+
+    def _differential_rate_read_in(self, data_tensor, ptensor):
         raise NotImplementedError
 
     def mu_before_efficiencies(self, **params):

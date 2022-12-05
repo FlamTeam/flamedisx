@@ -47,12 +47,15 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  write_out=None,
                  read_in=None):
 
-        # read_in = \
-        #     tf.data.TFRecordDataset('central_block').map(lambda x:
-        #                                                    tf.io.parse_tensor(x,
-        #                                                                       out_type=fd.float_type()))
-        # for tensor in read_in:
-        #     tf.print(tf.shape(tensor))
+        if read_in is not None:
+            tensor_in = \
+                tf.data.TFRecordDataset(read_in).map(lambda x:
+                                                               tf.io.parse_tensor(x,
+                                                                                  out_type=fd.float_type()))
+            result = 0.
+            for tensor in tensor_in:
+                result = tf.repeat(tensor, self.source.batch_size, axis=1)
+            return result
 
         def compute_single_energy(args, approx=False):
             # Compute the block for a single energy.
