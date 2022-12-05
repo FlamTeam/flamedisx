@@ -12,7 +12,7 @@ o = tf.newaxis
 
 
 class BlockModelSourceGroup(fd.BlockModelSource):
-    def batched_differential_rate(self, progress=True, **params):
+    def batched_differential_rate(self, progress=True, read_in=None, **params):
         """Return numpy array with differential rate for all events.
         """
         progress = (lambda x: x) if not progress else tqdm
@@ -21,7 +21,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
-            energies, results = self.differential_rate(data_tensor=q, **params)
+            energies, results = self.differential_rate(data_tensor=q, read_in=read_in, **params)
 
             energies_all.append(fd.tf_to_np(energies))
             results_all.append(fd.tf_to_np(results))
@@ -102,7 +102,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         return ({return_dims: results[return_dims]}), already_stepped
 
-    def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims, already_stepped):
+    def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims, already_stepped, read_in=None):
         results = {}
 
         for b in self.model_blocks:
@@ -126,7 +126,10 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                 kwargs.update(self._domain_dict(dependency_dims, data_tensor))
 
             # Compute the block
-            r = b.compute(data_tensor, ptensor, **kwargs)
+            if b.__class__ in self.model_blocks_read_in:
+                r = b.compute(data_tensor, ptensor, read_in=read_in, **kwargs)
+            else:
+                r = b.compute(data_tensor, ptensor, **kwargs)
 
             # Scale the block by stepped dimensions, if not already done in
             # another block
@@ -181,6 +184,40 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         return energies, results
 
+    def _differential_rate_read_in(self, data_tensor, ptensor, read_in=None):
+        already_stepped = ()  # Avoid double-multiplying to account for stepping
+
+        left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
+        right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
+        centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped, read_in=read_in)
+
+        assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
+
+        left_dims = next(iter(left))
+        right_dims = next(iter(right))
+        centre_dims = next(iter(centre))
+
+        left_block = next(iter(left.items()))[1]
+        right_block = next(iter(right.items()))[1]
+
+        results_collection = tf.TensorArray(fd.float_type(), size=0, dynamic_size=True)
+
+        i = tf.constant(0)
+        for centre_block in next(iter(centre.items()))[1]:
+            left_centre_dims, r_left_centre = self.multiply_block_results(
+                left_dims, centre_dims, left_block, centre_block)
+
+            final_dims, r = self.multiply_block_results(
+                left_centre_dims, right_dims, r_left_centre, right_block)
+
+            results_collection = results_collection.write(i, tf.reshape(tf.squeeze(r), (self.batch_size,)))
+            i += 1
+
+        energies = self.model_blocks[0].domain(data_tensor=data_tensor)['energy']
+        results = results_collection.stack()
+
+        return energies, results
+
 
 class BlockNotFoundError(Exception):
     pass
@@ -204,6 +241,9 @@ class nestERSourceGroup(BlockModelSourceGroup, fd_nest.nestERSource):
     model_blocks_centre = (
         fd_nest.FixedShapeEnergySpectrumER,
         fd_nest.SGMakePhotonsElectronER)
+
+    model_blocks_read_in = (
+        fd_nest.SGMakePhotonsElectronER,)
 
     def __init__(self, caching=False, **kwargs):
         if caching is True:
@@ -233,3 +273,6 @@ class nestNRSourceGroup(BlockModelSourceGroup, fd_nest.nestNRSource):
     model_blocks_centre = (
         fd_nest.FixedShapeEnergySpectrumNR,
         fd_nest.SGMakePhotonsElectronsNR)
+
+    model_blocks_read_in = (
+        fd_nest.SGMakePhotonsElectronsNR,)
