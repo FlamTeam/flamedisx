@@ -55,9 +55,13 @@ class SourceGroup:
             self.base_source.data['electrons_produced_max'] = int(parts[4])
             self.base_source.data['photons_produced_min'] = int(parts[6])
             self.base_source.data['photons_produced_max'] = int(parts[7])
-            self.base_source.data['energy_min'] = float(parts[9])
-            self.base_source.data['energy_max'] = float(parts[10])
+            self.base_source.data['energy_min'] = fd.tf_to_np(self.base_source.energies[0])
+            self.base_source.data['energy_max'] = fd.tf_to_np(self.base_source.energies[-1])
+
+            np.testing.assert_almost_equal(float(parts[9]), fd.tf_to_np(self.base_source.energies[0]))
+            np.testing.assert_almost_equal(float(parts[10]), fd.tf_to_np(self.base_source.energies[-1]))
             assert len(fd.tf_to_np(self.base_source.energies)) == int(parts[11])
+
             self.base_source._calculate_dimsizes()
 
             self.base_source.set_data(self.base_source.data, data_is_annotated=True)
@@ -104,7 +108,7 @@ class SourceGroup:
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
-            write_out = f'central_block_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{fd.tf_to_np(self.base_source.energies[0])}_{fd.tf_to_np(self.base_source.energies[0])}_{len(fd.tf_to_np(self.base_source.energies))}'
+            write_out = f'central_block_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{fd.tf_to_np(self.base_source.energies[0])}_{fd.tf_to_np(self.base_source.energies[-1])}_{len(fd.tf_to_np(self.base_source.energies))}'
             kwargs['write_out'] = write_out
 
             b._compute(self.base_source.data_tensor[0], None, **kwargs)
