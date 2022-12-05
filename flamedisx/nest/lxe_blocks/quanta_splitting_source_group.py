@@ -44,7 +44,15 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  ions_produced,
                  # Dependency domain and value
                  energy, rate_vs_energy,
-                 write_out=False):
+                 write_out=None,
+                 read_in=None):
+
+        # read_in = \
+        #     tf.data.TFRecordDataset('central_block').map(lambda x:
+        #                                                    tf.io.parse_tensor(x,
+        #                                                                       out_type=fd.float_type()))
+        # for tensor in read_in:
+        #     tf.print(tf.shape(tensor))
 
         def compute_single_energy(args, approx=False):
             # Compute the block for a single energy.
@@ -191,39 +199,43 @@ class SGMakePhotonsElectronsNR(fd.Block):
         ion_bounds_min_full, ion_bounds_min_approx = \
             tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
-        result_full = []
-        for energy, ion_bounds_min in zip(energy_full, tf.transpose(ion_bounds_min_full)):
-            result_full.append(compute_single_energy_full((energy, ion_bounds_min))[o, :, :, :])
-        if len(result_full) > 0:
-            result_full_tensor = tf.concat(result_full, axis=0)
+        if write_out is not None:
+            result_full = []
+            for energy, ion_bounds_min in zip(energy_full, tf.transpose(ion_bounds_min_full)):
+                result_full.append(compute_single_energy_full((energy, ion_bounds_min))[o, :, :, :])
+            if len(result_full) > 0:
+                result_full_tensor = tf.concat(result_full, axis=0)
 
-        result_approx = []
-        for energy, ion_bounds_min in zip(energy_approx, tf.transpose(ion_bounds_min_approx)):
-            result_approx.append(compute_single_energy_approx((energy, ion_bounds_min))[o, :, :, :])
-        if len(result_approx) > 0:
-            result_approx_tensor = tf.concat(result_approx, axis=0)
-
-        # Combine the results over energies
-        if len(result_full) > 0:
+            result_approx = []
+            for energy, ion_bounds_min in zip(energy_approx, tf.transpose(ion_bounds_min_approx)):
+                result_approx.append(compute_single_energy_approx((energy, ion_bounds_min))[o, :, :, :])
             if len(result_approx) > 0:
-                result_combine = tf.concat([result_full_tensor, result_approx_tensor], axis=0)
+                result_approx_tensor = tf.concat(result_approx, axis=0)
+
+            # Combine the results over energies
+            if len(result_full) > 0:
+                if len(result_approx) > 0:
+                    result_combine = tf.concat([result_full_tensor, result_approx_tensor], axis=0)
+                else:
+                    result_combine = result_full_tensor
             else:
-                result_combine = result_full_tensor
+                result_combine = result_approx_tensor
+
+            tensor_out = tf.io.serialize_tensor(result_combine)
+            with tf.io.TFRecordWriter(write_out) as writer:
+                writer.write(tensor_out.numpy())
         else:
-            result_combine = result_approx_tensor
+            result_full = tf.vectorized_map(compute_single_energy_full,
+                                            elems=[energy_full,
+                                                   tf.transpose(ion_bounds_min_full)])
+            result_approx = tf.vectorized_map(compute_single_energy_approx,
+                                              elems=[energy_approx,
+                                                     tf.transpose(ion_bounds_min_approx)])
 
-        # read_in = \
-        #     tf.data.TFRecordDataset('central_block').map(lambda x:
-        #                                                    tf.io.parse_tensor(x,
-        #                                                                       out_type=fd.float_type()))
-        # for tensor in read_in:
-        #     tf.print(tensor)
+            # Combine the results over energies
+            result_combine = tf.concat([result_full, result_approx], axis=0)
 
-        write_out = tf.io.serialize_tensor(result_combine)
-        with tf.io.TFRecordWriter('central_block') as writer:
-            writer.write(write_out.numpy())
-
-        return result_combine
+            return result_combine
 
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
