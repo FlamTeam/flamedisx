@@ -55,11 +55,8 @@ class SourceGroup:
             self.base_source.data['electrons_produced_max'] = int(parts[4])
             self.base_source.data['photons_produced_min'] = int(parts[6])
             self.base_source.data['photons_produced_max'] = int(parts[7])
-            self.base_source.data['energy_min'] = fd.tf_to_np(self.base_source.energies[0])
-            self.base_source.data['energy_max'] = fd.tf_to_np(self.base_source.energies[-1])
-
-            np.testing.assert_almost_equal(float(parts[9]), fd.tf_to_np(self.base_source.energies[0]))
-            np.testing.assert_almost_equal(float(parts[10]), fd.tf_to_np(self.base_source.energies[-1]))
+            self.base_source.data['energy_min'] = float(parts[9])
+            self.base_source.data['energy_max'] = float(parts[10])
             assert len(fd.tf_to_np(self.base_source.energies)) == int(parts[11])
 
             self.base_source._calculate_dimsizes()
@@ -76,7 +73,7 @@ class SourceGroup:
         self.base_source.data = self.base_source.data[:self.base_source.n_events]
         self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
 
-    def cache_central_block(self, central_block_class, electrons_min, electrons_max, photons_min, photons_max):
+    def cache_central_block(self, central_block_class, electrons_min, electrons_max, photons_min, photons_max, energy_min, energy_max):
         assert self.base_source.batch_size == 1, "Need the batch size of the base source to be 1"
         assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
 
@@ -91,8 +88,8 @@ class SourceGroup:
         self.base_source.data['electrons_produced_max'] = electrons_max
         self.base_source.data['photons_produced_min'] = photons_min
         self.base_source.data['photons_produced_max'] = photons_max
-        self.base_source.data['energy_min'] = fd.tf_to_np(self.base_source.energies[0])
-        self.base_source.data['energy_max'] = fd.tf_to_np(self.base_source.energies[-1])
+        self.base_source.data['energy_min'] = energy_min
+        self.base_source.data['energy_max'] = energy_max
         self.base_source._calculate_dimsizes()
 
         self.base_source.set_data(self.base_source.data, data_is_annotated=True)

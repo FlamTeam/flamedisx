@@ -77,7 +77,7 @@ class TemplateSource(fd.ColumnSource):
 
         super().__init__(*args, **kwargs)
 
-    def _annotate(self):
+    def _annotate(self, **kwargs):
         """Add columns needed in inference to self.data
         """
         self.data[self.column] = self._mh_diff_rate.lookup(

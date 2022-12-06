@@ -559,6 +559,7 @@ class LogLikelihood:
                 # We are already tracing; if we call the traced function here
                 # it breaks the Hessian (it will give NaNs)
                 autograph=False,
+                read_in=None,
                 **self._filter_source_kwargs(params, sname))
             drs += dr * rate_mult
 

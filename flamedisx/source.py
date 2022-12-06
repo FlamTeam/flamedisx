@@ -628,6 +628,7 @@ class Source:
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
             y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
+                                                        read_in=None,
                                                         **params)))
 
         return np.concatenate(y)[:self.n_events]
