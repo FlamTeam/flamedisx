@@ -48,7 +48,7 @@ class SourceGroup:
 
     def get_diff_rates(self, read_in=None):
         if read_in is not None:
-            assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
+            # assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
 
             parts = read_in.split('_')
             self.base_source.data['electrons_produced_min'] = int(parts[3])
@@ -57,7 +57,6 @@ class SourceGroup:
             self.base_source.data['photons_produced_max'] = int(parts[7])
             self.base_source.data['energy_min'] = float(parts[9])
             self.base_source.data['energy_max'] = float(parts[10])
-            assert len(fd.tf_to_np(self.base_source.energies)) == int(parts[11])
 
             self.base_source._calculate_dimsizes()
 
@@ -75,7 +74,7 @@ class SourceGroup:
 
     def cache_central_block(self, central_block_class, electrons_min, electrons_max, photons_min, photons_max, energy_min, energy_max):
         assert self.base_source.batch_size == 1, "Need the batch size of the base source to be 1"
-        assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
+        # assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
 
         while True:
             data = self.base_source.simulate(1)
@@ -105,7 +104,7 @@ class SourceGroup:
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
-            write_out = f'central_block_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{fd.tf_to_np(self.base_source.energies[0])}_{fd.tf_to_np(self.base_source.energies[-1])}_{len(fd.tf_to_np(self.base_source.energies))}'
+            write_out = f'central_block_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{energy_min}_{energy_max}'
             kwargs['write_out'] = write_out
 
             b._compute(self.base_source.data_tensor[0], None, **kwargs)
