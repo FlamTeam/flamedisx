@@ -6,6 +6,8 @@ import os
 import flamedisx as fd
 from .. import nest as fd_nest
 
+import pandas as pd
+
 import math as m
 pi = tf.constant(m.pi)
 
@@ -183,13 +185,14 @@ class nestSource(fd.BlockModelSource):
 @export
 class nestERSource(nestSource):
     def __init__(self, *args, energy_min=0.01, energy_max=10., num_energies=1000, energy_bin_edges=None, **kwargs):
-        if energy_bin_edges is not None:
-            self.energies = fd.np_to_tf(0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1]))
-            self.rates_vs_energy = tf.ones(len(energy_bin_edges) - 1, fd.float_type())
-        else:
-            self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
-                                    fd.float_type())
-            self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+        if not hasattr(self, 'energies'):
+            if energy_bin_edges is not None:
+                self.energies = fd.np_to_tf(0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1]))
+                self.rates_vs_energy = tf.ones(len(energy_bin_edges) - 1, fd.float_type())
+            else:
+                self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                        fd.float_type())
+                self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -331,13 +334,14 @@ class nestERSource(nestSource):
 @export
 class nestNRSource(nestSource):
     def __init__(self, *args, energy_min=0.01, energy_max=10., num_energies=1000, energy_bin_edges=None, **kwargs):
-        if energy_bin_edges is not None:
-            self.energies = fd.np_to_tf(0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1]))
-            self.rates_vs_energy = tf.ones(len(energy_bin_edges) - 1, fd.float_type())
-        else:
-            self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
-                                    fd.float_type())
-            self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+        if not hasattr(self, 'energies'):
+            if energy_bin_edges is not None:
+                self.energies = fd.np_to_tf(0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1]))
+                self.rates_vs_energy = tf.ones(len(energy_bin_edges) - 1, fd.float_type())
+            else:
+                self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                        fd.float_type())
+                self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -501,6 +505,20 @@ class nestERGammaWeightedSource(nestERSource):
         nel_beta = tf.cast(nestERSource.mean_yield_electron(self, energy), fd.float_type())
 
         return nel_gamma * weightG + nel_beta * weightB
+
+
+@export
+class testSource(nestERSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        df_test = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/test_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_test['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_test['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
 
 
 @export
