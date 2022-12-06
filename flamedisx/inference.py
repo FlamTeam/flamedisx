@@ -74,7 +74,8 @@ class Objective:
                  use_hessian=True,
                  return_errors=False,
                  optimizer_kwargs: dict = None,
-                 allow_failure=False):
+                 allow_failure=False,
+                 suppress_warnings=False):
         if guess is None:
             guess = dict()
         if fix is None:
@@ -93,6 +94,7 @@ class Objective:
         self.return_errors = return_errors
         self.optimizer_kwargs = optimizer_kwargs
         self.allow_failure = allow_failure
+        self.suppress_warnings = suppress_warnings
 
         # The if is only here to support MockInference with static arg_names
         if self.arg_names is None:
@@ -121,7 +123,7 @@ class Objective:
                     f"Bound on {k} was passed, but this is not among "
                     f"the parameters of the fit ({self.arg_names})")
         for p in self.arg_names:
-            if p.endswith('_rate_multiplier'):
+            if p.endswith('_rate_multiplier') and p not in bounds.keys():
                 bounds.setdefault(p, (LOWER_RATE_MULTIPLIER_BOUND, None))
         self.bounds = bounds
         self.normed_bounds = dict()    # Set in process_guess
@@ -275,17 +277,19 @@ class Objective:
         params = {**self._array_to_dict(x), **self.fix}
         for k, v in params.items():
             if np.isnan(v):
-                warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
-                              OptimizerWarning)
+                if self.suppress_warnings is False:
+                    warnings.warn(f"Optimizer requested likelihood at {k} = NaN",
+                                  OptimizerWarning)
                 return self.nan_result()
             if k in self.bounds:
                 b = self.bounds[k]
                 if not ((b[0] is None or b[0] <= v)
                         and (b[1] is None or v <= b[1])):
-                    warnings.warn(
-                        f"Optimizer requested likelihood at {k} = {v}, "
-                        f"which is outside the bounds {b}.",
-                        OptimizerWarning)
+                    if self.suppress_warnings is False:
+                        warnings.warn(
+                            f"Optimizer requested likelihood at {k} = {v}, "
+                            f"which is outside the bounds {b}.",
+                            OptimizerWarning)
                     return self.nan_result()
 
         result = self._inner_fun_and_grad(params)
@@ -305,16 +309,19 @@ class Objective:
 
         x_desc = dict(zip(self.arg_names, x))
         if np.isnan(y):
-            warnings.warn(f"Objective at {x_desc} is Nan!",
-                          OptimizerWarning)
+            if self.suppress_warnings is False:
+                warnings.warn(f"Objective at {x_desc} is Nan!",
+                              OptimizerWarning)
             result = self.nan_result()
         elif np.any(np.isnan(grad)):
-            warnings.warn(f"Objective at {x_desc} has NaN gradient {grad}",
-                          OptimizerWarning)
+            if self.suppress_warnings is False:
+                warnings.warn(f"Objective at {x_desc} has NaN gradient {grad}",
+                              OptimizerWarning)
             result = self.nan_result()
         elif hess is not None and np.any(np.isnan(hess)):
-            warnings.warn(f"Objective at {x_desc} has NaN Hessian {hess}",
-                          OptimizerWarning)
+            if self.suppress_warnings is False:
+                warnings.warn(f"Objective at {x_desc} has NaN Hessian {hess}",
+                              OptimizerWarning)
             result = self.nan_result()
         else:
             result = ObjectiveResult(fun=y, grad=grad, hess=hess)
@@ -378,9 +385,10 @@ class Objective:
             if k in self.fix:
                 continue
             if self.guess[k] == v:
-                warnings.warn(
-                    f"Optimizer returned {k} = {v}, equal to the guess",
-                    OptimizerWarning)
+                if self.suppress_warnings is False:
+                    warnings.warn(
+                        f"Optimizer returned {k} = {v}, equal to the guess",
+                        OptimizerWarning)
 
         result = {**result, **self.fix}
         # TODO: return ll_val, use it

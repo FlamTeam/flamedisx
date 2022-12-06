@@ -9,3 +9,6 @@ from .lxe_blocks.pe_detection import *
 from .lxe_blocks.final_signals import *
 
 from .lxe_sources import *
+
+from .calibration_sources import *
+from .background_sources import *

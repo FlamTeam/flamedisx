@@ -9,6 +9,7 @@ from .inference import *
 from .bounds import *
 from .mu_estimation import *
 from .frozen_reservoir import *
+from .non_asymptotic_inference import *
 
 # Original flamedisx models
 # Accessible under fd root package (for now), for backwards compatibility
@@ -35,6 +36,14 @@ from . import nest
 # LUX models
 # Access through fd.lux.xxx
 from . import lux
+
+# Matthew Syzdagis' XENONnT models
+# Access through fd.xenon_nT_MS.xxx
+from . import xenon_nT_MS
+
+# LZ models
+# Access through fd.lz.xxx
+from . import lz
 
 # Custom TFP files
 # Access through fd.tfp_files.xxx

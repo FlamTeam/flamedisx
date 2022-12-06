@@ -95,9 +95,12 @@ class DetectPhotonsOrElectrons(fd.Block):
                                    bound_type='binomial', supports=supports,
                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
-    def _annotate_special(self, d):
+    def _annotate_special(self, d, ignore_priors=False):
         # Here we obtain improved bounds on photons and electrons detected with a non-flat prior
         if self.quanta_name not in ('photon', 'electron'):
+            return False
+
+        if ignore_priors:
             return False
 
         for batch in range(self.source.n_batches):
@@ -137,7 +140,8 @@ class DetectPhotons(DetectPhotonsOrElectrons):
     model_functions = ('photon_detection_eff',
                        's1_posDependence') + special_model_functions
 
-    def s1_posDependence(self, r, z):
+    @staticmethod
+    def s1_posDependence(r, z):
         """
         Override for specific detector.
         """
@@ -193,7 +197,8 @@ class DetectS2Photons(DetectPhotonsOrElectrons):
     model_functions = ('s2_photon_detection_eff',
                        's2_posDependence') + special_model_functions
 
-    def s2_posDependence(self, r):
+    @staticmethod
+    def s2_posDependence(r):
         """
         Override for specific detector.
         """

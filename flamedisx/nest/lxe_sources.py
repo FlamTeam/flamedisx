@@ -20,7 +20,9 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default',)
+        assert detector in ('default', 'XENONnT', 'lz')
+
+        self.detector = detector
 
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), 'config/', detector + '.ini'))
@@ -55,7 +57,7 @@ class nestSource(fd.BlockModelSource):
 
         # detection.py / pe_detection.py / double_pe.py / final_signals.py
         self.g1 = config.getfloat('NEST', 'g1_config')
-        self.elife = config.getint('NEST', 'elife_config')
+        self.elife = config.getfloat('NEST', 'elife_config')
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
         self.spe_res = config.getfloat('NEST', 'spe_res_config')
         self.spe_thr = config.getfloat('NEST', 'spe_thr_config')
@@ -77,10 +79,16 @@ class nestSource(fd.BlockModelSource):
         self.S1_noise = config.getfloat('NEST', 'S1_noise_config')
         self.S2_noise = config.getfloat('NEST', 'S2_noise_config')
 
+        self.s2_thr = config.getfloat('NEST', 's2_thr_config')
+
         self.S1_min = config.getfloat('NEST', 'S1_min_config')
         self.S1_max = config.getfloat('NEST', 'S1_max_config')
         self.S2_min = config.getfloat('NEST', 'S2_min_config')
         self.S2_max = config.getfloat('NEST', 'S2_max_config')
+
+        # Useful additional parameters
+        self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
+                                       self.g1_gas, self.extraction_eff)
 
         super().__init__(*args, **kwargs)
 
@@ -183,9 +191,10 @@ class nestSource(fd.BlockModelSource):
 @export
 class nestERSource(nestSource):
     def __init__(self, *args, energy_min=0.01, energy_max=10., num_energies=1000, **kwargs):
-        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
-                                fd.float_type())
-        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+        if not hasattr(self, 'energies'):
+            self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                    fd.float_type())
+            self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -290,6 +299,9 @@ class nestERSource(nestSource):
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
         skewness_masked = tf.multiply(skewness, tf.cast(mask_product, fd.float_type()))
 
+        if self.detector == 'lz':
+            skewness_masked = tf.zeros_like(nq_mean, dtype=fd.float_type())
+
         return skewness_masked
 
     def variance(self, *args):
@@ -298,7 +310,10 @@ class nestERSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        er_free_b = 0.0553
+        if self.detector == 'lz':
+            er_free_b = 0.046452
+        else:
+            er_free_b = 0.0553
         er_free_c = 0.205
         er_free_d = 0.45
         er_free_e = -0.2
@@ -327,9 +342,10 @@ class nestERSource(nestSource):
 @export
 class nestNRSource(nestSource):
     def __init__(self, *args, energy_min=0.01, energy_max=150., num_energies=1000, **kwargs):
-        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
-                                fd.float_type())
-        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+        if not hasattr(self, 'energies'):
+            self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                    fd.float_type())
+            self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -435,7 +451,7 @@ class nestNRSource(nestSource):
         omega = nr_free_c * tf.exp(-0.5 * pow(elec_frac - nr_free_d, 2.) / (nr_free_e * nr_free_e))
         omega = tf.where(nq_mean == 0,
                          tf.zeros_like(omega, dtype=fd.float_type()),
-                         omega)
+                         tf.cast(omega, dtype=fd.float_type()))
 
         return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
 
@@ -497,12 +513,12 @@ class nestERGammaWeightedSource(nestERSource):
 
 @export
 class nestSpatialRateERSource(nestERSource):
-    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestERSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrumER,) + nestERSource.model_blocks[1:]
 
 
 @export
 class nestSpatialRateNRSource(nestNRSource):
-    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestNRSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrumNR,) + nestNRSource.model_blocks[1:]
 
 
 @export

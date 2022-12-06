@@ -60,6 +60,7 @@ class LogLikelihood:
             progress=True,
             defaults=None,
             mu_estimators=None,
+            data_is_annotated=False,
             **common_param_specs):
         """
 
@@ -237,11 +238,23 @@ class LogLikelihood:
             def log_constraint(**kwargs):
                 return 0.
         self.log_constraint = log_constraint
+        self.constraint_extra_args = None
 
-        self.set_data(data)
+        self.set_data(data, data_is_annotated=data_is_annotated)
+
+    def set_log_constraint(self, log_constraint):
+        self.log_constraint = log_constraint
+
+    def set_constraint_extra_args(self, **kwargs):
+        self.constraint_extra_args = kwargs
+
+    def set_rate_multiplier_bounds(self, **rm_bounds):
+        for source, bounds in rm_bounds.items():
+            self.default_bounds[f'{source}_rate_multiplier'] = bounds
 
     def set_data(self,
-                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]]):
+                 data: ty.Union[pd.DataFrame, ty.Dict[str, pd.DataFrame]],
+                 data_is_annotated=False):
         """set new data for sources in the likelihood.
         Data is passed in the same format as for __init__
         Data can contain any subset of the original data keys to only
@@ -271,7 +284,7 @@ class LogLikelihood:
                 continue
 
             # Copy ensures annotations don't clobber
-            source.set_data(deepcopy(data[dname]))
+            source.set_data(deepcopy(data[dname]), data_is_annotated)
 
             # Update batch info
             dset_index = self.dsetnames.index(dname)
@@ -398,6 +411,7 @@ class LogLikelihood:
                     omit_grads=omit_grads,
                     second_order=second_order,
                     empty_batch=empty_batch,
+                    constraint_extra_args=self.constraint_extra_args,
                     **params)
                 ll += results[0].numpy().astype(np.float64)
 
@@ -477,7 +491,8 @@ class LogLikelihood:
     def _log_likelihood(self,
                         i_batch, dsetname, data_tensor, batch_info,
                         omit_grads=tuple(), second_order=False,
-                        empty_batch=False, **params):
+                        empty_batch=False, constraint_extra_args=None,
+                        **params):
         # Stack the params to create a single node
         # to differentiate with respect to.
         grad_par_stack = tf.stack([
@@ -507,7 +522,11 @@ class LogLikelihood:
             - self.mu(dataset_name=dsetname, **params_unstacked),
             0.)
         if dsetname == self.dsetnames[0]:
-            ll += self.log_constraint(**params_unstacked)
+            if constraint_extra_args is None:
+                ll += self.log_constraint(**params_unstacked)
+            else:
+                kwargs = {**params_unstacked, **constraint_extra_args}
+                ll += self.log_constraint(**kwargs)
 
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]
@@ -572,7 +591,8 @@ class LogLikelihood:
                 return_errors=False,
                 nan_val=float('inf'),
                 optimizer_kwargs=None,
-                allow_failure=False):
+                allow_failure=False,
+                suppress_warnings=False):
         """Return best-fit parameter dict
 
         :param guess: Guess parameters: dict {param: guess} of guesses to use.
@@ -633,6 +653,7 @@ class LogLikelihood:
             return_errors=return_errors,
             optimizer_kwargs=optimizer_kwargs,
             allow_failure=allow_failure,
+            suppress_warnings=suppress_warnings,
         ).minimize()
         if get_lowlevel_result or get_history:
             return res
@@ -678,6 +699,7 @@ class LogLikelihood:
             optimizer_kwargs=None,
             use_hessian=True,
             allow_failure=False,
+            suppress_warnings=False
     ):
         """Return frequentist limit or confidence interval.
 
@@ -777,6 +799,7 @@ class LogLikelihood:
                 use_hessian=use_hessian,
                 optimizer_kwargs=optimizer_kwargs,
                 allow_failure=allow_failure,
+                suppress_warnings=suppress_warnings,
 
                 # To IntervalObjective
                 target_parameter=parameter,

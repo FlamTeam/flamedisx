@@ -49,7 +49,8 @@ class EnergySpectrum(fd.FirstBlock):
 
     def _annotate(self, d):
         # Generate an MC reservoir for obtaining energy bounds. Also use this for Bayes bounds priors
-        self.source.mc_reservoir = self.source.simulate(int(1e6), keep_padding=True)
+        if self.source.mc_reservoir.empty:
+            self.source.mc_reservoir = self.source.simulate(int(1e6), keep_padding=True)
         assert not self.source.mc_reservoir.empty, \
             "MC reservoir used in energy bounds computation is empty. Are your cuts too tight?"
 
@@ -301,6 +302,16 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         return data
 
 
+@export
+class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class SpatialRateEnergySpectrumER(SpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 50}
+
+
 ##
 # Variable spectra
 ##
@@ -324,8 +335,26 @@ class VariableEnergySpectrum(EnergySpectrum):
                        dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy):
-        return self.gimme('energy_spectrum',
-                          data_tensor=data_tensor, ptensor=ptensor)
+        # We want to do the same trimming/stepping treatment to the values of the energy
+        # spectrum itself as we do its domain
+        left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
+        right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
+        bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
+                                             tf.less_equal(self.energies, right_bound))
+        spectrum_trim = tf.boolean_mask(self.gimme('energy_spectrum',
+                                                   data_tensor=data_tensor, ptensor=ptensor),
+                                        bool_mask,
+                                        axis=1)
+        index_step = tf.round(tf.linspace(0, tf.shape(spectrum_trim)[1] - 1,
+                                          tf.math.minimum(tf.shape(spectrum_trim)[1],
+                                                          self.source.max_dim_sizes['energy'])))
+        spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()), axis=1)
+        stepping_multiplier = tf.cast(tf.shape(spectrum_trim)[1] / tf.shape(spectrum_trim_step)[1], fd.float_type())
+
+        spectrum = tf.repeat(spectrum_trim_step * stepping_multiplier[o, o],
+                             self.source.batch_size,
+                             axis=0)
+        return spectrum
 
     def random_truth(self, n_events, fix_truth=None, **params):
         raise NotImplementedError
@@ -341,6 +370,8 @@ class InvalidEventTimes(Exception):
 
 @export
 class WIMPEnergySpectrum(VariableEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
     model_attributes = ('pretend_wimps_dont_modulate',
                         'mw',
                         'sigma_nucleon',
