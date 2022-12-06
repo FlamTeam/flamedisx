@@ -58,6 +58,7 @@ class SourceGroup:
             self.base_source.data['energy_min'] = float(parts[9])
             self.base_source.data['energy_max'] = float(parts[10])
 
+            self.base_source.model_blocks[1]._annotate_special(self.base_source.data)
             self.base_source._calculate_dimsizes()
 
             self.base_source.set_data(self.base_source.data, data_is_annotated=True)
@@ -89,6 +90,8 @@ class SourceGroup:
         self.base_source.data['photons_produced_max'] = photons_max
         self.base_source.data['energy_min'] = energy_min
         self.base_source.data['energy_max'] = energy_max
+
+        self.base_source.model_blocks[1]._annotate_special(self.base_source.data)
         self.base_source._calculate_dimsizes()
 
         self.base_source.set_data(self.base_source.data, data_is_annotated=True)
