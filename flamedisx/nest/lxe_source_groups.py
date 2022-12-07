@@ -1,6 +1,7 @@
 import typing as ty
 
 import tensorflow as tf
+import numpy as np
 
 from tqdm import tqdm
 
@@ -23,8 +24,8 @@ class BlockModelSourceGroup(fd.BlockModelSource):
             q = self.data_tensor[i_batch]
             energies, results = self.differential_rate(data_tensor=q, read_in=read_in, **params)
 
-            energies_all.append(fd.tf_to_np(energies))
-            results_all.append(fd.tf_to_np(results))
+            energies_all.extend(fd.tf_to_np(energies))
+            results_all.extend(np.transpose(fd.tf_to_np(results)))
 
         return energies_all, results_all
 
