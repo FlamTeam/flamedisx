@@ -66,7 +66,7 @@ class SourceGroup:
         energies, diff_rates = self.base_source.batched_differential_rate(read_in=read_in)
 
         energies_diff_rates_all = []
-        for es, drs in zip(np.concatenate(energies)[:self.base_source.n_events], np.transpose(np.concatenate(diff_rates, axis=1))[:self.base_source.n_events]):
+        for es, drs in zip(energies[:self.base_source.n_events], diff_rates[:self.base_source.n_events]):
             energies_diff_rates = [(energy, diff_rate) for energy, diff_rate in zip(es, drs)]
             energies_diff_rates_all.append(energies_diff_rates)
 
