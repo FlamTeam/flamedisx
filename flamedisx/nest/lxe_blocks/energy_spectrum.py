@@ -54,7 +54,8 @@ class EnergySpectrum(fd.FirstBlock):
     def _annotate(self, d):
         # Generate an MC reservoir for obtaining energy bounds. Also use this for Bayes bounds priors
         n_events = self.source.n_events
-        self.source.mc_reservoir = self.source.simulate(int(1e6), keep_padding=True)
+        if self.source.mc_reservoir.empty:
+            self.source.mc_reservoir = self.source.simulate(int(1e6), keep_padding=True)
         self.source.n_events = n_events
         assert not self.source.mc_reservoir.empty, \
             "MC reservoir used in energy bounds computation is empty. Are your cuts too tight?"
