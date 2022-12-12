@@ -198,6 +198,7 @@ class Source:
                  _skip_bounds_computation=False,
                  fit_params=None,
                  progress=False,
+                 input_mc_reservoir=None,
                  **params):
         """Initialize a flamedisx source
 
@@ -280,7 +281,12 @@ class Source:
 
         # A source may choose to fill these in for improved bounds computation.
         # See bounds.py for details
-        self.mc_reservoir = pd.DataFrame()
+        if input_mc_reservoir is None:
+            self.mc_reservoir = pd.DataFrame()
+        else:
+            self.mc_reservoir = pkl.load(open(input_mc_reservoir, 'rb'))
+            assert not self.mc_reservoir.empty, \
+                "MC reservoir used in energy bounds computation is empty. Are your cuts too tight?"
         self.prior_PDFs_LB = tuple(dict())
         self.prior_PDFs_UB = tuple(dict())
 
