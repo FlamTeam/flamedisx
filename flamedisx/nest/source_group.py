@@ -73,7 +73,7 @@ class SourceGroup:
         self.base_source.data = self.base_source.data[:self.base_source.n_events]
         self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
 
-    def cache_central_block(self, central_block_class, electrons_min, electrons_max, photons_min, photons_max, energy_min, energy_max):
+    def cache_central_block(self, central_block_class, central_energy, electrons_min, electrons_max, photons_min, photons_max, energy_min, energy_max):
         assert self.base_source.batch_size == 1, "Need the batch size of the base source to be 1"
         # assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
 
@@ -107,7 +107,7 @@ class SourceGroup:
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
-            write_out = f'central_block_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{energy_min}_{energy_max}'
+            write_out = f'central_block_centreal_energy_{central_energy}_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{energy_min}_{energy_max}'
             kwargs['write_out'] = write_out
 
             b._compute(self.base_source.data_tensor[0], None, **kwargs)
