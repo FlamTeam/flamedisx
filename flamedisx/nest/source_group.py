@@ -107,7 +107,7 @@ class SourceGroup:
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
-            write_out = f'central_block_centreal_energy_{central_energy}_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{energy_min}_{energy_max}'
+            write_out = f'central_block_central_energy_{central_energy}_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}_energy_{energy_min}_{energy_max}'
             kwargs['write_out'] = write_out
 
             b._compute(self.base_source.data_tensor[0], None, **kwargs)
