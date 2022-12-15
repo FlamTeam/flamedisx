@@ -116,6 +116,9 @@ def get_priors(source, reservoir, prior_dims,
     :param filter_dims_max: upper bounds of the dimensions we are filtering by, for
     obtaining upper bound priors
     """
+    source.prior_PDFs_LB = tuple(dict())
+    source.prior_PDFs_UB = tuple(dict())
+
     prior_dict = {}
 
     for prior_dim, prior_data_col in zip(prior_dims, prior_data_cols):
