@@ -41,10 +41,10 @@ class SourceGroup:
         if data is not None:
             self.set_data(data)
 
-    def set_data(self, data=None):
+    def set_data(self, data=None, data_is_annotated=False):
         assert data is not None, "Must pass data when calling set_data()"
 
-        self.base_source.set_data(data, ignore_priors=True)
+        self.base_source.set_data(data, ignore_priors=True, data_is_annotated=data_is_annotated)
 
     def get_diff_rates(self, read_in=None):
         if read_in is not None:
@@ -63,7 +63,10 @@ class SourceGroup:
 
             self.base_source.set_data(self.base_source.data, data_is_annotated=True)
 
-        energies, diff_rates = self.base_source.batched_differential_rate(read_in=read_in)
+            energies, diff_rates = self.base_source.batched_differential_rate(read_in=read_in, autograph=False)
+
+        else:
+            energies, diff_rates = self.base_source.batched_differential_rate()
 
         energies_diff_rates_all = []
         for es, drs in zip(energies[:self.base_source.n_events], diff_rates[:self.base_source.n_events]):
@@ -71,7 +74,11 @@ class SourceGroup:
             energies_diff_rates_all.append(energies_diff_rates)
 
         self.base_source.data = self.base_source.data[:self.base_source.n_events]
-        self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
+
+        if read_in is None:
+            self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
+        else:
+            return energies_diff_rates_all
 
     def cache_central_block(self, central_block_class, central_energy, electrons_min, electrons_max, photons_min, photons_max, energy_min, energy_max):
         assert self.base_source.batch_size == 1, "Need the batch size of the base source to be 1"
