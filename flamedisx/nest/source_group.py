@@ -51,12 +51,12 @@ class SourceGroup:
             # assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
 
             parts = read_in.split('_')
-            self.base_source.data['electrons_produced_min'] = int(parts[3])
-            self.base_source.data['electrons_produced_max'] = int(parts[4])
-            self.base_source.data['photons_produced_min'] = int(parts[6])
-            self.base_source.data['photons_produced_max'] = int(parts[7])
-            self.base_source.data['energy_min'] = float(parts[9])
-            self.base_source.data['energy_max'] = float(parts[10])
+            self.base_source.data['electrons_produced_min'] = int(parts[6])
+            self.base_source.data['electrons_produced_max'] = int(parts[7])
+            self.base_source.data['photons_produced_min'] = int(parts[9])
+            self.base_source.data['photons_produced_max'] = int(parts[10])
+            self.base_source.data['energy_min'] = float(parts[12])
+            self.base_source.data['energy_max'] = float(parts[13])
 
             self.base_source.model_blocks[1]._annotate_special(self.base_source.data)
             self.base_source._calculate_dimsizes()
