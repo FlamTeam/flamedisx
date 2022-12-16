@@ -61,7 +61,8 @@ class SourceGroup:
             self.base_source.model_blocks[1]._annotate_special(self.base_source.data)
             self.base_source._calculate_dimsizes()
 
-            self.base_source.set_data(self.base_source.data, data_is_annotated=True)
+            data = self.base_source.data[:self.base_source.n_events].copy()
+            self.base_source.set_data(data, data_is_annotated=True)
 
             energies, diff_rates = self.base_source.batched_differential_rate(read_in=read_in, autograph=False)
 
