@@ -89,7 +89,7 @@ class SourceGroup:
             if len(data) > 0:
                 break
 
-        self.base_source.set_data(data, _skip_tf_init=True)
+        self.base_source.set_data(data, _skip_tf_init=True, ignore_priors=True)
 
         self.base_source.data['electrons_produced_min'] = electrons_min
         self.base_source.data['electrons_produced_max'] = electrons_max
