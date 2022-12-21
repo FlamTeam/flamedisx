@@ -203,26 +203,16 @@ class SGMakePhotonsElectronsNR(fd.Block):
             tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
         if write_out is not None:
-            result_full = []
-            for energy, ion_bounds_min in zip(energy_full, tf.transpose(ion_bounds_min_full)):
-                result_full.append(compute_single_energy_full((energy, ion_bounds_min))[o, :, :, :])
-            if len(result_full) > 0:
-                result_full_tensor = tf.concat(result_full, axis=0)
+            assert tf.shape(energy)[1] == 1, 'Logic only works for saving one energy at a time'
 
-            result_approx = []
-            for energy, ion_bounds_min in zip(energy_approx, tf.transpose(ion_bounds_min_approx)):
-                result_approx.append(compute_single_energy_approx((energy, ion_bounds_min))[o, :, :, :])
-            if len(result_approx) > 0:
-                result_approx_tensor = tf.concat(result_approx, axis=0)
+            result_full = tf.vectorized_map(compute_single_energy_full,
+                                            elems=[energy_full,
+                                                   tf.transpose(ion_bounds_min_full)])
+            result_approx = tf.vectorized_map(compute_single_energy_approx,
+                                              elems=[energy_approx,
+                                                     tf.transpose(ion_bounds_min_approx)])
 
-            # Combine the results over energies
-            if len(result_full) > 0:
-                if len(result_approx) > 0:
-                    result_combine = tf.concat([result_full_tensor, result_approx_tensor], axis=0)
-                else:
-                    result_combine = result_full_tensor
-            else:
-                result_combine = result_approx_tensor
+            result_combine = tf.concat([result_full, result_approx], axis=0)
 
             tensor_out = tf.io.serialize_tensor(result_combine)
             with tf.io.TFRecordWriter(write_out) as writer:
