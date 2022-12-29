@@ -56,17 +56,29 @@ class SGMakePhotonsElectronsNR(fd.Block):
         def compute_single_energy_read_in(energy):
             file = get_file(energy)
 
-            electrons_domain = electrons_produced[:, :, 0, 0]
-            photons_domain = photons_produced[:, 0,:, 0]
+            electrons_domain = tf.cast(electrons_produced[:, :, 0, 0], fd.int_type())
+            photons_domain = tf.cast(photons_produced[:, 0,:, 0], fd.int_type())
+
+            parts = file.split('/')[-1].split('_')
+
+            electrons_min = int(parts[5])
+            electrons_steps = int(parts[6])
+            electrons_dimsize = int(parts[7])
+
+            photons_min = int(parts[9])
+            photons_steps = int(parts[10])
+            photons_dimsize = int(parts[11])
+
+            electrons_full = tf.repeat(((tf.range(electrons_dimsize) * electrons_steps) + electrons_min)[o, :], self.source.batch_size, axis=0)
+            photons_full = tf.repeat(((tf.range(photons_dimsize) * photons_steps) + photons_min)[o, :], self.source.batch_size, axis=0)
 
             tensor_in = \
                 tf.data.TFRecordDataset(file).map(lambda x:
                                                             tf.io.parse_tensor(x,
                                                                                out_type=fd.float_type()))
 
-            result = 0.
             for tensor in tensor_in:
-                result = tf.repeat(tensor, self.source.batch_size, axis=1)
+                quanta_tensor = tensor
 
         def compute_single_energy(args, approx=False):
             # Compute the block for a single energy.
