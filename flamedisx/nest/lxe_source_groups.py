@@ -13,7 +13,7 @@ o = tf.newaxis
 
 
 class BlockModelSourceGroup(fd.BlockModelSource):
-    def batched_differential_rate(self, progress=True, read_in=None, **params):
+    def batched_differential_rate(self, progress=True, read_in_dir=None, **params):
         """Return numpy array with differential rate for all events.
         """
         progress = (lambda x: x) if not progress else tqdm
@@ -22,7 +22,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
-            energies, results = self.differential_rate(data_tensor=q, read_in=read_in, **params)
+            energies, results = self.differential_rate(data_tensor=q, read_in_dir=read_in_dir, **params)
 
             energies_all.extend(fd.tf_to_np(energies))
             results_all.extend(np.transpose(fd.tf_to_np(results)))
@@ -103,7 +103,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         return ({return_dims: results[return_dims]}), already_stepped
 
-    def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims, already_stepped, read_in=None):
+    def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims, already_stepped, read_in_dir=None):
         results = {}
 
         for b in self.model_blocks:
@@ -128,7 +128,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
             # Compute the block
             if b.__class__ in self.model_blocks_read_in:
-                r = b.compute(data_tensor, ptensor, read_in=read_in, **kwargs)
+                r = b.compute(data_tensor, ptensor, read_in_dir=read_in_dir, **kwargs)
             else:
                 r = b.compute(data_tensor, ptensor, **kwargs)
 
@@ -185,12 +185,12 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         return energies, results
 
-    def _differential_rate_read_in(self, data_tensor, ptensor, read_in=None):
+    def _differential_rate_read_in(self, data_tensor, ptensor, read_in_dir=None):
         already_stepped = ()  # Avoid double-multiplying to account for stepping
 
         left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
         right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
-        centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped, read_in=read_in)
+        centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped, read_in_dir=read_in_dir)
 
         assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
 

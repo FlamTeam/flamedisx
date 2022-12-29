@@ -5,6 +5,8 @@ import tensorflow_probability as tfp
 import pandas as pd
 import operator
 
+import glob
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -45,17 +47,26 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  # Dependency domain and value
                  energy, rate_vs_energy,
                  write_out=None,
-                 read_in=None):
+                 read_in_dir=None):
 
-        if read_in is not None:
+        def get_file(energy):
+            for file in glob.glob(f'{read_in_dir}/*_energy_{energy:.1f}_*'):
+                return file
+
+        def compute_single_energy_read_in(energy):
+            file = get_file(energy)
+
+            electrons_domain = electrons_produced[:, :, 0, 0]
+            photons_domain = photons_produced[:, 0,:, 0]
+
             tensor_in = \
-                tf.data.TFRecordDataset(read_in).map(lambda x:
-                                                               tf.io.parse_tensor(x,
-                                                                                  out_type=fd.float_type()))
+                tf.data.TFRecordDataset(file).map(lambda x:
+                                                            tf.io.parse_tensor(x,
+                                                                               out_type=fd.float_type()))
+
             result = 0.
             for tensor in tensor_in:
                 result = tf.repeat(tensor, self.source.batch_size, axis=1)
-            return result
 
         def compute_single_energy(args, approx=False):
             # Compute the block for a single energy.
@@ -225,7 +236,7 @@ class SGMakePhotonsElectronsNR(fd.Block):
             else:
                 result_combine = result_approx_tensor
 
-            tensor_out = tf.io.serialize_tensor(result_combine)
+            tensor_out = tf.io.serialize_tensor(result_combine[0, 0, :, :])
             with tf.io.TFRecordWriter(write_out) as writer:
                 writer.write(tensor_out.numpy())
         else:
@@ -238,6 +249,10 @@ class SGMakePhotonsElectronsNR(fd.Block):
 
             # Combine the results over energies
             result_combine = tf.concat([result_full, result_approx], axis=0)
+
+            if read_in_dir is not None:
+                for energy in energy[0, :]:
+                    compute_single_energy_read_in(energy)
 
             return result_combine
 
