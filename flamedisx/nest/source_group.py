@@ -48,7 +48,6 @@ class SourceGroup:
 
     def get_diff_rates(self, read_in=None):
         if read_in is not None:
-            # assert set(('photons_produced', 'electrons_produced', 'energy')).issubset(self.base_source.no_step_dimensions)
 
             parts = read_in.split('_')
             self.base_source.data['electrons_produced_min'] = int(parts[6])
@@ -114,7 +113,7 @@ class SourceGroup:
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
-            write_out = f'central_block_central_energy_{energy}_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}'
+            write_out = f'central_block_energy_{energy}_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}'
             kwargs['write_out'] = write_out
 
             b._compute(self.base_source.data_tensor[0], None, **kwargs)
