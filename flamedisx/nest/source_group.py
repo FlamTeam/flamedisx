@@ -46,25 +46,9 @@ class SourceGroup:
 
         self.base_source.set_data(data, ignore_priors=True, data_is_annotated=data_is_annotated)
 
-    def get_diff_rates(self, read_in=None):
-        if read_in is not None:
-
-            parts = read_in.split('_')
-            self.base_source.data['electrons_produced_min'] = int(parts[6])
-            self.base_source.data['electrons_produced_max'] = int(parts[7])
-            self.base_source.data['photons_produced_min'] = int(parts[9])
-            self.base_source.data['photons_produced_max'] = int(parts[10])
-            self.base_source.data['energy_min'] = float(parts[12])
-            self.base_source.data['energy_max'] = float(parts[13])
-
-            self.base_source.model_blocks[1]._annotate_special(self.base_source.data)
-            self.base_source._calculate_dimsizes()
-
-            data = self.base_source.data[:self.base_source.n_events].copy()
-            self.base_source.set_data(data, data_is_annotated=True)
-
-            energies, diff_rates = self.base_source.batched_differential_rate(read_in=read_in, autograph=False)
-
+    def get_diff_rates(self, read_in_dir=None):
+        if read_in_dir is not None:
+            energies, diff_rates = self.base_source.batched_differential_rate(read_in_dir=read_in_dir, autograph=False)
         else:
             energies, diff_rates = self.base_source.batched_differential_rate()
 
@@ -75,10 +59,7 @@ class SourceGroup:
 
         self.base_source.data = self.base_source.data[:self.base_source.n_events]
 
-        if read_in is None:
-            self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
-        else:
-            return energies_diff_rates_all
+        self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
 
     def cache_central_block(self, central_block_class, energy, electrons_min, electrons_max, photons_min, photons_max):
         assert self.base_source.batch_size == 1, "Need the batch size of the base source to be 1"
@@ -102,6 +83,11 @@ class SourceGroup:
 
         self.base_source.set_data(self.base_source.data, data_is_annotated=True)
 
+        electrons_steps = int(self.base_source.data['electrons_produced_steps'].iloc[0])
+        electrons_dimsize = int(self.base_source.data['electrons_produced_dimsizes'].iloc[0])
+
+        photons_steps = int(self.base_source.data['photons_produced_steps'].iloc[0])
+        photons_dimsize = int(self.base_source.data['photons_produced_dimsizes'].iloc[0])
 
         for b in self.base_source.model_blocks:
             if b.__class__ != central_block_class:
@@ -113,7 +99,7 @@ class SourceGroup:
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
-            write_out = f'central_block_energy_{energy}_electrons_{electrons_min}_{electrons_max}_photons_{photons_min}_{photons_max}'
+            write_out = f'central_block_energy_{energy}_electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_photons_{photons_min}_{photons_steps}_{photons_dimsize}'
             kwargs['write_out'] = write_out
 
             b._compute(self.base_source.data_tensor[0], None, **kwargs)

@@ -634,7 +634,7 @@ class Source:
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
             y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
-                                                        read_in=None,
+                                                        read_in_dir=None,
                                                         **params)))
 
         return np.concatenate(y)[:self.n_events]
@@ -658,16 +658,16 @@ class Source:
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
-            if kwargs['read_in'] is not None:
+            if kwargs['read_in_dir'] is not None:
                 return self._differential_rate_read_in_tf(
-                    data_tensor=data_tensor, ptensor=ptensor, read_in=kwargs['read_in'])
+                    data_tensor=data_tensor, ptensor=ptensor, read_in_dir=kwargs['read_in_dir'])
             else:
                 return self._differential_rate_tf(
                     data_tensor=data_tensor, ptensor=ptensor)
         else:
-            if kwargs['read_in'] is not None:
+            if kwargs['read_in_dir'] is not None:
                 return self._differential_rate_read_in(
-                    data_tensor=data_tensor, ptensor=ptensor, read_in=kwargs['read_in'])
+                    data_tensor=data_tensor, ptensor=ptensor, read_in_dir=kwargs['read_in_dir'])
             else:
                 return self._differential_rate(
                     data_tensor=data_tensor, ptensor=ptensor)
