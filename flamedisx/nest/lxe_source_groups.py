@@ -247,11 +247,12 @@ class nestERSourceGroup(BlockModelSourceGroup, fd_nest.nestERSource):
         fd_nest.SGMakePhotonsElectronER,)
 
     def __init__(self, caching=False, **kwargs):
-        super().__init__(**kwargs)
-
         if caching is True:
-            self.max_dim_sizes['electrons_produced'] = 150
-            self.max_dim_sizes['photons_produced'] = 150
+            self.no_step_dimensions = self.no_step_dimensions + \
+                ('photons_produced',
+                 'electrons_produced')
+
+        super().__init__(**kwargs)
 
 
 @export
