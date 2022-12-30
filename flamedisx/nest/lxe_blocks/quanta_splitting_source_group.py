@@ -80,6 +80,37 @@ class SGMakePhotonsElectronsNR(fd.Block):
             for tensor in tensor_in:
                 quanta_tensor = tensor
 
+            paddings = tf.constant([[0, 1,], [0, 1]])
+            quanta_tensor = tf.pad(quanta_tensor, paddings, "CONSTANT")
+
+            electrons_closest = tf.searchsorted(electrons_full, electrons_domain, side='right') - 1
+            photons_closest = tf.searchsorted(photons_full, photons_domain, side='right') - 1
+            electrons_closest = tf.where(electrons_closest >= 0, electrons_closest, 0)
+            photons_closest = tf.where(photons_closest >= 0, photons_closest, 0)
+
+            electrons_keep = tf.logical_and(electrons_domain >= electrons_full[0, 0], electrons_domain <= electrons_full[0, -1])
+            electrons_closest = tf.where(electrons_keep, electrons_closest, (tf.shape(quanta_tensor)[0] - 1) * tf.ones_like(electrons_closest))
+            photons_keep = tf.logical_and(photons_domain >= photons_full[0, 0], photons_domain <= photons_full[0, -1])
+            photons_closest = tf.where(photons_keep, photons_closest, (tf.shape(quanta_tensor)[1] - 1) * tf.ones_like(photons_closest))
+
+            results = []
+            for electrons_idx, photons_idx in zip(electrons_closest, photons_closest):
+                gather = tf.stack(tf.meshgrid(electrons_idx, photons_idx, indexing='ij'), axis=-1)
+                results.append(tf.gather_nd(indices=gather, params=quanta_tensor)[o, :, :])
+
+            result = tf.concat(results, axis=0)
+
+            return result
+
+        if read_in_dir is not None:
+            results = []
+            for energy_ in energy[0, :]:
+                results.append(compute_single_energy_read_in(energy_)[o, :, :, :])
+
+            result = tf.concat(results, axis=0)
+
+            return result
+
         def compute_single_energy(args, approx=False):
             # Compute the block for a single energy.
             # Set approx to True for an approximate computation at higher energies
@@ -261,10 +292,6 @@ class SGMakePhotonsElectronsNR(fd.Block):
 
             # Combine the results over energies
             result_combine = tf.concat([result_full, result_approx], axis=0)
-
-            if read_in_dir is not None:
-                for energy in energy[0, :]:
-                    compute_single_energy_read_in(energy)
 
             return result_combine
 
