@@ -50,7 +50,8 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  read_in_dir=None):
 
         def get_file(energy):
-            for file in glob.glob(f'{read_in_dir}/*_energy_{energy:.1f}_*'):
+            for file in glob.glob(f'{read_in_dir}/*_energy_10.0_*'):
+            # for file in glob.glob(f'{read_in_dir}/*_energy_{energy:.1f}_*'):
                 return file
 
         def compute_single_energy_read_in(energy):
@@ -77,6 +78,7 @@ class SGMakePhotonsElectronsNR(fd.Block):
                                                             tf.io.parse_tensor(x,
                                                                                out_type=fd.float_type()))
 
+            quanta_tensor = 0.
             for tensor in tensor_in:
                 quanta_tensor = tensor
 
@@ -93,21 +95,13 @@ class SGMakePhotonsElectronsNR(fd.Block):
             photons_keep = tf.logical_and(photons_domain >= photons_full[0, 0], photons_domain <= photons_full[0, -1])
             photons_closest = tf.where(photons_keep, photons_closest, (tf.shape(quanta_tensor)[1] - 1) * tf.ones_like(photons_closest))
 
-            results = []
-            for electrons_idx, photons_idx in zip(electrons_closest, photons_closest):
-                gather = tf.stack(tf.meshgrid(electrons_idx, photons_idx, indexing='ij'), axis=-1)
-                results.append(tf.gather_nd(indices=gather, params=quanta_tensor)[o, :, :])
-
-            result = tf.concat(results, axis=0)
+            temp = tf.stack(tf.map_fn(lambda x: tf.meshgrid(x[0], x[1], indexing='ij'), elems=[electrons_closest, photons_closest]), axis=-1)
+            result = tf.map_fn(lambda x: tf.gather_nd(indices=x, params=quanta_tensor), elems=temp, dtype=fd.float_type())
 
             return result
 
         if read_in_dir is not None:
-            results = []
-            for energy_ in energy[0, :]:
-                results.append(compute_single_energy_read_in(energy_)[o, :, :, :])
-
-            result = tf.concat(results, axis=0)
+            result = tf.map_fn(compute_single_energy_read_in, elems=energy)
 
             return result
 
