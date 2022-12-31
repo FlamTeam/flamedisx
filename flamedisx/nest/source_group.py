@@ -48,7 +48,7 @@ class SourceGroup:
 
     def get_diff_rates(self, read_in_dir=None):
         if read_in_dir is not None:
-            energies, diff_rates = self.base_source.batched_differential_rate(read_in_dir=read_in_dir, autograph=False)
+            energies, diff_rates = self.base_source.batched_differential_rate(read_in_dir=read_in_dir)
         else:
             energies, diff_rates = self.base_source.batched_differential_rate()
 
