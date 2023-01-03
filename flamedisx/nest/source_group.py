@@ -2,8 +2,11 @@ import typing as ty
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 from copy import deepcopy
+
+import glob
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -48,7 +51,32 @@ class SourceGroup:
 
     def get_diff_rates(self, read_in_dir=None):
         if read_in_dir is not None:
-            energies, diff_rates = self.base_source.batched_differential_rate(read_in_dir=read_in_dir)
+            quanta_tensor_dict = dict()
+
+            for file in glob.glob(f'{read_in_dir}/*'):
+                parts = file.split('/')[-1].split('_')
+
+                energy = parts[3]
+
+                electrons_min = int(parts[5])
+                electrons_steps = int(parts[6])
+                electrons_dimsize = int(parts[7])
+
+                photons_min = int(parts[9])
+                photons_steps = int(parts[10])
+                photons_dimsize = int(parts[11])
+
+                tensor_in = \
+                    tf.data.TFRecordDataset(file).map(lambda x:
+                                                                tf.io.parse_tensor(x,
+                                                                                   out_type=fd.float_type()))
+
+                for tensor in tensor_in:
+                    quanta_tensor = tensor
+
+                quanta_tensor_dict[energy] = quanta_tensor
+
+            energies, diff_rates = self.base_source.batched_differential_rate(quanta_tensor_dict=quanta_tensor_dict)
         else:
             energies, diff_rates = self.base_source.batched_differential_rate()
 
