@@ -47,7 +47,9 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  # Dependency domain and value
                  energy, rate_vs_energy,
                  write_out=None,
-                 quanta_tensors=None):
+                 quanta_tensors=None,
+                 electrons_full=None,
+                 photons_full=None):
 
         def get_file():
             for file in glob.glob(f'/Users/Robert/QuantaTensors/*_energy_3.6_*'):

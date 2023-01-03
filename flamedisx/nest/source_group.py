@@ -10,6 +10,7 @@ import glob
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
+o = tf.newaxis
 
 
 @export
@@ -52,6 +53,8 @@ class SourceGroup:
     def get_diff_rates(self, read_in_dir=None):
         if read_in_dir is not None:
             quanta_tensor_dict = dict()
+            electrons_full_dict = dict()
+            photons_full_dict = dict()
 
             for file in glob.glob(f'{read_in_dir}/*'):
                 parts = file.split('/')[-1].split('_')
@@ -66,17 +69,22 @@ class SourceGroup:
                 photons_steps = int(parts[10])
                 photons_dimsize = int(parts[11])
 
-                tensor_in = \
-                    tf.data.TFRecordDataset(file).map(lambda x:
-                                                                tf.io.parse_tensor(x,
-                                                                                   out_type=fd.float_type()))
+                electrons_full = tf.repeat(((tf.range(electrons_dimsize) * electrons_steps) + electrons_min)[o, :], self.base_source.batch_size, axis=0)
+                photons_full = tf.repeat(((tf.range(photons_dimsize) * photons_steps) + photons_min)[o, :], self.base_source.batch_size, axis=0)
 
+                electrons_full_dict[energy] = electrons_full
+                photons_full_dict[energy] = photons_full
+
+                tensor_in = \
+                    tf.data.TFRecordDataset(file).map(lambda x: tf.io.parse_tensor(x, out_type=fd.float_type()))
                 for tensor in tensor_in:
                     quanta_tensor = tensor
 
                 quanta_tensor_dict[energy] = quanta_tensor
 
-            energies, diff_rates = self.base_source.batched_differential_rate(quanta_tensor_dict=quanta_tensor_dict)
+            energies, diff_rates = self.base_source.batched_differential_rate(quanta_tensor_dict=quanta_tensor_dict,
+                                                                              electrons_full_dict=electrons_full_dict,
+                                                                              photons_full_dict=photons_full_dict)
         else:
             energies, diff_rates = self.base_source.batched_differential_rate()
 
