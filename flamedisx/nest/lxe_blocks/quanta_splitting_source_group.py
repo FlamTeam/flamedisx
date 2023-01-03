@@ -47,15 +47,14 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  # Dependency domain and value
                  energy, rate_vs_energy,
                  write_out=None,
-                 read_in_dir=None):
+                 quanta_tensors=None):
 
-        def get_file(energy):
-            for file in glob.glob(f'{read_in_dir}/*_energy_10.0_*'):
-            # for file in glob.glob(f'{read_in_dir}/*_energy_{energy:.1f}_*'):
+        def get_file():
+            for file in glob.glob(f'/Users/Robert/QuantaTensors/*_energy_3.6_*'):
                 return file
 
-        def compute_single_energy_read_in(energy):
-            file = get_file(energy)
+        def compute_single_energy_read_in(quanta_tensor_test):
+            file = get_file()
 
             electrons_domain = tf.cast(electrons_produced[:, :, 0, 0], fd.int_type())
             photons_domain = tf.cast(photons_produced[:, 0,:, 0], fd.int_type())
@@ -100,8 +99,10 @@ class SGMakePhotonsElectronsNR(fd.Block):
 
             return result
 
-        if read_in_dir is not None:
-            result = tf.map_fn(compute_single_energy_read_in, elems=energy)
+        if quanta_tensors is not None:
+            shape = [self.source.batch_size, None, None]
+            spec = tf.TensorSpec(shape=shape, dtype=fd.float_type())
+            result = tf.map_fn(compute_single_energy_read_in, elems=quanta_tensors, fn_output_signature=spec)
 
             return result
 

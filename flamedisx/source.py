@@ -634,7 +634,7 @@ class Source:
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
             y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
-                                                        read_in_dir=None,
+                                                        quanta_tensors=None,
                                                         **params)))
 
         return np.concatenate(y)[:self.n_events]
@@ -658,16 +658,16 @@ class Source:
     def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
-            if kwargs['read_in_dir'] is not None:
+            if kwargs['quanta_tensors'] is not None:
                 return self._differential_rate_read_in_tf(
-                    data_tensor=data_tensor, ptensor=ptensor, read_in_dir=kwargs['read_in_dir'])
+                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'])
             else:
                 return self._differential_rate_tf(
                     data_tensor=data_tensor, ptensor=ptensor)
         else:
-            if kwargs['read_in_dir'] is not None:
+            if kwargs['quanta_tensors'] is not None:
                 return self._differential_rate_read_in(
-                    data_tensor=data_tensor, ptensor=ptensor, read_in_dir=kwargs['read_in_dir'])
+                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'])
             else:
                 return self._differential_rate(
                     data_tensor=data_tensor, ptensor=ptensor)
@@ -774,7 +774,7 @@ class Source:
     def _differential_rate(self, data_tensor, ptensor):
         raise NotImplementedError
 
-    def _differential_rate_read_in(self, data_tensor, ptensor):
+    def _differential_rate_read_in(self, data_tensor, ptensor, quanta_tensors):
         raise NotImplementedError
 
     def mu_before_efficiencies(self, **params):
