@@ -5,8 +5,6 @@ import tensorflow_probability as tfp
 import pandas as pd
 import operator
 
-import glob
-
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -51,37 +49,13 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  electrons_full=None,
                  photons_full=None):
 
-        def get_file():
-            for file in glob.glob(f'/Users/Robert/QuantaTensors/*_energy_3.6_*'):
-                return file
-
-        def compute_single_energy_read_in(quanta_tensor_test):
-            file = get_file()
-
+        def compute_single_energy_read_in(args):
             electrons_domain = tf.cast(electrons_produced[:, :, 0, 0], fd.int_type())
             photons_domain = tf.cast(photons_produced[:, 0,:, 0], fd.int_type())
 
-            parts = file.split('/')[-1].split('_')
-
-            electrons_min = int(parts[5])
-            electrons_steps = int(parts[6])
-            electrons_dimsize = int(parts[7])
-
-            photons_min = int(parts[9])
-            photons_steps = int(parts[10])
-            photons_dimsize = int(parts[11])
-
-            electrons_full = tf.repeat(((tf.range(electrons_dimsize) * electrons_steps) + electrons_min)[o, :], self.source.batch_size, axis=0)
-            photons_full = tf.repeat(((tf.range(photons_dimsize) * photons_steps) + photons_min)[o, :], self.source.batch_size, axis=0)
-
-            tensor_in = \
-                tf.data.TFRecordDataset(file).map(lambda x:
-                                                            tf.io.parse_tensor(x,
-                                                                               out_type=fd.float_type()))
-
-            quanta_tensor = 0.
-            for tensor in tensor_in:
-                quanta_tensor = tensor
+            quanta_tensor = args[0].to_tensor()
+            electrons_full = args[1].to_tensor()
+            photons_full = args[2].to_tensor()
 
             paddings = tf.constant([[0, 1,], [0, 1]])
             quanta_tensor = tf.pad(quanta_tensor, paddings, "CONSTANT")
@@ -104,7 +78,8 @@ class SGMakePhotonsElectronsNR(fd.Block):
         if quanta_tensors is not None:
             shape = [self.source.batch_size, None, None]
             spec = tf.TensorSpec(shape=shape, dtype=fd.float_type())
-            result = tf.map_fn(compute_single_energy_read_in, elems=quanta_tensors, fn_output_signature=spec)
+            result = tf.map_fn(compute_single_energy_read_in, elems=[quanta_tensors, electrons_full, photons_full],
+                               fn_output_signature=spec)
 
             return result
 
