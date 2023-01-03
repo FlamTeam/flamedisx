@@ -635,6 +635,8 @@ class Source:
             q = self.data_tensor[i_batch]
             y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
                                                         quanta_tensors=None,
+                                                        electrons_full=None,
+                                                        photons_full=None
                                                         **params)))
 
         return np.concatenate(y)[:self.n_events]
@@ -660,14 +662,16 @@ class Source:
         if autograph and self.trace_difrate:
             if kwargs['quanta_tensors'] is not None:
                 return self._differential_rate_read_in_tf(
-                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'])
+                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'],
+                    electrons_full=kwargs['electrons_full'], photons_full=kwargs['photons_full'])
             else:
                 return self._differential_rate_tf(
                     data_tensor=data_tensor, ptensor=ptensor)
         else:
             if kwargs['quanta_tensors'] is not None:
                 return self._differential_rate_read_in(
-                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'])
+                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'],
+                    electrons_full=kwargs['electrons_full'], photons_full=kwargs['photons_full'])
             else:
                 return self._differential_rate(
                     data_tensor=data_tensor, ptensor=ptensor)
@@ -774,7 +778,8 @@ class Source:
     def _differential_rate(self, data_tensor, ptensor):
         raise NotImplementedError
 
-    def _differential_rate_read_in(self, data_tensor, ptensor, quanta_tensors):
+    def _differential_rate_read_in(self, data_tensor, ptensor,
+                                   quanta_tensors, electrons_full, photons_full):
         raise NotImplementedError
 
     def mu_before_efficiencies(self, **params):
