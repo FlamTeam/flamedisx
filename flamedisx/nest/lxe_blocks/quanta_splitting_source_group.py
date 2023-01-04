@@ -253,6 +253,15 @@ class SGMakePhotonsElectronsNR(fd.Block):
             else:
                 result_combine = result_approx_tensor
 
+            # We want to account for the ion stepping here
+            steps = self.source._fetch('ions_produced_steps', data_tensor=data_tensor)
+            step_mul = tf.repeat(steps[:, o], tf.shape(result_combine)[1], axis=1)
+            step_mul = tf.repeat(step_mul[:, :, o],
+                                 tf.shape(result_combine)[2], axis=2)
+            step_mul = tf.repeat(step_mul[:, :, :, o],
+                                 tf.shape(result_combine)[3], axis=3)
+            result_combine *= step_mul
+
             tensor_out = tf.io.serialize_tensor(result_combine[0, 0, :, :])
             with tf.io.TFRecordWriter(write_out) as writer:
                 writer.write(tensor_out.numpy())
