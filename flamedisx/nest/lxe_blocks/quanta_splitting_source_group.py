@@ -71,7 +71,9 @@ class SGMakePhotonsElectronsNR(fd.Block):
             photons_closest = tf.where(photons_keep, photons_closest, (tf.shape(quanta_tensor)[1] - 1) * tf.ones_like(photons_closest))
 
             temp = tf.stack(tf.map_fn(lambda x: tf.meshgrid(x[0], x[1], indexing='ij'), elems=[electrons_closest, photons_closest]), axis=-1)
-            result = tf.map_fn(lambda x: tf.gather_nd(indices=x, params=quanta_tensor), elems=temp, dtype=fd.float_type())
+            shape = [None, None]
+            spec = tf.TensorSpec(shape=shape, dtype=fd.float_type())
+            result = tf.map_fn(lambda x: tf.gather_nd(indices=x, params=quanta_tensor), elems=temp, fn_output_signature=spec)
 
             return result
 

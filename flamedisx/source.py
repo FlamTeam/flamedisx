@@ -636,7 +636,7 @@ class Source:
             y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
                                                         quanta_tensors=None,
                                                         electrons_full=None,
-                                                        photons_full=None
+                                                        photons_full=None,
                                                         **params)))
 
         return np.concatenate(y)[:self.n_events]
