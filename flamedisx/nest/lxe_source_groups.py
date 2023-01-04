@@ -211,7 +211,8 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
     def _differential_rate_read_in(self, data_tensor, ptensor,
                                    quanta_tensors, electrons_full, photons_full):
-        already_stepped = ()  # Avoid double-multiplying to account for stepping
+        already_stepped = ('ions_produced',)  # Avoid double-multiplying to account for stepping.
+        # We have already accounted for the ion stepping
 
         left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
         right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
