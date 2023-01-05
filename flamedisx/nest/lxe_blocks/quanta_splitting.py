@@ -349,7 +349,8 @@ class MakePhotonsElectronsNR(fd.Block):
 
             if 'energy' not in self.source.no_step_dimensions:
                 index_step = np.round(np.linspace(0, len(energies_trim) - 1,
-                                                  min(len(energies_trim), self.source.max_dim_sizes['energy']))).astype(int)
+                                                  min(len(energies_trim),
+                                                      self.source.max_dim_sizes['energy']))).astype(int)
                 # Keep only the ion bounds corresponding to the energies in the stepped + trimmed
                 # spectrum for this batch
                 ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))

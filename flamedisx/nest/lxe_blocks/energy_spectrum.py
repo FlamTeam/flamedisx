@@ -46,7 +46,6 @@ class EnergySpectrum(fd.FirstBlock):
         else:
             energies_trim_step = energies_trim
 
-
         return {self.dimensions[0]: tf.repeat(energies_trim_step[o, :],
                                               self.source.batch_size,
                                               axis=0)}
@@ -339,9 +338,9 @@ class VariableEnergySpectrum(EnergySpectrum):
         left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
         right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
         bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
-                                             tf.less_equal(self.energies, right_bound))
+                                   tf.less_equal(self.energies, right_bound))
         spectrum_trim = tf.boolean_mask(self.gimme('energy_spectrum',
-                                                   data_tensor=data_tensor, ptensor=ptensor),
+                                        data_tensor=data_tensor, ptensor=ptensor),
                                         bool_mask,
                                         axis=1)
         if 'energy' not in self.source.no_step_dimensions:
