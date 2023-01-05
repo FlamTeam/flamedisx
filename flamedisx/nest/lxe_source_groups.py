@@ -15,7 +15,9 @@ o = tf.newaxis
 class BlockModelSourceGroup(fd.BlockModelSource):
     def batched_differential_rate(self, progress=True, quanta_tensor_dict=None,
                                   electrons_full_dict=None, photons_full_dict=None, **params):
-        """Return numpy array with differential rate for all events.
+        """Return probabilities of events in a dataset given mono-energetic deposists for all energies
+        in the base_source stepped/trimmed spectrum for every batch.
+        Can optionally pass arguments to read in pre-computed values for the central block.
         """
         progress = (lambda x: x) if not progress else tqdm
         energies_all = []
@@ -29,6 +31,8 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                 electrons_full = []
                 photons_full = []
 
+                # Grab the saved central block values for the relevant energies, along with the electron and
+                # photon domains corresponding to the saved values
                 for energy in fd.tf_to_np(self.model_blocks[0].domain(data_tensor=q)['energy'][0]):
                     quanta_tensors.append(quanta_tensor_dict[str(energy)])
                     electrons_full.append(electrons_full_dict[str(energy)])
@@ -46,6 +50,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                                                        electrons_full=electrons_full, photons_full=photons_full,
                                                        **params)
 
+            # Return the energies and probabilities we are evaluating
             energies_all.extend(fd.tf_to_np(energies))
             results_all.extend(np.transpose(fd.tf_to_np(results)))
 
@@ -67,8 +72,12 @@ class BlockModelSourceGroup(fd.BlockModelSource):
         raise BlockNotFoundError(f"No block with {has_dim} found!")
 
     def _differential_rate_edges(self, data_tensor, ptensor, blocks, return_dims, already_stepped):
+        """Multiply and store the probabilities corresponding to the blocks left and right of
+        the central block.
+        """
         results = {}
 
+        # Ensure we only compute the relevant blocks
         for b in self.model_blocks:
             if b.__class__ not in blocks:
                 continue
@@ -127,8 +136,13 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
     def _differential_rate_central(self, data_tensor, ptensor, blocks, return_dims, already_stepped,
                                    quanta_tensors=None, electrons_full=None, photons_full=None):
+        """Store the probabilities of the central block for all energies in the base_source stepped/
+        trimmed spectrum for every batch.
+        Can optionally pass arguments to read in pre-computed values for this block.
+        """
         results = {}
 
+        # Ensure we only compute the relevant blocks
         for b in self.model_blocks:
             if b.__class__ not in blocks:
                 continue
@@ -149,7 +163,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                 kwargs[dependency_name] = results[dependency_dims]
                 kwargs.update(self._domain_dict(dependency_dims, data_tensor))
 
-            # Compute the block
+            # Compute the block, optionally reading in pre-computed values
             if b.__class__ in self.model_blocks_read_in:
                 r = b.compute(data_tensor, ptensor, quanta_tensors=quanta_tensors,
                               electrons_full=electrons_full, photons_full=photons_full, **kwargs)
@@ -176,10 +190,15 @@ class BlockModelSourceGroup(fd.BlockModelSource):
         return ({return_dims: results[return_dims]}), already_stepped
 
     def _differential_rate(self, data_tensor, ptensor):
-        already_stepped = ()  # Avoid double-multiplying to account for stepping
+        """"Computation of probabilities of a batch of events given mono-energetic deposists
+        for all energies in the base_source stepped/trimmed spectrum for this batch.
+        """
+        already_stepped = ()  # Avoid double-multiplying when accounting for stepping
 
+        # We compute the left and right block multiplications once
         left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
         right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
+        # We compute the central block for every energy in the base_source stepped/trimmed spectrum for this batch
         centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped)
 
         assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
@@ -190,6 +209,9 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         left_block = next(iter(left.items()))[1]
         right_block = next(iter(right.items()))[1]
+
+        # We mutliply the pre-computed left/right block multiplication results with the central block
+        # corresponding to each energy, and retur those energies/results
 
         results_collection = tf.TensorArray(fd.float_type(), size=0, dynamic_size=True)
 
@@ -211,11 +233,17 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
     def _differential_rate_read_in(self, data_tensor, ptensor,
                                    quanta_tensors, electrons_full, photons_full):
-        already_stepped = ('ions_produced',)  # Avoid double-multiplying to account for stepping.
+        """"Computation of probabilities of a batch of events given mono-energetic deposists
+        for all energies in the base_source stepped/trimmed spectrum for this batch.
+        We execute this function when reading in values for the central block.
+        """
+        already_stepped = ('ions_produced',)  # Avoid double-multiplying when accounting for stepping.
         # We have already accounted for the ion stepping
 
+        # We compute the left and right block multiplications once
         left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
         right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
+        # We compute the central block for every energy in the base_source stepped/trimmed spectrum for this batch
         centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped,
                                                     quanta_tensors=quanta_tensors, electrons_full=electrons_full, photons_full=photons_full)
 
@@ -227,6 +255,9 @@ class BlockModelSourceGroup(fd.BlockModelSource):
 
         left_block = next(iter(left.items()))[1]
         right_block = next(iter(right.items()))[1]
+
+        # We mutliply the pre-computed left/right block multiplication results with the central block
+        # corresponding to each energy, and retur those energies/results
 
         results_collection = tf.TensorArray(fd.float_type(), size=0, dynamic_size=True)
 
@@ -303,3 +334,11 @@ class nestNRSourceGroup(BlockModelSourceGroup, fd_nest.nestNRSource):
 
     model_blocks_read_in = (
         fd_nest.SGMakePhotonsElectronsNR,)
+
+    def __init__(self, caching=False, **kwargs):
+        if caching is True:
+            self.no_step_dimensions = self.no_step_dimensions + \
+                ('photons_produced',
+                 'electrons_produced')
+
+        super().__init__(**kwargs)
