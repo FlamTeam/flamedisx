@@ -6,8 +6,6 @@ import os
 import flamedisx as fd
 from .. import nest as fd_nest
 
-import pandas as pd
-
 import math as m
 pi = tf.constant(m.pi)
 
@@ -505,20 +503,6 @@ class nestERGammaWeightedSource(nestERSource):
         nel_beta = tf.cast(nestERSource.mean_yield_electron(self, energy), fd.float_type())
 
         return nel_gamma * weightG + nel_beta * weightB
-
-
-@export
-class testSource(nestERSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'default'
-
-        df_test = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/test_spectrum.pkl'))
-
-        self.energies = tf.convert_to_tensor(df_test['energy_keV'].values, dtype=fd.float_type())
-        self.rates_vs_energy = tf.convert_to_tensor(df_test['spectrum_value_norm'].values, dtype=fd.float_type())
-
-        super().__init__(*args, **kwargs)
 
 
 @export
