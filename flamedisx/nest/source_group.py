@@ -1,7 +1,4 @@
-import typing as ty
-
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 from copy import deepcopy
@@ -44,14 +41,17 @@ class SourceGroup:
         # We replace the central block with a specialised version to be used in the source group computation
         if type(self.base_source.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsNR:
             self.base_source.model_blocks = (self.base_source.model_blocks[0],) + \
-                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self.base_source, ignore_shape_assertion=True),) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self.base_source,
+                 ignore_shape_assertion=True),) + \
                 self.base_source.model_blocks[2:]
         elif type(self.base_source.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER:
             self.base_source.model_blocks = (self.base_source.model_blocks[0],) + \
-                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self.base_source, ignore_shape_assertion=True),) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self.base_source,
+                 ignore_shape_assertion=True),) + \
                 self.base_source.model_blocks[2:]
         else:
-            raise RuntimeError(f"Cannot handle the current block logic passing {type(source_group_type).__name__} to SourceGroup")
+            raise RuntimeError(f"Cannot handle the current block logic passing {type(source_group_type).__name__} "
+                               "to SourceGroup")
 
         if data is not None:
             self.set_data(data)
@@ -88,8 +88,10 @@ class SourceGroup:
                 photons_steps = int(parts[10])
                 photons_dimsize = int(parts[11])
 
-                electrons_full = tf.repeat(((tf.range(electrons_dimsize) * electrons_steps) + electrons_min)[o, :], self.base_source.batch_size, axis=0)
-                photons_full = tf.repeat(((tf.range(photons_dimsize) * photons_steps) + photons_min)[o, :], self.base_source.batch_size, axis=0)
+                electrons_full = tf.repeat(((tf.range(electrons_dimsize) * electrons_steps) + electrons_min)[o, :],
+                                           self.base_source.batch_size, axis=0)
+                photons_full = tf.repeat(((tf.range(photons_dimsize) * photons_steps) + photons_min)[o, :],
+                                         self.base_source.batch_size, axis=0)
 
                 electrons_full_dict[energy] = electrons_full
                 photons_full_dict[energy] = photons_full
@@ -172,12 +174,15 @@ class SourceGroup:
             # Gather the kwargs for the central block computation
             kwargs = dict()
             kwargs.update(self.base_source._domain_dict(('energy',), self.base_source.data_tensor[0]))
-            kwargs['rate_vs_energy'] = self.base_source.model_blocks[0]._compute(self.base_source.data_tensor[0], None, energy=None)
+            kwargs['rate_vs_energy'] = self.base_source.model_blocks[0]._compute(self.base_source.data_tensor[0],
+                                                                                 None, energy=None)
             kwargs.update(self.base_source._domain_dict(b.dimensions, self.base_source.data_tensor[0]))
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
             # Create the filename the block will be saved under
-            write_out = f'central_block_energy_{energy}_electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_photons_{photons_min}_{photons_steps}_{photons_dimsize}'
+            write_out = f'central_block_energy_{energy}_' + \
+                f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
+                f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
             kwargs['write_out'] = write_out
 
             # Compute and save the block
@@ -201,8 +206,10 @@ class SourceGroup:
         """
         this_source = deepcopy(source)
 
-        assert self.base_source.batch_size == this_source.batch_size, "source_group_type and source must have the same batch size"
-        assert (fd.tf_to_np(self.base_source.energies) == fd.tf_to_np(source.energies)).all(), "source_group_type and source must have the same energies in their spectra"
+        assert self.base_source.batch_size == this_source.batch_size, \
+            "source_group_type and source must have the same batch size"
+        assert (fd.tf_to_np(self.base_source.energies) == fd.tf_to_np(source.energies)).all(), \
+            "source_group_type and source must have the same energies in their spectra"
 
         this_source.set_data(self.base_source.data, data_is_annotated=True)
 
@@ -212,11 +219,15 @@ class SourceGroup:
             # Grab the probabilities of events in this batch under its set of trimmed/stepped energies.
             # Grab also the spectrum values of the source under those energies
             if i_batch == this_source.n_batches - 1:
-                energies_diff_rates = self.base_source.data['energies_diff_rates'][i_batch * self.base_source.batch_size::].values
+                energies_diff_rates = \
+                    self.base_source.data['energies_diff_rates'][i_batch * self.base_source.batch_size::].values
                 spectrum_values = fd.tf_to_np(this_source.model_blocks[0]._compute(q, None, energy=None))
 
             else:
-                energies_diff_rates = self.base_source.data['energies_diff_rates'][i_batch * self.base_source.batch_size:(i_batch + 1) * self.base_source.batch_size]
+                energies_diff_rates = \
+                    self.base_source.data['energies_diff_rates'][i_batch *
+                                                                 self.base_source.batch_size:(i_batch + 1) *
+                                                                 self.base_source.batch_size]
                 spectrum_values = fd.tf_to_np(this_source.model_blocks[0]._compute(q, None, energy=None))
 
             # Multiply the probabilities and spectrum values together and sum to obtain the differential rates

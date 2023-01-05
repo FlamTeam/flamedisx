@@ -196,10 +196,16 @@ class BlockModelSourceGroup(fd.BlockModelSource):
         already_stepped = ()  # Avoid double-multiplying when accounting for stepping
 
         # We compute the left and right block multiplications once
-        left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
-        right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
+        left, already_stepped = self._differential_rate_edges(data_tensor, ptensor,
+                                                              self.model_blocks_left,
+                                                              ('s1', 'photons_produced'), already_stepped)
+        right, already_stepped = self._differential_rate_edges(data_tensor, ptensor,
+                                                               self.model_blocks_right,
+                                                               ('s2', 'electrons_produced'), already_stepped)
         # We compute the central block for every energy in the base_source stepped/trimmed spectrum for this batch
-        centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped)
+        centre, _ = self._differential_rate_central(data_tensor, ptensor,
+                                                    self.model_blocks_centre,
+                                                    ('electrons_produced', 'photons_produced'), already_stepped)
 
         assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
 
@@ -241,11 +247,18 @@ class BlockModelSourceGroup(fd.BlockModelSource):
         # We have already accounted for the ion stepping
 
         # We compute the left and right block multiplications once
-        left, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_left, ('s1', 'photons_produced'), already_stepped)
-        right, already_stepped = self._differential_rate_edges(data_tensor, ptensor, self.model_blocks_right, ('s2', 'electrons_produced'), already_stepped)
+        left, already_stepped = self._differential_rate_edges(data_tensor, ptensor,
+                                                              self.model_blocks_left,
+                                                              ('s1', 'photons_produced'), already_stepped)
+        right, already_stepped = self._differential_rate_edges(data_tensor, ptensor,
+                                                               self.model_blocks_right,
+                                                               ('s2', 'electrons_produced'), already_stepped)
         # We compute the central block for every energy in the base_source stepped/trimmed spectrum for this batch
-        centre, _ = self._differential_rate_central(data_tensor, ptensor, self.model_blocks_centre, ('electrons_produced', 'photons_produced'), already_stepped,
-                                                    quanta_tensors=quanta_tensors, electrons_full=electrons_full, photons_full=photons_full)
+        centre, _ = self._differential_rate_central(data_tensor, ptensor,
+                                                    self.model_blocks_centre,
+                                                    ('electrons_produced', 'photons_produced'), already_stepped,
+                                                    quanta_tensors=quanta_tensors,
+                                                    electrons_full=electrons_full, photons_full=photons_full)
 
         assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
 

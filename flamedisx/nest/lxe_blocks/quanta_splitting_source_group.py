@@ -54,7 +54,7 @@ class SGMakePhotonsElectronsNR(fd.Block):
             """
             # Domains that have been computed from the data
             electrons_domain = tf.cast(electrons_produced[:, :, 0, 0], fd.int_type())
-            photons_domain = tf.cast(photons_produced[:, 0,:, 0], fd.int_type())
+            photons_domain = tf.cast(photons_produced[:, 0, :, 0], fd.int_type())
 
             # Read in quanta tensor, and corresponding domains
             quanta_tensor = args[0].to_tensor()
@@ -62,7 +62,7 @@ class SGMakePhotonsElectronsNR(fd.Block):
             photons_full = args[2].to_tensor()
 
             # We pad to ensure we fill in 0 when the domains extend outside the pre-computed domains
-            paddings = tf.constant([[0, 1,], [0, 1]])
+            paddings = tf.constant([[0, 1], [0, 1]])
             quanta_tensor = tf.pad(quanta_tensor, paddings, "CONSTANT")
 
             # Find the indexes in the stored quanta tensor corresponding to the domain values.
@@ -72,16 +72,22 @@ class SGMakePhotonsElectronsNR(fd.Block):
             photons_closest = tf.where(photons_closest >= 0, photons_closest, 0)
 
             # Read in the padded zeroes when the domains extend outside the pre-computed domains
-            electrons_keep = tf.logical_and(electrons_domain >= electrons_full[0, 0], electrons_domain <= electrons_full[0, -1])
-            electrons_closest = tf.where(electrons_keep, electrons_closest, (tf.shape(quanta_tensor)[0] - 1) * tf.ones_like(electrons_closest))
-            photons_keep = tf.logical_and(photons_domain >= photons_full[0, 0], photons_domain <= photons_full[0, -1])
-            photons_closest = tf.where(photons_keep, photons_closest, (tf.shape(quanta_tensor)[1] - 1) * tf.ones_like(photons_closest))
+            electrons_keep = tf.logical_and(electrons_domain >= electrons_full[0, 0],
+                                            electrons_domain <= electrons_full[0, -1])
+            electrons_closest = tf.where(electrons_keep, electrons_closest,
+                                         (tf.shape(quanta_tensor)[0] - 1) * tf.ones_like(electrons_closest))
+            photons_keep = tf.logical_and(photons_domain >= photons_full[0, 0],
+                                          photons_domain <= photons_full[0, -1])
+            photons_closest = tf.where(photons_keep, photons_closest,
+                                       (tf.shape(quanta_tensor)[1] - 1) * tf.ones_like(photons_closest))
 
             # Grab the pre-computed quanta tensor values corresponding to the indices
-            temp = tf.stack(tf.map_fn(lambda x: tf.meshgrid(x[0], x[1], indexing='ij'), elems=[electrons_closest, photons_closest]), axis=-1)
+            temp = tf.stack(tf.map_fn(lambda x: tf.meshgrid(x[0], x[1], indexing='ij'),
+                                      elems=[electrons_closest, photons_closest]), axis=-1)
             shape = [None, None]
             spec = tf.TensorSpec(shape=shape, dtype=fd.float_type())
-            result = tf.map_fn(lambda x: tf.gather_nd(indices=x, params=quanta_tensor), elems=temp, fn_output_signature=spec)
+            result = tf.map_fn(lambda x: tf.gather_nd(indices=x, params=quanta_tensor),
+                               elems=temp, fn_output_signature=spec)
 
             return result
 
@@ -429,7 +435,8 @@ class SGMakePhotonsElectronsNR(fd.Block):
 
             if 'energy' not in self.source.no_step_dimensions:
                 index_step = np.round(np.linspace(0, len(energies_trim) - 1,
-                                                  min(len(energies_trim), self.source.max_dim_sizes['energy']))).astype(int)
+                                                  min(len(energies_trim),
+                                                      self.source.max_dim_sizes['energy']))).astype(int)
                 # Keep only the ion bounds corresponding to the energies in the stepped + trimmed
                 # spectrum for this batch
                 ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
