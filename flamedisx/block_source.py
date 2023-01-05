@@ -62,13 +62,14 @@ class Block:
     #: for variable tensor stepping
     max_dim_size: ty.Dict[str, int] = dict()
 
-    def __init__(self, source):
+    def __init__(self, source, ignore_shape_assertion=False):
         self.source = source
         assert len(self.dimensions) in (1, 2), \
             "Blocks must output 1 or 2 dimensions"
         # Currently only support 1 bonus_dimension per block
         assert len(self.bonus_dimensions) <= 1, \
             f"{self} has >1 extra dimension!"
+        self.ignore_shape_assertion = ignore_shape_assertion
 
     # Redirect all model attribute queries to the linked source,
     # as soon as one exists, and has the relevant attribute.
@@ -121,8 +122,9 @@ class Block:
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
-        # assert len(result.shape) == len(self.dimensions) + 1, \
-        #     f"{self}._compute returned tensor of wrong rank!"
+        if not self.ignore_shape_assertion:
+            assert len(result.shape) == len(self.dimensions) + 1, \
+                f"{self}._compute returned tensor of wrong rank!"
         return result
 
     def simulate(self, d: pd.DataFrame):
