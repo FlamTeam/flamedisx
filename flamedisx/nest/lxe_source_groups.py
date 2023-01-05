@@ -207,7 +207,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                                                     self.model_blocks_centre,
                                                     ('electrons_produced', 'photons_produced'), already_stepped)
 
-        assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
+        assert (len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
 
         left_dims = next(iter(left))
         right_dims = next(iter(right))
@@ -260,7 +260,7 @@ class BlockModelSourceGroup(fd.BlockModelSource):
                                                     quanta_tensors=quanta_tensors,
                                                     electrons_full=electrons_full, photons_full=photons_full)
 
-        assert(len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
+        assert (len(left.keys()) == len(right.keys()) == len(centre.keys()) == 1)
 
         left_dims = next(iter(left))
         right_dims = next(iter(right))
