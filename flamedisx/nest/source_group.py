@@ -33,11 +33,11 @@ class SourceGroup:
 
         if type(self.base_source.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsNR:
             self.base_source.model_blocks = (self.base_source.model_blocks[0],) + \
-                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self.base_source),) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self.base_source, ignore_shape_assertion=True),) + \
                 self.base_source.model_blocks[2:]
         elif type(self.base_source.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER:
             self.base_source.model_blocks = (self.base_source.model_blocks[0],) + \
-                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self.base_source),) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self.base_source, ignore_shape_assertion=True),) + \
                 self.base_source.model_blocks[2:]
         else:
             raise RuntimeError(f"Cannot handle the current block logic passing {type(source_group_type).__name__} to SourceGroup")
