@@ -634,9 +634,6 @@ class Source:
         for i_batch in progress(range(self.n_batches)):
             q = self.data_tensor[i_batch]
             y.append(fd.tf_to_np(self.differential_rate(data_tensor=q,
-                                                        quanta_tensors=None,
-                                                        electrons_full=None,
-                                                        photons_full=None,
                                                         **params)))
 
         return np.concatenate(y)[:self.n_events]
@@ -657,21 +654,23 @@ class Source:
         self._differential_rate_read_in_tf = tf.function(
             self._differential_rate_read_in)
 
-    def differential_rate(self, data_tensor=None, autograph=True, **kwargs):
+    def differential_rate(self, data_tensor=None, autograph=True,
+                          quanta_tensors=None, electrons_full=None,
+                          photons_full=None, **kwargs):
         ptensor = self.ptensor_from_kwargs(**kwargs)
         if autograph and self.trace_difrate:
-            if kwargs['quanta_tensors'] is not None:
+            if quanta_tensors is not None:
                 return self._differential_rate_read_in_tf(
-                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'],
-                    electrons_full=kwargs['electrons_full'], photons_full=kwargs['photons_full'])
+                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=quanta_tensors,
+                    electrons_full=electrons_full, photons_full=photons_full)
             else:
                 return self._differential_rate_tf(
                     data_tensor=data_tensor, ptensor=ptensor)
         else:
-            if kwargs['quanta_tensors'] is not None:
+            if quanta_tensors is not None:
                 return self._differential_rate_read_in(
-                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=kwargs['quanta_tensors'],
-                    electrons_full=kwargs['electrons_full'], photons_full=kwargs['photons_full'])
+                    data_tensor=data_tensor, ptensor=ptensor, quanta_tensors=quanta_tensors,
+                    electrons_full=electrons_full, photons_full=photons_full)
             else:
                 return self._differential_rate(
                     data_tensor=data_tensor, ptensor=ptensor)
@@ -792,7 +791,7 @@ class Source:
     # Functions you probably should override
     ##
 
-    def _annotate(self):
+    def _annotate(self, **kwargs):
         """Add columns needed in inference to self.data
         """
 
