@@ -48,7 +48,6 @@ resource_cache
 # Data
 *.pkl
 *.csv
-!flamedisx/nest/background_spectra/*.pkl
 
 # Apple
 .DS_Store
