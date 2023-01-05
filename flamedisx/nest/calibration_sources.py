@@ -3,9 +3,6 @@
 """
 import tensorflow as tf
 
-import os
-import pandas as pd
-
 import flamedisx as fd
 from . import lxe_sources as fd_nest
 
@@ -35,7 +32,8 @@ class CH3TSource(fd_nest.nestERSource):
 
         B = tf.sqrt(energies**2 + 2. * energies * m_e) / (energies + m_e)
         x = (2. * pi * ZZ * aa) * (energies + m_e) / tf.sqrt(energies**2 + 2. * energies * m_e)
-        spectrum = tf.sqrt(2. * energies * m_e) * (energies + m_e) * (qValue - energies) * (qValue - energies) * x * (1. / (1. - tf.exp(-x))) * (1.002037 - 0.001427 * B)
+        spectrum = tf.sqrt(2. * energies * m_e) * (energies + m_e) * (qValue - energies) * \
+            (qValue - energies) * x * (1. / (1. - tf.exp(-x))) * (1.002037 - 0.001427 * B)
         spectrum = spectrum / tf.math.reduce_max(spectrum)
 
         self.energies = tf.cast(energies, fd.float_type())

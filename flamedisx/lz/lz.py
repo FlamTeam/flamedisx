@@ -135,8 +135,8 @@ class LZSource:
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
 
-        if (self.s1_map_LZAP is not None) and (self.s2_map_LZAP is not None) \
-        and (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
+        if (self.s1_map_LZAP is not None) and (self.s2_map_LZAP is not None) and \
+                (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             d['s1_pos_corr_LZAP'] = self.s1_map_LZAP(
                 np.transpose([d['x'].values,
                               d['y'].values,
