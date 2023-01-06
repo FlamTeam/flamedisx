@@ -353,7 +353,6 @@ class Source:
                  input_column_index=None,
                  input_data_tensor=None,
                  output_data_tensor=None,
-                 ignore_priors=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  **params):
