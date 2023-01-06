@@ -308,3 +308,11 @@ class LZB8Source(LZSource, fd.nest.B8Source):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
         super().__init__(*args, **kwargs)
+
+
+@export
+class LZERSourceGroup(LZSource, fd.nest.nestERSourceGroup):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
