@@ -656,7 +656,8 @@ class Source:
             self._differential_rate,
             input_signature=input_signature)
         self._differential_rate_read_in_tf = tf.function(
-            self._differential_rate_read_in)
+            self._differential_rate_read_in,
+            reduce_retracing=True)
 
     def differential_rate(self, data_tensor=None, autograph=True,
                           quanta_tensors=None, electrons_full=None,
