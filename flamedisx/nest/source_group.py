@@ -208,6 +208,8 @@ class SourceGroup:
 
         assert self.base_source.batch_size == this_source.batch_size, \
             "source_group_type and source must have the same batch size"
+        assert len(fd.tf_to_np(self.base_source.energies)) == len(fd.tf_to_np(source.energies)), \
+            "source_group_type and source must have the same energies in their spectra"
         assert (fd.tf_to_np(self.base_source.energies) == fd.tf_to_np(source.energies)).all(), \
             "source_group_type and source must have the same energies in their spectra"
 
