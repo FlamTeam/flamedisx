@@ -103,9 +103,9 @@ class FrequentistIntervalRatesOnlyTemplates():
         except:
             print('Conditional fit failed')
             print(guess_dict)
-            data = likelihood.data
+            data = likelihood.sources[signal_source_name].data
             print(data)
-            data.to_picke('data_fail.pkl')
+            data.to_pickle('data_fail.pkl')
             raise
         try:
             # Uncnditional fit
@@ -113,9 +113,9 @@ class FrequentistIntervalRatesOnlyTemplates():
         except:
             print('Conditional fit failed')
             print(guess_dict)
-            data = likelihood.data
+            data = likelihood.sources[signal_source_name].data
             print(data)
-            data.to_picke('data_fail.pkl')
+            data.to_pickle('data_fail.pkl')
             raise
 
         ll_conditional = likelihood(**bf_conditional)
