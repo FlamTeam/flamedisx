@@ -98,9 +98,9 @@ class FrequentistIntervalRatesOnlyTemplates():
         guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
 
         # Conditional fit
-         bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
-         # Uncnditional fit
-         bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
+        bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
+        # Uncnditional fit
+        bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)
