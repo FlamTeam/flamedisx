@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import flamedisx as fd
 import numpy as np
 from scipy import stats
@@ -216,8 +218,8 @@ class FrequentistIntervalRatesOnlyTemplates():
                     constraint /= np.sum(constraint)
 
                 elif f'{background_source}_rate_multiplier' in self.other_constraints:
-                    domain = self.other_constraints[f'{background_source}_rate_multiplier'][0]
-                    constraint = self.other_constraints[f'{background_source}_rate_multiplier'][1]
+                    domain = deepcopy(self.other_constraints[f'{background_source}_rate_multiplier'])[0]
+                    constraint = deepcopy(self.other_constraints[f'{background_source}_rate_multiplier'])[1]
                     assert np.shape(domain) == np.shape(constraint), \
                         'Shapes of contraint domain and values do not match'
                     assert isclose(np.sum(constraint), 1.), \
