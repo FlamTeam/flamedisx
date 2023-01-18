@@ -255,7 +255,11 @@ class FrequentistIntervalRatesOnly():
                 constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
                 constraint /= np.sum(constraint)
 
-                # Sample background RMs from constraint functions
+                # Sample background RMs from constraint functions. Remove first and last elements of domain to
+                # avoid finite precision when casting leading to guesses outside the bounds, if the endpoints
+                # are drawn
+                domain = domain[1:-1]
+                constraint = constraint[1:-1]
                 draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
                 rm_value_dict[f'{background_source}_rate_multiplier'] = draw
                 # Recall: we want to shift the constraint in the likelihood based on the background RMs we draw
