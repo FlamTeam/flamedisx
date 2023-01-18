@@ -97,26 +97,10 @@ class FrequentistIntervalRatesOnlyTemplates():
         guess_dict_nuisance = guess_dict.copy()
         guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
 
-        try:
-            # Conditional fit
-            bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
-        except:
-            print('Conditional fit failed')
-            print(guess_dict)
-            data = likelihood.sources[signal_source_name].data
-            print(data)
-            data.to_pickle('data_fail.pkl')
-            raise
-        try:
-            # Uncnditional fit
-            bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
-        except:
-            print('Conditional fit failed')
-            print(guess_dict)
-            data = likelihood.sources[signal_source_name].data
-            print(data)
-            data.to_pickle('data_fail.pkl')
-            raise
+        # Conditional fit
+         bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
+         # Uncnditional fit
+         bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)
@@ -246,7 +230,11 @@ class FrequentistIntervalRatesOnlyTemplates():
                     constraint = np.ones_like(domain)
                     constraint /= np.sum(constraint)
 
-                # Sample background RMs from constraint functions
+                # Sample background RMs from constraint functions. Remove first and last elements of domain to
+                # avoid finite precision when casting leading to guesses outside the bounds, if the endpoints
+                # are drawn
+                domain = domain[1:-1]
+                constraint = constraint[1:-1]
                 draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
                 rm_value_dict[f'{background_source}_rate_multiplier'] = draw
                 # Recall: we want to shift the constraint in the likelihood based on the background RMs we draw
