@@ -235,6 +235,7 @@ class FrequentistIntervalRatesOnlyTemplates():
                 # are drawn
                 domain = domain[1:-1]
                 constraint = constraint[1:-1]
+                constraint /= np.sum(constraint)
                 draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
                 rm_value_dict[f'{background_source}_rate_multiplier'] = draw
                 # Recall: we want to shift the constraint in the likelihood based on the background RMs we draw
