@@ -517,7 +517,7 @@ class Source:
         if data_tensor is None:
             # We're inside annotate, just return the column
             x = self.data[x].values
-            if x.dtype == np.object:
+            if x.dtype == object:
                 # This will only work on homogeneous array fields
                 x = np.stack(x)
             return fd.np_to_tf(x)
