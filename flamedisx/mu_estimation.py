@@ -96,6 +96,8 @@ class CrossInterpolatedMu(MuEstimator):
                  dtype=fd.float_type())
 
     def __call__(self, **kwargs):
+        kwargs = {param_name: kwargs[param_name] for param_name in self.bounds}
+        
         mu = self.base_mu
         for pname, v in kwargs.items():
             mu *= tfp.math.interp_regular_1d_grid(
@@ -215,7 +217,7 @@ class CombinedMu(MuEstimator):
 
         # Get base mus: mus estimated at the default values by the different
         # estimators
-        self.base_mus = [e() for e in self.estimators.values()]
+        self.base_mus = [e(**source.defaults) for e in self.estimators.values()]
         # Compute the mean. TODO: weight appropriately if n_trials varies?
         self.mean_base_mu = float(np.mean(self.base_mus))
 
