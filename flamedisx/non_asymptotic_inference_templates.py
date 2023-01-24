@@ -26,9 +26,9 @@ class FrequentistIntervalRatesOnlyTemplates():
         - arguments: dictionary {sourcename: {kwarg1: value, ...}, ...}, for
             passing keyword arguments to source constructors
         - batch_size: batch size that will be used for the RM fits
-        - rate_gaussian_constraints: dictionary {sourcename: (mu, sigma)} to pass the mean and width for
-            any Gaussian constraints on background rate multipliers
-        - other_constraints:
+        - expected_background_counts:
+        - gaussian_constraint_widths
+        - sample_other_constraints:
         - rm_bounds: dictionary {sourcename: (lower, upper)} to set fit bounds on the rate multipliers
         - ntoys: number of toys that will be run to get test statistic distributions
         - log_constraint_fn:
@@ -41,8 +41,9 @@ class FrequentistIntervalRatesOnlyTemplates():
             sources: ty.Dict[str, fd.Source.__class__],
             arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
             batch_size=10000,
-            rate_gaussian_constraints: ty.Dict[str, ty.Tuple[float, float]] = None,
-            other_constraints: ty.Dict[str, ty.Tuple[NDArray[float], NDArray[float]]] = None,
+            expected_background_counts: ty.Dict[str, float] = None,
+            gaussian_constraint_widths: ty.Dict[str, float] = None,
+            sample_other_constraints=None,
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             ntoys=1000,
             log_constraint_fn=None):
@@ -51,11 +52,11 @@ class FrequentistIntervalRatesOnlyTemplates():
             if key not in arguments.keys():
                 arguments[key] = dict()
 
-        if rate_gaussian_constraints is None:
-            rate_gaussian_constraints = dict()
+        if gaussian_constraint_widths is None:
+            gaussian_constraints_widths = dict()
 
-        if other_constraints is None:
-            other_constraints = dict()
+        if sample_other_constraints is None:
+            sample_other_constraints = dict()
 
         if rm_bounds is None:
             rm_bounds = dict()
@@ -76,10 +77,9 @@ class FrequentistIntervalRatesOnlyTemplates():
         self.ntoys = ntoys
         self.batch_size = batch_size
 
-        self.rate_gaussian_constraints = {f'{key}_rate_multiplier': value for
-                                          key, value in rate_gaussian_constraints.items()}
-        self.other_constraints = {f'{key}_rate_multiplier': value for
-                                  key, value in other_constraints.items()}
+        self.expected_background_counts = expected_background_counts
+        self.gaussian_constraint_widths = gaussian_constraint_widths
+        self.sample_other_constraints = sample_other_constraints
         self.rm_bounds = rm_bounds
 
         self.test_stat_dists = dict()
@@ -129,14 +129,12 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         self.test_stat_dists = dict()
         unconditional_best_fits = dict()
-        # test_stats_no_signal = dict()
-        # unconditional_best_fits_no_signal = dict()
+        constraint_central_values = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             test_stat_dists = dict()
             unconditional_bfs = dict()
-            # ts_no_signal = dict()
-            # unconditional_bfs_no_signal = dict()
+            constraint_vals = dict()
 
             sources = dict()
             arguments = dict()
@@ -156,13 +154,9 @@ class FrequentistIntervalRatesOnlyTemplates():
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
                 rm_bounds[signal_source] = self.rm_bounds[signal_source]
-            else:
-                rm_bounds[signal_source] = (0., None)
             for background_source in self.background_source_names:
                 if background_source in self.rm_bounds.keys():
                     rm_bounds[background_source] = self.rm_bounds[background_source]
-                else:
-                    rm_bounds[background_source] = (0., None)
 
             # Pass rate multiplier bounds to likelihood
             likelihood.set_rate_multiplier_bounds(**rm_bounds)
@@ -178,95 +172,67 @@ class FrequentistIntervalRatesOnlyTemplates():
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood)
                 test_stat_dists[mu_test] = ts_dist[0]
                 unconditional_bfs[mu_test] = ts_dist[1]
-                # ts_no_signal[mu_test] = ts_dist[2]
-                # unconditional_bfs_no_signal[mu_test] = ts_dist[3]
+                constraint_vals[mu_test] = ts_dist[2]
 
             self.test_stat_dists[signal_source] = test_stat_dists
             unconditional_best_fits[signal_source] = unconditional_bfs
-            # test_stats_no_signal[signal_source] = ts_no_signal
-            # unconditional_best_fits_no_signal[signal_source] = unconditional_bfs_no_signal
+            constraint_central_values[signal_source] = constraint_vals
 
         # Output test statistic distributions and fits
         if dists_output_name is not None:
             pkl.dump(self.test_stat_dists, open(dists_output_name, 'wb'))
             pkl.dump(unconditional_best_fits, open(dists_output_name[:-4] + '_fits.pkl', 'wb'))
-            # pkl.dump(test_stats_no_signal, open(dists_output_name[:-4] + '_no_signal.pkl', 'wb'))
-            # pkl.dump(test_stats_no_signal, open(dists_output_name[:-4] + '_fits_no_signal.pkl', 'wb'))
+            pkl.dump(constraint_central_values, open(dists_output_name[:-4] + '_constraint_central_values.pkl', 'wb'))
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood):
         """Internal function to get a test statistic distribution for a given signal source
         and signal RM.
         """
-        rm_value_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        simulate_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
 
         ts_values = []
         unconditional_bfs = []
-        # ts_values_no_signal = []
-        # unconditional_bfs_no_signal = []
+        constraint_vals = []
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
                 # Prepare to sample background RMs from constraint functions
-                if f'{background_source}_rate_multiplier' in self.rate_gaussian_constraints:
-                    assert background_source in self.rm_bounds.keys(), \
-                        'Must provide bounds when using a Gaussian constraint'
-                    domain = np.linspace(self.rm_bounds[background_source][0], self.rm_bounds[background_source][1], 1000)
-                    gaussian_constraint = self.rate_gaussian_constraints[f'{background_source}_rate_multiplier']
-                    constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
-                    constraint /= np.sum(constraint)
+                if background_source in self.gaussian_constraint_widths:
+                    draw = stats.norm.rvs(loc=self.expected_background_counts[background_source],
+                                          scale = self.gaussian_constraint_widths[background_source])
+                    constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
-                elif f'{background_source}_rate_multiplier' in self.other_constraints:
-                    domain = deepcopy(self.other_constraints[f'{background_source}_rate_multiplier'])[0]
-                    constraint = deepcopy(self.other_constraints[f'{background_source}_rate_multiplier'])[1]
-                    assert np.shape(domain) == np.shape(constraint), \
-                        'Shapes of contraint domain and values do not match'
-                    assert isclose(np.sum(constraint), 1.), \
-                        'Constraint values should sum to 1'
+                elif background_source in self.sample_other_constraints:
+                    draw = self.sample_other_constraints[background_source](self.expected_background_counts[background_source])
+                    constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
-                else:
-                    assert background_source in self.rm_bounds.keys(), \
-                        'Must provide bounds if no constraint provided'
-                    domain = np.linspace(self.rm_bounds[background_source][0], self.rm_bounds[background_source][1], 1000)
-                    constraint = np.ones_like(domain)
-                    constraint /= np.sum(constraint)
-
-                # Sample background RMs from constraint functions. Remove first and last elements of domain to
-                # avoid finite precision when casting leading to guesses outside the bounds, if the endpoints
-                # are drawn
-                domain = domain[1:-1]
-                constraint = constraint[1:-1]
-                constraint /= np.sum(constraint)
-                draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
-                rm_value_dict[f'{background_source}_rate_multiplier'] = draw
-                # Recall: we want to shift the constraint in the likelihood based on the background RMs we draw
-                if f'{background_source}_rate_multiplier' in self.rate_gaussian_constraints:
-                    constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
-                        (draw, tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1],
-                                       fd.float_type()))
-                elif f'{background_source}_rate_multiplier' in self.other_constraints:
-                    constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
-                        (draw, 0.)
+                simulate_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
 
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args)
 
             # Simulate and set data
-            toy_data = likelihood.simulate(**rm_value_dict)
+            toy_data = likelihood.simulate(**simulate_dict)
 
             likelihood.set_data(toy_data)
 
-            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, rm_value_dict)
+            for key, value in simulate_dict.items():
+                if value < 0.1:
+                    simulate_dict[key] = 0.1
+
+            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, simulate_dict)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
 
-            # if len(toy_data[toy_data['source'] == signal_source_name]) == 0:
-            #     ts_values_no_signal.append(ts_result[0])
-            #     unconditional_bfs_no_signal.append(ts_result[1])
+            constraint_vals_dict = dict()
+            for key, value in constraint_extra_args.items():
+                constraint_vals_dict[key] = fd.tf_to_np(value)
+            constraint_vals.append(constraint_vals_dict)
 
         # Return the test statistic and unconditional best fit
-        return ts_values, unconditional_bfs #, ts_values_no_signal, unconditional_bfs_no_signal
+        return ts_values, unconditional_bfs, constraint_vals
 
     def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None,
                                 mu_estimators=None):
