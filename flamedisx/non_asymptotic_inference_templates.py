@@ -234,8 +234,7 @@ class FrequentistIntervalRatesOnlyTemplates():
         # Return the test statistic and unconditional best fit
         return ts_values, unconditional_bfs, constraint_vals
 
-    def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None,
-                                mu_estimators=None):
+    def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None):
         """Get observed test statistics.
 
         Arguments:
@@ -245,8 +244,6 @@ class FrequentistIntervalRatesOnlyTemplates():
             - input_test_stats: path to input observed test statistics, if we wish to pass this
             - test_stats_output_name: name of file in which to save observed test statistics,
                 if this is desired
-            - mu_estimators: dictionary {sourcename: fd.ConstantMu(SourceClass, mu)} if we want to use
-                the same pre-estimated mus as those used for the test statistic distribitions
         """
         if input_test_stats is not None:
             # Read in observed test statistics
@@ -262,62 +259,56 @@ class FrequentistIntervalRatesOnlyTemplates():
             observed_test_stats = dict()
 
             sources = dict()
+            arguments = dict()
             for background_source in self.background_source_names:
                 sources[background_source] = self.sources[background_source]
+                arguments[background_source] = self.arguments[background_source]
             sources[signal_source] = self.sources[signal_source]
+            arguments[signal_source] = self.arguments[signal_source]
 
-            # Create likelihood of regular flamedisx sources
-            likelihood_full = fd.LogLikelihood(sources=sources,
-                                               progress=False,
-                                               batch_size=self.batch_size_diff_rate,
-                                               free_rates=tuple([sname for sname in sources.keys()]),
-                                               mu_estimators=mu_estimators)
+            # Create likelihood of TemplateSources
+            likelihood = fd.LogLikelihood(sources=sources,
+                                          arguments=arguments,
+                                          progress=False,
+                                          batch_size=self.batch_size,
+                                          free_rates=tuple([sname for sname in sources.keys()]))
 
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
                 rm_bounds[signal_source] = self.rm_bounds[signal_source]
-            else:
-                rm_bounds[signal_source] = (0., None)
             for background_source in self.background_source_names:
                 if background_source in self.rm_bounds.keys():
                     rm_bounds[background_source] = self.rm_bounds[background_source]
-                else:
-                    rm_bounds[background_source] = (0., None)
 
             # Pass rate multiplier bounds to likelihood
-            likelihood_full.set_rate_multiplier_bounds(**rm_bounds)
+            likelihood.set_rate_multiplier_bounds(**rm_bounds)
 
-            # Set up Gaussian log constraint for background rate multipliers
-            def log_constraint(**kwargs):
-                log_constraint = sum(-0.5 * ((value - kwargs[f'{key}_constraint'][0]) /
-                                     kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items()
-                                     if key in self.rate_gaussian_constraints.keys())
-                return log_constraint
-            likelihood_full.set_log_constraint(log_constraint)
+            # Pass constraint function to likelihood
+            likelihood.set_log_constraint(self.log_constraint_fn)
 
+            # The constraints are centered on the expected values
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
-                constraint_extra_args[f'{background_source}_rate_multiplier_constraint'] = \
-                    (tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][0],
-                             fd.float_type()),
-                     tf.cast(self.rate_gaussian_constraints[f'{background_source}_rate_multiplier'][1],
-                             fd.float_type()))
+                constraint_extra_args[f'{background_source}_expected_counts'] = self.expected_background_counts[background_source]
 
-            # The constraints are not shifted here
-            likelihood_full.set_constraint_extra_args(**constraint_extra_args)
+            likelihood.set_constraint_extra_args(**constraint_extra_args)
 
             # Set data
-            likelihood_full.set_data(data)
-
-            # Set the guesses
-            guess_dict = {f'{signal_source}_rate_multiplier': 0.}
-            for background_source in self.background_source_names:
-                guess_dict[f'{background_source}_rate_multiplier'] = 1.
+            likelihood.set_data(data)
 
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
-                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood_full, guess_dict)[0]
+                # Set the guesses
+                guess_dict = {f'{signal_source}_rate_multiplier': mu_test}
+                for background_source in self.background_source_names:
+                    guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
+
+                for key, value in guess_dict.items():
+                    if value < 0.1:
+                        guess_dict[key] = 0.1
+
+                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood, guess_dict)[0]
 
             self.observed_test_stats[signal_source] = observed_test_stats
 
