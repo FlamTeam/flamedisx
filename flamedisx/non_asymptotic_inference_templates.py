@@ -84,6 +84,7 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         self.test_stat_dists = dict()
         self.observed_test_stats = dict()
+        self.conditional_best_fits = dict()
         self.p_vals = dict()
 
         self.sources = sources
@@ -108,9 +109,9 @@ class FrequentistIntervalRatesOnlyTemplates():
         ll_unconditional = likelihood(**bf_unconditional)
 
         # Return the test statistic
-        return -2. * (ll_conditional - ll_unconditional), bf_unconditional
+        return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional
 
-    def get_test_stat_dists(self, mus_test=None, input_dists=None, dists_output_name=None):
+    def get_test_stat_dists(self, mus_test=None, input_dists=None, dists_output_name=None, use_expected_nuisance=False):
         """Get test statistic distributions.
 
         Arguments:
@@ -169,7 +170,7 @@ class FrequentistIntervalRatesOnlyTemplates():
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
-                ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood)
+                ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood, use_expected_nuisance)
                 test_stat_dists[mu_test] = ts_dist[0]
                 unconditional_bfs[mu_test] = ts_dist[1]
                 constraint_vals[mu_test] = ts_dist[2]
@@ -184,7 +185,7 @@ class FrequentistIntervalRatesOnlyTemplates():
             pkl.dump(unconditional_best_fits, open(dists_output_name[:-4] + '_fits.pkl', 'wb'))
             pkl.dump(constraint_central_values, open(dists_output_name[:-4] + '_constraint_central_values.pkl', 'wb'))
 
-    def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood):
+    def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood, use_expected_nuisance):
         """Internal function to get a test statistic distribution for a given signal source
         and signal RM.
         """
@@ -198,17 +199,24 @@ class FrequentistIntervalRatesOnlyTemplates():
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
-                # Prepare to sample background RMs from constraint functions
+                # Case where we use the conditional best fits as constraint centers and simulated values
+                if use_expected_nuisance is False:
+                    expected_background_counts = self.conditional_best_fits[signal_source_name][mu_test][f'{background_source}_rate_multiplier']
+                # Case where we use the prior expected counts as constraint centers and simualted values
+                else:
+                    expected_background_counts = self.expected_background_counts[background_source]
+
+                # Sample constraint centers
                 if background_source in self.gaussian_constraint_widths:
-                    draw = stats.norm.rvs(loc=self.expected_background_counts[background_source],
+                    draw = stats.norm.rvs(loc=expected_background_counts,
                                           scale = self.gaussian_constraint_widths[background_source])
                     constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
                 elif background_source in self.sample_other_constraints:
-                    draw = self.sample_other_constraints[background_source](self.expected_background_counts[background_source])
+                    draw = self.sample_other_constraints[background_source](expected_background_counts)
                     constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
-                simulate_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
+                simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
 
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args)
@@ -254,9 +262,11 @@ class FrequentistIntervalRatesOnlyTemplates():
         assert data is not None, 'Must pass in data'
 
         self.observed_test_stats = dict()
+        self.conditional_best_fits = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             observed_test_stats = dict()
+            conditional_best_fits = dict()
 
             sources = dict()
             arguments = dict()
@@ -308,9 +318,12 @@ class FrequentistIntervalRatesOnlyTemplates():
                     if value < 0.1:
                         guess_dict[key] = 0.1
 
-                observed_test_stats[mu_test] = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood, guess_dict)[0]
+                ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood, guess_dict)
+                observed_test_stats[mu_test] = ts_result[0]
+                conditional_best_fits[mu_test] = ts_result[2]
 
             self.observed_test_stats[signal_source] = observed_test_stats
+            self.conditional_best_fits[signal_source] = conditional_best_fits
 
             # Output observed test statistics
             if test_stats_output_name is not None:
@@ -326,8 +339,6 @@ class FrequentistIntervalRatesOnlyTemplates():
             test_stat_dists = self.test_stat_dists[signal_source]
             observed_test_stats = self.observed_test_stats[signal_source]
 
-            assert len(test_stat_dists) > 0, f'Must generate test statistic distributions first for {signal_source}'
-            assert len(observed_test_stats) > 0, f'Must calculate observed test statistics first for {signal_source}'
             assert test_stat_dists.keys() == observed_test_stats.keys(), \
                 f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
                 'the same mu values'
