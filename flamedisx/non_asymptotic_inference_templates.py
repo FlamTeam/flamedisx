@@ -111,22 +111,27 @@ class FrequentistIntervalRatesOnlyTemplates():
         # Return the test statistic
         return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional
 
-    def get_test_stat_dists(self, mus_test=None, input_dists=None, dists_output_name=None, use_expected_nuisance=False):
+    def get_test_stat_dists(self, mus_test=None, input_dists=None, input_conditional_best_fits=None,
+                            dists_output_name=None, use_expected_nuisance=False):
         """Get test statistic distributions.
 
         Arguments:
             - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
                 to be tested for each signal source
             - input_dists: path to input test statistic distributions, if we wish to pass this
+            - input_conditional_best_fits:
             - dists_output_name: name of file in which to save test statistic distributions,
                 if this is desired
+            - use_expected_nuisance:
         """
         if input_dists is not None:
             # Read in test statistic distributions
             self.test_stat_dists = pkl.load(open(input_dists, 'rb'))
             return
 
-        assert mus_test is not None, 'Must pass in mus to be scanned over'
+        if input_conditional_best_fits is not None:
+            # Read in conditional best fits
+            self.conditional_best_fits = pkl.load(open(input_conditional_best_fits, 'rb'))
 
         self.test_stat_dists = dict()
         unconditional_best_fits = dict()
@@ -182,7 +187,7 @@ class FrequentistIntervalRatesOnlyTemplates():
         # Output test statistic distributions and fits
         if dists_output_name is not None:
             pkl.dump(self.test_stat_dists, open(dists_output_name, 'wb'))
-            pkl.dump(unconditional_best_fits, open(dists_output_name[:-4] + '_fits.pkl', 'wb'))
+            pkl.dump(unconditional_best_fits, open(dists_output_name[:-4] + '_unconditional_fits.pkl', 'wb'))
             pkl.dump(constraint_central_values, open(dists_output_name[:-4] + '_constraint_central_values.pkl', 'wb'))
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood, use_expected_nuisance):
@@ -258,7 +263,6 @@ class FrequentistIntervalRatesOnlyTemplates():
             self.observed_test_stats = pkl.load(open(input_test_stats, 'rb'))
             return
 
-        assert mus_test is not None, 'Must pass in mus to be scanned over'
         assert data is not None, 'Must pass in data'
 
         self.observed_test_stats = dict()
@@ -328,6 +332,7 @@ class FrequentistIntervalRatesOnlyTemplates():
             # Output observed test statistics
             if test_stats_output_name is not None:
                 pkl.dump(self.observed_test_stats, open(test_stats_output_name, 'wb'))
+                pkl.dump(self.conditional_best_fits, open(test_stats_output_name[:-4] + '_conditional_fits.pkl', 'wb'))
 
     def get_p_vals(self):
         """Internal function to get p-value curves.
