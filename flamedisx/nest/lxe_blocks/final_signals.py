@@ -134,7 +134,7 @@ class MakeS2(MakeFinalSignals):
     max_dim_size = {'s2_photoelectrons_detected': 120}
 
     def s2_acceptance(self, s2):
-        return tf.where((s2 < self.source.S2_min) | (s2 > self.source.S2_max),
+        return tf.where((s2 < self.source.S2_min) | (s2 < self.source.s2_thr) | (s2 > self.source.S2_max),
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
