@@ -22,6 +22,8 @@ class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
         assert detector in ('default',)
 
+        self.detector = detector
+
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), 'config/', detector + '.ini'))
 
@@ -55,7 +57,7 @@ class nestSource(fd.BlockModelSource):
 
         # detection.py / pe_detection.py / double_pe.py / final_signals.py
         self.g1 = config.getfloat('NEST', 'g1_config')
-        self.elife = config.getint('NEST', 'elife_config')
+        self.elife = config.getfloat('NEST', 'elife_config')
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
         self.spe_res = config.getfloat('NEST', 'spe_res_config')
         self.spe_thr = config.getfloat('NEST', 'spe_thr_config')
@@ -77,10 +79,16 @@ class nestSource(fd.BlockModelSource):
         self.S1_noise = config.getfloat('NEST', 'S1_noise_config')
         self.S2_noise = config.getfloat('NEST', 'S2_noise_config')
 
+        self.s2_thr = config.getfloat('NEST', 's2_thr_config')
+
         self.S1_min = config.getfloat('NEST', 'S1_min_config')
         self.S1_max = config.getfloat('NEST', 'S1_max_config')
         self.S2_min = config.getfloat('NEST', 'S2_min_config')
         self.S2_max = config.getfloat('NEST', 'S2_max_config')
+
+        # Useful additional parameters
+        self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
+                                       self.g1_gas, self.extraction_eff)
 
         super().__init__(*args, **kwargs)
 
