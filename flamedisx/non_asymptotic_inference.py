@@ -95,8 +95,6 @@ class FrequentistIntervalRatesOnly():
                                           key, value in rate_gaussian_constraints.items()}
         self.rm_bounds = rm_bounds
 
-        self.rate_gaussian_constraints = {f'{key}_rate_multiplier': value for key, value in rate_gaussian_constraints.items()}
-
         self.test_stat_dists = dict()
         self.observed_test_stats = dict()
         self.p_vals = dict()
@@ -188,7 +186,6 @@ class FrequentistIntervalRatesOnly():
                                                batch_size=self.batch_size_rates,
                                                free_rates=tuple([sname for sname in sources.keys()]))
 
-<<<<<<< HEAD
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
                 rm_bounds[signal_source] = self.rm_bounds[signal_source]
@@ -217,16 +214,6 @@ class FrequentistIntervalRatesOnly():
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
-            rm_bounds[signal_source] = (-5., 50.)
-            likelihood_fast.set_rate_multiplier_bounds(**rm_bounds)
-
-            def log_constraint(**kwargs):
-                log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
-                return log_constraint
-            likelihood_fast.set_log_constraint(log_constraint)
-
-            for mu_test in tqdm(mus_test, desc='Scanning over mus'):
->>>>>>> 3555dfc (Handle nuisance parameter toying and constraints in fully-frequentist way.)
                 ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood_fast)
                 test_stat_dists[mu_test] = ts_dist[0]
                 unconditional_bfs[mu_test] = ts_dist[1]
@@ -258,7 +245,6 @@ class FrequentistIntervalRatesOnly():
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
-<<<<<<< HEAD
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
                 # Prepare to sample background RMs from constraint functions
@@ -287,24 +273,6 @@ class FrequentistIntervalRatesOnly():
 
             # Simulate and set data
             toy_data = likelihood_fast.simulate(**rm_value_dict)
-            for source_name in self.background_source_names:
-                domain = np.linspace(self.rm_bounds[source_name][0], self.rm_bounds[source_name][1], 1000)
-                gaussian_constraint = self.rate_gaussian_constraints[f'{source_name}_rate_multiplier']
-                constraint = np.exp(-0.5 * ((domain - gaussian_constraint[0]) / gaussian_constraint[1])**2)
-                constraint /= np.sum(constraint)
-
-                draw = tf.cast(np.random.choice(domain, 1, p=constraint)[0], fd.float_type())
-                rm_value_dict[f'{source_name}_rate_multiplier'] = draw
-                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] =
-                    (draw, tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
-
-            likelihood_fast.set_constraint_extra_args(**constraint_extra_args)
-
-            toy_data = likelihood_fast.simulate(**rm_value_dict)
-            likelihood_fast.set_data(toy_data)
-
-            ts_values.append(self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood_fast))
->>>>>>> 3555dfc (Handle nuisance parameter toying and constraints in fully-frequentist way.)
 
             likelihood_fast.set_data(toy_data)
 
@@ -358,7 +326,6 @@ class FrequentistIntervalRatesOnly():
                                                free_rates=tuple([sname for sname in sources.keys()]),
                                                mu_estimators=mu_estimators)
 
-<<<<<<< HEAD
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
                 rm_bounds[signal_source] = self.rm_bounds[signal_source]
@@ -393,20 +360,6 @@ class FrequentistIntervalRatesOnly():
             likelihood_full.set_constraint_extra_args(**constraint_extra_args)
 
             # Set data
-=======
-                log_constraint = sum( -0.5 * ((value - kwargs[f'{key}_constraint'][0]) / kwargs[f'{key}_constraint'][1])**2 for key, value in kwargs.items() if key in self.rate_gaussian_constraints.keys() )
-                return log_constraint
-            likelihood_fast.set_log_constraint(log_constraint)
-
-            constraint_extra_args = dict()
-            for source_name in self.background_source_names:
-                constraint_extra_args[f'{source_name}_rate_multiplier_constraint'] =
-                    (tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][0], fd.float_type()),
-                     tf.cast(self.rate_gaussian_constraints[f'{source_name}_rate_multiplier'][1], fd.float_type()))
-
-            likelihood_full.set_constraint_extra_args(**constraint_extra_args)
-
->>>>>>> 4f11651 (Fix to constraint functions not channging properly for each toy.)
             likelihood_full.set_data(data)
 
             # Set the guesses
