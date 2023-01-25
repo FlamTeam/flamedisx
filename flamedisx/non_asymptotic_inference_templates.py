@@ -1,13 +1,9 @@
-from copy import deepcopy
-
 import flamedisx as fd
 import numpy as np
 from scipy import stats
 import pickle as pkl
 from tqdm.auto import tqdm
 import typing as ty
-from numpy.typing import NDArray
-from math import isclose
 
 import tensorflow as tf
 
@@ -26,12 +22,18 @@ class FrequentistIntervalRatesOnlyTemplates():
         - arguments: dictionary {sourcename: {kwarg1: value, ...}, ...}, for
             passing keyword arguments to source constructors
         - batch_size: batch size that will be used for the RM fits
-        - expected_background_counts:
-        - gaussian_constraint_widths
-        - sample_other_constraints:
+        - expected_background_counts: dictionary of expected counts for background sources
+        - gaussian_constraint_widths: dictionary giving the constraint width for all sources
+            using Gaussian constraints for their rate nuisance parameters
+        - sample_other_constraints: dictionary of functions to sample constraint means
+            in the toys for any sources using non-Gaussian constraints for their rate nuisance
+            parameters. Argument to the function will be either the prior expected counts,
+            or the number of counts at the conditional MLE, depending on the mode
         - rm_bounds: dictionary {sourcename: (lower, upper)} to set fit bounds on the rate multipliers
         - ntoys: number of toys that will be run to get test statistic distributions
-        - log_constraint_fn:
+        - log_constraint_fn: logarithm of the constraint function used in the likelihood. Any arguments
+            which aren't fit parameters, such as those determining constraint means for toys, will need
+            passing via the set_constraint_extra_args() function
     """
 
     def __init__(
@@ -43,10 +45,10 @@ class FrequentistIntervalRatesOnlyTemplates():
             batch_size=10000,
             expected_background_counts: ty.Dict[str, float] = None,
             gaussian_constraint_widths: ty.Dict[str, float] = None,
-            sample_other_constraints=None,
+            sample_other_constraints: ty.Dict[str, ty.Callable] = None,
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             ntoys=1000,
-            log_constraint_fn=None):
+            log_constraint_fn: ty.Callable = None):
 
         for key in sources.keys():
             if key not in arguments.keys():
@@ -122,7 +124,8 @@ class FrequentistIntervalRatesOnlyTemplates():
             - input_conditional_best_fits:
             - dists_output_name: name of file in which to save test statistic distributions,
                 if this is desired
-            - use_expected_nuisance:
+            - use_expected_nuisance: if set to true, center rate nuisance parameter constraints on the
+                prior expected counts, rather than conditional MLEs
         """
         if input_dists is not None:
             # Read in test statistic distributions
