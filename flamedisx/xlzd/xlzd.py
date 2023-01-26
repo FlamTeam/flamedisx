@@ -1,6 +1,7 @@
 """Toy XLZD detector implementation
 
 """
+import numpy as np
 import tensorflow as tf
 
 import configparser
@@ -35,6 +36,14 @@ class XLZDSource:
         self.z_top = config.getfloat(kwargs['configuration'], 'z_top_config')
         self.z_bottom = config.getfloat(kwargs['configuration'], 'z_bottom_config')
 
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+
+        if 's1' in d.columns and 'cs1' not in d.columns:
+            d['cs1'] = d['s1']
+        if 's2' in d.columns and 'cs2' not in d.columns:
+            d['cs2'] = d['s2'] * np.exp(d['drift_time'] / self.elife)
+
 
 @export
 class XLZDERSource(XLZDSource, fd.nest.nestERSource):
@@ -49,6 +58,21 @@ class XLZDERSource(XLZDSource, fd.nest.nestERSource):
 @export
 class XLZDNRSource(XLZDSource, fd.nest.nestNRSource):
     def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = 'TEST'
+        super().__init__(*args, **kwargs)
+
+
+##
+# Signal sources
+##
+
+
+@export
+class XLZDWIMPSource(XLZDSource, fd.nest.nestWIMPSource):
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
