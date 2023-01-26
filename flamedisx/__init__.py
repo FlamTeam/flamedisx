@@ -38,6 +38,10 @@ from . import nest
 # Access through fd.lux.xxx
 from . import lux
 
+# XLZD models
+# Access through fd.xlzd.xxx
+from . import xlzd
+
 # Custom TFP files
 # Access through fd.tfp_files.xxx
 from . import tfp_files
