@@ -310,6 +310,16 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         return data
 
 
+@export
+class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
+    max_dim_size = {'energy': 50}
+
+
 ##
 # Variable spectra
 ##
