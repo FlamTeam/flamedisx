@@ -75,6 +75,16 @@ class XLZDERSourceGroup(XLZDSource, fd.nest.nestERSourceGroup):
         super().__init__(*args, **kwargs)
 
 
+@export
+class XLZDNRSourceGroup(XLZDSource, fd.nest.nestNRSourceGroup):
+    def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = 'TEST'
+        super().__init__(*args, **kwargs)
+
+
 ##
 # Signal sources
 ##
