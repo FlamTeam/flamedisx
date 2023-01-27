@@ -26,6 +26,9 @@ class MakePhotonsElectronsNR(fd.Block):
                                'variance', 'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
+    ions_produced_min_full= None
+    ions_produced_max_full= None
+
     def setup(self):
         if 'energy' not in self.source.no_step_dimensions:
             self.array_columns = (('ions_produced_min',
@@ -320,13 +323,14 @@ class MakePhotonsElectronsNR(fd.Block):
             return (ions_produced_min, ions_produced_max)
 
         # Compute ion bounds for every energy in the full spectrum, once
-        if self.is_ER:
-            bounds = [get_bounds_ER(energy) for energy in self.source.energies.numpy()]
-        else:
-            bounds = [get_bounds_NR(energy) for energy in self.source.energies.numpy()]
+        if (self.ions_produced_min_full is None) or (self.ions_produced_max_full is None):
+            if self.is_ER:
+                bounds = [get_bounds_ER(energy) for energy in self.source.energies.numpy()]
+            else:
+                bounds = [get_bounds_NR(energy) for energy in self.source.energies.numpy()]
 
-        ions_produced_min_full = [x[0] for x in bounds]
-        ions_produced_max_full = [x[1] for x in bounds]
+            self.ions_produced_min_full = [x[0] for x in bounds]
+            self.ions_produced_max_full = [x[1] for x in bounds]
 
         for batch in range(self.source.n_batches):
             d_batch = d[batch * self.source.batch_size:(batch + 1) * self.source.batch_size]
@@ -340,10 +344,10 @@ class MakePhotonsElectronsNR(fd.Block):
 
             # Keep only the ion bounds corresponding to the energies in the trimmed
             # spectrum for this batch
-            ions_produced_min_full_trim = np.asarray(ions_produced_min_full)[
+            ions_produced_min_full_trim = np.asarray(self.ions_produced_min_full)[
                 (self.source.energies.numpy() >= energy_min) &
                 (self.source.energies.numpy() <= energy_max)]
-            ions_produced_max_full_trim = np.asarray(ions_produced_max_full)[
+            ions_produced_max_full_trim = np.asarray(self.ions_produced_max_full)[
                 (self.source.energies.numpy() >= energy_min) &
                 (self.source.energies.numpy() <= energy_max)]
 
