@@ -21,7 +21,7 @@ DEFAULT_AREA_FRACTION_TOP = 0.63  # fraction of light from top array
 DEFAULT_P_DPE = 0.219
 DEFAULT_EXTRACTION_EFFICIENCY = 0.96
 
-DEFAULT_ELECTRON_LIFETIME = 641e3
+DEFAULT_ELECTRON_LIFETIME = 11600000
 DEFAULT_DRIFT_VELOCITY = 1.34 * 1e-4   # cm/ns, from analysis paper II
 
 DEFAULT_DRIFT_FIELD = 81.
@@ -178,6 +178,7 @@ class SR1Source:
 
     s2_area_fraction_top = DEFAULT_AREA_FRACTION_TOP
     drift_velocity = DEFAULT_DRIFT_VELOCITY
+    default_elife = DEFAULT_ELECTRON_LIFETIME
     default_drift_field = DEFAULT_DRIFT_FIELD
 
     # Light yield maps
