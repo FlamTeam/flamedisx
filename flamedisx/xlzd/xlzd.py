@@ -66,13 +66,13 @@ class XLZDNRSource(XLZDSource, fd.nest.nestNRSource):
 
 
 @export
- class XLZDERSourceGroup(XLZDSource, fd.nest.nestERSourceGroup):
-     def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
-         if ('detector' not in kwargs):
-             kwargs['detector'] = 'xlzd'
-         if ('configuration' not in kwargs):
-             kwargs['configuration'] = 'TEST'
-         super().__init__(*args, **kwargs)
+class XLZDERSourceGroup(XLZDSource, fd.nest.nestERSourceGroup):
+    def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = 'TEST'
+        super().__init__(*args, **kwargs)
 
 
 ##
