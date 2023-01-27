@@ -178,7 +178,6 @@ class SR1Source:
 
     s2_area_fraction_top = DEFAULT_AREA_FRACTION_TOP
     drift_velocity = DEFAULT_DRIFT_VELOCITY
-    default_elife = DEFAULT_ELECTRON_LIFETIME
     default_drift_field = DEFAULT_DRIFT_FIELD
 
     # Light yield maps
