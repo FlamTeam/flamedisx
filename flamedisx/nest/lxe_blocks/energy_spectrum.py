@@ -85,7 +85,7 @@ class EnergySpectrum(fd.FirstBlock):
             # We use this filtered reservoir to estimate energy bounds
             self.source.data.loc[batch * self.source.batch_size:
                                  (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
-                np.quantile(energies, self.source.bounds_prob)
+                np.quantile(energies, 0.)
             self.source.data.loc[batch * self.source.batch_size:
                                  (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
                 np.quantile(energies, 1. - self.source.bounds_prob)
@@ -398,7 +398,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
     # We can't use energies here, it is used already in the base classes
     # for other purposes
-    energy_edges = np.linspace(0.85, 50.05, 493)
+    energy_edges = np.linspace(0.8, 50.2, 248)
 
     frozen_model_functions = ('energy_spectrum',)
     array_columns = (('energy_spectrum', len(energy_edges) - 1),)
