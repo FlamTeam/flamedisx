@@ -11,6 +11,8 @@ def make_event_reservoir(ntoys: int = None,
                          input_label=None,
                          reservoir_output_name=None,
                          max_rm_dict=None,
+                         source_groups_dict=None,
+                         quanta_tensor_dirs_dict=None,
                          **sources):
     """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
@@ -32,11 +34,26 @@ def make_event_reservoir(ntoys: int = None,
     if input_label is not None:
         data_reservoir = pkl.load(open(f'{input_prefix}partial_toy_reservoir{input_label}.pkl', 'rb'))
 
-        for sname, source in sources.items():
-            source.set_data(data_reservoir,
-                            input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl',
-                            input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
-            data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+        if source_groups_dict is None:
+            for sname, source in sources.items():
+                source.set_data(data_reservoir,
+                                input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl',
+                                input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
+                data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+        else:
+            for _, source_group_class in source_groups_dict.items():
+                assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
+                source_group_class.set_data(data_reservoir,
+                                            input_column_index=f'{input_prefix}{source_group_class.base_source.__class__.__name__}_column_index{input_label}.pkl',
+                                            input_data_tensor=f'{input_prefix}{source_group_class.base_source.__class__.__name__}_data_tensor{input_label}')
+                if quanta_tensor_dirs_dict is None:
+                    source_group_class.get_diff_rates()
+                else:
+                    source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+            for sname, source in sources.items():
+                data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source,
+                                                                                                      input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl',
+                                                                                                      input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
 
         if reservoir_output_name is not None:
             data_reservoir.to_pickle(reservoir_output_name)
@@ -57,9 +74,20 @@ def make_event_reservoir(ntoys: int = None,
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
 
-    for sname, source in sources.items():
-        source.set_data(data_reservoir)
-        data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+    if source_groups_dict is None:
+        for sname, source in sources.items():
+            source.set_data(data_reservoir)
+            data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+    else:
+        for _, source_group_class in source_groups_dict.items():
+            assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
+            source_group_class.set_data(data_reservoir)
+            if quanta_tensor_dirs_dict is None:
+                source_group_class.get_diff_rates()
+            else:
+                source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+        for sname, source in sources.items():
+            data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
 
     if reservoir_output_name is not None:
         data_reservoir.to_pickle(reservoir_output_name)
@@ -71,6 +99,7 @@ def make_event_reservoir_no_compute(ntoys: int = None,
                                     output_prefix='',
                                     output_label='',
                                     max_rm_dict=None,
+                                    source_groups_dict=None,
                                     **sources):
     """Generate data tensor and event reservoir without differetial rates, to be used to
     generate the full reservoir for a FrozenReservoirSource. This could be useful for
@@ -109,9 +138,23 @@ def make_event_reservoir_no_compute(ntoys: int = None,
 
     data_reservoir.to_pickle(f'{output_prefix}partial_toy_reservoir{output_label}.pkl')
 
-    for sname, source in sources.items():
-        source.set_data(data_reservoir, output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
-        pkl.dump(source.column_index, open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
+    if source_groups_dict is None:
+        for sname, source in sources.items():
+            source.set_data(data_reservoir, output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
+            pkl.dump(source.column_index, open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
+    else:
+        for _, source_group_class in source_groups_dict.items():
+            assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
+            source_group_class.set_data(data_reservoir,
+                                        output_data_tensor=f'{output_prefix}{source_group_class.base_source.__class__.__name__}_data_tensor{output_label}')
+            pkl.dump(source_group_class.base_source.column_index,
+                     open(f'{output_prefix}{source_group_class.base_source.__class__.__name__}_column_index{output_label}.pkl', 'wb'))
+            for sname, source in sources.items():
+                if isinstance(source_groups_dict[sname].base_source, source_group_class.base_source.__class__):
+                    source.set_data(source_group_class.base_source.data, data_is_annotated=True,
+                                    output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
+                    pkl.dump(source.column_index,
+                             open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
 
 
 @export

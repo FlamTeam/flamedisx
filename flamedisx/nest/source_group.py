@@ -56,10 +56,14 @@ class SourceGroup:
         if data is not None:
             self.set_data(data)
 
-    def set_data(self, data=None, data_is_annotated=False):
+    def set_data(self, data=None, data_is_annotated=False,
+                 input_column_index=None, input_data_tensor=None,
+                 output_data_tensor=None):
         assert data is not None, "Must pass data when calling set_data()"
 
-        self.base_source.set_data(data, ignore_priors=True, data_is_annotated=data_is_annotated)
+        self.base_source.set_data(data, ignore_priors=True, data_is_annotated=data_is_annotated,
+                                  input_column_index=input_column_index, input_data_tensor=input_data_tensor,
+                                  output_data_tensor=output_data_tensor)
 
     def get_diff_rates(self, read_in_dir=None):
         """Compute the probabilities of the events in our dataset for all energies that remain in the
@@ -199,7 +203,7 @@ class SourceGroup:
 
         return diff_rates
 
-    def get_diff_rate_source(self, source):
+    def get_diff_rate_source(self, source, input_column_index=None, input_data_tensor=None,):
         """Compute the differential rates for all events under a real source.
 
         :param source: the real source the differential rates should be computed under
@@ -211,7 +215,8 @@ class SourceGroup:
         assert (fd.tf_to_np(self.base_source.energies) == fd.tf_to_np(source.energies)).all(), \
             "source_group_type and source must have the same energies in their spectra"
 
-        this_source.set_data(self.base_source.data, data_is_annotated=True)
+        this_source.set_data(self.base_source.data, data_is_annotated=True,
+                             input_column_index=input_column_index, input_data_tensor=input_data_tensor)
 
         diff_rates = []
         for i_batch in range(this_source.n_batches):
