@@ -44,6 +44,9 @@ class XLZDSource:
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = d['s2'] * np.exp(d['drift_time'] / self.elife)
 
+        if 'cs1' in d.columns and 'cs2' in d.columns:
+             d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
+
 
 @export
 class XLZDERSource(XLZDSource, fd.nest.nestERSource):

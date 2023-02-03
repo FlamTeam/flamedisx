@@ -73,6 +73,7 @@ def make_event_reservoir(ntoys: int = None,
         dfs.append(sdata)
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
+    data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
 
     if source_groups_dict is None:
         for sname, source in sources.items():
@@ -135,6 +136,7 @@ def make_event_reservoir_no_compute(ntoys: int = None,
         dfs.append(sdata)
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
+    data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
 
     data_reservoir.to_pickle(f'{output_prefix}partial_toy_reservoir{output_label}.pkl')
 
