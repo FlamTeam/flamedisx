@@ -3,6 +3,9 @@ import string
 
 from multihist import Histdd
 import pandas as pd
+from scipy.interpolate import interp2d
+
+import numpy as np
 
 import flamedisx as fd
 
@@ -30,6 +33,7 @@ class TemplateSource(fd.ColumnSource):
     def __init__(
             self,
             template,
+            interp_2d=False,
             bin_edges=None,
             axis_names=None,
             events_per_bin=False,
@@ -58,6 +62,14 @@ class TemplateSource(fd.ColumnSource):
             raise ValueError("Axis names missing or mismatched")
         self.final_dimensions = axis_names
 
+        if interp_2d:
+            assert len(self.final_dimensions) == 2, "Interpolation only supported for 2D histogram!"
+            centers_dim_1 = 0.5 * (bin_edges[0][1:] + bin_edges[0][:-1])
+            centers_dim_2 = 0.5 * (bin_edges[1][1:] + bin_edges[1][:-1])
+            self.interp_2d  = interp2d(centers_dim_1, centers_dim_2, np.transpose(template))
+        else:
+            self.interp_2d = None
+
         # Build a diff rate and events/bin multihist from the template
         _mh = Histdd.from_histogram(template, bin_edges=bin_edges)
         if events_per_bin:
@@ -80,7 +92,12 @@ class TemplateSource(fd.ColumnSource):
     def _annotate(self):
         """Add columns needed in inference to self.data
         """
-        self.data[self.column] = self._mh_diff_rate.lookup(
+        if self.interp_2d is not None:
+            self.data[self.column] = np.array([self.interp_2d(r[self.data.columns.get_loc(self.final_dimensions[0])],
+                                                              r[self.data.columns.get_loc(self.final_dimensions[1])])[0]
+                                               for r in self.data.itertuples(index=False)])
+        else:
+            self.data[self.column] = self._mh_diff_rate.lookup(
             *[self.data[x] for x in self.final_dimensions])
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
