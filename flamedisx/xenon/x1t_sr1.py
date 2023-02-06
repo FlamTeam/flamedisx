@@ -174,6 +174,8 @@ class SR1Source:
                         'default_drift_velocity',
                         'variable_drift_velocity',
                         'path_drift_velocity',
+                        'variable_se_gain',
+                        'path_se_gain_map',
                         )
 
     s2_area_fraction_top = DEFAULT_AREA_FRACTION_TOP
@@ -222,6 +224,12 @@ class SR1Source:
     variable_drift_velocity= True
     path_drift_velocity='nt_maps/XnT_drift_velocity_map_r_z.json'
 
+    # SE gain map    
+    variable_se_gain= True
+    path_se_gain_map='nt_maps/XENONnT_se_xy_map_v1_mlp.json'    
+
+    
+    
     def set_defaults(self, *args, **kwargs):
         super().set_defaults(*args, **kwargs)
 
@@ -229,6 +237,11 @@ class SR1Source:
         self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
         self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
 
+        # SE gain map
+        se_gain_map=fd.get_nt_file(self.path_se_gain_map)
+        se_gain_map['map']=se_gain_map['map']/np.mean(se_gain_map['map']) #fractional variation from mean se_gain is taken
+        self.se_gain_map = fd.InterpolatingMap(se_gain_map)    
+    
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
             read_maps_tf(self.path_cut_accept_s1, is_bbf=True)
@@ -352,6 +365,13 @@ class SR1Source:
                           d['y_fdc'].values,
                           d['z_fdc'].values]))
 
+        if self.variable_se_gain:
+            d['se_gain_relative']=self.se_gain_map(np.transpose([d['x'].values,
+                                                                  d['y'].values]))            
+        else:
+            d['se_gain_relative']=1        
+    
+        
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
         if 'elife' not in d.columns:
@@ -389,10 +409,12 @@ class SR1Source:
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
+                           se_gain_relative,
                            *,
                            single_electron_gain=DEFAULT_SINGLE_ELECTRON_GAIN):
-        return single_electron_gain * s2_relative_ly
-
+                
+        return single_electron_gain*s2_relative_ly*se_gain_relative
+    
     @staticmethod
     def electron_gain_std(s2_relative_ly,
                           *,
@@ -400,6 +422,9 @@ class SR1Source:
         # 0 * light yield is to fix the shape
         return single_electron_width + 0. * s2_relative_ly
 
+
+
+    
     @staticmethod
     def double_pe_fraction(z, *, dpe=DEFAULT_P_DPE):
         # Ties the double_pe_fraction model function to the dpe
