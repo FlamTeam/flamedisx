@@ -366,8 +366,8 @@ class SR1Source:
                           d['z_fdc'].values]))
 
         if self.variable_se_gain:
-            d['se_gain_relative']=self.se_gain_map(np.transpose([d['x'].values,
-                                                                  d['y'].values]))            
+            d['se_gain_relative']=self.se_gain_map(np.transpose([d['x_observed'].values,
+                                                                 d['y_observed'].values]))            
         else:
             d['se_gain_relative']=1        
     
