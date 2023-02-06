@@ -73,7 +73,8 @@ def make_event_reservoir(ntoys: int = None,
         dfs.append(sdata)
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
-    data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
+    if 'ces_er_equivalent' in data_reservoir.columns:
+        data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
 
     if source_groups_dict is None:
         for sname, source in sources.items():
@@ -136,7 +137,8 @@ def make_event_reservoir_no_compute(ntoys: int = None,
         dfs.append(sdata)
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
-    data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
+    if 'ces_er_equivalent' in data_reservoir.columns:
+        data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
 
     data_reservoir.to_pickle(f'{output_prefix}partial_toy_reservoir{output_label}.pkl')
 
@@ -192,16 +194,27 @@ class FrozenReservoirSource(fd.ColumnSource):
             source_kwargs = dict()
 
         self.source_name = source_name
-        self.reservoir = reservoir
-        source = source_type(**source_kwargs)
+
+        if rescale_mu:
+            if input_mu is None:
+                source = source_type(**source_kwargs)
+                mu = source.estimate_mu()
+                reservoir[f'{source_name}_diff_rate'] = reservoir[f'{source_name}_diff_rate'] / mu
+                self.reservoir = reservoir
+                self.mu = 1.
+            else:
+                reservoir[f'{source_name}_diff_rate'] = reservoir[f'{source_name}_diff_rate'] / input_mu
+                self.reservoir = reservoir
+                self.mu = 1.
+
+        else:
+            self.reservoir = reservoir
+            if input_mu is None:
+                self.mu = source.estimate_mu()
+            else:
+                self.mu = input_mu
 
         self.column = f'{source_name}_diff_rate'
-        if rescale_mu:
-            self.mu = 1.
-        elif input_mu is None:
-            self.mu = source.estimate_mu()
-        else:
-            self.mu = input_mu
 
         super().__init__(*args, **kwargs)
 
