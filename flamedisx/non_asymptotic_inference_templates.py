@@ -110,8 +110,14 @@ class FrequentistIntervalRatesOnlyTemplates():
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)
 
+        # Conditional fit for power constraining
+        fix_dict_pcl = {f'{signal_source_name}_rate_multiplier': 0.}
+        bf_conditional_pcl = likelihood.bestfit(fix=fix_dict,_pcl guess=guess_dict_nuisance, suppress_warnings=True)
+
+        ll_conditional_pcl = likelihood(**bf_conditional_pcl)
+
         # Return the test statistic
-        return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional
+        return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional, -2. * (ll_conditional_pcl - ll_unconditional)
 
     def get_test_stat_dists(self, mus_test=None, input_dists=None, input_conditional_best_fits=None,
                             dists_output_name=None, use_expected_nuisance=False):
@@ -139,11 +145,13 @@ class FrequentistIntervalRatesOnlyTemplates():
         self.test_stat_dists = dict()
         unconditional_best_fits = dict()
         constraint_central_values = dict()
+        self.test_stat_dists_pcl = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             test_stat_dists = dict()
             unconditional_bfs = dict()
             constraint_vals = dict()
+            test_stat_dists_pcl = dict()
 
             sources = dict()
             arguments = dict()
@@ -182,16 +190,19 @@ class FrequentistIntervalRatesOnlyTemplates():
                 test_stat_dists[mu_test] = ts_dist[0]
                 unconditional_bfs[mu_test] = ts_dist[1]
                 constraint_vals[mu_test] = ts_dist[2]
+                test_stat_dists_pcl[mu_test] = ts_dist[3]
 
             self.test_stat_dists[signal_source] = test_stat_dists
             unconditional_best_fits[signal_source] = unconditional_bfs
             constraint_central_values[signal_source] = constraint_vals
+            self.test_stat_dists_pcl[signal_source] = test_stat_dists_pcl
 
         # Output test statistic distributions and fits
         if dists_output_name is not None:
             pkl.dump(self.test_stat_dists, open(dists_output_name, 'wb'))
             pkl.dump(unconditional_best_fits, open(dists_output_name[:-4] + '_unconditional_fits.pkl', 'wb'))
             pkl.dump(constraint_central_values, open(dists_output_name[:-4] + '_constraint_central_values.pkl', 'wb'))
+            pkl.dump(self.test_stat_dists_pcl, open(dists_output_name[:-4] + '_pcl.pkl', 'wb'))
 
     def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood, use_expected_nuisance):
         """Internal function to get a test statistic distribution for a given signal source
@@ -202,6 +213,7 @@ class FrequentistIntervalRatesOnlyTemplates():
         ts_values = []
         unconditional_bfs = []
         constraint_vals = []
+        ts_values_pcl = []
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
@@ -241,6 +253,7 @@ class FrequentistIntervalRatesOnlyTemplates():
             ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, simulate_dict)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
+            ts_values_pcl.append(ts_result[3])
 
             constraint_vals_dict = dict()
             for key, value in constraint_extra_args.items():
@@ -248,7 +261,7 @@ class FrequentistIntervalRatesOnlyTemplates():
             constraint_vals.append(constraint_vals_dict)
 
         # Return the test statistic and unconditional best fit
-        return ts_values, unconditional_bfs, constraint_vals
+        return ts_values, unconditional_bfs, constraint_vals, ts_values_pcl
 
     def get_observed_test_stats(self, mus_test=None, data=None, input_test_stats=None, test_stats_output_name=None):
         """Get observed test statistics.
