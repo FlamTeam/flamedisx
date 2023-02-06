@@ -112,7 +112,7 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         # Conditional fit for power constraining
         fix_dict_pcl = {f'{signal_source_name}_rate_multiplier': 0.}
-        bf_conditional_pcl = likelihood.bestfit(fix=fix_dict,_pcl guess=guess_dict_nuisance, suppress_warnings=True)
+        bf_conditional_pcl = likelihood.bestfit(fix=fix_dict_pcl, guess=guess_dict_nuisance, suppress_warnings=True)
 
         ll_conditional_pcl = likelihood(**bf_conditional_pcl)
 
