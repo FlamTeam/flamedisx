@@ -183,29 +183,28 @@ class FrozenReservoirSource(fd.ColumnSource):
     def __init__(self, source_type: fd.Source.__class__ = None, source_name: str = None,
                  source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
                  reservoir: pd.DataFrame = None,
-                 input_mu=None,
+                 input_mus=None,
                  rescale_mu=False,
+                 ignore_events_check=False,
                  *args, **kwargs):
         assert source_type is not None, "Must pass a source type to FrozenReservoirSource"
         assert source_name is not None, "Must pass a source name to FrozenReservoirSource"
-        assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
+        if not ignore_events_check:
+            assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
 
         if source_kwargs is None:
             source_kwargs = dict()
 
         self.source_name = source_name
 
+        reservoir = reservoir.copy()
+
         if rescale_mu:
-            if input_mu is None:
-                source = source_type(**source_kwargs)
-                mu = source.estimate_mu()
-                reservoir[f'{source_name}_diff_rate'] = reservoir[f'{source_name}_diff_rate'] / mu
-                self.reservoir = reservoir
-                self.mu = 1.
-            else:
-                reservoir[f'{source_name}_diff_rate'] = reservoir[f'{source_name}_diff_rate'] / input_mu
-                self.reservoir = reservoir
-                self.mu = 1.
+            assert input_mus is not None, "Must pass in input_mus if rescaling"
+            for key, value in input_mus.items():
+                reservoir[f'{key}_diff_rate'] = reservoir[f'{key}_diff_rate'] / value
+            self.reservoir = reservoir
+            self.mu = 1.
 
         else:
             self.reservoir = reservoir

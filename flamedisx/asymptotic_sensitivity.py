@@ -21,14 +21,16 @@ class FrequentistSensitivitylRatesOnlyWilks():
         - sources: dictionary {sourcename: class} of all signal and background source classes
         - arguments: dictionary {sourcename: {kwarg1: value, ...}, ...}, for
             passing keyword arguments to source constructors
-        - batch_size: batch size that will be used for the RM fits
-        - expected_background_counts: dictionary of expected counts for background sources
+        - batch_size_rates: batch size that will be used for the RM fits
+        - expected_counts:
         - gaussian_constraint_widths: dictionary giving the constraint width for all sources
             using Gaussian constraints for their rate nuisance parameters
         - ndatasets: number of background-only datasets we will generate to estimate median sensitivity
         - log_constraint_fn: logarithm of the constraint function used in the likelihood. Any arguments
             which aren't fit parameters, such as those determining constraint means for toys, will need
             passing via the set_constraint_extra_args() function
+        - input_reservoir:
+        - skip_reservoir:
     """
 
     def __init__(
@@ -36,16 +38,13 @@ class FrequentistSensitivitylRatesOnlyWilks():
             signal_source_names: ty.Tuple[str],
             background_source_names: ty.Tuple[str],
             sources: ty.Dict[str, fd.Source.__class__],
-            arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
-            batch_size=10000,
-            expected_background_counts: ty.Dict[str, float] = None,
+            batch_size_rates=10000,
+            expected_counts: ty.Dict[str, float] = None,
             gaussian_constraint_widths: ty.Dict[str, float] = None,
             ndatasets=100,
-            log_constraint_fn: ty.Callable = None):
-
-        for key in sources.keys():
-            if key not in arguments.keys():
-                arguments[key] = dict()
+            log_constraint_fn: ty.Callable = None,
+            input_reservoir=None,
+            skip_reservoir=False):
 
         if gaussian_constraint_widths is None:
             gaussian_constraints_widths = dict()
@@ -61,16 +60,21 @@ class FrequentistSensitivitylRatesOnlyWilks():
         self.background_source_names = background_source_names
 
         self.ndatasets = ndatasets
-        self.batch_size = batch_size
+        self.batch_size_rates = batch_size_rates
 
-        self.expected_background_counts = expected_background_counts
+        self.expected_counts = expected_counts
+
         self.gaussian_constraint_widths = gaussian_constraint_widths
 
         self.test_stats = dict()
         self.p_vals = dict()
 
         self.sources = sources
-        self.arguments = arguments
+
+        if not skip_reservoir:
+            assert input_reservoir is not None, "Currently only support pre-computed reservoirs"
+            # Read in frozen source reservoir
+            self.reservoir = pkl.load(open(input_reservoir, 'rb'))
 
     def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood, guess_dict):
         """Internal function to evaluate the test statistic of equation 11 in
@@ -107,19 +111,18 @@ class FrequentistSensitivitylRatesOnlyWilks():
             test_stats = dict()
 
             sources = dict()
-            arguments = dict()
             for background_source in self.background_source_names:
                 sources[background_source] = self.sources[background_source]
-                arguments[background_source] = self.arguments[background_source]
             sources[signal_source] = self.sources[signal_source]
-            arguments[signal_source] = self.arguments[signal_source]
 
             # Create likelihood of FrozenReservoirSources
             likelihood = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
                                           arguments={sname: {'source_type': sclass,
                                                              'source_name': sname,
                                                              'reservoir': self.reservoir,
-                                                             'input_mu': self.pre_estimated_mus[sname]}
+                                                             'input_mus': self.expected_counts,
+                                                             'rescale_mu': True,
+                                                             'ignore_events_check': True}
                                                      for sname, sclass in sources.items()},
                                           progress=False,
                                           batch_size=self.batch_size_rates,
@@ -152,7 +155,7 @@ class FrequentistSensitivitylRatesOnlyWilks():
         for toy in tqdm(range(self.ndatasets), desc='Running over datasets'):
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
-                expected_background_counts = self.expected_background_counts[background_source]
+                expected_background_counts = self.expected_counts[background_source]
 
                 # Sample constraint centers
                 if background_source in self.gaussian_constraint_widths:
