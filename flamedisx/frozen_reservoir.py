@@ -210,6 +210,7 @@ class FrozenReservoirSource(fd.ColumnSource):
         else:
             self.reservoir = reservoir
             if input_mu is None:
+                source = source_type(**source_kwargs)
                 self.mu = source.estimate_mu()
             else:
                 self.mu = input_mu
