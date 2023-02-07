@@ -11,7 +11,7 @@ export, __all__ = fd.exporter()
 
 
 @export
-class FrequentistSensitivitylRatesOnlyWilks():
+class FrequentistSensitivityRatesOnlyWilks():
     """NOTE: currently works for a single dataset only.
 
     Arguments:
@@ -147,12 +147,11 @@ class FrequentistSensitivitylRatesOnlyWilks():
     def test_statistics_bg_only(self, mu_test, signal_source_name, likelihood):
         """
         """
-        simulate_dict = {f'{signal_source_name}_rate_multiplier': 0.}
-
         ts_values = []
 
         # Loop over background-only datasets
         for toy in tqdm(range(self.ndatasets), desc='Running over datasets'):
+            simulate_dict = dict()
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
                 expected_background_counts = self.expected_counts[background_source]
@@ -164,6 +163,8 @@ class FrequentistSensitivitylRatesOnlyWilks():
                     constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
                 simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
+
+            simulate_dict[f'{signal_source_name}_rate_multiplier'] = 0.
 
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args)
