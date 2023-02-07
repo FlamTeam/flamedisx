@@ -141,8 +141,8 @@ class FrequentistSensitivitylRatesOnlyWilks():
             self.test_stats[signal_source] = test_stats
 
         # Output test statistics
-        if dists_output_name is not None:
-            pkl.dump(self.test_stats, open(dists_output_name, 'wb'))
+        if test_stats_output_name is not None:
+            pkl.dump(self.test_stats, open(test_stats_output_name, 'wb'))
 
     def test_statistics_bg_only(self, mu_test, signal_source_name, likelihood):
         """

@@ -208,11 +208,11 @@ class FrozenReservoirSource(fd.ColumnSource):
 
         else:
             self.reservoir = reservoir
-            if input_mu is None:
+            if input_mus is None:
                 source = source_type(**source_kwargs)
                 self.mu = source.estimate_mu()
             else:
-                self.mu = input_mu
+                self.mu = input_mus[source_name]
 
         self.column = f'{source_name}_diff_rate'
 
@@ -224,4 +224,4 @@ class FrozenReservoirSource(fd.ColumnSource):
         if len(params):
             raise NotImplementedError("FrozenReservoirSource does not yet support alternative parameters in simulate")
 
-        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=True)
+        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=False)
