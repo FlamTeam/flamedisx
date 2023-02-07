@@ -76,8 +76,8 @@ class FrequentistSensitivityRatesOnlyWilks():
             # Read in frozen source reservoir
             self.reservoir = pkl.load(open(input_reservoir, 'rb'))
 
-    def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood, guess_dict):
-        """Internal function to evaluate the test statistic of equation 11 in
+    def test_statistic_qmu(self, mu_test, signal_source_name, likelihood, guess_dict):
+        """Internal function to evaluate the test statistic of equation 14 in
         https://arxiv.org/abs/1007.1727.
         """
         # To fix the signal RM in the conditional fit
@@ -95,7 +95,12 @@ class FrequentistSensitivityRatesOnlyWilks():
         ll_unconditional = likelihood(**bf_unconditional)
 
         # Return the test statistic
-        return -2. * (ll_conditional - ll_unconditional)
+        if bf_unconditional[f'{signal_source_name}_rate_multiplier'] > mu_test:
+            q_mu = 0.
+        else:
+            q_mu = -2. * (ll_conditional - ll_unconditional)
+
+        return q_mu
 
     def get_test_stats_background_only(self, mus_test=None, input_test_stats=None, test_stats_output_name=None):
         """
