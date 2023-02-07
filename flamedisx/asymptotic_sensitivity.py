@@ -106,82 +106,79 @@ class FrequentistSensitivityRatesOnlyWilks():
             return
 
         self.test_stats = dict()
-        # Loop over signal sources
-        for signal_source in self.signal_source_names:
-            test_stats = dict()
 
-            sources = dict()
-            for background_source in self.background_source_names:
-                sources[background_source] = self.sources[background_source]
-            sources[signal_source] = self.sources[signal_source]
+        # Loop over background-only datasets
+        for toy in tqdm(range(self.ndatasets), desc='Running over datasets'):
+            toy_data = None
+            # Loop over signal sources
+            for signal_source in self.signal_source_names:
+                if signal_source not in self.test_stats.keys():
+                    self.test_stats[signal_source] = dict()
 
-            # Create likelihood of FrozenReservoirSources
-            likelihood = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
-                                          arguments={sname: {'source_type': sclass,
-                                                             'source_name': sname,
-                                                             'reservoir': self.reservoir,
-                                                             'input_mus': self.expected_counts,
-                                                             'rescale_mu': True,
-                                                             'ignore_events_check': True}
-                                                     for sname, sclass in sources.items()},
-                                          progress=False,
-                                          batch_size=self.batch_size_rates,
-                                          free_rates=tuple([sname for sname in sources.keys()]))
+                sources = dict()
+                for background_source in self.background_source_names:
+                    sources[background_source] = self.sources[background_source]
+                sources[signal_source] = self.sources[signal_source]
 
-            # Pass constraint function to likelihood
-            likelihood.set_log_constraint(self.log_constraint_fn)
+                # Create likelihood of FrozenReservoirSources
+                likelihood = fd.LogLikelihood(sources={sname: fd.FrozenReservoirSource for sname in sources.keys()},
+                                              arguments={sname: {'source_type': sclass,
+                                                                 'source_name': sname,
+                                                                 'reservoir': self.reservoir,
+                                                                 'input_mus': self.expected_counts,
+                                                                 'rescale_mu': True,
+                                                                 'ignore_events_check': True}
+                                                         for sname, sclass in sources.items()},
+                                              progress=False,
+                                              batch_size=self.batch_size_rates,
+                                              free_rates=tuple([sname for sname in sources.keys()]))
 
-            # Save the test statistic values for each background-only dataset, for each
-            # signal RM scanned over, for this signal source
-            these_mus_test = mus_test[signal_source]
-            # Loop over signal rate multipliers
-            for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
-                test_stats[mu_test] = self.test_statistics_bg_only(mu_test, signal_source, likelihood)
+                # Pass constraint function to likelihood
+                likelihood.set_log_constraint(self.log_constraint_fn)
 
-            self.test_stats[signal_source] = test_stats
+                # Ensure we use the same toy dataset for every signal model in this toy
+                if toy_data is None:
+                    simulate_dict = dict()
+                    constraint_extra_args = dict()
+                    for background_source in self.background_source_names:
+                        expected_background_counts = self.expected_counts[background_source]
+
+                        # Sample constraint centers
+                        if background_source in self.gaussian_constraint_widths:
+                            draw = stats.norm.rvs(loc=expected_background_counts,
+                                                  scale = self.gaussian_constraint_widths[background_source])
+                            constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
+
+                        simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
+
+                    simulate_dict[f'{signal_source}_rate_multiplier'] = 0.
+
+                    # Simulate
+                    toy_data = likelihood.simulate(**simulate_dict)
+
+                # Shift the constraint in the likelihood based on the background RMs we drew
+                likelihood.set_constraint_extra_args(**constraint_extra_args)
+
+                # Set data
+                likelihood.set_data(toy_data)
+
+                for key, value in simulate_dict.items():
+                    if value < 0.1:
+                        simulate_dict[key] = 0.1
+
+                # Save the test statistic values for each background-only dataset, for each
+                # signal RM scanned over, for this signal source
+                these_mus_test = mus_test[signal_source]
+                # Loop over signal rate multipliers
+                for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
+                    if mu_test not in self.test_stats[signal_source].keys():
+                        self.test_stats[signal_source][mu_test] = [self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood, simulate_dict)]
+                    else:
+                        self.test_stats[signal_source][mu_test].append(self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood, simulate_dict))
 
         # Output test statistics
         if test_stats_output_name is not None:
             pkl.dump(self.test_stats, open(test_stats_output_name, 'wb'))
-
-    def test_statistics_bg_only(self, mu_test, signal_source_name, likelihood):
-        """
-        """
-        ts_values = []
-
-        # Loop over background-only datasets
-        for toy in tqdm(range(self.ndatasets), desc='Running over datasets'):
-            simulate_dict = dict()
-            constraint_extra_args = dict()
-            for background_source in self.background_source_names:
-                expected_background_counts = self.expected_counts[background_source]
-
-                # Sample constraint centers
-                if background_source in self.gaussian_constraint_widths:
-                    draw = stats.norm.rvs(loc=expected_background_counts,
-                                          scale = self.gaussian_constraint_widths[background_source])
-                    constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
-
-                simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
-
-            simulate_dict[f'{signal_source_name}_rate_multiplier'] = 0.
-
-            # Shift the constraint in the likelihood based on the background RMs we drew
-            likelihood.set_constraint_extra_args(**constraint_extra_args)
-
-            # Simulate and set data
-            toy_data = likelihood.simulate(**simulate_dict)
-
-            likelihood.set_data(toy_data)
-
-            for key, value in simulate_dict.items():
-                if value < 0.1:
-                    simulate_dict[key] = 0.1
-
-            ts_values.append(self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, simulate_dict))
-
-        # Return the test statistics
-        return ts_values
 
     def get_p_vals(self):
         """Internal function to get p-value curves.
