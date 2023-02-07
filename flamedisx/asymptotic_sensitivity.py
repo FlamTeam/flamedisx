@@ -67,7 +67,7 @@ class FrequentistSensitivityRatesOnlyWilks():
         self.gaussian_constraint_widths = gaussian_constraint_widths
 
         self.test_stats = dict()
-        self.p_vals = dict()
+        self.median_p_vals = dict()
 
         self.sources = sources
 
@@ -107,7 +107,7 @@ class FrequentistSensitivityRatesOnlyWilks():
         """
         if input_test_stats is not None:
             # Read in test statistics
-            self.test_stats = pkl.load(open(input_dists, 'rb'))
+            self.test_stats = pkl.load(open(input_test_stats, 'rb'))
             return
 
         self.test_stats = dict()
@@ -185,69 +185,25 @@ class FrequentistSensitivityRatesOnlyWilks():
         if test_stats_output_name is not None:
             pkl.dump(self.test_stats, open(test_stats_output_name, 'wb'))
 
-    def get_p_vals(self):
-        """Internal function to get p-value curves.
+    def get_limits(self, conf_level=0.1, return_p_vals=False):
         """
-        self.p_vals = dict()
+        """
+        median_upper_lims = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
-            # Get test statistic distribitions and observed test statistics
-            test_stat_dists = self.test_stat_dists[signal_source]
-            observed_test_stats = self.observed_test_stats[signal_source]
+            these_test_stats = self.test_stats[signal_source]
 
-            assert test_stat_dists.keys() == observed_test_stats.keys(), \
-                f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
-                'the same mu values'
+            these_pvals = dict()
+            for key, value in these_test_stats.items():
+                these_pvals[key] = np.median(1. - stats.norm.cdf(np.sqrt(value)))
 
-            p_vals = dict()
-            # Loop over signal rate multipliers
-            for mu_test in observed_test_stats.keys():
-                # Compute the p-value from the observed test statistic and the distribition
-                p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
-                                                                  observed_test_stats[mu_test],
-                                                                  kind='weak')) / 100.
-
-            # Record p-value curve
-            self.p_vals[signal_source] = p_vals
-
-    def get_interval(self, conf_level=0.1, return_p_vals=False):
-        """Get either upper limit, or possibly upper and lower limits.
-        Before using this get_test_stat_dists() and get_observed_test_stats() must
-        have bene called.
-
-        Arguments:
-            - conf_level: confidence level to be used for the limit/interval
-            - return_p_vals: whether or not to output the p-value curves
-        """
-        # Get the p-value curves
-        self.get_p_vals()
-
-        lower_lim_all = dict()
-        upper_lim_all = dict()
-        # Loop over signal sources
-        for signal_source in self.signal_source_names:
-            these_pvals = self.p_vals[signal_source]
+            self.median_p_vals[signal_source] = these_pvals
 
             mus = list(these_pvals.keys())
             pvals = list(these_pvals.values())
 
-            # Find points where the p-value curve cross the critical value, decreasing
+            # Find points where the p-value curve cross the critical value
             upper_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) < 0.).flatten()
-            # Find points where the p-value curve cross the critical value, increasing
-            lower_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) > 0.).flatten()
-
-            if len(lower_lims > 0):
-                # Take the lowest increasing crossing point, and interpolate to get an upper limit
-                lower_mu_left = mus[lower_lims[0]]
-                lower_mu_right = mus[lower_lims[0] + 1]
-                lower_pval_left = pvals[lower_lims[0]]
-                lower_pval_right = pvals[lower_lims[0] + 1]
-
-                lower_gradient = (lower_pval_right - lower_pval_left) / (lower_mu_right - lower_mu_left)
-                lower_lim = (conf_level - lower_pval_left) / lower_gradient + lower_mu_left
-            else:
-                # We have no lower limit
-                lower_lim = None
 
             assert len(upper_lims) > 0, 'No upper limit found!'
             # Take the highest decreasing crossing point, and interpolate to get an upper limit
@@ -259,12 +215,11 @@ class FrequentistSensitivityRatesOnlyWilks():
             upper_gradient = (upper_pval_right - upper_pval_left) / (upper_mu_right - upper_mu_left)
             upper_lim = (conf_level - upper_pval_left) / upper_gradient + upper_mu_left
 
-            lower_lim_all[signal_source] = lower_lim
-            upper_lim_all[signal_source] = upper_lim
+            median_upper_lims[signal_source] = upper_lim
 
         if return_p_vals is True:
-            # Return p-value curves, and intervals/limits
-            return self.p_vals, lower_lim_all, upper_lim_all
+            # Return p-value curves, and upper limits
+            return self.median_p_vals, median_upper_lims
         else:
-            # Return intervals/limits
-            return lower_lim_all, upper_lim_all
+            # Return upper limits
+            return median_upper_lims
