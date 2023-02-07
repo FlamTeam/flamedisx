@@ -110,14 +110,8 @@ class FrequentistIntervalRatesOnlyTemplates():
         ll_conditional = likelihood(**bf_conditional)
         ll_unconditional = likelihood(**bf_unconditional)
 
-        # Conditional fit for power constraining
-        fix_dict_pcl = {f'{signal_source_name}_rate_multiplier': 0.}
-        bf_conditional_pcl = likelihood.bestfit(fix=fix_dict_pcl, guess=guess_dict_nuisance, suppress_warnings=True)
-
-        ll_conditional_pcl = likelihood(**bf_conditional_pcl)
-
         # Return the test statistic
-        return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional, -2. * (ll_conditional_pcl - ll_unconditional)
+        return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional
 
     def get_test_stat_dists(self, mus_test=None, input_dists=None, input_conditional_best_fits=None,
                             dists_output_name=None, use_expected_nuisance=False):
@@ -253,7 +247,21 @@ class FrequentistIntervalRatesOnlyTemplates():
             ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, simulate_dict)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
-            ts_values_pcl.append(ts_result[3])
+
+            # Now repeat for PCL
+            simulate_dict [f'{signal_source_name}_rate_multiplier'] = 0.
+
+            # Simulate and set data
+            toy_data_pcl = likelihood.simulate(**simulate_dict)
+
+            likelihood.set_data(toy_data_pcl)
+
+            for key, value in simulate_dict.items():
+                if value < 0.1:
+                    simulate_dict[key] = 0.1
+
+            ts_result_pcl = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, simulate_dict)
+            ts_values_pcl.append(ts_result[0])
 
             constraint_vals_dict = dict()
             for key, value in constraint_extra_args.items():
