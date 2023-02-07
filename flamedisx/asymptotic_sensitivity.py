@@ -177,9 +177,9 @@ class FrequentistSensitivityRatesOnlyWilks():
                 # Loop over signal rate multipliers
                 for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
                     if mu_test not in self.test_stats[signal_source].keys():
-                        self.test_stats[signal_source][mu_test] = [self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood, simulate_dict)]
+                        self.test_stats[signal_source][mu_test] = [self.test_statistic_qmu(mu_test, signal_source, likelihood, simulate_dict)]
                     else:
-                        self.test_stats[signal_source][mu_test].append(self.test_statistic_tmu_tilde(mu_test, signal_source, likelihood, simulate_dict))
+                        self.test_stats[signal_source][mu_test].append(self.test_statistic_qmu(mu_test, signal_source, likelihood, simulate_dict))
 
         # Output test statistics
         if test_stats_output_name is not None:
