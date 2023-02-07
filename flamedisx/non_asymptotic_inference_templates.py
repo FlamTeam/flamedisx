@@ -85,9 +85,11 @@ class FrequentistIntervalRatesOnlyTemplates():
         self.rm_bounds = rm_bounds
 
         self.test_stat_dists = dict()
+        self.test_stat_dists_pcl = dict()
         self.observed_test_stats = dict()
         self.conditional_best_fits = dict()
         self.p_vals = dict()
+        self.powers = dict()
 
         self.sources = sources
         self.arguments = arguments
@@ -113,7 +115,8 @@ class FrequentistIntervalRatesOnlyTemplates():
         # Return the test statistic
         return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional
 
-    def get_test_stat_dists(self, mus_test=None, input_dists=None, input_conditional_best_fits=None,
+    def get_test_stat_dists(self, mus_test=None, input_dists=None, input_dists_pcl=None,
+                            input_conditional_best_fits=None,
                             dists_output_name=None, use_expected_nuisance=False):
         """Get test statistic distributions.
 
@@ -121,6 +124,7 @@ class FrequentistIntervalRatesOnlyTemplates():
             - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
                 to be tested for each signal source
             - input_dists: path to input test statistic distributions, if we wish to pass this
+            - input_dist_pcl:
             - input_conditional_best_fits:
             - dists_output_name: name of file in which to save test statistic distributions,
                 if this is desired
@@ -130,6 +134,9 @@ class FrequentistIntervalRatesOnlyTemplates():
         if input_dists is not None:
             # Read in test statistic distributions
             self.test_stat_dists = pkl.load(open(input_dists, 'rb'))
+            if input_dists_pcl is not None:
+                # Read in PCL test statistic distributions
+                self.test_stat_dists_pcl = pkl.load(open(input_dists_pcl, 'rb'))
             return
 
         if input_conditional_best_fits is not None:
@@ -202,8 +209,6 @@ class FrequentistIntervalRatesOnlyTemplates():
         """Internal function to get a test statistic distribution for a given signal source
         and signal RM.
         """
-        simulate_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-
         ts_values = []
         unconditional_bfs = []
         constraint_vals = []
@@ -211,6 +216,7 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
+            simulate_dict = dict()
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
                 # Case where we use the conditional best fits as constraint centers and simulated values
@@ -232,6 +238,8 @@ class FrequentistIntervalRatesOnlyTemplates():
 
                 simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
 
+            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args)
 
@@ -240,28 +248,32 @@ class FrequentistIntervalRatesOnlyTemplates():
 
             likelihood.set_data(toy_data)
 
-            for key, value in simulate_dict.items():
-                if value < 0.1:
-                    simulate_dict[key] = 0.1
+            guess_dict = simulate_dict.copy()
 
-            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, simulate_dict)
+            for key, value in guess_dict.items():
+                if value < 0.1:
+                    guess_dict[key] = 0.1
+
+            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, guess_dict)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
 
             # Now repeat for PCL
-            simulate_dict [f'{signal_source_name}_rate_multiplier'] = 0.
+            simulate_dict[f'{signal_source_name}_rate_multiplier'] = 0.
 
             # Simulate and set data
             toy_data_pcl = likelihood.simulate(**simulate_dict)
 
             likelihood.set_data(toy_data_pcl)
 
-            for key, value in simulate_dict.items():
-                if value < 0.1:
-                    simulate_dict[key] = 0.1
+            guess_dict_pcl = simulate_dict.copy()
 
-            ts_result_pcl = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, simulate_dict)
-            ts_values_pcl.append(ts_result[0])
+            for key, value in guess_dict_pcl.items():
+                if value < 0.1:
+                    guess_dict_pcl[key] = 0.1
+
+            ts_result_pcl = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, guess_dict_pcl)
+            ts_values_pcl.append(ts_result_pcl[0])
 
             constraint_vals_dict = dict()
             for key, value in constraint_extra_args.items():
@@ -362,10 +374,12 @@ class FrequentistIntervalRatesOnlyTemplates():
         """Internal function to get p-value curves.
         """
         self.p_vals = dict()
+        self.powers = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             # Get test statistic distribitions and observed test statistics
             test_stat_dists = self.test_stat_dists[signal_source]
+            test_stat_dists_pcl = self.test_stat_dists_pcl[signal_source]
             observed_test_stats = self.observed_test_stats[signal_source]
 
             assert test_stat_dists.keys() == observed_test_stats.keys(), \
@@ -373,15 +387,20 @@ class FrequentistIntervalRatesOnlyTemplates():
                 'the same mu values'
 
             p_vals = dict()
+            powers = dict()
             # Loop over signal rate multipliers
             for mu_test in observed_test_stats.keys():
                 # Compute the p-value from the observed test statistic and the distribition
                 p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
                                                                   observed_test_stats[mu_test],
                                                                   kind='weak')) / 100.
+                powers[mu_test] = (100. - stats.percentileofscore(test_stat_dists_pcl[mu_test],
+                                                                  observed_test_stats[mu_test],
+                                                                  kind='weak')) / 100.
 
-            # Record p-value curve
+            # Record p-value, power curves
             self.p_vals[signal_source] = p_vals
+            self.powers[signal_source] = powers
 
     def get_interval(self, conf_level=0.1, return_p_vals=False):
         """Get either upper limit, or possibly upper and lower limits.
@@ -437,7 +456,7 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         if return_p_vals is True:
             # Return p-value curves, and intervals/limits
-            return self.p_vals, lower_lim_all, upper_lim_all
+            return self.p_vals, self.powers, lower_lim_all, upper_lim_all
         else:
             # Return intervals/limits
             return lower_lim_all, upper_lim_all
