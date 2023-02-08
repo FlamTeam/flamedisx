@@ -223,10 +223,10 @@ class SR1Source:
     path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Field distortion map
-    path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+    path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_QPTFE_0d5n_0d4p.json'
 
     # FDC map
-    path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+    path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyz_24_Jun_2022_MC.json'
 
     # Drift velocity map
     default_drift_velocity = DEFAULT_DRIFT_VELOCITY
@@ -408,8 +408,8 @@ class SR1Source:
         d['z_observed'] = d['z']
 
         # Adding some smear according to posrec resolution
-        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=4) # 0.4 = 4 mm resolution)
-        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=4) # 4 mm resolution)
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=2) # 2 cm resolution
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=2) # 4 cm resolution
 
         # add effective drift velocity depending on (r,z) position
         # correct drift time using velocity depending on (r,z) position
@@ -428,7 +428,7 @@ class SR1Source:
         delta_r = self.fdc_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values,
-                          d['z_observed'].values/d['drift_velocity'].values,]))
+                          d['z_observed'].values,]))
                               
         # apply radial correction
         with np.errstate(invalid='ignore', divide='ignore'):
