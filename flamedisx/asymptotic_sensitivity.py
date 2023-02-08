@@ -167,9 +167,14 @@ class FrequentistSensitivityRatesOnlyWilks():
                 # Set data
                 likelihood.set_data(toy_data)
 
-                for key, value in simulate_dict.items():
+                guess_dict = dict()
+                for background_source in self.background_source_names:
+                    guess_dict[f'{background_source}_rate_multiplier'] = simulate_dict[f'{background_source}_rate_multiplier']
+                guess_dict[f'{signal_source}_rate_multiplier'] = 0.
+
+                for key, value in guess_dict.items():
                     if value < 0.1:
-                        simulate_dict[key] = 0.1
+                        guess_dict[key] = 0.1
 
                 # Save the test statistic values for each background-only dataset, for each
                 # signal RM scanned over, for this signal source
@@ -177,9 +182,9 @@ class FrequentistSensitivityRatesOnlyWilks():
                 # Loop over signal rate multipliers
                 for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
                     if mu_test not in self.test_stats[signal_source].keys():
-                        self.test_stats[signal_source][mu_test] = [self.test_statistic_qmu(mu_test, signal_source, likelihood, simulate_dict)]
+                        self.test_stats[signal_source][mu_test] = [self.test_statistic_qmu(mu_test, signal_source, likelihood, guess_dict)]
                     else:
-                        self.test_stats[signal_source][mu_test].append(self.test_statistic_qmu(mu_test, signal_source, likelihood, simulate_dict))
+                        self.test_stats[signal_source][mu_test].append(self.test_statistic_qmu(mu_test, signal_source, likelihood, guess_dict))
 
         # Output test statistics
         if test_stats_output_name is not None:
