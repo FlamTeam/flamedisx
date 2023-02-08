@@ -17,7 +17,8 @@ from .lxe_blocks.quanta_generation import *
 from .lxe_blocks.quanta_splitting import *
 from .lxe_blocks.detection import *
 from .lxe_blocks.double_pe import *
-from .lxe_blocks.final_signals import *
+from .lxe_blocks.raw_signals import *
+from .lxe_blocks.reconstruct_signals import *
 from .lxe_sources import *
 
 # XENON(1T) models

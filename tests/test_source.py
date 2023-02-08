@@ -193,6 +193,47 @@ def test_domain_detected(xes: fd.ERSource):
         np.floor(xes.data['photons_detected_min']).values)
 
 
+def test_reconstruction(xes: fd.ERSource):
+    data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
+
+    for block in fd.ReconstructS1, fd.ReconstructS2:
+
+        r = block(xes).compute(
+            data_tensor, ptensor,
+            **xes._domain_dict(block.dimensions, data_tensor))
+        r = r.numpy()
+
+        signal_name = block.signal_name
+
+        assert r.shape == \
+               (n_events, 
+                xes.dimsizes[signal_name + '_raw'],
+                1)
+        r = r[:, :, 0]
+
+        # r is p(S1_raw | detected electrons) as a function of detected electrons
+        # so the sum over r isn't meaningful (as long as we're frequentists)
+
+        # Maximum likelihood est. of s1_raw, s2_raw is correct, with correct
+        # meaning that it is closer than the step size for this non-integer
+        # dimension
+        max_is = r.argmax(axis=1)
+        domain = xes.domain(signal_name + '_raw').numpy()
+        found_mle = np_lookup_axis1(domain, max_is)
+        np.testing.assert_array_less(
+            np.abs(xes.data[signal_name + '_raw_mle'] - found_mle),
+            xes.data[signal_name + '_raw_steps'])
+
+        # Not numerically realistic to have dirac-delta for reconstruction bias
+        # block but at least make sure that you're evaluating likelihood at
+        # finer steps than the amount the reconstruction is smearing. Really
+        # important condition in order to get _simulate and _compute to agree
+        # with 3 sigmas
+        smearing_load = getattr(block, signal_name + '_smear_load')
+        print(signal_name, smearing_load)
+        assert max(xes.data[signal_name+'_raw_steps']) < smearing_load
+
+
 def test_detector_response(xes: fd.ERSource):
     data_tensor, ptensor = xes.data_tensor[0], xes.ptensor_from_kwargs()
 
@@ -204,11 +245,15 @@ def test_detector_response(xes: fd.ERSource):
         r = r.numpy()
 
         quanta_name = block.quanta_name
+        signal_name = block.signal_name
+
         assert r.shape == \
-               (n_events, max(xes.dimsizes[quanta_name + 's_detected']), 1)
+               (n_events, 
+                max(xes.dimsizes[quanta_name + 's_detected']),
+                xes.dimsizes[signal_name])
         r = r[:, :, 0]
 
-        # r is p(S1 | detected electrons) as a function of detected electrons
+        # r is p(S1_raw | detected electrons) as a function of detected electrons
         # so the sum over r isn't meaningful (as long as we're frequentists)
 
         # Maximum likelihood est. of detected quanta is correct

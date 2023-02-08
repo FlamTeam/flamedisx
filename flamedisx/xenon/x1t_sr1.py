@@ -160,8 +160,14 @@ class SR1Source:
                         'path_cut_accept_s2',
                         'path_s1_rly',
                         'path_s2_rly',
-                        'path_reconstruction_bias_mean_s1',
-                        'path_reconstruction_bias_mean_s2',
+                        'path_reconstruction_bias_s1_simulate',
+                        'path_reconstruction_smear_s1_simulate',
+                        'path_reconstruction_bias_s2_simulate',
+                        'path_reconstruction_smear_s2_simulate',                                   
+                        'path_reconstruction_bias_s1_annotate',
+                        'path_reconstruction_smear_s1_annotate',
+                        'path_reconstruction_bias_s2_annotate',
+                        'path_reconstruction_smear_s2_annotate',                                   
                         'path_reconstruction_efficiencies_s1',
                         'variable_elife',
                         'default_elife',
@@ -192,12 +198,15 @@ class SR1Source:
     path_cut_accept_s2 = ('cut_acceptance/XENON1T/S2AcceptanceSR1_v7_Median.json',)
 
     # Pax reconstruction bias maps
-    path_reconstruction_bias_mean_s1 = (
-        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanUppers_SR1_v2.json')
-    path_reconstruction_bias_mean_s2 = (
-        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanUppers_SR1_v2.json')
+    path_reconstruction_bias_s1_simulate = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s1_simulate = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_std.json',)
+    path_reconstruction_bias_s2_simulate = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s2_simulate = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_std.json',)
+
+    path_reconstruction_bias_s1_annotate = ('nt_maps/reconstruction_bias/s1_annotate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s1_annotate = ('nt_maps/reconstruction_bias/s1_annotate_reconstruction_bias_std.json',)
+    path_reconstruction_bias_s2_annotate = ('nt_maps/reconstruction_bias/s2_annotate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s2_annotate = ('nt_maps/reconstruction_bias/s2_annotate_reconstruction_bias_std.json',)
 
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
     path_reconstruction_efficiencies_s1 = (
@@ -253,10 +262,29 @@ class SR1Source:
             read_maps_tf(self.path_reconstruction_efficiencies_s1, is_bbf=True)
 
         # Loading reconstruction bias map
-        self.recon_map_s1_tf, self.domain_def_s1 = \
-            read_maps_tf(self.path_reconstruction_bias_mean_s1, is_bbf=True)
-        self.recon_map_s2_tf, self.domain_def_s2 = \
-            read_maps_tf(self.path_reconstruction_bias_mean_s2, is_bbf=True)
+        # Forward for _simulate, _compute
+        # S1
+        self.recon_bias_s1_simulate_tf, self.domain_def_bias_s1_simulate = \
+            read_maps_tf(self.path_reconstruction_bias_s1_simulate, is_bbf=False)
+        self.recon_smear_s1_simulate_tf, self.domain_def_smear_s1_simulate = \
+            read_maps_tf(self.path_reconstruction_smear_s1_simulate, is_bbf=False)
+        # S2
+        self.recon_bias_s2_simulate_tf, self.domain_def_bias_s2_simulate = \
+            read_maps_tf(self.path_reconstruction_bias_s2_simulate, is_bbf=False)
+        self.recon_smear_s2_simulate_tf, self.domain_def_smear_s2_simulate = \
+            read_maps_tf(self.path_reconstruction_smear_s2_simulate, is_bbf=False)
+
+        # Backwards for _annotate
+        # S1
+        self.recon_bias_s1_annotate_tf, self.domain_def_bias_s1_annotate = \
+            read_maps_tf(self.path_reconstruction_bias_s1_annotate, is_bbf=False)
+        self.recon_smear_s1_annotate_tf, self.domain_def_smear_s1_annotate = \
+            read_maps_tf(self.path_reconstruction_smear_s1_annotate, is_bbf=False)
+        # S2
+        self.recon_bias_s2_annotate_tf, self.domain_def_bias_s2_annotate = \
+            read_maps_tf(self.path_reconstruction_bias_s2_annotate, is_bbf=False)
+        self.recon_smear_s2_annotate_tf, self.domain_def_smear_s2_annotate = \
+            read_maps_tf(self.path_reconstruction_smear_s2_annotate, is_bbf=False)
 
         # Loading electron lifetime map
         self.elife_tf, self.domain_def_elife = \
@@ -278,27 +306,85 @@ class SR1Source:
         # FDC maps
         self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field_distortion_correction))
 
+    # Forward simulation
+    # S1
+    def reconstruction_bias_s1_simulate(self, s1_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s1_simulate_tf[0],
+                self.domain_def_bias_s1_simulate)
 
-    def reconstruction_bias_s1(self,
-                               s1,
-                               s1_reconstruction_bias_pivot=\
-                                   DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        return calculate_reconstruction_bias(
-            s1,
-            self.recon_map_s1_tf,
-            self.domain_def_s1,
-            pivot_pt=s1_reconstruction_bias_pivot)
+        return itp_bias + tf.ones_like(s1_raw, dtype=fd.float_type())
 
-    def reconstruction_bias_s2(self,
-                               s2,
-                               s2_reconstruction_bias_pivot=\
-                                   DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        return calculate_reconstruction_bias(
-            s2,
-            self.recon_map_s2_tf,
-            self.domain_def_s2,
-            pivot_pt=s2_reconstruction_bias_pivot)
+    def reconstruction_smear_s1_simulate(self, s1_raw):
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s1_simulate_tf[0],
+                self.domain_def_smear_s1_simulate)
 
+        return itp_smear+1e-45
+
+    # S2
+    def reconstruction_bias_s2_simulate(self, s2_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s2_simulate_tf[0],
+                self.domain_def_bias_s2_simulate)
+
+        return itp_bias + tf.ones_like(s2_raw, dtype=fd.float_type())
+
+    def reconstruction_smear_s2_simulate(self, s2_raw):
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s2_simulate_tf[0],
+                self.domain_def_smear_s2_simulate)
+        
+        return itp_smear+1e-45
+
+    # Backwards for annotate
+    # S1
+    def reconstruction_bias_s1_annotate(self, s1_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s1_annotate_tf[0],
+                self.domain_def_bias_s1_annotate)
+
+        return itp_bias + tf.ones_like(s1_raw, dtype=fd.float_type())
+
+    def reconstruction_smear_s1_annotate(self, s1_raw):
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s1_annotate_tf[0],
+                self.domain_def_smear_s1_annotate)
+
+        return itp_smear+1e-45
+
+    # S2
+    def reconstruction_bias_s2_annotate(self, s2_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s2_annotate_tf[0],
+                self.domain_def_bias_s2_annotate)
+
+        return itp_bias + tf.ones_like(s2_raw, dtype=fd.float_type())
+
+    def reconstruction_smear_s2_annotate(self, s2_raw):
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s2_annotate_tf[0],
+                self.domain_def_smear_s2_annotate)
+        
+        return itp_smear+1e-45
+
+    # Not sure what random truth is for
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
 
@@ -342,7 +428,7 @@ class SR1Source:
         delta_r = self.fdc_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values,
-                          d['z_observed'].values,]))
+                          d['z_observed'].values/d['drift_velocity'].values,]))
                               
         # apply radial correction
         with np.errstate(invalid='ignore', divide='ignore'):

@@ -10,18 +10,13 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
+SIGNAL_NAMES = dict(photoelectron='s1_raw', electron='s2_raw')
 
 
 class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
 
-    model_attributes = ('check_acceptances',)
-
-    # Whether to check acceptances are positive at the observed events.
-    # This is recommended, but you'll have to turn it off if your
-    # likelihood includes regions where only anomalous sources make events.
-    check_acceptances = True
+    model_attributes = ()  # leave it explicitly empty
 
     # Prevent pycharm warnings:
     source: fd.Source
@@ -38,18 +33,12 @@ class MakeFinalSignals(fd.Block):
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
 
-        # Call add_extra_columns now, since s1 and s2 are known and derived
-        # observables from it (cs1, cs2) might be used in the acceptance.
-        # TODO: This is a bit of a kludge
-        self.source.add_extra_columns(d)
-        d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
-
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.signal_name] / m).clip(0, None)
+            (d[self.signal_name + '_mle'] / m).clip(0, None)
         scale = mle**0.5 * s / m
 
         for bound, sign, intify in (('min', -1, np.floor),
@@ -80,57 +69,36 @@ class MakeFinalSignals(fd.Block):
             loc=mean, scale=std + 1e-10
         ).prob(s_observed)
 
+        ''' Think can also remove this chunk
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
+        '''
         return result
-
-    def check_data(self):
-        if not self.check_acceptances:
-            return
-        s_acc = self.gimme_numpy(self.signal_name + '_acceptance')
-        if np.any(s_acc <= 0):
-            raise ValueError(f"Found event with non-positive {self.signal_name} "
-                             f"acceptance: did you apply and configure "
-                             "your cuts correctly?")
 
 
 @export
 class MakeS1(MakeFinalSignals):
 
     quanta_name = 'photoelectron'
-    signal_name = 's1'
+    signal_name = 's1_raw'
 
-    dimensions = ('photoelectrons_detected', 's1')
-    special_model_functions = ('reconstruction_bias_s1',)
+    dimensions = ('photoelectrons_detected', 's1_raw')
+    special_model_functions = ()
     model_functions = (
         'photoelectron_gain_mean',
-        'photoelectron_gain_std',
-        's1_acceptance') + special_model_functions
+        'photoelectron_gain_std',) + special_model_functions
 
     max_dim_size = {'photoelectrons_detected': 120}
 
     photoelectron_gain_mean = 1.
     photoelectron_gain_std = 0.5
 
-    def s1_acceptance(self, s1, s1_min=2, s1_max=70):
-        return tf.where((s1 < s1_min) | (s1 > s1_max),
-                        tf.zeros_like(s1, dtype=fd.float_type()),
-                        tf.ones_like(s1, dtype=fd.float_type()))
-
-    @staticmethod
-    def reconstruction_bias_s1(sig):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-        """
-        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return reconstruction_bias
-
     def _compute(self, data_tensor, ptensor,
-                 photoelectrons_detected, s1):
+                 photoelectrons_detected, s1_raw):
         return super()._compute(
             quanta_detected=photoelectrons_detected,
-            s_observed=s1,
+            s_observed=s1_raw,
             data_tensor=data_tensor, ptensor=ptensor)
 
 
@@ -138,14 +106,13 @@ class MakeS1(MakeFinalSignals):
 class MakeS2(MakeFinalSignals):
 
     quanta_name = 'electron'
-    signal_name = 's2'
+    signal_name = 's2_raw'
 
-    dimensions = ('electrons_detected', 's2')
-    special_model_functions = ('reconstruction_bias_s2',)
+    dimensions = ('electrons_detected', 's2_raw')
+    special_model_functions = ()
     model_functions = (
         ('electron_gain_mean',
-         'electron_gain_std',
-         's2_acceptance')
+         'electron_gain_std',)
         + special_model_functions)
 
     max_dim_size = {'electrons_detected': 120}
@@ -156,22 +123,9 @@ class MakeS2(MakeFinalSignals):
 
     electron_gain_std = 5.
 
-    def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
-        return tf.where((s2 < s2_min) | (s2 > s2_max),
-                        tf.zeros_like(s2, dtype=fd.float_type()),
-                        tf.ones_like(s2, dtype=fd.float_type()))
-
-    @staticmethod
-    def reconstruction_bias_s2(sig):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-        """
-        reconstruction_bias = tf.ones_like(sig, dtype=fd.float_type())
-        return reconstruction_bias
-
     def _compute(self, data_tensor, ptensor,
-                 electrons_detected, s2):
+                 electrons_detected, s2_raw):
         return super()._compute(
             quanta_detected=electrons_detected,
-            s_observed=s2,
+            s_observed=s2_raw,
             data_tensor=data_tensor, ptensor=ptensor)
