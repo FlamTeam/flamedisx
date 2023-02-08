@@ -41,15 +41,18 @@ def make_event_reservoir(ntoys: int = None,
                                 input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
                 data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
         else:
+            source_groups_already_calculated = []
             for _, source_group_class in source_groups_dict.items():
                 assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
-                source_group_class.set_data(data_reservoir,
-                                            input_column_index=f'{input_prefix}{source_group_class.base_source.__class__.__name__}_column_index{input_label}.pkl',
-                                            input_data_tensor=f'{input_prefix}{source_group_class.base_source.__class__.__name__}_data_tensor{input_label}')
-                if quanta_tensor_dirs_dict is None:
-                    source_group_class.get_diff_rates()
-                else:
-                    source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+                if source_group_class not in source_groups_already_calculated:
+                    source_group_class.set_data(data_reservoir,
+                                                input_column_index=f'{input_prefix}{source_group_class.base_source.__class__.__name__}_column_index{input_label}.pkl',
+                                                input_data_tensor=f'{input_prefix}{source_group_class.base_source.__class__.__name__}_data_tensor{input_label}')
+                    if quanta_tensor_dirs_dict is None:
+                        source_group_class.get_diff_rates()
+                    else:
+                        source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+                    source_groups_already_calculated.append(source_group_class)
             for sname, source in sources.items():
                 data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source,
                                                                                                       input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl',
@@ -81,13 +84,16 @@ def make_event_reservoir(ntoys: int = None,
             source.set_data(data_reservoir)
             data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
     else:
+        source_groups_already_calculated = []
         for _, source_group_class in source_groups_dict.items():
             assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
-            source_group_class.set_data(data_reservoir)
-            if quanta_tensor_dirs_dict is None:
-                source_group_class.get_diff_rates()
-            else:
-                source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+            if source_group_class not in source_groups_already_calculated:
+                source_group_class.set_data(data_reservoir)
+                if quanta_tensor_dirs_dict is None:
+                    source_group_class.get_diff_rates()
+                else:
+                    source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+                source_groups_already_calculated.append(source_group_class)
         for sname, source in sources.items():
             data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
 
@@ -147,18 +153,20 @@ def make_event_reservoir_no_compute(ntoys: int = None,
             source.set_data(data_reservoir, output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
             pkl.dump(source.column_index, open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
     else:
+        source_groups_already_calculated = []
         for _, source_group_class in source_groups_dict.items():
             assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
-            source_group_class.set_data(data_reservoir,
-                                        output_data_tensor=f'{output_prefix}{source_group_class.base_source.__class__.__name__}_data_tensor{output_label}')
-            pkl.dump(source_group_class.base_source.column_index,
-                     open(f'{output_prefix}{source_group_class.base_source.__class__.__name__}_column_index{output_label}.pkl', 'wb'))
-            for sname, source in sources.items():
-                if isinstance(source_groups_dict[sname].base_source, source_group_class.base_source.__class__):
-                    source.set_data(source_group_class.base_source.data, data_is_annotated=True,
-                                    output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
-                    pkl.dump(source.column_index,
-                             open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
+            if source_group_class not in source_groups_already_calculated:
+                source_group_class.set_data(data_reservoir,
+                                            output_data_tensor=f'{output_prefix}{source_group_class.base_source.__class__.__name__}_data_tensor{output_label}')
+                pkl.dump(source_group_class.base_source.column_index,
+                         open(f'{output_prefix}{source_group_class.base_source.__class__.__name__}_column_index{output_label}.pkl', 'wb'))
+                source_groups_already_calculated.append(source_group_class)
+        for sname, source in sources.items():
+            source.set_data(source_groups_dict[sname].base_source.data, data_is_annotated=True,
+                            output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}')
+            pkl.dump(source.column_index,
+                     open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
 
 
 @export
