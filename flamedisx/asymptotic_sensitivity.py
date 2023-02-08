@@ -200,6 +200,8 @@ class FrequentistSensitivityRatesOnlyWilks():
 
             these_pvals = dict()
             for key, value in these_test_stats.items():
+                value = np.array(value)
+                value[value < 0.] = 0.
                 these_pvals[key] = np.median(1. - stats.norm.cdf(np.sqrt(value)))
 
             self.median_p_vals[signal_source] = these_pvals
