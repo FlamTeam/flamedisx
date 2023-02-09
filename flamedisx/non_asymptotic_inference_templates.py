@@ -370,7 +370,7 @@ class FrequentistIntervalRatesOnlyTemplates():
                 pkl.dump(self.observed_test_stats, open(test_stats_output_name, 'wb'))
                 pkl.dump(self.conditional_best_fits, open(test_stats_output_name[:-4] + '_conditional_fits.pkl', 'wb'))
 
-    def get_p_vals(self):
+    def get_p_vals(self, conf_level):
         """Internal function to get p-value curves.
         """
         self.p_vals = dict()
@@ -390,12 +390,12 @@ class FrequentistIntervalRatesOnlyTemplates():
             powers = dict()
             # Loop over signal rate multipliers
             for mu_test in observed_test_stats.keys():
-                # Compute the p-value from the observed test statistic and the distribition
+                # Compute the p-value from the observed test statistic and the S+B distribition
                 p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
                                                                   observed_test_stats[mu_test],
                                                                   kind='weak')) / 100.
                 # Get the critical TS value under the S+B distribution
-                ts_crit = np.quantile(test_stat_dists[mu_test], 0.9)
+                ts_crit = np.quantile(test_stat_dists[mu_test], 1. - conf_level)
                 # Compute the power from the critical TS value and the B distribition
                 powers[mu_test] = (100. - stats.percentileofscore(test_stat_dists_pcl[mu_test],
                                                                   ts_crit,
@@ -415,7 +415,7 @@ class FrequentistIntervalRatesOnlyTemplates():
             - return_p_vals: whether or not to output the p-value curves
         """
         # Get the p-value curves
-        self.get_p_vals()
+        self.get_p_vals(conf_level)
 
         lower_lim_all = dict()
         upper_lim_all = dict()
