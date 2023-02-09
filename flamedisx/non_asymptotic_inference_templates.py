@@ -405,7 +405,43 @@ class FrequentistIntervalRatesOnlyTemplates():
             self.p_vals[signal_source] = p_vals
             self.powers[signal_source] = powers
 
-    def get_interval(self, conf_level=0.1, return_p_vals=False):
+    @staticmethod
+    def inverse_interp_rising_edge(x, y, crossing_points, y_crit):
+        x_left = x[crossing_points[0]]
+        x_right = x[crossing_points[0] + 1]
+        y_left = y[crossing_points[0]]
+        y_right = y[crossing_points[0] + 1]
+
+        gradient = (y_right - y_left) / (x_right - x_left)
+        crossing_point = (y_crit - y_left) / gradient + x_left
+
+        return crossing_point
+
+    @staticmethod
+    def inverse_interp_falling_edge(x, y, crossing_points, y_crit):
+        x_left = x[crossing_points[-1]]
+        x_right = x[crossing_points[-1] + 1]
+        y_left = y[crossing_points[-1]]
+        y_right = y[crossing_points[-1] + 1]
+
+        gradient = (y_right - y_left) / (x_right - x_left)
+        crossing_point = (y_crit - y_left) / gradient + x_left
+
+        return crossing_point
+
+    @staticmethod
+    def interp_falling_edge(x, y, crossing_points, x_crit):
+        x_left = x[crossing_points[-1]]
+        x_right = x[crossing_points[-1] + 1]
+        y_left = y[crossing_points[-1]]
+        y_right = y[crossing_points[-1] + 1]
+
+        gradient = (y_right - y_left) / (x_right - x_left)
+        y_val = (x_crit - x_left) * gradient + y_left
+
+        return y_val
+
+    def get_interval(self, conf_level=0.1, pcl_level=0.16, return_p_vals=False):
         """Get either upper limit, or possibly upper and lower limits.
         Before using this get_test_stat_dists() and get_observed_test_stats() must
         have bene called.
@@ -422,9 +458,11 @@ class FrequentistIntervalRatesOnlyTemplates():
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             these_pvals = self.p_vals[signal_source]
+            these_powers = self.powers[signal_source]
 
             mus = list(these_pvals.keys())
             pvals = list(these_pvals.values())
+            powers = list(these_powers.values())
 
             # Find points where the p-value curve cross the critical value, decreasing
             upper_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) < 0.).flatten()
@@ -433,26 +471,24 @@ class FrequentistIntervalRatesOnlyTemplates():
 
             if len(lower_lims > 0):
                 # Take the lowest increasing crossing point, and interpolate to get an upper limit
-                lower_mu_left = mus[lower_lims[0]]
-                lower_mu_right = mus[lower_lims[0] + 1]
-                lower_pval_left = pvals[lower_lims[0]]
-                lower_pval_right = pvals[lower_lims[0] + 1]
-
-                lower_gradient = (lower_pval_right - lower_pval_left) / (lower_mu_right - lower_mu_left)
-                lower_lim = (conf_level - lower_pval_left) / lower_gradient + lower_mu_left
+                lower_lim = self.inverse_interp_rising_edge(mus, pvals, lower_lims, conf_level)
             else:
                 # We have no lower limit
                 lower_lim = None
 
             assert len(upper_lims) > 0, 'No upper limit found!'
             # Take the highest decreasing crossing point, and interpolate to get an upper limit
-            upper_mu_left = mus[upper_lims[-1]]
-            upper_mu_right = mus[upper_lims[-1] + 1]
-            upper_pval_left = pvals[upper_lims[-1]]
-            upper_pval_right = pvals[upper_lims[-1] + 1]
+            upper_lim = self.inverse_interp_falling_edge(mus, pvals, upper_lims, conf_level)
 
-            upper_gradient = (upper_pval_right - upper_pval_left) / (upper_mu_right - upper_mu_left)
-            upper_lim = (conf_level - upper_pval_left) / upper_gradient + upper_mu_left
+            if lower_lim is not None:
+                raise RuntimeError("Current not handling PCL for interval, just upper limit")
+
+            M0 = self.interp_falling_edge(mus, powers, upper_lims, upper_lim)
+            if M0 < pcl_level:
+                # Find points where the power curve cross the critical value, increasing
+                upper_lims = np.argwhere(np.diff(np.sign(powers - np.ones_like(powers) * pcl_level)) > 0.).flatten()
+                # Take the lowest increasing crossing point, and interpolate to get an upper limit
+                upper_lim = self.inverse_interp_rising_edge(mus, powers, upper_lims, pcl_level)
 
             lower_lim_all[signal_source] = lower_lim
             upper_lim_all[signal_source] = upper_lim
