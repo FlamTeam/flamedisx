@@ -394,8 +394,11 @@ class FrequentistIntervalRatesOnlyTemplates():
                 p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
                                                                   observed_test_stats[mu_test],
                                                                   kind='weak')) / 100.
+                # Get the critical TS value under the S+B distribution
+                ts_crit = np.quantile(test_stat_dists[mu_test], 0.9)
+                # Compute the power from the critical TS value and the B distribition
                 powers[mu_test] = (100. - stats.percentileofscore(test_stat_dists_pcl[mu_test],
-                                                                  observed_test_stats[mu_test],
+                                                                  ts_crit,
                                                                   kind='weak')) / 100.
 
             # Record p-value, power curves
