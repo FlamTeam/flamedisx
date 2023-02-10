@@ -650,7 +650,6 @@ class Source:
             if tf.rank(dom) == 2:
                 return dom
             else:
-                assert tf.rank(dom) == 1, "Can only handle final dimensions values of dimension 1 or 2"
                 return dom[:, o]
 
         # Cover the bounds range in integer steps not necessarily of 1
