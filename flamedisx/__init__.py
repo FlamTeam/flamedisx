@@ -39,3 +39,7 @@ from . import lux
 # Custom TFP files
 # Access through fd.tfp_files.xxx
 from . import tfp_files
+
+# DD Migdal models
+# Access through fd.dd_migdal.xxx
+from . import dd_migdal
