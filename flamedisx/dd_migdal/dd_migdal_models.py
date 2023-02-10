@@ -18,19 +18,15 @@ class TestSource(fd.BlockModelSource):
         s1_mean = energy
         s2_mean = 10. * energy
 
-        means = np.array([s1_mean, s2_mean]).transpose()
-
-        return means
+        return [s1_mean, s2_mean]
 
     @staticmethod
     def signal_covs(energy):
-        s1_var = np.sqrt(energy)
-        s2_var = np.sqrt(10. * energy)
+        s1_var = tf.sqrt(energy)
+        s2_var = tf.sqrt(10. * energy)
 
-        s1s2_cov = -0.1 * np.sqrt(s1_var * s2_var)
+        s1s2_cov = -0.1 * tf.sqrt(s1_var * s2_var)
 
-        covs = np.array([[s1_var, s1s2_cov], [s1s2_cov, s2_var]]).transpose(2, 0, 1)
-
-        return covs
+        return [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
 
     final_dimensions = ('s1s2',)

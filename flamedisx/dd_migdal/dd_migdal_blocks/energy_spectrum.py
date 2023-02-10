@@ -24,9 +24,7 @@ class EnergySpectrum(fd.FirstBlock):
         spectrum = tf.repeat(self.rates_vs_energy[o, :],
                              self.source.batch_size,
                              axis=0)
-        rate_multiplier = self.gimme('energy_spectrum_rate_multiplier',
-                                     data_tensor=data_tensor, ptensor=ptensor)
-        return spectrum * rate_multiplier[:, o]
+        return spectrum
 
     def mu_before_efficiencies(self, **params):
         return np.sum(fd.np_to_tf(self.rates_vs_energy))

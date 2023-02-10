@@ -21,7 +21,12 @@ class MakeS1S2(fd.Block):
     # model_attributes = ('check_acceptances',)
 
     dimensions = ('energy', 's1s2')
-    model_functions = ('signal_means', 'signal_covs')
+    depends_on = ((('energy',), 'rate_vs_energy'),)
+
+    special_model_functions = ('signal_means', 'signal_covs')
+    model_functions = ('s1s2_acceptance',) + special_model_functions
+
+    array_columns = (('s1s2', 2),)
 
     # # Whether to check acceptances are positive at the observed events.
     # # This is recommended, but you'll have to turn it off if your
@@ -33,9 +38,17 @@ class MakeS1S2(fd.Block):
     gimme: ty.Callable
     gimme_numpy: ty.Callable
 
+    def s1s2_acceptance(self, s1s2):
+        return tf.ones_like(s1s2, dtype=fd.float_type())[:, 0]
+
     def _simulate(self, d):
-        means = self.gimme_numpy('signal_means')
-        covs = self.gimme_numpy('signal_covs')
+        energies = d['energy'].values
+
+        means = self.gimme_numpy('signal_means', bonus_arg=energies)
+        means = np.array(means).transpose()
+
+        covs = self.gimme_numpy('signal_covs', bonus_arg=energies)
+        covs = np.array(covs).transpose(2, 0, 1)
 
         shape = np.broadcast_shapes(means.shape, covs.shape[:-1])
 
@@ -51,32 +64,40 @@ class MakeS1S2(fd.Block):
 
         # d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
-    # def _compute(self,
-    #              quanta_detected, s_observed,
-    #              data_tensor, ptensor):
-    #     # Lookup signal gain mean and std per detected quanta
-    #     mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
-    #                             data_tensor=data_tensor,
-    #                             ptensor=ptensor)[:, o, o]
-    #     std_per_q = self.gimme(self.quanta_name + '_gain_std',
-    #                            data_tensor=data_tensor,
-    #                            ptensor=ptensor)[:, o, o]
-    #
-    #     mean = quanta_detected * mean_per_q
-    #     std = quanta_detected ** 0.5 * std_per_q
-    #
-    #     # add offset to std to avoid NaNs from norm.pdf if std = 0
-    #     result = tfp.distributions.Normal(
-    #         loc=mean, scale=std + 1e-10
-    #     ).prob(s_observed)
-    #
-    #     # Add detection/selection efficiency
-    #     result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
-    #                          data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-    #     return result
-
     def _annotate(self, d):
         pass
+
+    def _compute(self,
+                 data_tensor, ptensor,
+                 # Domain
+                 s1s2,
+                 # Dependency domain and value
+                 energy, rate_vs_energy,):
+        energies = energy[0, :, 0]
+
+        means = self.gimme('signal_means', bonus_arg=energies,
+                           data_tensor=data_tensor,
+                           ptensor=ptensor)
+        means = tf.transpose(means)
+
+        covs = self.gimme('signal_covs', bonus_arg=energies,
+                           data_tensor=data_tensor,
+                           ptensor=ptensor)
+        covs = tf.transpose(covs, perm=[2, 0, 1])
+
+        scale = tf.linalg.cholesky(covs)
+
+        means = tf.repeat(means[o, :, :], self.source.batch_size, axis=0)
+        scale = tf.repeat(scale[o, :, :], self.source.batch_size, axis=0)
+        result = tfp.distributions.MultivariateNormalTriL(loc=means, scale_tril=scale).prob(s1s2)
+
+        # Add detection/selection efficiency
+        acceptance = self.gimme('s1s2_acceptance',
+                                 data_tensor=data_tensor, ptensor=ptensor)
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(result)[1], axis=1)
+        result *= acceptance
+
+        return result[:, o, :]
 
     # def check_data(self):
     #     if not self.check_acceptances:
