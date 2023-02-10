@@ -121,8 +121,8 @@ class Block:
         result = self._compute(data_tensor, ptensor, **kwargs)
         assert result.dtype == fd.float_type(), \
             f"{self}._compute returned tensor of wrong dtype!"
-        assert len(result.shape) == len(self.dimensions) + 1, \
-            f"{self}._compute returned tensor of wrong rank!"
+        tf.debugging.assert_equal(tf.rank(result), len(self.dimensions) + 1,
+                                  message=f"{self}._compute returned tensor of wrong rank!")
         return result
 
     def simulate(self, d: pd.DataFrame):
@@ -465,7 +465,7 @@ class BlockModelSource(fd.Source):
         r = r @ r2
         if dummy_axis:
             r = tf.squeeze(r, dummy_axis)
-        assert len(r.shape) == len(new_dims) + 1
+        tf.debugging.assert_equal(tf.rank(r), len(new_dims) + 1)
 
         return (new_dims, r)
 
