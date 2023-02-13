@@ -86,6 +86,9 @@ class EnergySpectrumSecond(fd.Block):
     #: Recall we approximate energy spectra by a sequence of delta functions.
     rates_vs_energy_second = tf.ones(100, dtype=fd.float_type())
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, ignore_shape_assertion=True)
+
     def _compute(self, data_tensor, ptensor, *, energy_second):
         spectrum = tf.repeat(self.rates_vs_energy_second[o, :],
                              self.source.batch_size,
