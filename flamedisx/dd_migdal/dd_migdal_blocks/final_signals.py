@@ -20,8 +20,8 @@ class MakeS1S2(fd.Block):
 
     # model_attributes = ('check_acceptances',)
 
-    dimensions = ('energy', 's1s2')
-    depends_on = ((('energy',), 'rate_vs_energy'),)
+    dimensions = ('energy_first', 's1s2')
+    depends_on = ((('energy_first',), 'rate_vs_energy_first'),)
 
     special_model_functions = ('signal_means', 'signal_covs')
     model_functions = ('s1s2_acceptance',) + special_model_functions
@@ -42,12 +42,12 @@ class MakeS1S2(fd.Block):
         return tf.ones_like(s1s2, dtype=fd.float_type())[:, 0]
 
     def _simulate(self, d):
-        energies = d['energy'].values
+        energies_first = d['energy_first'].values
 
-        means = self.gimme_numpy('signal_means', bonus_arg=energies)
+        means = self.gimme_numpy('signal_means', bonus_arg=energies_first)
         means = np.array(means).transpose()
 
-        covs = self.gimme_numpy('signal_covs', bonus_arg=energies)
+        covs = self.gimme_numpy('signal_covs', bonus_arg=energies_first)
         covs = np.array(covs).transpose(2, 0, 1)
 
         shape = np.broadcast_shapes(means.shape, covs.shape[:-1])
@@ -72,15 +72,15 @@ class MakeS1S2(fd.Block):
                  # Domain
                  s1s2,
                  # Dependency domain and value
-                 energy, rate_vs_energy,):
-        energies = energy[0, :, 0]
+                 energy_first, rate_vs_energy_first,):
+        energies_first = energy_first[0, :, 0]
 
-        means = self.gimme('signal_means', bonus_arg=energies,
+        means = self.gimme('signal_means', bonus_arg=energies_first,
                            data_tensor=data_tensor,
                            ptensor=ptensor)
         means = tf.transpose(means)
 
-        covs = self.gimme('signal_covs', bonus_arg=energies,
+        covs = self.gimme('signal_covs', bonus_arg=energies_first,
                            data_tensor=data_tensor,
                            ptensor=ptensor)
         covs = tf.transpose(covs, perm=[2, 0, 1])

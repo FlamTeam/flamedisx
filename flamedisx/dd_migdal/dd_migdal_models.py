@@ -10,7 +10,8 @@ export, __all__ = fd.exporter()
 @export
 class TestSource(fd.BlockModelSource):
     model_blocks = (
-        fd_dd_migdal.EnergySpectrum,
+        fd_dd_migdal.EnergySpectrumFirst,
+        fd_dd_migdal.EnergySpectrumSecond,
         fd_dd_migdal.MakeS1S2)
 
     @staticmethod
