@@ -14,11 +14,11 @@ class EnergySpectrumFirst(fd.FirstBlock):
 
     #: Tensor listing energies this source can produce.
     #: Approximate the energy spectrum as a sequence of delta functions.
-    energies_first= tf.cast(tf.linspace(2., 8., 1000),
+    energies_first= tf.cast(tf.linspace(2., 8., 100),
                             dtype=fd.float_type())
     #: Tensor listing the number of events for each energy the souce produces
     #: Recall we approximate energy spectra by a sequence of delta functions.
-    rates_vs_energy_first = tf.ones(1000, dtype=fd.float_type())
+    rates_vs_energy_first = tf.ones(100, dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy_first):
         spectrum = tf.repeat(self.rates_vs_energy_first[o, :],
@@ -80,13 +80,13 @@ class EnergySpectrumSecond(fd.Block):
 
     #: Tensor listing energies this source can produce.
     #: Approximate the energy spectrum as a sequence of delta functions.
-    energies_second= tf.cast(tf.linspace(2., 8., 1000),
+    energies_second= tf.cast(tf.linspace(2., 8., 100),
                             dtype=fd.float_type())
     #: Tensor listing the number of events for each energy the souce produces
     #: Recall we approximate energy spectra by a sequence of delta functions.
-    rates_vs_energy_second = tf.ones(1000, dtype=fd.float_type())
+    rates_vs_energy_second = tf.ones(100, dtype=fd.float_type())
 
-    def _compute(self, data_tensor, ptensor, *, energy_first):
+    def _compute(self, data_tensor, ptensor, *, energy_second):
         spectrum = tf.repeat(self.rates_vs_energy_second[o, :],
                              self.source.batch_size,
                              axis=0)
@@ -105,4 +105,16 @@ class EnergySpectrumSecond(fd.Block):
         assert np.all(d['energy_first'] >= 0), "Generated negative energies??"
 
     def _annotate(self, d):
-        pass
+        d['energy_second_min'] = fd.tf_to_np(self.energies_second)[0]
+        d['energy_second_max'] = fd.tf_to_np(self.energies_second)[-1]
+
+    def _calculate_dimsizes_special(self):
+        d = self.source.data
+
+        self.source.dimsizes['energy_second'] = len(self.energies_second)
+
+        d_energy = np.diff(self.energies_second)
+        d['energy_second_steps'] = d_energy[0]
+
+        assert np.isclose(self.energies_second[0] + (len(self.energies_second) - 1) * d_energy[0],
+                          self.energies_second[-1]), "Logic only works with constant stepping in energy spectrum"
