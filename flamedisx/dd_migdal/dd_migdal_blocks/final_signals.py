@@ -77,30 +77,39 @@ class MakeS1S2(fd.Block):
                  energy_first, rate_vs_energy_first,
                  energy_second, rate_vs_energy_second):
         energies_first = energy_first[0, :, 0]
+        energies_second = energy_second[0, :]
 
-        means = self.gimme('signal_means', bonus_arg=energies_first,
+        energies_first = tf.repeat(energies_first[:, o], tf.shape(energy_second[0, :]), axis=1)
+        energies_second = tf.repeat(energies_second[o, :], tf.shape(energy_first[0, :, 0]), axis=0)
+
+        means = self.gimme('signal_means_double', bonus_arg=(energies_first, energies_second),
                            data_tensor=data_tensor,
                            ptensor=ptensor)
-        means = tf.transpose(means)
+        means = tf.transpose(means, perm=[1, 2, 0])
 
-        covs = self.gimme('signal_covs', bonus_arg=energies_first,
+        covs = self.gimme('signal_covs_double', bonus_arg=(energies_first, energies_second),
                            data_tensor=data_tensor,
                            ptensor=ptensor)
-        covs = tf.transpose(covs, perm=[2, 0, 1])
+        covs = tf.transpose(covs, perm=[2, 3, 0, 1])
 
         scale = tf.linalg.cholesky(covs)
 
         means = tf.repeat(means[o, :, :], self.source.batch_size, axis=0)
         scale = tf.repeat(scale[o, :, :], self.source.batch_size, axis=0)
-        result = tfp.distributions.MultivariateNormalTriL(loc=means, scale_tril=scale).prob(s1s2)
+
+        s1s2 = tf.repeat(s1s2[:, :, o, :], tf.shape(energy_second[0, :]), axis=2)
+
+        result_all_energies = tfp.distributions.MultivariateNormalTriL(loc=means, scale_tril=scale).prob(s1s2)
+
+        result_energies_first = (result_all_energies @ rate_vs_energy_second[..., None])[..., 0]
 
         # Add detection/selection efficiency
         acceptance = self.gimme('s1s2_acceptance',
                                  data_tensor=data_tensor, ptensor=ptensor)
-        acceptance = tf.repeat(acceptance[:, o], tf.shape(result)[1], axis=1)
-        result *= acceptance
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(result_energies_first)[1], axis=1)
+        result_energies_first *= acceptance
 
-        return result[:, o, :]
+        return result_energies_first[:, o, :]
 
     # def check_data(self):
     #     if not self.check_acceptances:
