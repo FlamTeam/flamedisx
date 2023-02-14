@@ -35,14 +35,14 @@ class TestSource(fd.BlockModelSource):
         energy_first = args[0]
         energy_second = args[1]
 
-        s2_mean_first = 10**(np.log10(c_s2_mean_0) + c_s2_mean_1 * np.log10(energy_first))
-        s2_mean_second = 10**(np.log10(c_s2_mean_0) + c_s2_mean_1 * np.log10(energy_second))
+        s2_mean_first = 10**(fd.tf_log10(c_s2_mean_0) + c_s2_mean_1 * fd.tf_log10(energy_first))
+        s2_mean_second = 10**(fd.tf_log10(c_s2_mean_0) + c_s2_mean_1 * fd.tf_log10(energy_second))
 
         s1_mean_first = (a * energy_first**b - s2_mean_first / g2) * g1
         s1_mean_second = (a * energy_second**b - s2_mean_second / g2) * g1
 
-        s1_mean_first = np.where(s1_mean_first < 0.01, 0.01, s1_mean_first)
-        s1_mean_second = np.where(s1_mean_second < 0.01, 0.01, s1_mean_second)
+        s1_mean_first = tf.where(s1_mean_first < 0.01, 0.01 * tf.ones_like(s1_mean_first, dtype=fd.float_type()), s1_mean_first)
+        s1_mean_second = tf.where(s1_mean_second < 0.01, 0.01 * tf.ones_like(s1_mean_second, dtype=fd.float_type()), s1_mean_second)
 
         s1_mean = s1_mean_first + s1_mean_second
         s2_mean = s2_mean_first + s2_mean_second

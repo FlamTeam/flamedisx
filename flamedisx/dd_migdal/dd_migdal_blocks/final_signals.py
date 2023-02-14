@@ -83,12 +83,14 @@ class MakeS1S2(fd.Block):
         energies_first = tf.repeat(energies_first[:, o], tf.shape(energy_second[0, :]), axis=1)
         energies_second = tf.repeat(energies_second[o, :], tf.shape(energy_first[0, :, 0]), axis=0)
 
-        means = self.gimme('signal_means_double', bonus_arg=(energies_first, energies_second),
-                           data_tensor=data_tensor,
-                           ptensor=ptensor)
+        s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second = self.gimme('signal_means_double',
+                                                                                  bonus_arg=(energies_first, energies_second),
+                                                                                  data_tensor=data_tensor,
+                                                                                  ptensor=ptensor)
+        means = [s1_mean_first + s1_mean_second, s2_mean_first + s2_mean_second]
         means = tf.transpose(means, perm=[1, 2, 0])
 
-        covs = self.gimme('signal_covs_double', bonus_arg=(energies_first, energies_second),
+        covs = self.gimme('signal_covs_double', bonus_arg=(s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second),
                            data_tensor=data_tensor,
                            ptensor=ptensor)
         covs = tf.transpose(covs, perm=[2, 3, 0, 1])
