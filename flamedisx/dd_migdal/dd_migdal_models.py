@@ -10,12 +10,12 @@ export, __all__ = fd.exporter()
 @export
 class NRNRSource(fd.BlockModelSource):
     model_blocks = (
-        fd_dd_migdal.EnergySpectrumFirst,
-        fd_dd_migdal.EnergySpectrumSecond,
-        fd_dd_migdal.MakeS1S2)
+        fd_dd_migdal.EnergySpectrumFirstMSU,
+        fd_dd_migdal.EnergySpectrumSecondMSU,
+        fd_dd_migdal.MakeS1S2MSU)
 
     @staticmethod
-    def signal_means_double(*args, a=11., b=1.1, c_s2_0=755.5, c_s2_1=0.605, g1=0.1131, g2=47.35):
+    def signal_means(*args, a=11., b=1.1, c_s2_0=755.5, c_s2_1=0.605, g1=0.1131, g2=47.35):
         energy_first = args[0]
         energy_second = args[1]
 
@@ -34,7 +34,7 @@ class NRNRSource(fd.BlockModelSource):
         return s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second
 
     @staticmethod
-    def signal_covs_double(*args, d_s1=1.2, d_s2=14., anti_corr=-0.1):
+    def signal_covs(*args, d_s1=1.2, d_s2=14., anti_corr=-0.1):
         s1_mean_first = args[0]
         s1_mean_second = args[1]
 
@@ -56,3 +56,34 @@ class NRNRSource(fd.BlockModelSource):
 
     final_dimensions = ('s1s2',)
     no_step_dimensions = ('energy_second')
+
+
+@export
+class ERSource(fd.BlockModelSource):
+    model_blocks = (
+        fd_dd_migdal.EnergySpectrumFirstSS,
+        fd_dd_migdal.MakeS1S2SS)
+
+    @staticmethod
+    def signal_means(energy, a=11., b=1.1, c_s2_0=755.5, c_s2_1=0.605, g1=0.1131, g2=47.35):
+        s2_mean = 10**(fd.tf_log10(c_s2_0) + c_s2_1 * fd.tf_log10(energy))
+
+        s1_mean = (a * energy**b - s2_mean / g2) * g1
+        s1_mean= tf.where(s1_mean < 0.01, 0.01 * tf.ones_like(s1_mean, dtype=fd.float_type()), s1_mean)
+
+        return s1_mean, s2_mean
+
+    @staticmethod
+    def signal_covs(*args, d_s1=1.2, d_s2=14., anti_corr=-0.1):
+        s1_mean = args[0]
+        s2_mean = args[1]
+
+        s1_var = d_s1 * s1_mean
+
+        s2_var = d_s2 * s2_mean
+
+        s1s2_cov = anti_corr * tf.sqrt(s1_var * s2_var)
+
+        return [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
+
+    final_dimensions = ('s1s2',)

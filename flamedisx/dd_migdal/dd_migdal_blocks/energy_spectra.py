@@ -10,16 +10,14 @@ o = tf.newaxis
 
 
 @export
-class EnergySpectrumFirst(fd.FirstBlock):
+class EnergySpectrumFirstMSU(fd.FirstBlock):
     dimensions = ('energy_first',)
     model_attributes = ('energies_first', 'rates_vs_energy_first')
 
-    #: Tensor listing energies this source can produce.
-    #: Approximate the energy spectrum as a sequence of delta functions.
+    #: Energies from the first scatter
     energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
-    #: Tensor listing the number of events for each energy the souce produces
-    #: Recall we approximate energy spectra by a sequence of delta functions.
+    #: Dummy energy spectrum of 1s for MSU case. Override for SS
     rates_vs_energy_first = tf.ones(65, dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy_first):
@@ -76,14 +74,20 @@ class EnergySpectrumFirst(fd.FirstBlock):
 
 
 @export
-class EnergySpectrumSecond(fd.Block):
+class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
+    #: Eergy spectrum for SS case
+    rates_vs_energy_first = pkl.load(open('SS_spectrum.pkl', 'rb'))
+
+
+@export
+class EnergySpectrumSecondMSU(fd.Block):
     dimensions = ('energy_second',)
     model_attributes = ('energies_second', 'rates_vs_energy')
 
-    #: Tensor listing energies this source can produce.
-    #: Approximate the energy spectrum as a sequence of delta functions.
+    #: Energies from the second scatter
     energies_second = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
+    #: Joint energy spectrum for MSU scatters. Override for other double scatters
     rates_vs_energy = pkl.load(open('MSU_spectrum.pkl', 'rb'))
 
     def __init__(self, *args, **kwargs):
