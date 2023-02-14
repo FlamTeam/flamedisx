@@ -82,7 +82,7 @@ class EnergySpectrumSecond(fd.Block):
 
     #: Tensor listing energies this source can produce.
     #: Approximate the energy spectrum as a sequence of delta functions.
-    energies_second = tf.cast(tf.linspace(1.75, 60.25, 40),
+    energies_second = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     rates_vs_energy = pkl.load(open('MSU_spectrum.pkl', 'rb'))
 

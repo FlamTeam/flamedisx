@@ -46,10 +46,11 @@ class MakeS1S2(fd.Block):
         energies_first = d['energy_first'].values
         energies_second = d['energy_second'].values
 
-        means = self.gimme_numpy('signal_means_double', (energies_first, energies_second))
+        s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second = self.gimme_numpy('signal_means_double', (energies_first, energies_second))
+        means = [s1_mean_first + s1_mean_second, s2_mean_first + s2_mean_second]
         means = np.array(means).transpose()
 
-        covs = self.gimme_numpy('signal_covs_double', (energies_first, energies_second))
+        covs = self.gimme_numpy('signal_covs_double', (s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second))
         covs = np.array(covs).transpose(2, 0, 1)
 
         shape = np.broadcast_shapes(means.shape, covs.shape[:-1])
