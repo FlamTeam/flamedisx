@@ -22,7 +22,7 @@ class MakeS1S2(fd.Block):
 
     dimensions = ('energy_first', 's1s2')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
-                  (('energy_second',), 'rate_vs_energy_second'))
+                  (('energy_second',), 'rate_vs_energy'))
 
     special_model_functions = ('signal_means_double', 'signal_covs_double')
     model_functions = ('s1s2_acceptance',) + special_model_functions
@@ -75,7 +75,7 @@ class MakeS1S2(fd.Block):
                  s1s2,
                  # Dependency domains and values
                  energy_first, rate_vs_energy_first,
-                 energy_second, rate_vs_energy_second):
+                 energy_second, rate_vs_energy):
         energies_first = energy_first[0, :, 0]
         energies_second = energy_second[0, :]
 
@@ -99,17 +99,18 @@ class MakeS1S2(fd.Block):
 
         s1s2 = tf.repeat(s1s2[:, :, o, :], tf.shape(energy_second[0, :]), axis=2)
 
-        result_all_energies = tfp.distributions.MultivariateNormalTriL(loc=means, scale_tril=scale).prob(s1s2)
+        probs = tfp.distributions.MultivariateNormalTriL(loc=means, scale_tril=scale).prob(s1s2)
 
-        result_energies_first = (result_all_energies @ rate_vs_energy_second[..., None])[..., 0]
+        R_E1E2 = probs * rate_vs_energy
+        R_E1 = tf.reduce_sum(R_E1E2, axis=2)
 
         # Add detection/selection efficiency
         acceptance = self.gimme('s1s2_acceptance',
                                  data_tensor=data_tensor, ptensor=ptensor)
-        acceptance = tf.repeat(acceptance[:, o], tf.shape(result_energies_first)[1], axis=1)
-        result_energies_first *= acceptance
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(R_E1)[1], axis=1)
+        R_E1 *= acceptance
 
-        return result_energies_first[:, o, :]
+        return R_E1[:, o, :]
 
     # def check_data(self):
     #     if not self.check_acceptances:

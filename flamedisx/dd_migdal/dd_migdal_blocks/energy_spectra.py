@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+import pickle as pkl
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -14,11 +16,11 @@ class EnergySpectrumFirst(fd.FirstBlock):
 
     #: Tensor listing energies this source can produce.
     #: Approximate the energy spectrum as a sequence of delta functions.
-    energies_first= tf.cast(tf.linspace(2., 8., 100),
+    energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     #: Tensor listing the number of events for each energy the souce produces
     #: Recall we approximate energy spectra by a sequence of delta functions.
-    rates_vs_energy_first = tf.ones(100, dtype=fd.float_type())
+    rates_vs_energy_first = tf.ones(65, dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy_first):
         spectrum = tf.repeat(self.rates_vs_energy_first[o, :],
@@ -76,36 +78,47 @@ class EnergySpectrumFirst(fd.FirstBlock):
 @export
 class EnergySpectrumSecond(fd.Block):
     dimensions = ('energy_second',)
-    model_attributes = ('energies_second', 'rates_vs_energy_second')
+    model_attributes = ('energies_second', 'rates_vs_energy')
 
     #: Tensor listing energies this source can produce.
     #: Approximate the energy spectrum as a sequence of delta functions.
-    energies_second= tf.cast(tf.linspace(2., 8., 100),
+    energies_second = tf.cast(tf.linspace(1.75, 60.25, 40),
                             dtype=fd.float_type())
-    #: Tensor listing the number of events for each energy the souce produces
-    #: Recall we approximate energy spectra by a sequence of delta functions.
-    rates_vs_energy_second = tf.ones(100, dtype=fd.float_type())
+    rates_vs_energy = pkl.load(open('MSU_spectrum.pkl', 'rb'))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, ignore_shape_assertion=True)
 
     def _compute(self, data_tensor, ptensor, *, energy_second):
-        spectrum = tf.repeat(self.rates_vs_energy_second[o, :],
+        spectrum = tf.repeat(fd.np_to_tf(self.rates_vs_energy)[o, :, :],
                              self.source.batch_size,
                              axis=0)
         return spectrum
 
     def _simulate(self, d):
-        spectrum_numpy = fd.tf_to_np(self.rates_vs_energy_second)
-        assert len(spectrum_numpy) == len(self.energies_second), \
+        spectrum_numpy = fd.tf_to_np(self.rates_vs_energy)
+        spectrum_flat = spectrum_numpy.flatten()
+
+        Es_first = np.repeat(fd.tf_to_np(self.source.energies_first)[:, np.newaxis], len(fd.tf_to_np(self.energies_second)), axis=1)
+        Es_second = np.repeat(fd.tf_to_np(self.energies_second)[np.newaxis, :], len(fd.tf_to_np(self.source.energies_first)), axis=0)
+        Es = np.dstack((Es_first, Es_second))
+        Es_flat = Es.reshape(-1, Es.shape[-1])
+
+        assert np.shape(Es)[0] == np.shape(spectrum_numpy)[0], \
+            "Energies and spectrum have different length"
+        assert np.shape(Es)[1] == np.shape(spectrum_numpy)[1], \
             "Energies and spectrum have different length"
 
-        d['energy_second'] = np.random.choice(
-            fd.tf_to_np(self.energies_second),
+        energy_index = np.random.choice(
+            np.arange(spectrum_flat.size),
             size=len(d),
-            p=spectrum_numpy / spectrum_numpy.sum(),
+            p=spectrum_flat / spectrum_flat.sum(),
             replace=True)
+        d['energy_first'] = Es_flat[energy_index][:, 0]
+        d['energy_second'] = Es_flat[energy_index][:, 1]
+
         assert np.all(d['energy_first'] >= 0), "Generated negative energies??"
+        assert np.all(d['energy_second'] >= 0), "Generated negative energies??"
 
     def _annotate(self, d):
         d['energy_second_min'] = fd.tf_to_np(self.energies_second)[0]
