@@ -19,7 +19,7 @@ class MakeS1S2MSU(fd.Block):
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
                   (('energy_second',), 'rate_vs_energy'))
 
-    special_model_functions = ('signal_means', 'signal_covs')
+    special_model_functions = ('signal_means', 'signal_vars', 'signal_cov')
     model_functions = special_model_functions
 
     array_columns = (('s1s2', 2),)
@@ -33,11 +33,17 @@ class MakeS1S2MSU(fd.Block):
         energies_first = d['energy_first'].values
         energies_second = d['energy_second'].values
 
-        s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second = self.gimme_numpy('signal_means', (energies_first, energies_second))
+        s1_mean_first, s2_mean_first = self.gimme_numpy('signal_means', energies_first)
+        s1_mean_second, s2_mean_second = self.gimme_numpy('signal_means', energies_second)
         means = [s1_mean_first + s1_mean_second, s2_mean_first + s2_mean_second]
         means = np.array(means).transpose()
 
-        covs = self.gimme_numpy('signal_covs', (s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second))
+        s1_var_first, s2_var_first = self.gimme_numpy('signal_vars', (s1_mean_first, s2_mean_first))
+        s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
+        s1_var = s1_var_first + s1_var_second
+        s2_var = s2_var_first + s2_var_second
+        s1s2_cov = self.gimme_numpy('signal_cov', (s1_var, s2_var))
+        covs = [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
         covs = np.array(covs).transpose(2, 0, 1)
 
         shape = np.broadcast_shapes(means.shape, covs.shape[:-1])
@@ -68,16 +74,32 @@ class MakeS1S2MSU(fd.Block):
         energies_first = tf.repeat(energies_first[:, o], tf.shape(energy_second[0, :]), axis=1)
         energies_second = tf.repeat(energies_second[o, :], tf.shape(energy_first[0, :, 0]), axis=0)
 
-        s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second = self.gimme('signal_means',
-                                                                                  bonus_arg=(energies_first, energies_second),
-                                                                                  data_tensor=data_tensor,
-                                                                                  ptensor=ptensor)
+        s1_mean_first, s2_mean_first = self.gimme('signal_means',
+                                                  bonus_arg=energies_first,
+                                                  data_tensor=data_tensor,
+                                                  ptensor=ptensor)
+        s1_mean_second, s2_mean_second = self.gimme('signal_means',
+                                                    bonus_arg=energies_second,
+                                                    data_tensor=data_tensor,
+                                                    ptensor=ptensor)
         means = [s1_mean_first + s1_mean_second, s2_mean_first + s2_mean_second]
         means = tf.transpose(means, perm=[1, 2, 0])
 
-        covs = self.gimme('signal_covs', bonus_arg=(s1_mean_first, s1_mean_second, s2_mean_first, s2_mean_second),
-                           data_tensor=data_tensor,
-                           ptensor=ptensor)
+        s1_var_first, s2_var_first = self.gimme('signal_vars',
+                                                bonus_arg=(s1_mean_first, s2_mean_first),
+                                                data_tensor=data_tensor,
+                                                ptensor=ptensor)
+        s1_var_second, s2_var_second = self.gimme('signal_vars',
+                                                  bonus_arg=(s1_mean_second, s2_mean_second),
+                                                  data_tensor=data_tensor,
+                                                  ptensor=ptensor)
+        s1_var = s1_var_first + s1_var_second
+        s2_var = s2_var_first + s2_var_second
+        s1s2_cov = self.gimme('signal_cov',
+                              bonus_arg=(s1_var, s2_var),
+                              data_tensor=data_tensor,
+                              ptensor=ptensor)
+        covs = [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
         covs = tf.transpose(covs, perm=[2, 3, 0, 1])
 
         scale = tf.linalg.cholesky(covs)
@@ -103,7 +125,7 @@ class MakeS1S2SS(fd.Block):
     dimensions = ('energy_first', 's1s2')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),)
 
-    special_model_functions = ('signal_means', 'signal_covs')
+    special_model_functions = ('signal_means', 'signal_vars', 'signal_cov')
     model_functions = special_model_functions
 
     array_columns = (('s1s2', 2),)
@@ -120,7 +142,9 @@ class MakeS1S2SS(fd.Block):
         means = [s1_mean, s2_mean]
         means = np.array(means).transpose()
 
-        covs = self.gimme_numpy('signal_covs', (s1_mean, s2_mean))
+        s1_var, s2_var = self.gimme_numpy('signal_vars', (s1_mean, s2_mean))
+        s1s2_cov = self.gimme_numpy('signal_cov', (s1_var, s2_var))
+        covs = [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
         covs = np.array(covs).transpose(2, 0, 1)
 
         shape = np.broadcast_shapes(means.shape, covs.shape[:-1])
@@ -153,9 +177,15 @@ class MakeS1S2SS(fd.Block):
         means = [s1_mean, s2_mean]
         means = tf.transpose(means)
 
-        covs = self.gimme('signal_covs', bonus_arg=(s1_mean, s2_mean),
-                           data_tensor=data_tensor,
-                           ptensor=ptensor)
+        s1_var, s2_var = self.gimme('signal_vars',
+                                    bonus_arg=(s1_mean, s2_mean),
+                                    data_tensor=data_tensor,
+                                    ptensor=ptensor)
+        s1s2_cov = self.gimme('signal_cov',
+                              bonus_arg=(s1_var, s2_var),
+                              data_tensor=data_tensor,
+                              ptensor=ptensor)
+        covs = [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
         covs = tf.transpose(covs, perm=[2, 0, 1])
 
         scale = tf.linalg.cholesky(covs)
