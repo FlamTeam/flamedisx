@@ -59,7 +59,7 @@ class NRNRSource(fd.BlockModelSource):
 
 
 @export
-class ERSource(fd.BlockModelSource):
+class NRSource(fd.BlockModelSource):
     model_blocks = (
         fd_dd_migdal.EnergySpectrumFirstSS,
         fd_dd_migdal.MakeS1S2SS)

@@ -21,7 +21,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     rates_vs_energy_first = tf.ones(65, dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy_first):
-        spectrum = tf.repeat(self.rates_vs_energy_first[o, :],
+        spectrum = tf.repeat(fd.np_to_tf(self.rates_vs_energy_first)[o, :],
                              self.source.batch_size,
                              axis=0)
         return spectrum
