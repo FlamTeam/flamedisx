@@ -10,37 +10,24 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
-
-
 @export
 class MakeS1S2(fd.Block):
     """
     """
-
-    # model_attributes = ('check_acceptances',)
 
     dimensions = ('energy_first', 's1s2')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
                   (('energy_second',), 'rate_vs_energy'))
 
     special_model_functions = ('signal_means_double', 'signal_covs_double')
-    model_functions = ('s1s2_acceptance',) + special_model_functions
+    model_functions = special_model_functions
 
     array_columns = (('s1s2', 2),)
-
-    # # Whether to check acceptances are positive at the observed events.
-    # # This is recommended, but you'll have to turn it off if your
-    # # likelihood includes regions where only anomalous sources make events.
-    # check_acceptances = True
 
     # Prevent pycharm warnings:
     source: fd.Source
     gimme: ty.Callable
     gimme_numpy: ty.Callable
-
-    def s1s2_acceptance(self, s1s2):
-        return tf.ones_like(s1s2, dtype=fd.float_type())[:, 0]
 
     def _simulate(self, d):
         energies_first = d['energy_first'].values
@@ -64,8 +51,6 @@ class MakeS1S2(fd.Block):
         s1s2 = (L @ X).reshape(shape) + means
 
         d['s1s2'] = list(s1s2)
-
-        # d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
         pass
@@ -107,19 +92,4 @@ class MakeS1S2(fd.Block):
         R_E1E2 = probs * rate_vs_energy
         R_E1 = tf.reduce_sum(R_E1E2, axis=2)
 
-        # Add detection/selection efficiency
-        acceptance = self.gimme('s1s2_acceptance',
-                                 data_tensor=data_tensor, ptensor=ptensor)
-        acceptance = tf.repeat(acceptance[:, o], tf.shape(R_E1)[1], axis=1)
-        R_E1 *= acceptance
-
         return R_E1[:, o, :]
-
-    # def check_data(self):
-    #     if not self.check_acceptances:
-    #         return
-    #     s_acc = self.gimme_numpy(self.signal_name + '_acceptance')
-    #     if np.any(s_acc <= 0):
-    #         raise ValueError(f"Found event with non-positive {self.signal_name} "
-    #                          f"acceptance: did you apply and configure "
-    #                          "your cuts correctly?")
