@@ -17,7 +17,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     #: Energies from the first scatter
     energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
-    #: Dummy energy spectrum of 1s for MSU case. Override for SS
+    #: Dummy energy spectrum of 1s. Override for SS
     rates_vs_energy_first = tf.ones(65, dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy_first):
@@ -75,8 +75,16 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
 @export
 class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
-    #: Eergy spectrum for SS case
+    #: Energy spectrum for SS case
     rates_vs_energy_first = pkl.load(open('SS_spectrum.pkl', 'rb'))
+
+
+@export
+class EnergySpectrumFirstMigdal3(EnergySpectrumFirstMSU):
+    #: Energies from the first scatter
+    energies_first = fd.np_to_tf(np.geomspace(1.04712855e-02, 9.54992586e+01, 100))
+    #: Dummy energy spectrum of 1s
+    rates_vs_energy_first = tf.ones(100, dtype=fd.float_type())
 
 
 @export
@@ -138,3 +146,9 @@ class EnergySpectrumSecondMSU(fd.Block):
 
         assert np.isclose(self.energies_second[0] + (len(self.energies_second) - 1) * d_energy[0],
                           self.energies_second[-1]), "Logic only works with constant stepping in energy spectrum"
+
+
+@export
+class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
+    #: Joint energy spectrum for Migdal3 scatters
+    rates_vs_energy = pkl.load(open('migdal_3_spectrum.pkl', 'rb'))

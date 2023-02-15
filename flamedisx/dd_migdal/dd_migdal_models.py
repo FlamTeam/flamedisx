@@ -1,10 +1,13 @@
 import numpy as np
 import tensorflow as tf
 
-import flamedisx as fd
+import scipy.interpolate as itp
+
 from .. import dd_migdal as fd_dd_migdal
 
+import flamedisx as fd
 export, __all__ = fd.exporter()
+o = tf.newaxis
 
 
 @export
@@ -53,3 +56,41 @@ class NRNRSource(NRSource):
         fd_dd_migdal.MakeS1S2MSU)
 
     no_step_dimensions = ('energy_second')
+
+
+@export
+class Migdal3Source(NRNRSource):
+    model_blocks = (
+        fd_dd_migdal.EnergySpectrumFirstMigdal3,
+        fd_dd_migdal.EnergySpectrumSecondMigdal3,
+        fd_dd_migdal.MakeS1S2Migdal3)
+
+    ER_NEST = np.load('ER_NEST.npz')
+
+    E_ER = ER_NEST['EkeVee']
+    s1_mean_ER = itp.interp1d(E_ER, ER_NEST['s1mean'])
+    s2_mean_ER = itp.interp1d(E_ER, ER_NEST['s2mean'])
+    s1_var_ER = itp.interp1d(E_ER, ER_NEST['s1std']**2)
+    s2_var_ER = itp.interp1d(E_ER, ER_NEST['s2std']**2)
+
+    def __init__(self, *args, **kwargs):
+        energies_first = self.model_blocks[0].energies_first
+        energies_first = tf.where(energies_first > 49., 49. * tf.ones_like(energies_first), energies_first)
+        energies_first = tf.repeat(energies_first[:, o], tf.shape(self.model_blocks[1].energies_second), axis=1)
+
+        self.s1_mean_ER_tf, self.s2_mean_ER_tf = self.signal_means_ER(energies_first)
+        self.s1_var_ER_tf, self.s2_var_ER_tf = self.signal_vars_ER(energies_first)
+
+        super().__init__(*args, **kwargs)
+
+    def signal_means_ER(self, energy):
+        s1_mean = tf.cast(self.s1_mean_ER(energy), fd.float_type())
+        s2_mean = tf.cast(self.s2_mean_ER(energy), fd.float_type())
+
+        return s1_mean, s2_mean
+
+    def signal_vars_ER(self, energy):
+        s1_var = tf.cast(self.s1_var_ER(energy), fd.float_type())
+        s2_var = tf.cast(self.s2_var_ER(energy), fd.float_type())
+
+        return s1_var, s2_var
