@@ -80,7 +80,7 @@ class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
 
 
 @export
-class EnergySpectrumFirstMigdal3(EnergySpectrumFirstMSU):
+class EnergySpectrumFirstMigdal(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04712855e-02, 9.54992586e+01, 100))
     #: Dummy energy spectrum of 1s
@@ -152,3 +152,9 @@ class EnergySpectrumSecondMSU(fd.Block):
 class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal3 scatters
     rates_vs_energy = pkl.load(open('migdal_3_spectrum.pkl', 'rb'))
+
+
+@export
+class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
+    #: Joint energy spectrum for Migdal3 scatters
+    rates_vs_energy = pkl.load(open('migdal_4_spectrum.pkl', 'rb'))

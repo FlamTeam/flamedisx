@@ -199,7 +199,7 @@ class MakeS1S2SS(fd.Block):
 
 
 @export
-class MakeS1S2Migdal3(fd.Block):
+class MakeS1S2Migdal(fd.Block):
     """
     """
 

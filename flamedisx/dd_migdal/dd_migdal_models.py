@@ -61,9 +61,9 @@ class NRNRSource(NRSource):
 @export
 class Migdal3Source(NRNRSource):
     model_blocks = (
-        fd_dd_migdal.EnergySpectrumFirstMigdal3,
+        fd_dd_migdal.EnergySpectrumFirstMigdal,
         fd_dd_migdal.EnergySpectrumSecondMigdal3,
-        fd_dd_migdal.MakeS1S2Migdal3)
+        fd_dd_migdal.MakeS1S2Migdal)
 
     ER_NEST = np.load('ER_NEST.npz')
 
@@ -94,3 +94,11 @@ class Migdal3Source(NRNRSource):
         s2_var = tf.cast(self.s2_var_ER(energy), fd.float_type())
 
         return s1_var, s2_var
+
+
+@export
+class Migdal4Source(Migdal3Source):
+    model_blocks = (
+        fd_dd_migdal.EnergySpectrumFirstMigdal,
+        fd_dd_migdal.EnergySpectrumSecondMigdal4,
+        fd_dd_migdal.MakeS1S2Migdal)
