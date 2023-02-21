@@ -437,3 +437,138 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     @staticmethod
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
+
+@export
+class WallEnergySpectrum(VariableEnergySpectrum):
+    model_attributes = (('spatial_hist','rates_vs_radius_energy')
+                        + VariableEnergySpectrum.model_attributes)
+    frozen_model_functions = ('energy_spectrum',)
+
+    #: spatial_hist: multihist.Histdd of events/bin produced by this source.
+    #: Axes can be either (r, theta, z) or (x, y, z).
+    #: rates_vs_radius_energy: multihist.Histdd of events/bin produced by this source.
+    #: Axes have to be (energy, r).
+    #: Do not apply any normalization yourself, flamedisx will multiply by
+    #: appropriate physical bin volume factors.
+    spatial_hist: Histdd
+    rates_vs_radius_energy: Histdd
+
+    def setup(self):
+        assert isinstance(self.spatial_hist, Histdd)
+        assert isinstance(self.rates_vs_radius_energy, Histdd)
+
+        # Are we Cartesian, polar, or in trouble?
+        axes = tuple(self.spatial_hist.axis_names)
+        self.polar = (axes == ('r', 'theta', 'z'))
+
+        self.bin_volumes = self.spatial_hist.bin_volumes()
+        if self.polar:
+            # Volume element in cylindrical coords = r * (dr dq dz)
+            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
+        else:
+            assert axes == ('x', 'y', 'z'), \
+                ("axis_names of spatial_rate_hist must be either "
+                 "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
+
+        # Assert energy spectrum
+        axes = tuple(self.rates_vs_radius_energy.axis_names)
+        assert axes == ('energy', 'r'), \
+                ("axis_names of rates_vs_radius_energy must be "
+                 "['energy','r']")
+                
+        #Assert compatibility between spatial_hist and rates_vs_radius_energy
+        assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.rates_vs_radius_energy.bin_centers('r')), \
+            ("spatial_hist and rates_vs_radius_energy upper edges of r axes have to be the same")
+        assert np.min(self.spatial_hist.bin_centers('r')) == np.min(self.rates_vs_radius_energy.bin_centers('r')), \
+            ("spatial_hist and rates_vs_radius_energy lower edges of r axes have to be the same")
+
+        # Normalize the histogram
+        self.spatial_hist.histogram = \
+            self.spatial_hist.histogram.astype(float) / self.spatial_hist.n
+
+        # Local rate multiplier = PDF / uniform PDF
+        # = ((normed_hist/bin_volumes) / (1/total_volume))
+        self.local_rate_multiplier = self.spatial_hist.similar_blank_hist()
+        self.local_rate_multiplier.histogram = (
+            (self.spatial_hist.histogram / self.bin_volumes)
+            * self.bin_volumes.sum())
+
+    def draw_positions(self, n_events, **params):
+        """Return dictionary with x, y, z, r, theta, drift_time
+        drawn from the spatial rate histogram.
+        """
+        data = dict()
+        positions = self.spatial_hist.get_random(size=n_events)
+        for idx, col in enumerate(self.spatial_hist.axis_names):
+            data[col] = positions[:, idx]
+        if self.polar:
+            data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
+        else:
+            data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
+
+        data['drift_time'] = - data['z'] / self.drift_velocity
+        return data
+
+    def random_truth(self, n_events, fix_truth=None, **params):
+        """Return pandas dataframe with event positions and times
+        randomly drawn.
+        """
+        data = self.draw_positions(n_events, **params)
+        data['event_time'] = self.draw_time(n_events, **params)
+
+        if 'r' in fix_truth:
+            r = self.clip_positions(fix_truth['r'])
+            data['energy'] = \
+                    self.rates_vs_radius_energy \
+                        .slicesum(r, axis='r') \
+                        .get_random(n_events)
+        elif 'energy' in fix_truth:
+            # Energy is fixed, so the position distribution differs.
+            e_edges = self.rates_vs_radius_energy.bin_edges('energy')
+            assert e_edges[0] <= fix_truth['energy'] < e_edges[-1], \
+                "fix_truth energy out of bounds"
+            r = \
+                self.rates_vs_radius_energy \
+                    .slicesum(fix_truth['energy'], axis='energy') \
+                    .get_random(n_events)
+            data['r'] = r 
+        else:
+            r = self.clip_positions(data['r'])
+            data['energy'] = \
+                    self.rates_vs_radius_energy \
+                        .slicesum(r, axis='r') \
+                        .get_random(n_events)
+
+        assert np.all(data['energy'] > 0), "Generated negative energies??"
+
+        # r has already been handled, do not overwrite it again
+        fix_truth_nor = {k: v for k, v in fix_truth.items()
+                            if k != 'r'}
+        self.source._overwrite_fixed_truths(data, fix_truth_nor, n_events)
+
+        data = pd.DataFrame(data)
+        return data
+
+
+    def clip_positions(self, rs):
+        """Return positions, clipped to the range of the
+        energy-radius histogram. If positins are more than 5 cm,
+        raises InvalidEventTimes.
+
+        :param rs: radial positions, or array of radial positions
+        """
+        rbins = self.rates_vs_radius_energy.bin_edges('r')
+        if np.min(rs) < rbins[0] - 1 or np.max(rs) > rbins[-1] + 5:
+            raise InvalidEventTimes(
+                f"You passed radial positions in [{np.min(rs):.1f}, {np.max(rs):.1f}]"
+                f"But this source expects [{rbins[0]:.1f} - {rbins[-1]:.1f}].")
+        return np.clip(rs, rbins[0], rbins[-1])
+
+
+    def energy_spectrum(self, r):
+        rs = fd.tf_to_np(r)
+        rs = self.clip_positions(rs)
+
+        result = np.stack([self.rates_vs_radius_energy.slicesum(_r, axis='r').histogram
+                           for _r in rs])
+        return fd.np_to_tf(result)
