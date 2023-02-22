@@ -476,7 +476,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         assert axes == ('energy', 'r'), \
             ("axis_names of rates_vs_radius_energy must be "
             "['energy','r']")
-                  
+          
         # Assert compatibility between spatial_hist and rates_vs_radius_energy
         assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.rates_vs_radius_energy.bin_centers('r')), \
             ("spatial_hist and rates_vs_radius_energy upper edges of r axes have to be the same")
@@ -530,7 +530,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
             r = self.rates_vs_radius_energy \
                     .slicesum(fix_truth['energy'], axis='energy') \
                     .get_random(n_events)
-            data['r'] = r 
+            data['r'] = r
         else:
             r = self.clip_positions(data['r'])
             data['energy'] = \
@@ -541,8 +541,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         assert np.all(data['energy'] > 0), "Generated negative energies??"
 
         # r has already been handled, do not overwrite it again
-        fix_truth_nor = {k: v for k, v in fix_truth.items()
-                        if k != 'r'}
+        fix_truth_nor = {k: v for k, v in fix_truth.items() if k != 'r'}
         self.source._overwrite_fixed_truths(data, fix_truth_nor, n_events)
 
         data = pd.DataFrame(data)
