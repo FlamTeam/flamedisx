@@ -107,7 +107,6 @@ class EnergySpectrum(fd.FirstBlock):
         data = pd.DataFrame(data)
         return data
 
-
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
            Compute derived variables.
@@ -476,7 +475,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         axes = tuple(self.rates_vs_radius_energy.axis_names)
         assert axes == ('energy', 'r'), \
             ("axis_names of rates_vs_radius_energy must be ['energy','r']")
-        
+
         # Assert compatibility between spatial_hist and rates_vs_radius_energy
         assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.rates_vs_radius_energy.bin_centers('r')), \
             ("spatial_hist and rates_vs_radius_energy upper edges of r axes have to be the same")
