@@ -438,9 +438,10 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
 
+
 @export
 class WallEnergySpectrum(VariableEnergySpectrum):
-    model_attributes = (('spatial_hist','rates_vs_radius_energy')
+    model_attributes = (('spatial_hist', 'rates_vs_radius_energy')
                         + VariableEnergySpectrum.model_attributes)
     frozen_model_functions = ('energy_spectrum',)
 
@@ -473,10 +474,10 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         # Assert energy spectrum
         axes = tuple(self.rates_vs_radius_energy.axis_names)
         assert axes == ('energy', 'r'), \
-                ("axis_names of rates_vs_radius_energy must be "
-                 "['energy','r']")
-                
-        #Assert compatibility between spatial_hist and rates_vs_radius_energy
+            ("axis_names of rates_vs_radius_energy must be "
+            "['energy','r']")
+                  
+        # Assert compatibility between spatial_hist and rates_vs_radius_energy
         assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.rates_vs_radius_energy.bin_centers('r')), \
             ("spatial_hist and rates_vs_radius_energy upper edges of r axes have to be the same")
         assert np.min(self.spatial_hist.bin_centers('r')) == np.min(self.rates_vs_radius_energy.bin_centers('r')), \
@@ -518,37 +519,34 @@ class WallEnergySpectrum(VariableEnergySpectrum):
 
         if 'r' in fix_truth:
             r = self.clip_positions(fix_truth['r'])
-            data['energy'] = \
-                    self.rates_vs_radius_energy \
-                        .slicesum(r, axis='r') \
-                        .get_random(n_events)
+            data['energy'] = self.rates_vs_radius_energy \
+                .slicesum(r, axis='r') \
+                .get_random(n_events)
         elif 'energy' in fix_truth:
             # Energy is fixed, so the position distribution differs.
             e_edges = self.rates_vs_radius_energy.bin_edges('energy')
             assert e_edges[0] <= fix_truth['energy'] < e_edges[-1], \
                 "fix_truth energy out of bounds"
-            r = \
-                self.rates_vs_radius_energy \
+            r = self.rates_vs_radius_energy \
                     .slicesum(fix_truth['energy'], axis='energy') \
                     .get_random(n_events)
             data['r'] = r 
         else:
             r = self.clip_positions(data['r'])
             data['energy'] = \
-                    self.rates_vs_radius_energy \
-                        .slicesum(r, axis='r') \
-                        .get_random(n_events)
+                self.rates_vs_radius_energy \
+                    .slicesum(r, axis='r') \
+                    .get_random(n_events)
 
         assert np.all(data['energy'] > 0), "Generated negative energies??"
 
         # r has already been handled, do not overwrite it again
         fix_truth_nor = {k: v for k, v in fix_truth.items()
-                            if k != 'r'}
+                        if k != 'r'}
         self.source._overwrite_fixed_truths(data, fix_truth_nor, n_events)
 
         data = pd.DataFrame(data)
         return data
-
 
     def clip_positions(self, rs):
         """Return positions, clipped to the range of the
@@ -563,7 +561,6 @@ class WallEnergySpectrum(VariableEnergySpectrum):
                 f"You passed radial positions in [{np.min(rs):.1f}, {np.max(rs):.1f}]"
                 f"But this source expects [{rbins[0]:.1f} - {rbins[-1]:.1f}].")
         return np.clip(rs, rbins[0], rbins[-1])
-
 
     def energy_spectrum(self, r):
         rs = fd.tf_to_np(r)
