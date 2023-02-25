@@ -120,7 +120,7 @@ class LZSource:
 
         return acceptance
 
-    def s2_acceptance(self, s2, cs2, cs2_acc_curve):
+    def s2_acceptance(self, s2, cs2, cs2_acc_curve, fv_acceptance):
 
         acceptance = tf.where((s2 >= self.s2_thr) &
                               (s2 >= self.S2_min) & (s2 <= self.S2_max),
@@ -129,6 +129,9 @@ class LZSource:
 
         # multiplying by efficiency curve
         acceptance *= cs2_acc_curve
+
+        # We will insert the FV acceptance here
+        acceptance *= fv_acceptance
 
         return acceptance
 
@@ -165,10 +168,10 @@ class LZSource:
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / self.elife))
 
-        if 'cs1' in d.columns and 'cs2' in d.columns:
+        if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
             d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
 
-        if 'cs1' in d.columns:
+        if 'cs1' in d.columns and 'cs1_acc_curve' not in d.columns:
             if self.cs1_acc_domain is not None:
                 d['cs1_acc_curve'] = interpolate_acceptance(
                     d['cs1'].values,
@@ -176,7 +179,7 @@ class LZSource:
                     self.cs1_acc_curve)
             else:
                 d['cs1_acc_curve'] = np.ones_like(d['cs1'].values)
-        if 'cs2' in d.columns:
+        if 'cs2' in d.columns and 'cs2_acc_curve' not in d.columns:
             if self.log10_cs2_acc_domain is not None:
                 d['cs2_acc_curve'] = interpolate_acceptance(
                     np.log10(d['cs2'].values),
@@ -184,6 +187,29 @@ class LZSource:
                     self.log10_cs2_acc_curve)
             else:
                 d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
+
+        if 's2' in d.columns and 'fv_acceptance' not in d.columns:
+            standoffDistance_cm = 4.
+
+            m_idealFiducialWallFit = [72.4403, 0.00933984, 5.06325e-5, 1.65361e-7,
+                                      2.92605e-10, 2.53539e-13, 8.30075e-17]
+
+            boundaryR = 0
+            drift_time_us = d['drift_time'].values / 1000.
+            for i in range(len(m_idealFiducialWallFit)):
+                boundaryR += m_idealFiducialWallFit[i] * pow(-drift_time_us, i)
+
+            boundaryR = np.where(drift_time_us < 200., boundaryR - 5.2, boundaryR)
+            boundaryR = np.where(drift_time_us > 800., boundaryR - 5., boundaryR)
+            boundaryR = np.where((drift_time_us > 200.) & (drift_time_us < 800.), boundaryR - standoffDistance_cm, boundaryR)
+
+            radius_cm = d['r'].values
+
+            accept_upper_drift_time = np.where(drift_time_us < 936.5, 1., 0.)
+            accept_lower_drift_time = np.where(drift_time_us > 86., 1., 0.)
+            accept_radial = np.where(radius_cm < boundaryR, 1., 0.)
+
+            d['fv_acceptance'] = accept_upper_drift_time * accept_lower_drift_time * accept_radial
 
 
 ##
