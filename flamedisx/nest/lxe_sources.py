@@ -425,8 +425,12 @@ class nestNRSource(nestSource):
 
     @staticmethod
     def yield_fano(nq_mean):
-        nr_free_a = 1.
-        nr_free_b = 1.
+        if self.detector == 'lz':
+            nr_free_a = 0.4
+            nr_free_b = 0.4
+        else:
+            nr_free_a = 1.
+            nr_free_b = 1.
 
         ni_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_a
         nex_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_b
@@ -450,7 +454,10 @@ class nestNRSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        nr_free_c = 0.1
+        if self.detector == 'lz':
+            nr_free_c = 0.04
+        else:
+            nr_free_c = 0.1
         nr_free_d = 0.5
         nr_free_e = 0.19
 
