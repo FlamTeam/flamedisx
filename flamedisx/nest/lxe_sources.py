@@ -423,8 +423,7 @@ class nestNRSource(nestSource):
 
         return nel, nq, ex_ratio
 
-    @staticmethod
-    def yield_fano(nq_mean):
+    def yield_fano(self, nq_mean):
         if self.detector == 'lz':
             nr_free_a = 0.4
             nr_free_b = 0.4
@@ -447,8 +446,7 @@ class nestNRSource(nestSource):
 
         return skewness_masked
 
-    @staticmethod
-    def variance(*args):
+    def variance(self, *args):
         nel_mean = args[0]
         nq_mean = args[1]
         recomb_p = args[2]
