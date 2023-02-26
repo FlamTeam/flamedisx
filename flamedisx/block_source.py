@@ -515,6 +515,8 @@ class BlockModelSource(fd.Source):
             for dim in filter_dims:
                 filter_data_columns.append(self.mc_reservoir.columns.get_loc(dim))
 
+            self.prior_PDFs_LB = tuple(dict())
+            self.prior_PDFs_UB = tuple(dict())
             for batch in range(self.n_batches):
                 df_batch = data[batch * self.batch_size:(batch + 1) * self.batch_size]
 
