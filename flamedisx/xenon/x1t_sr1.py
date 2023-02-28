@@ -399,8 +399,8 @@ class SR1Source:
         
         # going from true position to position distorted by field
         d['r_observed'] = self.drift_field_distortion_map(
-            np.transpose([d['r'].values,
-                          d['z'].values])) 
+            np.transpose([d['r'].values*10,
+                          d['z'].values*10])) 
         d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
         d['y_observed'] = d['r_observed'] * np.sin(d['theta'])
 
@@ -408,8 +408,9 @@ class SR1Source:
         d['z_observed'] = d['z']
 
         # Adding some smear according to posrec resolution
-        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=2) # 2 cm resolution
-        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=2) # 4 cm resolution
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=1.3) # 2 cm resolution
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=1.3) # 4 cm resolution
+        d['r_observed'] = np.sqrt(d['x_observed'].values**2+d['y_observed'].values**2)
 
         # add effective drift velocity depending on (r,z) position
         # correct drift time using velocity depending on (r,z) position
@@ -428,7 +429,7 @@ class SR1Source:
         delta_r = self.fdc_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values,
-                          d['z_observed'].values,]))
+                          d['z_observed'].values*10,]))
                               
         # apply radial correction
         with np.errstate(invalid='ignore', divide='ignore'):
@@ -697,3 +698,16 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
 @export
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
     pass
+
+@export
+class SR1PhysicsWallSource(fd.WallSource,SR1ERSource):
+
+    def random_truth(self, n_events, fix_truth=None, **params):
+        d = super().random_truth(n_events, fix_truth=fix_truth, **params)
+
+        d['energy'] = np.array([self.rates_vs_radius_energy \
+                .slicesum(_r, axis='r') \
+                .get_random(1)[0] for _r in d['r_fdc']])
+        return d
+
+    
