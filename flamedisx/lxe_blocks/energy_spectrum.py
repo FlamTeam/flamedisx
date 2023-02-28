@@ -441,20 +441,26 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
 @export
 class WallEnergySpectrum(VariableEnergySpectrum):
-    model_attributes = (('spatial_hist', 'rates_vs_radius_energy')
+    model_attributes = (('spatial_hist', 'rates_vs_radius_energy','energies')
                         + VariableEnergySpectrum.model_attributes)
-    frozen_model_functions = ('energy_spectrum',)
-
+    
     #: spatial_hist: multihist.Histdd of events/bin produced by this source.
     #: Axes can be either (r, theta, z) or (x, y, z).
     #: rates_vs_radius_energy: multihist.Histdd of events/bin produced by this source.
     #: Axes have to be (energy, r).
+    #: energies: bin centers of the energy spectrum
     #: Do not apply any normalization yourself, flamedisx will multiply by
     #: appropriate physical bin volume factors.
     spatial_hist: Histdd
     rates_vs_radius_energy: Histdd
+    #rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
+
+    frozen_model_functions = ('energy_spectrum',)
+    #array_columns = (('energy_spectrum', len(rates_vs_energy)-1),)
+
 
     def setup(self):
+        self.array_columns = (('energy_spectrum', len(self.energies)),)
         assert isinstance(self.spatial_hist, Histdd)
         assert isinstance(self.rates_vs_radius_energy, Histdd)
 
@@ -477,10 +483,10 @@ class WallEnergySpectrum(VariableEnergySpectrum):
             ("axis_names of rates_vs_radius_energy must be ['energy','r']")
 
         # Assert compatibility between spatial_hist and rates_vs_radius_energy
-        assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.rates_vs_radius_energy.bin_centers('r')), \
-            ("spatial_hist and rates_vs_radius_energy upper edges of r axes have to be the same")
-        assert np.min(self.spatial_hist.bin_centers('r')) == np.min(self.rates_vs_radius_energy.bin_centers('r')), \
-            ("spatial_hist and rates_vs_radius_energy lower edges of r axes have to be the same")
+        #assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.rates_vs_radius_energy.bin_centers('r')), \
+        #    ("spatial_hist and rates_vs_radius_energy upper edges of r axes have to be the same")
+        #assert np.min(self.spatial_hist.bin_centers('r')) == np.min(self.rates_vs_radius_energy.bin_centers('r')), \
+        #    ("spatial_hist and rates_vs_radius_energy lower edges of r axes have to be the same")
 
         # Normalize the histogram
         self.spatial_hist.histogram = \
@@ -516,8 +522,8 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         data = self.draw_positions(n_events, **params)
         data['event_time'] = self.draw_time(n_events, **params)
 
-        if 'r' in fix_truth:
-            r = self.clip_positions(fix_truth['r'])
+        if 'r_fdc' in fix_truth:
+            r = self.clip_positions(fix_truth['r_fdc'])
             data['energy'] = self.rates_vs_radius_energy \
                 .slicesum(r, axis='r') \
                 .get_random(n_events)
@@ -529,15 +535,9 @@ class WallEnergySpectrum(VariableEnergySpectrum):
             r = self.rates_vs_radius_energy \
                     .slicesum(fix_truth['energy'], axis='energy') \
                     .get_random(n_events)
-            data['r'] = r
+            data['r_fdc'] = r
         else:
-            r = self.clip_positions(data['r'])
-            data['energy'] = \
-                self.rates_vs_radius_energy \
-                    .slicesum(r, axis='r') \
-                    .get_random(n_events)
-
-        assert np.all(data['energy'] > 0), "Generated negative energies??"
+            data['energy'], data['r_fdc'] = self.rates_vs_radius_energy.get_random(n_events).T
 
         # r has already been handled, do not overwrite it again
         fix_truth_nor = {k: v for k, v in fix_truth.items() if k != 'r'}
@@ -553,17 +553,20 @@ class WallEnergySpectrum(VariableEnergySpectrum):
 
         :param rs: radial positions, or array of radial positions
         """
-        rbins = self.rates_vs_radius_energy.bin_edges('r')
-        if np.min(rs) < rbins[0] - 1 or np.max(rs) > rbins[-1] + 5:
+        rbins = self.rates_vs_radius_energy.bin_edges[1]
+        if np.min(rs) < rbins[0] - 10 or np.max(rs) > rbins[-1] + 10:
             raise InvalidEventTimes(
                 f"You passed radial positions in [{np.min(rs):.1f}, {np.max(rs):.1f}]"
                 f"But this source expects [{rbins[0]:.1f} - {rbins[-1]:.1f}].")
-        return np.clip(rs, rbins[0], rbins[-1])
+        return np.clip(rs, rbins[0]+.01, rbins[-1]-.01)
 
-    def energy_spectrum(self, r):
-        rs = fd.tf_to_np(r)
+    def energy_spectrum(self, r_fdc):
+        rs = fd.tf_to_np(r_fdc)
         rs = self.clip_positions(rs)
 
         result = np.stack([self.rates_vs_radius_energy.slicesum(_r, axis='r').histogram
                            for _r in rs])
         return fd.np_to_tf(result)
+
+    def mu_before_efficiencies(self, **params):
+        return self.rates_vs_radius_energy.n
