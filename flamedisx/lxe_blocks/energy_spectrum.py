@@ -441,52 +441,51 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
 @export
 class WallEnergySpectrum(VariableEnergySpectrum):
-    model_attributes = (('spatial_hist', 'rates_vs_radius_energy','energies')
+    model_attributes = (('spatial_hist','spatial_hist_rec','rates_vs_radius_energy','energies')
                         + VariableEnergySpectrum.model_attributes)
-    
+
     #: spatial_hist: multihist.Histdd of events/bin produced by this source.
-    #: Axes can be either (r, theta, z) or (x, y, z).
+    #: Axes must be (r, theta, z).
+    #: spatial_hist_rec: multihist.Histdd of events/bin produced by this source.
+    #: Axes must be (r, theta, z).
     #: rates_vs_radius_energy: multihist.Histdd of events/bin produced by this source.
     #: Axes have to be (energy, r).
     #: energies: bin centers of the energy spectrum
     #: Do not apply any normalization yourself, flamedisx will multiply by
     #: appropriate physical bin volume factors.
     spatial_hist: Histdd
+    spatial_hist_rec: Histdd
     rates_vs_radius_energy: Histdd
-    #rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
 
     frozen_model_functions = ('energy_spectrum',)
-    #array_columns = (('energy_spectrum', len(rates_vs_energy)-1),)
-
 
     def setup(self):
         self.array_columns = (('energy_spectrum', len(self.energies)),)
         assert isinstance(self.spatial_hist, Histdd)
+        assert isinstance(self.spatial_hist_rec, Histdd)
         assert isinstance(self.rates_vs_radius_energy, Histdd)
 
-        # Are we Cartesian, polar, or in trouble?
+        # Assert compatibility between spatial_hist and spatial_hist_rec
+        assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.spatial_hist_rec.bin_centers('r')), \
+            ("spatial_hist and spatial_hist_rec r axes have to be the same")
+        assert np.min(self.spatial_hist.bin_centers('theta')) == np.min(self.spatial_hist_rec.bin_centers('theta')), \
+            ("spatial_hist and spatial_hist_rec theta axes have to be the same")
+        assert np.min(self.spatial_hist.bin_centers('z')) == np.min(self.spatial_hist_rec.bin_centers('z')), \
+            ("spatial_hist and spatial_hist_rec z axes have to be the same")
+
+        # Are we polar, or in trouble?
         axes = tuple(self.spatial_hist.axis_names)
-        self.polar = (axes == ('r', 'theta', 'z'))
+        assert axes == ('r', 'theta', 'z'), \
+            ("axis_names of spatial_rate_hist must be ['r', 'theta', 'z']")
 
         self.bin_volumes = self.spatial_hist.bin_volumes()
-        if self.polar:
-            # Volume element in cylindrical coords = r * (dr dq dz)
-            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
-        else:
-            assert axes == ('x', 'y', 'z'), \
-                ("axis_names of spatial_rate_hist must be either "
-                 "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
+        # Volume element in cylindrical coords = r * (dr dq dz)
+        self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
 
         # Assert energy spectrum
         axes = tuple(self.rates_vs_radius_energy.axis_names)
         assert axes == ('energy', 'r'), \
             ("axis_names of rates_vs_radius_energy must be ['energy','r']")
-
-        # Assert compatibility between spatial_hist and rates_vs_radius_energy
-        #assert np.max(self.spatial_hist.bin_centers('r')) == np.max(self.rates_vs_radius_energy.bin_centers('r')), \
-        #    ("spatial_hist and rates_vs_radius_energy upper edges of r axes have to be the same")
-        #assert np.min(self.spatial_hist.bin_centers('r')) == np.min(self.rates_vs_radius_energy.bin_centers('r')), \
-        #    ("spatial_hist and rates_vs_radius_energy lower edges of r axes have to be the same")
 
         # Normalize the histogram
         self.spatial_hist.histogram = \
@@ -494,9 +493,9 @@ class WallEnergySpectrum(VariableEnergySpectrum):
 
         # Local rate multiplier = PDF / uniform PDF
         # = ((normed_hist/bin_volumes) / (1/total_volume))
-        self.local_rate_multiplier = self.spatial_hist.similar_blank_hist()
+        self.local_rate_multiplier = self.spatial_hist_rec.similar_blank_hist()
         self.local_rate_multiplier.histogram = (
-            (self.spatial_hist.histogram / self.bin_volumes)
+            (self.spatial_hist_rec.histogram / self.bin_volumes)
             * self.bin_volumes.sum())
 
     def draw_positions(self, n_events, **params):
@@ -507,10 +506,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         positions = self.spatial_hist.get_random(size=n_events)
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
-        if self.polar:
-            data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
-        else:
-            data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
+        data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
 
         data['drift_time'] = - data['z'] / self.drift_velocity
         return data
