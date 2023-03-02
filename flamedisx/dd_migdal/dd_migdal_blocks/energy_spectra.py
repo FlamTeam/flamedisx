@@ -15,10 +15,21 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     dimensions = ('energy_first',)
     model_attributes = ('energies_first', 'rates_vs_energy_first')
 
-    radius_upper = 67.8
+    model_functions = ('get_spatial_diff_rate',)
 
-    dt_lower = 20
-    dt_upper = 90
+    spatial_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
+
+    r_edges = spatial_dist['r_edges']
+    dt_edges = spatial_dist['dt_edges']
+
+    hist_values = np.ones_like(spatial_dist['hist_values'])
+
+    mh = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
+    mh = mh / mh.n
+    mh = mh / mh.bin_volumes()
+
+    mh_diff_rate = mh
+    mh_events_per_bin = mh * mh.bin_volumes()
 
     #: Energies from the first scatter
     energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
@@ -26,10 +37,19 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     #: Dummy energy spectrum of 1s. Override for SS
     rates_vs_energy_first = tf.ones(65, dtype=fd.float_type())
 
+    def get_spatial_diff_rate(self, spatial_diff_rate):
+        return spatial_diff_rate
+
     def _compute(self, data_tensor, ptensor, *, energy_first):
         spectrum = tf.repeat(fd.np_to_tf(self.rates_vs_energy_first)[o, :],
                              self.source.batch_size,
                              axis=0)
+        spectrum *= tf.repeat(self.gimme('get_spatial_diff_rate',
+                                         data_tensor=data_tensor,
+                                         ptensor=ptensor)[:, o],
+                              tf.shape(self.energies_first),
+                              axis=1)
+
         return spectrum
 
     def mu_before_efficiencies(self, **params):
@@ -41,7 +61,8 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
                                               axis=0)}
 
     def _annotate(self, d):
-        pass
+        d['spatial_diff_rate'] = self.mh_diff_rate.lookup(
+            *[d['r'], d['drift_time']])
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Return pandas dataframe with event positions and times
@@ -63,8 +84,9 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
             replace=True)
         assert np.all(data['energy_first'] >= 0), "Generated negative energies??"
 
-        data['r'] = np.random.rand(n_events) * self.radius_upper
-        data['drift_time'] = np.random.rand(n_events) * (self.dt_upper - self.dt_lower) + self.dt_lower
+        r_dt = self.mh_events_per_bin.get_random(n_events)
+        data ['r'] = r_dt[:, 0]
+        data ['drift_time'] = r_dt[:, 1]
 
         # For a constant-shape spectrum, fixing truth values is easy:
         # we just overwrite the simulated values.
@@ -177,8 +199,6 @@ class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
 
 @export
 class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
-    model_functions = ('get_spatial_diff_rate',)
-
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
     #: Dummy energy spectrum of 1s
@@ -196,32 +216,6 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
 
     mh_diff_rate = mh
     mh_events_per_bin = mh * mh.bin_volumes()
-
-    def random_truth(self, n_events, **kwargs):
-        data = super().random_truth(n_events, **kwargs)
-
-        r_dt = self.mh_events_per_bin.get_random(n_events)
-        data ['r'] = r_dt[:, 0]
-        data ['drift_time'] = r_dt[:, 1]
-
-        return data
-
-    def get_spatial_diff_rate(self, spatial_diff_rate):
-        return spatial_diff_rate
-
-    def _compute(self, data_tensor, ptensor, **kwargs):
-        result = super()._compute(data_tensor, ptensor, **kwargs)
-        result *= tf.repeat(self.gimme('get_spatial_diff_rate',
-                                        data_tensor=data_tensor,
-                                        ptensor=ptensor)[:, o],
-                            tf.shape(self.energies_first),
-                            axis=1)
-
-        return result
-
-    def _annotate(self, d):
-        d['spatial_diff_rate'] = self.mh_diff_rate.lookup(
-            *[d['r'], d['drift_time']])
 
 
 @export
