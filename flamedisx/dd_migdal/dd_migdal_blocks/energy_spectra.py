@@ -177,6 +177,8 @@ class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
 
 @export
 class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
+    model_functions = ('get_spatial_diff_rate',)
+
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
     #: Dummy energy spectrum of 1s
@@ -192,16 +194,34 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     mh = mh / mh.n
     mh = mh / mh.bin_volumes()
 
+    mh_diff_rate = mh
     mh_events_per_bin = mh * mh.bin_volumes()
 
-    def random_truth(self, n_events, fix_truth=None, **params):
-        data = super().random_truth(n_events, fix_truth=None, **params)
+    def random_truth(self, n_events, **kwargs):
+        data = super().random_truth(n_events, **kwargs)
 
         r_dt = self.mh_events_per_bin.get_random(n_events)
         data ['r'] = r_dt[:, 0]
         data ['drift_time'] = r_dt[:, 1]
 
         return data
+
+    def get_spatial_diff_rate(self, spatial_diff_rate):
+        return spatial_diff_rate
+
+    def _compute(self, data_tensor, ptensor, **kwargs):
+        result = super()._compute(data_tensor, ptensor, **kwargs)
+        result *= tf.repeat(self.gimme('get_spatial_diff_rate',
+                                        data_tensor=data_tensor,
+                                        ptensor=ptensor)[:, o],
+                            tf.shape(self.energies_first),
+                            axis=1)
+
+        return result
+
+    def _annotate(self, d):
+        d['spatial_diff_rate'] = self.mh_diff_rate.lookup(
+            *[d['r'], d['drift_time']])
 
 
 @export
