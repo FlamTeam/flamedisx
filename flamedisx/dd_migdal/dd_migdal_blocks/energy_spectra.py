@@ -162,5 +162,19 @@ class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
 
 @export
 class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
-    #: Joint energy spectrum for Migdal3 scatters
+    #: Joint energy spectrum for Migdal4 scatters
     rates_vs_energy = pkl.load(open('migdal_4_spectrum.pkl', 'rb'))
+
+
+@export
+class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
+    #: Energies from the first scatter
+    energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
+    #: Dummy energy spectrum of 1s
+    rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
+
+
+@export
+class EnergySpectrumSecondIE_CS(EnergySpectrumSecondMSU):
+    #: Joint energy spectrum for IE + CS scatters
+    rates_vs_energy = pkl.load(open('IE_CS_spectrum.pkl', 'rb'))

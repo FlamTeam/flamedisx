@@ -110,3 +110,11 @@ class Migdal4Source(Migdal2Source):
         fd_dd_migdal.EnergySpectrumFirstMigdal,
         fd_dd_migdal.EnergySpectrumSecondMigdal4,
         fd_dd_migdal.MakeS1S2Migdal)
+
+
+@export
+class IECSSource(Migdal2Source):
+    model_blocks = (
+        fd_dd_migdal.EnergySpectrumFirstIE_CS,
+        fd_dd_migdal.EnergySpectrumSecondIE_CS,
+        fd_dd_migdal.MakeS1S2Migdal)
