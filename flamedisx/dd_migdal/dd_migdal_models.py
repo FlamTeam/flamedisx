@@ -65,7 +65,7 @@ class Migdal2Source(NRNRSource):
         fd_dd_migdal.EnergySpectrumSecondMigdal2,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    ER_NEST = np.load('ER_NEST.npz')
+    ER_NEST = np.load('migdal_database/ER_NEST.npz')
 
     E_ER = ER_NEST['EkeVee']
     s1_mean_ER = itp.interp1d(E_ER, ER_NEST['s1mean'])

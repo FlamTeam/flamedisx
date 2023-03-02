@@ -76,7 +76,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 @export
 class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
     #: Energy spectrum for SS case
-    rates_vs_energy_first = pkl.load(open('SS_spectrum.pkl', 'rb'))
+    rates_vs_energy_first = pkl.load(open('migdal_database/SS_spectrum.pkl', 'rb'))
 
 
 @export
@@ -96,7 +96,7 @@ class EnergySpectrumSecondMSU(fd.Block):
     energies_second = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     #: Joint energy spectrum for MSU scatters. Override for other double scatters
-    rates_vs_energy = pkl.load(open('MSU_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open('migdal_database/MSU_spectrum.pkl', 'rb'))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, ignore_shape_assertion=True)
@@ -151,19 +151,19 @@ class EnergySpectrumSecondMSU(fd.Block):
 @export
 class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal2 scatters
-    rates_vs_energy = pkl.load(open('migdal_2_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open('migdal_database/migdal_2_spectrum.pkl', 'rb'))
 
 
 @export
 class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal3 scatters
-    rates_vs_energy = pkl.load(open('migdal_3_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open('migdal_database/migdal_3_spectrum.pkl', 'rb'))
 
 
 @export
 class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal4 scatters
-    rates_vs_energy = pkl.load(open('migdal_4_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open('migdal_database/migdal_4_spectrum.pkl', 'rb'))
 
 
 @export
@@ -177,4 +177,4 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
 @export
 class EnergySpectrumSecondIE_CS(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for IE + CS scatters
-    rates_vs_energy = pkl.load(open('IE_CS_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open('migdal_database/IE_CS_spectrum.pkl', 'rb'))
