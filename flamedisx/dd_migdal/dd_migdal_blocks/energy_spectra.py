@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from multihist import Histdd
 import pickle as pkl
 
 import flamedisx as fd
@@ -13,6 +14,11 @@ o = tf.newaxis
 class EnergySpectrumFirstMSU(fd.FirstBlock):
     dimensions = ('energy_first',)
     model_attributes = ('energies_first', 'rates_vs_energy_first')
+
+    radius_upper = 67.8
+
+    dt_lower = 20
+    dt_upper = 90
 
     #: Energies from the first scatter
     energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
@@ -56,6 +62,9 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
             p=spectrum_numpy / spectrum_numpy.sum(),
             replace=True)
         assert np.all(data['energy_first'] >= 0), "Generated negative energies??"
+
+        data['r'] = np.random.rand(n_events) * self.radius_upper
+        data['drift_time'] = np.random.rand(n_events) * (self.dt_upper - self.dt_lower) + self.dt_lower
 
         # For a constant-shape spectrum, fixing truth values is easy:
         # we just overwrite the simulated values.
@@ -172,6 +181,27 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
     #: Dummy energy spectrum of 1s
     rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
+
+    spatial_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
+
+    hist_values = spatial_dist['hist_values']
+    r_edges = spatial_dist['r_edges']
+    dt_edges = spatial_dist['dt_edges']
+
+    mh = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
+    mh = mh / mh.n
+    mh = mh / mh.bin_volumes()
+
+    mh_events_per_bin = mh * mh.bin_volumes()
+
+    def random_truth(self, n_events, fix_truth=None, **params):
+        data = super().random_truth(n_events, fix_truth=None, **params)
+
+        r_dt = self.mh_events_per_bin.get_random(n_events)
+        data ['r'] = r_dt[:, 0]
+        data ['drift_time'] = r_dt[:, 1]
+
+        return data
 
 
 @export
