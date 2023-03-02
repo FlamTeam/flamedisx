@@ -149,6 +149,12 @@ class EnergySpectrumSecondMSU(fd.Block):
 
 
 @export
+class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
+    #: Joint energy spectrum for Migdal2 scatters
+    rates_vs_energy = pkl.load(open('migdal_2_spectrum.pkl', 'rb'))
+
+
+@export
 class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal3 scatters
     rates_vs_energy = pkl.load(open('migdal_3_spectrum.pkl', 'rb'))

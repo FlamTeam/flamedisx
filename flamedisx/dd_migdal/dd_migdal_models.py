@@ -59,10 +59,10 @@ class NRNRSource(NRSource):
 
 
 @export
-class Migdal3Source(NRNRSource):
+class Migdal2Source(NRNRSource):
     model_blocks = (
         fd_dd_migdal.EnergySpectrumFirstMigdal,
-        fd_dd_migdal.EnergySpectrumSecondMigdal3,
+        fd_dd_migdal.EnergySpectrumSecondMigdal2,
         fd_dd_migdal.MakeS1S2Migdal)
 
     ER_NEST = np.load('ER_NEST.npz')
@@ -97,7 +97,15 @@ class Migdal3Source(NRNRSource):
 
 
 @export
-class Migdal4Source(Migdal3Source):
+class Migdal3Source(Migdal2Source):
+    model_blocks = (
+        fd_dd_migdal.EnergySpectrumFirstMigdal,
+        fd_dd_migdal.EnergySpectrumSecondMigdal3,
+        fd_dd_migdal.MakeS1S2Migdal)
+
+
+@export
+class Migdal4Source(Migdal2Source):
     model_blocks = (
         fd_dd_migdal.EnergySpectrumFirstMigdal,
         fd_dd_migdal.EnergySpectrumSecondMigdal4,
