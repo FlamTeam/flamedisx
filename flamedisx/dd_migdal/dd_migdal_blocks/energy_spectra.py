@@ -27,7 +27,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
         return spectrum
 
     def mu_before_efficiencies(self, **params):
-        return np.sum(fd.np_to_tf(self.rates_vs_energy_first))
+        return 1.
 
     def domain(self, data_tensor):
         return {self.dimensions[0]: tf.repeat(fd.np_to_tf(self.energies_first)[o, :],

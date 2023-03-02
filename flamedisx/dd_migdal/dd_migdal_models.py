@@ -84,14 +84,16 @@ class Migdal2Source(NRNRSource):
         super().__init__(*args, **kwargs)
 
     def signal_means_ER(self, energy):
-        s1_mean = tf.cast(self.s1_mean_ER(energy), fd.float_type())
-        s2_mean = tf.cast(self.s2_mean_ER(energy), fd.float_type())
+        energy_cap = np.where(energy <= 49., energy, 49.)
+        s1_mean = tf.cast(self.s1_mean_ER(energy_cap), fd.float_type())
+        s2_mean = tf.cast(self.s2_mean_ER(energy_cap), fd.float_type())
 
         return s1_mean, s2_mean
 
     def signal_vars_ER(self, energy):
-        s1_var = tf.cast(self.s1_var_ER(energy), fd.float_type())
-        s2_var = tf.cast(self.s2_var_ER(energy), fd.float_type())
+        energy_cap = np.where(energy <= 49., energy, 49.)
+        s1_var = tf.cast(self.s1_var_ER(energy_cap), fd.float_type())
+        s2_var = tf.cast(self.s2_var_ER(energy_cap), fd.float_type())
 
         return s1_var, s2_var
 
