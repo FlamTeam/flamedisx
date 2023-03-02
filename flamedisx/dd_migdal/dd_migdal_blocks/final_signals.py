@@ -14,13 +14,19 @@ o = tf.newaxis
 class MakeS1S2MSU(fd.Block):
     """
     """
+    model_attributes = ('check_acceptances',)
 
     dimensions = ('energy_first', 's1s2')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
                   (('energy_second',), 'rate_vs_energy'))
 
     special_model_functions = ('signal_means', 'signal_vars', 'signal_cov')
-    model_functions = special_model_functions
+    model_functions = ('s1s2_acceptance',) + special_model_functions
+
+    # Whether to check acceptances are positive at the observed events.
+    # This is recommended, but you'll have to turn it off if your
+    # likelihood includes regions where only anomalous sources make events.
+    check_acceptances = True
 
     array_columns = (('s1s2', 2),)
 
@@ -28,6 +34,19 @@ class MakeS1S2MSU(fd.Block):
     source: fd.Source
     gimme: ty.Callable
     gimme_numpy: ty.Callable
+
+    def s1s2_acceptance(self, s1s2, s1_min=20, s1_max=250, s2_max=2.5e4):
+        s1 = s1s2[:, 0]
+        s2 = s1s2[:, 0]
+
+        s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
+                          tf.zeros_like(s1, dtype=fd.float_type()),
+                          tf.ones_like(s1, dtype=fd.float_type()))
+        s2_acc = tf.where((s2 > s2_max),
+                          tf.zeros_like(s2, dtype=fd.float_type()),
+                          tf.ones_like(s2, dtype=fd.float_type()))
+
+        return (s1_acc * s2_acc)
 
     def _simulate(self, d):
         energies_first = d['energy_first'].values
@@ -57,6 +76,8 @@ class MakeS1S2MSU(fd.Block):
         s1s2 = (L @ X).reshape(shape) + means
 
         d['s1s2'] = list(s1s2)
+
+        d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
 
     def _annotate(self, d):
         pass
@@ -114,19 +135,40 @@ class MakeS1S2MSU(fd.Block):
         R_E1E2 = probs * rate_vs_energy
         R_E1 = tf.reduce_sum(R_E1E2, axis=2)
 
+        # Add detection/selection efficiency
+        acceptance = self.gimme('s1s2_acceptance',
+                                data_tensor=data_tensor, ptensor=ptensor)
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(probs)[1], axis=1)
+        R_E1 *= acceptance
+
         return R_E1[:, o, :]
+
+    def check_data(self):
+        if not self.check_acceptances:
+         return
+        s_acc = self.gimme_numpy('s1s2_acceptance')
+        if np.any(s_acc <= 0):
+         raise ValueError(f"Found event with non-positive signal "
+                          f"acceptance: did you apply and configure "
+                          "your cuts correctly?")
 
 
 @export
 class MakeS1S2SS(fd.Block):
     """
     """
+    model_attributes = ('check_acceptances',)
 
     dimensions = ('energy_first', 's1s2')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),)
 
     special_model_functions = ('signal_means', 'signal_vars', 'signal_cov')
-    model_functions = special_model_functions
+    model_functions = ('s1s2_acceptance',) + special_model_functions
+
+    # Whether to check acceptances are positive at the observed events.
+    # This is recommended, but you'll have to turn it off if your
+    # likelihood includes regions where only anomalous sources make events.
+    check_acceptances = True
 
     array_columns = (('s1s2', 2),)
 
@@ -134,6 +176,19 @@ class MakeS1S2SS(fd.Block):
     source: fd.Source
     gimme: ty.Callable
     gimme_numpy: ty.Callable
+
+    def s1s2_acceptance(self, s1s2, s1_min=20, s1_max=250, s2_max=2.5e4):
+        s1 = s1s2[:, 0]
+        s2 = s1s2[:, 0]
+
+        s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
+                          tf.zeros_like(s1, dtype=fd.float_type()),
+                          tf.ones_like(s1, dtype=fd.float_type()))
+        s2_acc = tf.where((s2 > s2_max),
+                          tf.zeros_like(s2, dtype=fd.float_type()),
+                          tf.ones_like(s2, dtype=fd.float_type()))
+
+        return (s1_acc * s2_acc)
 
     def _simulate(self, d):
         energies = d['energy_first'].values
@@ -158,6 +213,8 @@ class MakeS1S2SS(fd.Block):
         s1s2 = (L @ X).reshape(shape) + means
 
         d['s1s2'] = list(s1s2)
+
+        d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
 
     def _annotate(self, d):
         pass
@@ -195,13 +252,29 @@ class MakeS1S2SS(fd.Block):
 
         probs = tfp.distributions.MultivariateNormalTriL(loc=means, scale_tril=scale).prob(s1s2)
 
+        # Add detection/selection efficiency
+        acceptance = self.gimme('s1s2_acceptance',
+                                data_tensor=data_tensor, ptensor=ptensor)
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(probs)[1], axis=1)
+        probs *= acceptance
+
         return probs[:, o, :]
+
+    def check_data(self):
+        if not self.check_acceptances:
+         return
+        s_acc = self.gimme_numpy('s1s2_acceptance')
+        if np.any(s_acc <= 0):
+         raise ValueError(f"Found event with non-positive signal "
+                          f"acceptance: did you apply and configure "
+                          "your cuts correctly?")
 
 
 @export
 class MakeS1S2Migdal(fd.Block):
     """
     """
+    model_attributes = ('check_acceptances',)
 
     dimensions = ('energy_first', 's1s2')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
@@ -210,7 +283,12 @@ class MakeS1S2Migdal(fd.Block):
     special_model_functions = ('signal_means', 'signal_vars',
                                'signal_means_ER', 'signal_vars_ER',
                                'signal_cov')
-    model_functions = special_model_functions
+    model_functions = ('s1s2_acceptance',) + special_model_functions
+
+    # Whether to check acceptances are positive at the observed events.
+    # This is recommended, but you'll have to turn it off if your
+    # likelihood includes regions where only anomalous sources make events.
+    check_acceptances = True
 
     array_columns = (('s1s2', 2),)
 
@@ -218,6 +296,19 @@ class MakeS1S2Migdal(fd.Block):
     source: fd.Source
     gimme: ty.Callable
     gimme_numpy: ty.Callable
+
+    def s1s2_acceptance(self, s1s2, s1_min=20, s1_max=250, s2_max=2.5e4):
+        s1 = s1s2[:, 0]
+        s2 = s1s2[:, 0]
+
+        s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
+                          tf.zeros_like(s1, dtype=fd.float_type()),
+                          tf.ones_like(s1, dtype=fd.float_type()))
+        s2_acc = tf.where((s2 > s2_max),
+                          tf.zeros_like(s2, dtype=fd.float_type()),
+                          tf.ones_like(s2, dtype=fd.float_type()))
+
+        return (s1_acc * s2_acc)
 
     def _simulate(self, d):
         energies_first = d['energy_first'].values
@@ -247,6 +338,8 @@ class MakeS1S2Migdal(fd.Block):
         s1s2 = (L @ X).reshape(shape) + means
 
         d['s1s2'] = list(s1s2)
+
+        d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
 
     def _annotate(self, d):
         pass
@@ -299,4 +392,19 @@ class MakeS1S2Migdal(fd.Block):
         R_E1E2 = probs * rate_vs_energy
         R_E1 = tf.reduce_sum(R_E1E2, axis=2)
 
+        # Add detection/selection efficiency
+        acceptance = self.gimme('s1s2_acceptance',
+                                data_tensor=data_tensor, ptensor=ptensor)
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(probs)[1], axis=1)
+        R_E1 *= acceptance
+
         return R_E1[:, o, :]
+
+    def check_data(self):
+        if not self.check_acceptances:
+         return
+        s_acc = self.gimme_numpy('s1s2_acceptance')
+        if np.any(s_acc <= 0):
+         raise ValueError(f"Found event with non-positive signal "
+                          f"acceptance: did you apply and configure "
+                          "your cuts correctly?")
