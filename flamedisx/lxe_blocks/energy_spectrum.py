@@ -107,6 +107,7 @@ class EnergySpectrum(fd.FirstBlock):
         data = pd.DataFrame(data)
         return data
 
+
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
            Compute derived variables.
@@ -441,7 +442,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
 @export
 class WallEnergySpectrum(VariableEnergySpectrum):
-    model_attributes = (('spatial_hist','spatial_hist_rec','rates_vs_radius_energy','energies')
+    model_attributes = (('spatial_hist', 'spatial_hist_rec', 'rates_vs_radius_energy', 'energies')
                         + VariableEnergySpectrum.model_attributes)
 
     #: spatial_hist: multihist.Histdd of events/bin produced by this source.
@@ -565,4 +566,4 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         return fd.np_to_tf(result)
 
     def mu_before_efficiencies(self, **params):
-        return self.rates_vs_radius_energy.n
+        return self.rates_vs_radius_energy.n #da modificare
