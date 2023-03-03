@@ -17,14 +17,14 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
     model_functions = ('get_r_dt_diff_rate',)
 
-    spatial_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
+    r_dt_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
 
-    r_edges = spatial_dist['r_edges']
-    dt_edges = spatial_dist['dt_edges']
+    r_edges = r_dt_dist['r_edges']
+    dt_edges = r_dt_dist['dt_edges']
 
-    hist_values = np.ones_like(spatial_dist['hist_values'])
+    hist_values_r_dt = np.ones_like(r_dt_dist['hist_values'])
 
-    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
+    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values_r_dt, bin_edges=[r_edges, dt_edges])
     mh_r_dt = mh_r_dt / mh_r_dt.n
     mh_r_dt = mh_r_dt / mh_r_dt.bin_volumes()
 
@@ -204,13 +204,13 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     #: Dummy energy spectrum of 1s
     rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
 
-    spatial_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
+    r_dt_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
 
-    hist_values = spatial_dist['hist_values']
-    r_edges = spatial_dist['r_edges']
-    dt_edges = spatial_dist['dt_edges']
+    hist_values_r_dt = r_dt_dist['hist_values']
+    r_edges = r_dt_dist['r_edges']
+    dt_edges = r_dt_dist['dt_edges']
 
-    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
+    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values_r_dt, bin_edges=[r_edges, dt_edges])
     mh_r_dt = mh_r_dt / mh_r_dt.n
     mh_r_dt = mh_r_dt / mh_r_dt.bin_volumes()
 
