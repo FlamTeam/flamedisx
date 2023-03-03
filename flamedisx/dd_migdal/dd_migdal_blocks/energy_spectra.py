@@ -122,6 +122,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
     #: Energy spectrum for SS case
     rates_vs_energy_first = pkl.load(open('migdal_database/SS_spectrum.pkl', 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy_first), 1.)
 
 
 @export
@@ -142,6 +143,7 @@ class EnergySpectrumSecondMSU(fd.Block):
                             dtype=fd.float_type())
     #: Joint energy spectrum for MSU scatters. Override for other double scatters
     rates_vs_energy = pkl.load(open('migdal_database/MSU_spectrum.pkl', 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy), 1.)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, ignore_shape_assertion=True)
@@ -197,18 +199,21 @@ class EnergySpectrumSecondMSU(fd.Block):
 class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal2 scatters
     rates_vs_energy = pkl.load(open('migdal_database/migdal_2_spectrum.pkl', 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
 @export
 class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal3 scatters
     rates_vs_energy = pkl.load(open('migdal_database/migdal_3_spectrum.pkl', 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
 @export
 class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal4 scatters
     rates_vs_energy = pkl.load(open('migdal_database/migdal_4_spectrum.pkl', 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
 @export
@@ -236,3 +241,4 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
 class EnergySpectrumSecondIE_CS(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for IE + CS scatters
     rates_vs_energy = pkl.load(open('migdal_database/IE_CS_spectrum.pkl', 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy), 1.)
