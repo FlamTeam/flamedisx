@@ -301,6 +301,8 @@ class SR1Source:
         aa = fd.get_nt_file(self.path_drift_field_distortion) 
         aa['map'] = aa['r_distortion_map']
         self.drift_field_distortion_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
+        aa['map'] = aa['z_distortion_map']
+        self.drift_field_distortion_map_z = fd.InterpolatingMap(aa, method='RectBivariateSpline')
         del aa
 
         # FDC maps
@@ -399,13 +401,15 @@ class SR1Source:
         
         # going from true position to position distorted by field
         d['r_observed'] = self.drift_field_distortion_map(
-            np.transpose([d['r'].values*10,
-                          d['z'].values*10])) 
+            np.transpose([d['r'].values,
+                          d['z'].values])) 
         d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
         d['y_observed'] = d['r_observed'] * np.sin(d['theta'])
 
         # leave z intact, might want to correct this with drift velocity later
-        d['z_observed'] = d['z']
+        d['z_observed'] = self.drift_field_distortion_map_z(
+            np.transpose([d['r'].values,
+                          d['z'].values])) 
 
         # Adding some smear according to posrec resolution
         d['x_observed'] = np.random.normal(d['x_observed'].values, scale=1.3) # 2 cm resolution
@@ -429,7 +433,7 @@ class SR1Source:
         delta_r = self.fdc_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values,
-                          d['z_observed'].values*10,]))
+                          d['z_observed'].values,]))
                               
         # apply radial correction
         with np.errstate(invalid='ignore', divide='ignore'):
