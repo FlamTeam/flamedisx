@@ -15,7 +15,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     dimensions = ('energy_first',)
     model_attributes = ('energies_first', 'rates_vs_energy_first')
 
-    model_functions = ('get_r_dt_diff_rate',)
+    model_functions = ('get_r_dt_diff_rate', 'get_S2Width_diff_rate')
 
     r_dt_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
 
@@ -40,11 +40,21 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     def get_r_dt_diff_rate(self, r_dt_diff_rate):
         return r_dt_diff_rate
 
+    def get_S2Width_diff_rate(self, S2Width_diff_rate):
+        return S2Width_diff_rate
+
     def _compute(self, data_tensor, ptensor, *, energy_first):
         spectrum = tf.repeat(fd.np_to_tf(self.rates_vs_energy_first)[o, :],
                              self.source.batch_size,
                              axis=0)
+
         spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate',
+                                         data_tensor=data_tensor,
+                                         ptensor=ptensor)[:, o],
+                              tf.shape(self.energies_first),
+                              axis=1)
+
+        spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',
                                          data_tensor=data_tensor,
                                          ptensor=ptensor)[:, o],
                               tf.shape(self.energies_first),
@@ -63,6 +73,8 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     def _annotate(self, d):
         d['r_dt_diff_rate'] = self.r_dt_diff_rate.lookup(
             *[d['r'], d['drift_time']])
+
+        d['S2Width_diff_rate'] = self.source.S2Width_diff_rate.lookup(d['S2Width'])
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Return pandas dataframe with event positions and times
@@ -87,6 +99,8 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
         r_dt = self.r_dt_events_per_bin.get_random(n_events)
         data ['r'] = r_dt[:, 0]
         data ['drift_time'] = r_dt[:, 1]
+
+        data ['S2Width'] = self.source.S2Width_events_per_bin.get_random(n_events)
 
         # For a constant-shape spectrum, fixing truth values is easy:
         # we just overwrite the simulated values.
