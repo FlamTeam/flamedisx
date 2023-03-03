@@ -15,7 +15,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     dimensions = ('energy_first',)
     model_attributes = ('energies_first', 'rates_vs_energy_first')
 
-    model_functions = ('get_spatial_diff_rate',)
+    model_functions = ('get_r_dt_diff_rate',)
 
     spatial_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
 
@@ -24,12 +24,12 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
     hist_values = np.ones_like(spatial_dist['hist_values'])
 
-    mh = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
-    mh = mh / mh.n
-    mh = mh / mh.bin_volumes()
+    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
+    mh_r_dt = mh_r_dt / mh_r_dt.n
+    mh_r_dt = mh_r_dt / mh_r_dt.bin_volumes()
 
-    mh_diff_rate = mh
-    mh_events_per_bin = mh * mh.bin_volumes()
+    r_dt_diff_rate = mh_r_dt
+    r_dt_events_per_bin = mh_r_dt * mh_r_dt.bin_volumes()
 
     #: Energies from the first scatter
     energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
@@ -37,14 +37,14 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     #: Dummy energy spectrum of 1s. Override for SS
     rates_vs_energy_first = tf.ones(65, dtype=fd.float_type())
 
-    def get_spatial_diff_rate(self, spatial_diff_rate):
-        return spatial_diff_rate
+    def get_r_dt_diff_rate(self, r_dt_diff_rate):
+        return r_dt_diff_rate
 
     def _compute(self, data_tensor, ptensor, *, energy_first):
         spectrum = tf.repeat(fd.np_to_tf(self.rates_vs_energy_first)[o, :],
                              self.source.batch_size,
                              axis=0)
-        spectrum *= tf.repeat(self.gimme('get_spatial_diff_rate',
+        spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate',
                                          data_tensor=data_tensor,
                                          ptensor=ptensor)[:, o],
                               tf.shape(self.energies_first),
@@ -61,7 +61,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
                                               axis=0)}
 
     def _annotate(self, d):
-        d['spatial_diff_rate'] = self.mh_diff_rate.lookup(
+        d['r_dt_diff_rate'] = self.r_dt_diff_rate.lookup(
             *[d['r'], d['drift_time']])
 
     def random_truth(self, n_events, fix_truth=None, **params):
@@ -84,7 +84,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
             replace=True)
         assert np.all(data['energy_first'] >= 0), "Generated negative energies??"
 
-        r_dt = self.mh_events_per_bin.get_random(n_events)
+        r_dt = self.r_dt_events_per_bin.get_random(n_events)
         data ['r'] = r_dt[:, 0]
         data ['drift_time'] = r_dt[:, 1]
 
@@ -210,12 +210,12 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     r_edges = spatial_dist['r_edges']
     dt_edges = spatial_dist['dt_edges']
 
-    mh = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
-    mh = mh / mh.n
-    mh = mh / mh.bin_volumes()
+    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values, bin_edges=[r_edges, dt_edges])
+    mh_r_dt = mh_r_dt / mh_r_dt.n
+    mh_r_dt = mh_r_dt / mh_r_dt.bin_volumes()
 
-    mh_diff_rate = mh
-    mh_events_per_bin = mh * mh.bin_volumes()
+    r_dt_diff_rate = mh_r_dt
+    r_dt_events_per_bin = mh_r_dt * mh_r_dt.bin_volumes()
 
 
 @export

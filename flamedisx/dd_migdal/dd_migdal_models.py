@@ -120,6 +120,3 @@ class IECSSource(Migdal2Source):
         fd_dd_migdal.EnergySpectrumFirstIE_CS,
         fd_dd_migdal.EnergySpectrumSecondIE_CS,
         fd_dd_migdal.MakeS1S2Migdal)
-
-    def extra_needed_columns(self):
-        return super().extra_needed_columns() + ['spatial_diff_rate']
