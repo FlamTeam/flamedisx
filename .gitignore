@@ -48,6 +48,7 @@ resource_cache
 # Data
 *.pkl
 *.csv
+!flamedisx/dd_migdal/migdal_database/*.pkl
 
 # Apple
 .DS_Store

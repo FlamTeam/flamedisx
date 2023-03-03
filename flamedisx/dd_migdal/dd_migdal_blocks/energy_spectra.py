@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+import os
+
 from multihist import Histdd
 import pickle as pkl
 
@@ -17,7 +19,8 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
     model_functions = ('get_r_dt_diff_rate', 'get_S2Width_diff_rate')
 
-    r_dt_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
+    r_dt_dist = np.load(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
 
     r_edges = r_dt_dist['r_edges']
     dt_edges = r_dt_dist['dt_edges']
@@ -118,7 +121,8 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 @export
 class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
     #: Energy spectrum for SS case
-    rates_vs_energy_first = pkl.load(open('migdal_database/SS_spectrum.pkl', 'rb'))
+    rates_vs_energy_first = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/SS_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy_first), 1.)
 
 
@@ -139,7 +143,8 @@ class EnergySpectrumSecondMSU(fd.Block):
     energies_second = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     #: Joint energy spectrum for MSU scatters. Override for other double scatters
-    rates_vs_energy = pkl.load(open('migdal_database/MSU_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/MSU_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
     def __init__(self, *args, **kwargs):
@@ -195,21 +200,24 @@ class EnergySpectrumSecondMSU(fd.Block):
 @export
 class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal2 scatters
-    rates_vs_energy = pkl.load(open('migdal_database/migdal_2_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/migdal_2_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
 @export
 class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal3 scatters
-    rates_vs_energy = pkl.load(open('migdal_database/migdal_3_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/migdal_3_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
 @export
 class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal4 scatters
-    rates_vs_energy = pkl.load(open('migdal_database/migdal_4_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/migdal_4_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
@@ -220,7 +228,8 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     #: Dummy energy spectrum of 1s
     rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
 
-    r_dt_dist = np.load('migdal_database/IE_CS_spatial_template.npz')
+    r_dt_dist = np.load(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
 
     hist_values_r_dt = r_dt_dist['hist_values']
     r_edges = r_dt_dist['r_edges']
@@ -237,5 +246,6 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
 @export
 class EnergySpectrumSecondIE_CS(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for IE + CS scatters
-    rates_vs_energy = pkl.load(open('migdal_database/IE_CS_spectrum.pkl', 'rb'))
+    rates_vs_energy = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)

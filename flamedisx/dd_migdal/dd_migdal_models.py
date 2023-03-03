@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
+import os
+
 from multihist import Hist1d
 
 import scipy.interpolate as itp
@@ -18,7 +20,8 @@ class NRSource(fd.BlockModelSource):
         fd_dd_migdal.EnergySpectrumFirstSS,
         fd_dd_migdal.MakeS1S2SS)
 
-    S2Width_dist = np.load('migdal_database/SS_Mig_S2Width_template.npz')
+    S2Width_dist = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -74,7 +77,8 @@ class NRNRSource(NRSource):
 
     no_step_dimensions = ('energy_second')
 
-    S2Width_dist = np.load('migdal_database/MSU_IECS_S2Width_template.npz')
+    S2Width_dist = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/MSU_IECS_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -97,7 +101,8 @@ class Migdal2Source(NRNRSource):
         fd_dd_migdal.EnergySpectrumSecondMigdal2,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    S2Width_dist = np.load('migdal_database/SS_Mig_S2Width_template.npz')
+    S2Width_dist = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -109,7 +114,8 @@ class Migdal2Source(NRNRSource):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
-    ER_NEST = np.load('migdal_database/ER_NEST.npz')
+    ER_NEST = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/ER_NEST.npz'))
 
     E_ER = ER_NEST['EkeVee']
     s1_mean_ER = itp.interp1d(E_ER, ER_NEST['s1mean'])
@@ -152,7 +158,8 @@ class Migdal3Source(Migdal2Source):
         fd_dd_migdal.EnergySpectrumSecondMigdal3,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    S2Width_dist = np.load('migdal_database/SS_Mig_S2Width_template.npz')
+    S2Width_dist = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -175,7 +182,8 @@ class Migdal4Source(Migdal2Source):
         fd_dd_migdal.EnergySpectrumSecondMigdal4,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    S2Width_dist = np.load('migdal_database/SS_Mig_S2Width_template.npz')
+    S2Width_dist = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -198,7 +206,8 @@ class IECSSource(Migdal2Source):
         fd_dd_migdal.EnergySpectrumSecondIE_CS,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    S2Width_dist = np.load('migdal_database/MSU_IECS_S2Width_template.npz')
+    S2Width_dist = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/MSU_IECS_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
