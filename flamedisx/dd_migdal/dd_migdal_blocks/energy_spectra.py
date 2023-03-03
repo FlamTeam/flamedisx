@@ -51,6 +51,8 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
                              self.source.batch_size,
                              axis=0)
 
+        spectrum *= self.source.mu_before_efficiencies()
+
         spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate',
                                          data_tensor=data_tensor,
                                          ptensor=ptensor)[:, o],
