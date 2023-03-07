@@ -39,12 +39,13 @@ class NRSource(fd.BlockModelSource):
     @staticmethod
     def signal_means(energy, a=11., b=1.1,
                      c_s2_0=2.51, c_s2_1=0.98, c_s2_2=-0.09, c_s2_3=0.03, c_s2_4=-0.02,
-                     g1=0.1131, g2=47.35):
+                     g1=0.1131, g2=47.35,
+                     s1_mean_multiplier=1., s2_mean_multiplier=1.):
         P = c_s2_0 + c_s2_1 * fd.tf_log10(energy) + c_s2_2 * pow(fd.tf_log10(energy), 2) + \
             c_s2_3 * pow(fd.tf_log10(energy), 3) + c_s2_4 * pow(fd.tf_log10(energy), 4)
-        s2_mean = 10**P
+        s2_mean = s2_mean_multiplier * 10**P
 
-        s1_mean = (a * energy**b - s2_mean / g2) * g1
+        s1_mean = s1_mean_multiplier * (a * energy**b - s2_mean / g2) * g1
         s1_mean= tf.where(s1_mean < 0.01, 0.01 * tf.ones_like(s1_mean, dtype=fd.float_type()), s1_mean)
 
         return s1_mean, s2_mean
