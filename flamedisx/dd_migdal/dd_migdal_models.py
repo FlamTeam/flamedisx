@@ -225,4 +225,4 @@ class IECSSource(Migdal2Source):
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
     def mu_before_efficiencies(self, **params):
-        return 5.30e-5
+        return 8.43e-5
