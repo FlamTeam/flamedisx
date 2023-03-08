@@ -37,8 +37,8 @@ class NRSource(fd.BlockModelSource):
         return 1.
 
     @staticmethod
-    def signal_means(energy, a=11., b=1.1,
-                     c_s2_0=2.51, c_s2_1=0.98, c_s2_2=-0.09, c_s2_3=0.03, c_s2_4=-0.02,
+    def signal_means(energy, a=13., b=1.06,
+                     c_s2_0=2.51, c_s2_1=0.99, c_s2_2=-0.09, c_s2_3=0.03, c_s2_4=-0.02,
                      g1=0.1131, g2=47.35,
                      s1_mean_multiplier=1., s2_mean_multiplier=1.):
         P = c_s2_0 + c_s2_1 * fd.tf_log10(energy) + c_s2_2 * pow(fd.tf_log10(energy), 2) + \
@@ -51,7 +51,7 @@ class NRSource(fd.BlockModelSource):
         return s1_mean, s2_mean
 
     @staticmethod
-    def signal_vars(*args, d_s1=1.2, d_s2=38.12):
+    def signal_vars(*args, d_s1=1.2, d_s2=39.):
         s1_mean = args[0]
         s2_mean = args[1]
 
@@ -62,7 +62,7 @@ class NRSource(fd.BlockModelSource):
         return s1_var, s2_var
 
     @staticmethod
-    def signal_cov(*args, anti_corr=-0.1):
+    def signal_cov(*args, anti_corr=-0.2):
         s1_var = args[0]
         s2_var = args[1]
 
