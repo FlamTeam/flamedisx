@@ -95,9 +95,6 @@ class NRNRSource(NRSource):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
-    def mu_before_efficiencies(self, **params):
-        return 3.52e-2
-
 
 @export
 class Migdal2Source(NRNRSource):
@@ -138,9 +135,6 @@ class Migdal2Source(NRNRSource):
 
         super().__init__(*args, **kwargs)
 
-    def mu_before_efficiencies(self, **params):
-        return 8.51e-5
-
     def signal_means_ER(self, energy):
         energy_cap = np.where(energy <= 49., energy, 49.)
         s1_mean = tf.cast(self.s1_mean_ER(energy_cap), fd.float_type())
@@ -176,9 +170,6 @@ class Migdal3Source(Migdal2Source):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
-    def mu_before_efficiencies(self, **params):
-        return 2.24e-3
-
 
 @export
 class Migdal4Source(Migdal2Source):
@@ -200,9 +191,6 @@ class Migdal4Source(Migdal2Source):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
-    def mu_before_efficiencies(self, **params):
-        return 1.97e-2
-
 
 @export
 class IECSSource(Migdal2Source):
@@ -223,6 +211,3 @@ class IECSSource(Migdal2Source):
 
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
-
-    def mu_before_efficiencies(self, **params):
-        return 8.43e-5
