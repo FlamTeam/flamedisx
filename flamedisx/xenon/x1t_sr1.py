@@ -427,7 +427,6 @@ class SR1Source:
             d['z_observed'] = -self.default_drift_velocity*d['drift_time'] 
         else:
             d['drift_velocity'] = self.default_drift_velocity
-            d['z_observed'] = d['z']
         
         # applying fdc
         delta_r = self.fdc_map(
@@ -442,7 +441,9 @@ class SR1Source:
 
         d['x_fdc'] = d['x_observed'] * scale
         d['y_fdc'] = d['y_observed'] * scale
-        d['z_fdc'] = d['z_observed']
+        d['z_fdc'] = -(d['z_observed']**2-delta_r ** 2)**0.5
+        invalid = np.abs(d['z_observed']) < np.abs(delta_r)
+        d['z_fdc'][invalid] = d['z_observed'][invalid]
         
         return d
 
