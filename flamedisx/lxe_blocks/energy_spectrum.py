@@ -105,8 +105,8 @@ class EnergySpectrum(fd.FirstBlock):
         self.source._overwrite_fixed_truths(data, fix_truth, n_events)
 
         data = pd.DataFrame(data)
-        return data
 
+        return data
 
     def validate_fix_truth(self, d):
         """Clean fix_truth, ensure all needed variables are present
@@ -566,4 +566,11 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         return fd.np_to_tf(result)
 
     def mu_before_efficiencies(self, **params):
-        return self.rates_vs_radius_energy.n #da modificare
+        bin_volumes = self.rates_vs_radius_energy.bin_volumes()
+        # Volume element in cylindrical coords = r * (dr dq dz)
+        bin_volumes *= self.rates_vs_radius_energy.bin_centers('r')[:, None, None]
+        rates_vs_radius_energy_copy = self.rates_vs_radius_energy.similar_blank_hist()
+        rates_vs_radius_energy_copy.histogram = (
+            (self.rates_vs_radius_energy.histogram / bin_volumes)
+            * bin_volumes.sum())
+        return self.rates_vs_radius_energy_copy.n 
