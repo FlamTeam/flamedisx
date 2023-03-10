@@ -573,4 +573,4 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         rates_vs_radius_energy_copy.histogram = (
             (self.rates_vs_radius_energy.histogram / bin_volumes)
             * bin_volumes.sum())
-        return rates_vs_radius_energy_copy.n 
+        return self.rates_vs_radius_energy.n
