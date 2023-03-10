@@ -481,7 +481,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
 
         self.bin_volumes = self.spatial_hist.bin_volumes()
         # Volume element in cylindrical coords = r * (dr dq dz)
-        self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
+        #self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
 
         # Assert energy spectrum
         axes = tuple(self.rates_vs_radius_energy.axis_names)
