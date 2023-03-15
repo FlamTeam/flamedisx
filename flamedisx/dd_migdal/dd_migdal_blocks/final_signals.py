@@ -37,7 +37,7 @@ class MakeS1S2MSU(fd.Block):
 
     def s1s2_acceptance(self, s1s2, s1_min=20, s1_max=250, s2_max=2.5e4):
         s1 = s1s2[:, 0]
-        s2 = s1s2[:, 0]
+        s2 = s1s2[:, 1]
 
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
@@ -45,8 +45,11 @@ class MakeS1S2MSU(fd.Block):
         s2_acc = tf.where((s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
+        s1s2_acc = tf.where((s2 > 1100*s1**(0.45)),
+                            tf.ones_like(s2, dtype=fd.float_type()),
+                            tf.zeros_like(s2, dtype=fd.float_type()))
 
-        return (s1_acc * s2_acc)
+        return (s1_acc * s2_acc * s1s2_acc)
 
     def _simulate(self, d):
         energies_first = d['energy_first'].values
@@ -179,7 +182,7 @@ class MakeS1S2SS(fd.Block):
 
     def s1s2_acceptance(self, s1s2, s1_min=20, s1_max=250, s2_max=2.5e4):
         s1 = s1s2[:, 0]
-        s2 = s1s2[:, 0]
+        s2 = s1s2[:, 1]
 
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
@@ -187,8 +190,11 @@ class MakeS1S2SS(fd.Block):
         s2_acc = tf.where((s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
+        s1s2_acc = tf.where((s2 > 1100*s1**(0.45)),
+                            tf.ones_like(s2, dtype=fd.float_type()),
+                            tf.zeros_like(s2, dtype=fd.float_type()))
 
-        return (s1_acc * s2_acc)
+        return (s1_acc * s2_acc * s1s2_acc)
 
     def _simulate(self, d):
         energies = d['energy_first'].values
@@ -299,7 +305,7 @@ class MakeS1S2Migdal(fd.Block):
 
     def s1s2_acceptance(self, s1s2, s1_min=20, s1_max=250, s2_max=2.5e4):
         s1 = s1s2[:, 0]
-        s2 = s1s2[:, 0]
+        s2 = s1s2[:, 1]
 
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
@@ -307,8 +313,11 @@ class MakeS1S2Migdal(fd.Block):
         s2_acc = tf.where((s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
+        s1s2_acc = tf.where((s2 > 1100*s1**(0.45)),
+                            tf.ones_like(s2, dtype=fd.float_type()),
+                            tf.zeros_like(s2, dtype=fd.float_type()))
 
-        return (s1_acc * s2_acc)
+        return (s1_acc * s2_acc * s1s2_acc)
 
     def _simulate(self, d):
         energies_first = d['energy_first'].values
