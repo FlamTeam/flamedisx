@@ -60,7 +60,7 @@ class LZSource:
         self.cS1_min = config.getfloat('NEST', 'cS1_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS1_max = config.getfloat('NEST', 'cS1_max_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
-        self.S2_max = config.getfloat('NEST', 'S2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
+        self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
 
         try:
             self.s1_map_LZAP = fd.InterpolatingMap(fd.get_resource(self.path_s1_corr_LZAP))
@@ -123,7 +123,7 @@ class LZSource:
     def s2_acceptance(self, s2, cs2, cs2_acc_curve, fv_acceptance):
 
         acceptance = tf.where((s2 >= self.s2_thr) &
-                              (s2 >= self.S2_min) & (s2 <= self.S2_max),
+                              (s2 >= self.S2_min) & (cs2 <= self.cS2_max),
                               tf.ones_like(s2, dtype=fd.float_type()),  # if condition non-zero
                               tf.zeros_like(s2, dtype=fd.float_type()))  # if false
 
