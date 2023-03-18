@@ -19,41 +19,72 @@ export, __all__ = fd.exporter()
 
 
 @export
-class BetaSource(fd_nest.nestERSource):
-    """Beta background source combining 214Pb, 212Pb and 85Kr.
-    Reads in energy spectra from .pkl files. Normalise such that the sum of
+class Pb214Source(fd_nest.nestERSource):
+    """Beta background source from 214Pb decay.
+    Reads in energy spectrum from .pkl file. Normalise such that the sum of
     rates_vs_energy is 1.
-
-    Arguments:
-        - weights: tuple (length 3) of weights to apply to the spectra,
-        in the order given above. 214Pb and 212Pb relative to 1 uBq / kg,
-        85Kr relative to 0.3ppt.
     """
 
-    def __init__(self, *args, weights=(1, 1, 1,), **kwargs):
-        assert len(weights) == 3, "Weights must be a tuple of length 3"
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         df_214Pb = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/214Pb_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_214Pb['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_214Pb['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class DetERSource(fd_nest.nestERSource):
+    """ER background source from detector components.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        self.energies = tf.cast(np.arange(0.6, 20.01, 0.1), fd.float_type())
+        self.rates_vs_energy = tf.ones_like(self.energies, fd.float_type()) / sum(np.ones_like(self.energies))
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class BetaSource(fd_nest.nestERSource):
+    """Beta background source combining 212Pb and 85Kr.
+    Reads in energy spectra from .pkl files. Normalise such that the sum of
+    rates_vs_energy is 1.
+
+    Arguments:
+        - weights: tuple (length 2) of weights to apply to the spectra,
+        in the order given above. 212Pb relative to 1 uBq / kg,
+        85Kr relative to 0.3ppt.
+    """
+
+    def __init__(self, *args, weights=(1, 1,), **kwargs):
+        assert len(weights) == 2, "Weights must be a tuple of length 3"
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
         df_212Pb = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/212Pb_spectrum.pkl'))
         df_85Kr = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/85Kr_spectrum.pkl'))
 
-        assert np.logical_and((df_214Pb['energy_keV'].values == df_212Pb['energy_keV'].values).all(),
-                              (df_212Pb['energy_keV'].values == df_85Kr['energy_keV'].values).all()), \
+        assert (df_212Pb['energy_keV'].values == df_85Kr['energy_keV'].values).all(), \
             "Energy spectrum components must have equal energies"
 
         # Weight the spectra according to the weights provided, then combine
-        df_214Pb_values = df_214Pb['spectrum_value_norm'].values * weights[0]
-        df_212Pb_values = df_212Pb['spectrum_value_norm'].values * weights[1]
-        df_85Kr_values = df_85Kr['spectrum_value_norm'].values * weights[2]
+        df_212Pb_values = df_212Pb['spectrum_value_norm'].values * weights[0]
+        df_85Kr_values = df_85Kr['spectrum_value_norm'].values * weights[1]
 
-        combined_rates_vs_energy = df_214Pb_values + df_212Pb_values + df_85Kr_values
+        combined_rates_vs_energy = df_212Pb_values + df_85Kr_values
 
         # Re-normalise the summed spectra
         combined_rates_vs_energy = combined_rates_vs_energy / sum(combined_rates_vs_energy)
 
-        self.energies = tf.convert_to_tensor(df_214Pb['energy_keV'].values, dtype=fd.float_type())
+        self.energies = tf.convert_to_tensor(df_212Pb['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(combined_rates_vs_energy, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)

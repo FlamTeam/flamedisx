@@ -281,6 +281,22 @@ class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
 
 
 @export
+class LZPb214Source(LZSource, fd.nest.Pb214Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZDetERSource(LZSource, fd.nest.DetERSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
 class LZBetaSource(LZSource, fd.nest.BetaSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
