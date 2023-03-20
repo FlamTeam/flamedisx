@@ -85,7 +85,7 @@ class EnergySpectrum(fd.FirstBlock):
             # We use this filtered reservoir to estimate energy bounds
             self.source.data.loc[batch * self.source.batch_size:
                                  (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
-                np.quantile(energies, self.source.bounds_prob)
+                np.quantile(energies, 0.)
             self.source.data.loc[batch * self.source.batch_size:
                                  (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
                 np.quantile(energies, 1. - self.source.bounds_prob)
@@ -243,7 +243,7 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
 
 @export
 class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
-    max_dim_size = {'energy': 100}
+    max_dim_size = {'energy': 150}
 
 
 @export
@@ -380,7 +380,7 @@ class InvalidEventTimes(Exception):
 
 @export
 class WIMPEnergySpectrum(VariableEnergySpectrum):
-    max_dim_size = {'energy': 100}
+    max_dim_size = {'energy': 150}
 
     model_attributes = ('pretend_wimps_dont_modulate',
                         'mw',
