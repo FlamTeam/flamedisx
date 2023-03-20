@@ -312,7 +312,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
 
 @export
 class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
-    max_dim_size = {'energy': 100}
+    max_dim_size = {'energy': 150}
 
 
 @export
