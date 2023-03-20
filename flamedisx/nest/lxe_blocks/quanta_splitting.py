@@ -108,12 +108,12 @@ class MakePhotonsElectronsNR(fd.Block):
                                                         nq - _ions_produced)
                 else:
                     normal_dist_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                              scale=tf.sqrt(nq_mean*alpha) + 1e-10)
+                                                              scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10)
                     p_ni = normal_dist_ni.cdf(_ions_produced + 0.5) - \
                         normal_dist_ni.cdf(_ions_produced - 0.5)
 
                     normal_dist_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                              scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10)
+                                                              scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10)
                     p_nq = normal_dist_nq.cdf(nq - _ions_produced + 0.5) \
                         - normal_dist_nq.cdf(nq - _ions_produced - 0.5)
 
@@ -134,7 +134,7 @@ class MakePhotonsElectronsNR(fd.Block):
             if self.is_ER:
                 owens_t_terms = 5
             else:
-                owens_t_terms = 2
+                owens_t_terms = 5
 
             if approx:
                 p_nel = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
