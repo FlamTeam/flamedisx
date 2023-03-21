@@ -116,3 +116,13 @@ class XLZDvERSource(XLZDSource, fd.nest.vERSource):
         if ('configuration' not in kwargs):
             kwargs['configuration'] = 'TEST'
         super().__init__(*args, **kwargs)
+
+
+@export
+class XLZDvNRSource(XLZDSource, fd.nest.vNRSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = 'TEST'
+        super().__init__(*args, **kwargs)
