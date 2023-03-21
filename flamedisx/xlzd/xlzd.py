@@ -119,7 +119,17 @@ class XLZDvERSource(XLZDSource, fd.nest.vERSource):
 
 
 @export
-class XLZDvNRSource(XLZDSource, fd.nest.vNRSource):
+class XLZDvNRSolarSource(XLZDSource, fd.nest.vNRSolarSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = 'TEST'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class XLZDvNROtherSource(XLZDSource, fd.nest.vNROtherSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
