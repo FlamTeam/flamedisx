@@ -19,7 +19,7 @@ export, __all__ = fd.exporter()
 
 
 class XLZDSource:
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, drift_field_V_cm=100., gas_field_kV_cm=7., elife_ns=13000e3, **kwargs):
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('xlzd',)
@@ -35,6 +35,16 @@ class XLZDSource:
         self.radius = config.getfloat(kwargs['configuration'], 'radius_config')
         self.z_top = config.getfloat(kwargs['configuration'], 'z_top_config')
         self.z_bottom = config.getfloat(kwargs['configuration'], 'z_bottom_config')
+
+        self.drift_field = drift_field_V_cm
+        self.gas_field = gas_field_kV_cm
+        self.elife = elife_ns
+
+        self.drift_velocity = fd_nest.calculate_drift_velocity(
+            self.drift_field, self.density, self.temperature)
+        self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
+        self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
+                                       self.g1_gas, self.extraction_eff)
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
