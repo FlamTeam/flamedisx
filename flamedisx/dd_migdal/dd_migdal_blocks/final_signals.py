@@ -45,7 +45,7 @@ class MakeS1S2MSU(fd.Block):
         s2_acc = tf.where((s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
-        s1s2_acc = tf.where((s2 > 1100*s1**(0.45)),
+        s1s2_acc = tf.where((s2 > 400*s1**(0.64)),
                             tf.ones_like(s2, dtype=fd.float_type()),
                             tf.zeros_like(s2, dtype=fd.float_type()))
 
@@ -190,7 +190,7 @@ class MakeS1S2SS(fd.Block):
         s2_acc = tf.where((s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
-        s1s2_acc = tf.where((s2 > 1100*s1**(0.45)),
+        s1s2_acc = tf.where((s2 > 400*s1**(0.64)),
                             tf.ones_like(s2, dtype=fd.float_type()),
                             tf.zeros_like(s2, dtype=fd.float_type()))
 
@@ -313,7 +313,7 @@ class MakeS1S2Migdal(fd.Block):
         s2_acc = tf.where((s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
-        s1s2_acc = tf.where((s2 > 1100*s1**(0.45)),
+        s1s2_acc = tf.where((s2 > 400*s1**(0.64)),
                             tf.ones_like(s2, dtype=fd.float_type()),
                             tf.zeros_like(s2, dtype=fd.float_type()))
 
