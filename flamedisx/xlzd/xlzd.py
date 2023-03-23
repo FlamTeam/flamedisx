@@ -19,7 +19,7 @@ export, __all__ = fd.exporter()
 
 
 class XLZDSource:
-    def __init__(self, *args, drift_field_V_cm=100., gas_field_kV_cm=7., elife_ns=13000e3, **kwargs):
+    def __init__(self, *args, drift_field_V_cm=100., gas_field_kV_cm=8., elife_ns=13000e3, **kwargs):
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('xlzd',)
@@ -54,7 +54,7 @@ class XLZDSource:
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = d['s2'] * np.exp(d['drift_time'] / self.elife)
 
-        if 'cs1' in d.columns and 'cs2' in d.columns:
+        if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
              d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
 
 
