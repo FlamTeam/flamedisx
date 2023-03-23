@@ -29,10 +29,10 @@ class vERSource(fd_nest.nestERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        df_vER = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/vER_spectrum.pkl'))
+        df_vER = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/vER_spectrum_scan.pkl'))
 
         self.energies = tf.convert_to_tensor(df_vER['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * 30.759
+        scale = fid_mass * livetime * 53.111
         self.rates_vs_energy = tf.convert_to_tensor(df_vER['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
@@ -49,10 +49,10 @@ class vNRSolarSource(fd_nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        df_CEvNS_solar = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/CEvNS_solar_spectrum.pkl'))
+        df_CEvNS_solar = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/CEvNS_solar_spectrum_scan.pkl'))
 
         self.energies = tf.convert_to_tensor(df_CEvNS_solar['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * 123.675
+        scale = fid_mass * livetime * 754.914
         self.rates_vs_energy = tf.convert_to_tensor(df_CEvNS_solar['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
@@ -69,10 +69,10 @@ class vNROtherSource(fd_nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        df_CEvNS_other = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/CEvNS_other_spectrum.pkl'))
+        df_CEvNS_other = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/CEvNS_other_spectrum_scan.pkl'))
 
         self.energies = tf.convert_to_tensor(df_CEvNS_other['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * 0.066
+        scale = fid_mass * livetime * 0.079
         self.rates_vs_energy = tf.convert_to_tensor(df_CEvNS_other['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
