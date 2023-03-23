@@ -46,11 +46,30 @@ class XLZDSource:
         self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
                                        self.g1_gas, self.extraction_eff)
 
+    @staticmethod
+    def s1_posDependence(z):
+        """
+        Returns LCE. PMT QE then handled by the g1 value.
+        Coefficients come from fit to LCE curve obtained by Theresa Fruth via
+        BACCARAT.
+        Requires z to be in cm, and in the FV.
+        """
+        a = 3.82211839e-01
+        b = 1.14254580e-03
+        c = 2.24850367e-06
+        d = -9.77272624e-10
+
+        LCE = a + b * z + c * z**2 + d * z**3
+
+        return LCE
+
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
 
+        d['s1_pos_corr'] = self.s1_posDependence(d['z'].values) / 0.317666 # normalise to volume-averaged LCE
+
         if 's1' in d.columns and 'cs1' not in d.columns:
-            d['cs1'] = d['s1']
+            d['cs1'] = d['s1'] / d['s1_pos_corr']
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = d['s2'] * np.exp(d['drift_time'] / self.elife)
 
