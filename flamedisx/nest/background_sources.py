@@ -32,7 +32,7 @@ class vERSource(fd_nest.nestERSource):
         df_vER = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/vER_spectrum_scan.pkl'))
 
         self.energies = tf.convert_to_tensor(df_vER['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * 53.111
+        scale = fid_mass * livetime * 55.440
         self.rates_vs_energy = tf.convert_to_tensor(df_vER['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
