@@ -19,7 +19,9 @@ export, __all__ = fd.exporter()
 
 
 class XLZDSource:
-    def __init__(self, *args, drift_field_V_cm=100., gas_field_kV_cm=8., elife_ns=13000e3, **kwargs):
+    def __init__(self, *args,
+                 drift_field_V_cm=100., gas_field_kV_cm=8., elife_ns=13000e3, g1=0.27,
+                 **kwargs):
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('xlzd',)
@@ -39,6 +41,7 @@ class XLZDSource:
         self.drift_field = drift_field_V_cm
         self.gas_field = gas_field_kV_cm
         self.elife = elife_ns
+        self.g1 = g1 # this represents PMT QE
 
         self.drift_velocity = fd_nest.calculate_drift_velocity(
             self.drift_field, self.density, self.temperature)
