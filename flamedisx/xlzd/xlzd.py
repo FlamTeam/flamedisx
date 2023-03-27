@@ -40,6 +40,8 @@ class XLZDSource:
         self.z_bottom = config.getfloat(kwargs['configuration'], 'z_bottom_config')
         self.anode_gate = config.getfloat(kwargs['configuration'], 'anode_gate_config')
 
+        self.configuration = kwargs['configuration']
+
         self.anode_gate_80t = config.getfloat('NEST', 'anode_gate_80t_config')
 
         self.drift_field = drift_field_V_cm / self.anode_gate * self.anode_gate_80t
@@ -61,10 +63,36 @@ class XLZDSource:
         BACCARAT.
         Requires z to be in cm, and in the FV.
         """
-        a = 3.82211839e-01
-        b = 1.14254580e-03
-        c = 2.24850367e-06
-        d = -9.77272624e-10
+        if self.configuration == '80t':
+            a = 3.82211839e-01
+            b = 1.14254580e-03
+            c = 2.24850367e-06
+            d = -9.77272624e-10
+        elif self.configuration == '60t':
+            a = 4.16053591e-01
+            b = 9.99867174e-04
+            c = 2.83162470e-06
+            d = -1.50717789e-09
+        elif self.configuration == '40t':
+            a = 4.71252343e-01
+            b = 7.83829990e-04
+            c = 4.42536234e-06
+            d = 2.09610330e-10
+        elif self.configuration == '20t':
+            a = 5.56369703e-01
+            b = 3.81596554e-04
+            c = 7.92471387e-06
+            d = 2.44831514e-08
+        elif self.configuration == '60t_AR1':
+            a = 4.62941158e-01
+            b = 8.02019214e-04
+            c = 3.54689661e-06
+            d = -1.27689610e-09
+        elif self.configuration == '40t_wide':
+            a = 5.19626499e-01
+            b = 5.61037171e-04
+            c = 5.06533421e-06
+            d = 2.51777266e-09
 
         LCE = a + b * z + c * z**2 + d * z**3
 
@@ -73,7 +101,20 @@ class XLZDSource:
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
 
-        d['s1_pos_corr'] = self.s1_posDependence(d['z'].values) / 0.317666 # normalise to volume-averaged LCE
+        # Numbers from https://docs.google.com/presentation/d/13qbvvxCj4eE79Hdw-IpaF56i2h85Tc-Kh_ZfQIjZHj8/edit#slide=id.g21b562c0a80_0_40
+        if self.configuration == '80t':
+            LCE_average = 0.317666
+        elif self.configuration == '60t':
+            LCE_average = 0.383039
+        elif self.configuration == '40t':
+            LCE_average = 0.465242
+        elif self.configuration == '20t':
+            LCE_average = 0.55959
+        elif self.configuration == '60t_AR1':
+            LCE_average = 0.453847
+        elif self.configuration == '40t_wide':
+            LCE_average = 0.522645
+        d['s1_pos_corr'] = self.s1_posDependence(d['z'].values) / LCE_average # normalise to volume-averaged LCE
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr']
