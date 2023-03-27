@@ -55,8 +55,7 @@ class XLZDSource:
         self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
                                        self.g1_gas, self.extraction_eff)
 
-    @staticmethod
-    def s1_posDependence(z):
+    def s1_posDependence(self, z):
         """
         Returns LCE. PMT QE then handled by the g1 value.
         Coefficients come from fit to LCE curve obtained by Theresa Fruth via
