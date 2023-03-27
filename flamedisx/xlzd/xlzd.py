@@ -25,7 +25,7 @@ class XLZDSource:
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('xlzd',)
-        assert kwargs['configuration'] in ('TEST',)
+        assert kwargs['configuration'] in ('80t', '60t', '40t', '20t', '60t_AR1', '40t_wide',)
 
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), '../nest/config/', kwargs['detector'] + '.ini'))
@@ -35,10 +35,14 @@ class XLZDSource:
                                  kwargs['detector'] + '.ini'))
 
         self.radius = config.getfloat(kwargs['configuration'], 'radius_config')
+        self.z_topDrift = config.getfloat(kwargs['configuration'], 'z_topDrift_config')
         self.z_top = config.getfloat(kwargs['configuration'], 'z_top_config')
         self.z_bottom = config.getfloat(kwargs['configuration'], 'z_bottom_config')
+        self.anode_gate = config.getfloat(kwargs['configuration'], 'anode_gate_config')
 
-        self.drift_field = drift_field_V_cm
+        self.anode_gate_80t = config.getfloat('NEST', 'anode_gate_80t_config')
+
+        self.drift_field = drift_field_V_cm / self.anode_gate * self.anode_gate_80t
         self.gas_field = gas_field_kV_cm
         self.elife = elife_ns
         self.g1 = g1 # this represents PMT QE
@@ -82,41 +86,41 @@ class XLZDSource:
 
 @export
 class XLZDERSource(XLZDSource, fd.nest.nestERSource):
-    def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
 
 
 @export
 class XLZDNRSource(XLZDSource, fd.nest.nestNRSource):
-    def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
 
 
 @export
 class XLZDERSourceGroup(XLZDSource, fd.nest.nestERSourceGroup):
-    def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
 
 
 @export
 class XLZDNRSourceGroup(XLZDSource, fd.nest.nestNRSourceGroup):
-    def __init__(self, *args, detector='xlzd', configuration='TEST', **kwargs):
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
 
 
@@ -131,7 +135,7 @@ class XLZDWIMPSource(XLZDSource, fd.nest.nestWIMPSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
 
 
@@ -146,7 +150,7 @@ class XLZDvERSource(XLZDSource, fd.nest.vERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
 
 
@@ -156,7 +160,7 @@ class XLZDvNRSolarSource(XLZDSource, fd.nest.vNRSolarSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
 
 
@@ -166,5 +170,5 @@ class XLZDvNROtherSource(XLZDSource, fd.nest.vNROtherSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
-            kwargs['configuration'] = 'TEST'
+            kwargs['configuration'] = '80t'
         super().__init__(*args, **kwargs)
