@@ -40,6 +40,8 @@ class XLZDSource:
         self.z_bottom = config.getfloat(kwargs['configuration'], 'z_bottom_config')
         self.anode_gate = config.getfloat(kwargs['configuration'], 'anode_gate_config')
 
+        self.S1_max = config.getfloat(kwargs['configuration'], 'S1_max_config')
+
         self.configuration = kwargs['configuration']
 
         self.anode_gate_80t = config.getfloat('NEST', 'anode_gate_80t_config')
