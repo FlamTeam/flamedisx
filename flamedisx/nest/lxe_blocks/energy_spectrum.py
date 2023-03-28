@@ -243,7 +243,7 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
 
 @export
 class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
-    max_dim_size = {'energy': 100}
+    max_dim_size = {'energy': 150}
 
 
 @export
@@ -312,7 +312,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
 
 @export
 class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
-    max_dim_size = {'energy': 100}
+    max_dim_size = {'energy': 150}
 
 
 @export
@@ -380,7 +380,7 @@ class InvalidEventTimes(Exception):
 
 @export
 class WIMPEnergySpectrum(VariableEnergySpectrum):
-    max_dim_size = {'energy': 100}
+    max_dim_size = {'energy': 150}
 
     model_attributes = ('pretend_wimps_dont_modulate',
                         'mw',
