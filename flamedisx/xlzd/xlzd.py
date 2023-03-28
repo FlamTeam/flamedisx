@@ -187,6 +187,36 @@ class XLZDWIMPSource(XLZDSource, fd.nest.nestWIMPSource):
 
 
 @export
+class XLZDXe136Source(XLZDSource, fd.nest.Xe136Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = '80t'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class XLZDPb214Source(XLZDSource, fd.nest.Pb214Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = '80t'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class XLZDKr85Source(XLZDSource, fd.nest.Kr85Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = '80t'
+        super().__init__(*args, **kwargs)
+
+
+@export
 class XLZDvERSource(XLZDSource, fd.nest.vERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
