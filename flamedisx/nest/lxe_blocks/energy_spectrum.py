@@ -402,7 +402,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
     # We can't use energies here, it is used already in the base classes
     # for other purposes
-    energy_edges = np.linspace(0.8, 50.2, 248)
+    energy_edges = np.linspace(0.5, 80.1, 399)
 
     frozen_model_functions = ('energy_spectrum',)
     array_columns = (('energy_spectrum', len(energy_edges) - 1),)
