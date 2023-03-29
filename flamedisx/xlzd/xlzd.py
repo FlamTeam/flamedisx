@@ -123,7 +123,7 @@ class XLZDSource:
             d['cs2'] = d['s2'] * np.exp(d['drift_time'] / self.elife)
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
-             d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
+             d['ces_er_equivalent'] = (d['cs1'] / (self.g1 * LCE_average) + d['cs2'] / self.g2) * self.Wq_keV / (1. + self.double_pe_fraction)
 
 
 @export
