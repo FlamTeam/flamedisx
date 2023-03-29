@@ -188,7 +188,7 @@ class SGMakePhotonsElectronsNR(fd.Block):
             if self.is_ER:
                 owens_t_terms = 5
             else:
-                owens_t_terms = 2
+                owens_t_terms = 5
 
             if approx:
                 p_nel = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
