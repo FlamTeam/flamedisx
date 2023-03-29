@@ -248,7 +248,7 @@ class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
 
 @export
 class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
-    max_dim_size = {'energy': 50}
+    max_dim_size = {'energy': 100}
 
 
 @export
@@ -317,7 +317,7 @@ class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
 
 @export
 class SpatialRateEnergySpectrumER(SpatialRateEnergySpectrum):
-    max_dim_size = {'energy': 50}
+    max_dim_size = {'energy': 100}
 
 
 ##
