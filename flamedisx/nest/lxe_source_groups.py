@@ -8,6 +8,8 @@ from tqdm import tqdm
 import flamedisx as fd
 from .. import nest as fd_nest
 
+import sys
+
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
@@ -53,6 +55,9 @@ class BlockModelSourceGroup(fd.BlockModelSource):
             # Return the energies and probabilities we are evaluating
             energies_all.extend(fd.tf_to_np(energies))
             results_all.extend(np.transpose(fd.tf_to_np(results)))
+
+            print(sys.getsizeof(energies_all) / 1000)
+            print(sys.getsizeof(results_all) / 1000)
 
         return energies_all, results_all
 

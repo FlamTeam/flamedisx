@@ -75,40 +75,27 @@ def make_event_reservoir(ntoys: int = None,
         sdata['source'] = sname
         dfs.append(sdata)
 
-    data_reservoir_full = pd.concat(dfs, ignore_index=True)
-    if 'ces_er_equivalent' in data_reservoir_full.columns:
-        data_reservoir_full = data_reservoir_full.sort_values(by=['ces_er_equivalent'], ignore_index=True)
+    data_reservoir = pd.concat(dfs, ignore_index=True)
+    if 'ces_er_equivalent' in data_reservoir.columns:
+        data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
 
-    def chunker(seq, size):
-        for pos in range(0, len(seq), size):
-            yield seq.iloc[pos:pos + size].copy()
-
-    data_reservoir_return = []
-
-    chunk_size = 10
-    for data_reservoir in chunker(data_reservoir_full, chunk_size):
-
-        if source_groups_dict is None:
-            for sname, source in sources.items():
-                source.set_data(data_reservoir)
-                data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
-        else:
-            source_groups_already_calculated = []
-            for _, source_group_class in source_groups_dict.items():
-                assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
-                if source_group_class not in source_groups_already_calculated:
-                    source_group_class.set_data(data_reservoir)
-                    if quanta_tensor_dirs_dict is None:
-                        source_group_class.get_diff_rates()
-                    else:
-                        source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
-                    source_groups_already_calculated.append(source_group_class)
-            for sname, source in sources.items():
-                data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
-
-        data_reservoir_return.append(data_reservoir)
-
-    data_reservoir = pd.concat(data_reservoir_return, ignore_index=True)
+    if source_groups_dict is None:
+        for sname, source in sources.items():
+            source.set_data(data_reservoir)
+            data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+    else:
+        source_groups_already_calculated = []
+        for _, source_group_class in source_groups_dict.items():
+            assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
+            if source_group_class not in source_groups_already_calculated:
+                source_group_class.set_data(data_reservoir)
+                if quanta_tensor_dirs_dict is None:
+                    source_group_class.get_diff_rates()
+                else:
+                    source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+                source_groups_already_calculated.append(source_group_class)
+        for sname, source in sources.items():
+            data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
 
     if reservoir_output_name is not None:
         data_reservoir.to_pickle(reservoir_output_name)
