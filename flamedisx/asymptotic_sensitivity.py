@@ -150,8 +150,9 @@ class FrequentistSensitivityRatesOnlyWilks():
 
                         # Sample constraint centers
                         if background_source in self.gaussian_constraint_widths:
-                            draw = stats.norm.rvs(loc=expected_background_counts,
-                                                  scale = self.gaussian_constraint_widths[background_source])
+                            # draw = stats.norm.rvs(loc=expected_background_counts,
+                            #                       scale = self.gaussian_constraint_widths[background_source])
+                            draw = expected_background_counts
                             constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
                         simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
