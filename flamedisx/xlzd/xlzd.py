@@ -46,7 +46,8 @@ class XLZDSource:
 
         self.anode_gate_80t = config.getfloat('NEST', 'anode_gate_80t_config')
 
-        self.drift_field = drift_field_V_cm / self.anode_gate * self.anode_gate_80t
+        # self.drift_field = drift_field_V_cm / self.anode_gate * self.anode_gate_80t
+        self.drift_field = drift_field_V_cm
         self.gas_field = gas_field_kV_cm
         self.elife = elife_ns
         self.g1 = g1 # this represents PMT QE
