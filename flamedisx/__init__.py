@@ -45,6 +45,7 @@ from . import xenon_nT_MS
 # LZ models
 # Access through fd.lz.xxx
 from . import lz
+from .lz.data import *
 
 # Custom TFP files
 # Access through fd.tfp_files.xxx

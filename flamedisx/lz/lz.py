@@ -38,10 +38,13 @@ def interpolate_acceptance(arg, domain, acceptances):
 
 
 class LZSource:
-    path_s1_corr_LZAP = '/Users/Robert/s1_map_22Apr22.json'
-    path_s2_corr_LZAP = '/Users/Robert/s2_map_30Mar22.json'
-    path_s1_corr_latest = '/Users/Robert/s1_map_latest.json'
-    path_s2_corr_latest = '/Users/Robert/s2_map_latest.json'
+    path_s1_corr_LZAP = 's1_map_22Apr22.json'
+    path_s2_corr_LZAP = 's2_map_30Mar22.json'
+    path_s1_corr_latest = 's1_map_latest.json'
+    path_s2_corr_latest = 's2_map_latest.json'
+
+    path_s1_acc_curve = 'cS1_acceptance_curve.pkl'
+    path_s2_acc_curve = 'cS2_acceptance_curve.pkl'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -63,10 +66,10 @@ class LZSource:
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
 
         try:
-            self.s1_map_LZAP = fd.InterpolatingMap(fd.get_resource(self.path_s1_corr_LZAP))
-            self.s2_map_LZAP = fd.InterpolatingMap(fd.get_resource(self.path_s2_corr_LZAP))
-            self.s1_map_latest = fd.InterpolatingMap(fd.get_resource(self.path_s1_corr_latest))
-            self.s2_map_latest = fd.InterpolatingMap(fd.get_resource(self.path_s2_corr_latest))
+            self.s1_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_LZAP))
+            self.s2_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_LZAP))
+            self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest))
+            self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest))
         except Exception:
             print("Could not load maps; setting position corrections to 1")
             self.s1_map_LZAP = None
@@ -75,10 +78,8 @@ class LZSource:
             self.s2_map_latest = None
 
         try:
-            df_S1_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__),
-                                       'acceptance_curves/cS1_acceptance_curve.pkl'))
-            df_S2_acc = pd.read_pickle(os.path.join(os.path.dirname(__file__),
-                                       'acceptance_curves/cS2_acceptance_curve.pkl'))
+            df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve)
+            df_S2_acc =fd.get_lz_file(self.path_s2_acc_curve)
 
             self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction)  # phd to phe
             self.cs1_acc_curve = df_S1_acc['cS1_acceptance'].values
