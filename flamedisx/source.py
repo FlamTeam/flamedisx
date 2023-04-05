@@ -31,7 +31,6 @@ class Source:
     trace_difrate = True
 
     default_max_sigma = 3
-    default_max_sigma_outer = 3
     default_max_dim_size = 70
 
     #: Names of model functions
@@ -194,7 +193,6 @@ class Source:
                  data=None,
                  batch_size=10,
                  max_sigma=None,
-                 max_sigma_outer=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -205,10 +203,6 @@ class Source:
 
         :param data: Dataframe with events to use in the inference
         :param batch_size: Number of events / tensorflow batch
-        :param max_sigma: Hint for hidden variable bounds computation
-            If omitted, set to default_max_sigma
-        param max_sigma_outer: Hint for hidden variable bounds computation for outer blocks
-            If omitted, set to default_max_sigma_outer
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
@@ -218,18 +212,6 @@ class Source:
         :param params: New defaults to for parameters, and new values for
         constant-valued model functions.
         """
-        if max_sigma is None:
-            max_sigma = self.default_max_sigma
-        if max_sigma_outer is None:
-            max_sigma_outer = self.default_max_sigma_outer
-        self.bounds_prob = stats.norm.cdf(-max_sigma)
-        self.bounds_prob_outer = stats.norm.cdf(-max_sigma_outer)
-        self.max_sigma = max_sigma
-        assert self.bounds_prob > 0., \
-            "max_sigma too high!"
-        assert self.bounds_prob_outer > 0., \
-            "max_sigma_outer too high!"
-
         # Capping the domain size for hidden variable dimensions. Any which aren't
         # set will default to default_max_dim_size
         if not hasattr(self, 'max_dim_sizes'):
@@ -237,6 +219,23 @@ class Source:
         for dim in (self.inner_dimensions + self.bonus_dimensions + self.additional_bounds_dimensions):
             if dim not in self.max_dim_sizes:
                 self.max_dim_sizes[dim] = self.default_max_dim_size
+
+        # Controlling the width of the bounds computed during annotation. If not specificed
+        # already for any dimensions, will default to default_max_sigma
+        if not hasattr(self, 'max_sigmas'):
+            self.max_sigmas = dict()
+        for dim in (self.inner_dimensions + self.bonus_dimensions + self.additional_bounds_dimensions):
+            if dim not in self.max_sigmas:
+                if max_sigma is not None:
+                    self.max_sigmas[dim] = max_sigma
+                else:
+                    self.max_sigmas[dim] = self.default_max_sigma
+
+        self.bounds_probs = dict()
+        for dim, max_sigma in self.max_sigmas.items():
+            bounds_prob = stats.norm.cdf(-max_sigma)
+            assert bounds_prob > 0., "max_sigma too high!"
+            self.bounds_probs[dim] = bounds_prob
 
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:

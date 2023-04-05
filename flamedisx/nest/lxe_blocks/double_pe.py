@@ -56,7 +56,8 @@ class MakePhotoelectrons(fd.Block):
             rvs = [out_bound - support for out_bound, support in zip(out_bounds, supports)]
 
             fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_in_name,
-                                   bounds_prob=self.source.bounds_prob, bound=bound,
+                                   bounds_prob=self.source.bounds_probs[self.quanta_in_name],
+                                   bound=bound,
                                    bound_type='binomial', supports=supports,
                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 

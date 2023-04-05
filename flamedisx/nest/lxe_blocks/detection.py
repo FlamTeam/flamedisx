@@ -91,7 +91,8 @@ class DetectPhotonsOrElectrons(fd.Block):
                    for out_bound, support in zip(out_bounds, supports)]
 
             fd.bounds.bayes_bounds(df=d, in_dim=self.quanta_name + 's_produced',
-                                   bounds_prob=self.source.bounds_prob, bound=bound,
+                                   bounds_prob=self.source.bounds_probs[self.quanta_name + 's_produced'],
+                                   bound=bound,
                                    bound_type='binomial', supports=supports,
                                    rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
@@ -122,7 +123,8 @@ class DetectPhotonsOrElectrons(fd.Block):
 
                 fd.bounds.bayes_bounds_priors(source=self.source, batch=batch,
                                               df=d, in_dim=self.quanta_name + 's_produced',
-                                              bounds_prob=self.source.bounds_prob, bound=bound,
+                                              bounds_prob=self.source.bounds_probs[self.quanta_name + 's_produced'],
+                                              bound=bound,
                                               bound_type='binomial', supports=supports,
                                               rvs_binom=rvs, ns_binom=ns, ps_binom=ps)
 
