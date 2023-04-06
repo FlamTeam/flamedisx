@@ -256,7 +256,7 @@ def test_detection_prob(xes: fd.ERSource):
     mle_is = np.round(
         (xes.data['electrons_produced_mle']
         - xes.data['electrons_produced_min']) /
-        xes.data['electrons_produced_steps']).values.astype(np.int)
+        xes.data['electrons_produced_steps']).values.astype(int)
     np.testing.assert_almost_equal(
         np_lookup_axis1(rs, mle_is),
         np.ones(n_events),

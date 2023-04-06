@@ -94,7 +94,7 @@ class MakeERQuanta(fd.Block):
     def _simulate(self, d):
         work = self.gimme_numpy('work')
         d['quanta_produced'] = np.floor(d['energy'].values
-                                        / work).astype(np.int)
+                                        / work).astype(int)
 
     def _annotate(self, d):
         d['quanta_produced_noStep_min'] = (

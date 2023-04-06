@@ -98,7 +98,7 @@ class DetectPhotonsOrElectrons(fd.Block):
                                     ('max', +1, np.ceil)):
             d[self.quanta_name + 's_produced_' + bound] = intify(
                 n_prod_mle + sign * self.source.max_sigma * _std
-            ).clip(0, None).astype(np.int)
+            ).clip(0, None).astype(int)
 
 
 @export

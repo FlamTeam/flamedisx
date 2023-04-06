@@ -59,7 +59,7 @@ class MakeFinalSignals(fd.Block):
             # so let's just use the relative error on the MLE)
             d[self.quanta_name + 's_detected_' + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
+            ).clip(0, None).astype(int)
 
     def _compute(self,
                  quanta_detected, s_observed,
