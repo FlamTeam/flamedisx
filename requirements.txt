@@ -4,6 +4,6 @@ pandas==1.5.3
 multihist==0.6.5
 wimprates==0.5.0
 tqdm==4.65.0
-tensorflow==2.11.0
+tensorflow==2.12.0
 tensorflow_probability==0.19.0
 iminuit==2.21.3
