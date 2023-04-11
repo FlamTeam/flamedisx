@@ -389,6 +389,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     model_attributes = ('pretend_wimps_dont_modulate',
                         'mw',
                         'sigma_nucleon',
+                        'exposure_tonneyear',
                         'n_time_bins',
                         'energy_edges') + VariableEnergySpectrum.model_attributes
 
@@ -400,6 +401,9 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     sigma_nucleon = 1e-45  # cm^2
     n_time_bins = 24
 
+    #: Exposure in tonne year
+     exposure_tonneyear = 1.
+
     # We can't use energies here, it is used already in the base classes
     # for other purposes
     energy_edges = np.linspace(1.4, 75, 369)
@@ -410,6 +414,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     def setup(self):
         wimp_kwargs = dict(mw=self.mw,
                            sigma_nucleon=self.sigma_nucleon,
+                           exposure_tonneyear=self.exposure_tonneyear,
                            energy_edges=self.energy_edges)
 
         # BlockModelSource is kind enough to let us change these attributes
@@ -425,7 +430,8 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
         # Transform wimp_kwargs to arguments that can be passed to wimprates
         # which means transforming es from edges to centers
-        del wimp_kwargs['energy_edges']
+        del wimp_kwargs['energy_edges'], wimp_kwargs['exposure_tonneyear']
+
         spectra = np.array([wr.rate_wimp_std(t=t,
                                              es=e_centers,
                                              **wimp_kwargs)
@@ -435,7 +441,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 
         self.energy_hist = Histdd.from_histogram(
             spectra,
-            bin_edges=(times, self.energy_edges))
+            bin_edges=(times, self.energy_edges)) * self.exposure_tonneyear
 
         if self.pretend_wimps_dont_modulate:
             self.energy_hist.histogram = (
