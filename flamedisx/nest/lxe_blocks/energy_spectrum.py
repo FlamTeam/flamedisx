@@ -262,22 +262,26 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     def setup(self):
         assert isinstance(self.spatial_hist, Histdd)
 
-        # Are we Cartesian, polar, or in trouble?
+        # Are we Cartesian, polar, 2D (r, z or r, dt), or in trouble?
         axes = tuple(self.spatial_hist.axis_names)
         self.polar = (axes == ('r', 'theta', 'z'))
+        self.r_z = (axes == ('r', 'z'))
+        self.r_dt = (axes == ('r', 'drift_time'))
 
         self.bin_volumes = self.spatial_hist.bin_volumes()
+        # Volume element in cylindrical coords = r * (dr dq dz)
         if self.polar:
-            # Volume element in cylindrical coords = r * (dr dq dz)
             self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
+        elif (self.r_z or self.r_dt):
+            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
         else:
             assert axes == ('x', 'y', 'z'), \
-                ("axis_names of spatial_rate_hist must be either "
-                 "or ['r', 'theta', 'z'] or ['x', 'y', 'z']")
+                ("axis_names of spatial_rate_hist must be "
+                 "['r', 'theta', 'z'], ['r', 'z'], ['r', 'drift_time'] or ['x', 'y', 'z']")
 
         # Normalize the histogram
         self.spatial_hist.histogram = \
-            self.spatial_hist.histogram.astype(np.float) / self.spatial_hist.n
+            self.spatial_hist.histogram.astype(float) / self.spatial_hist.n
 
         # Local rate multiplier = PDF / uniform PDF
         # = ((normed_hist/bin_volumes) / (1/total_volume))

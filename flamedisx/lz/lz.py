@@ -10,6 +10,10 @@ import pandas as pd
 
 import flamedisx as fd
 
+import pickle as pkl
+
+from multihist import Histdd
+
 export, __all__ = fd.exporter()
 
 
@@ -26,6 +30,27 @@ def interpolate_acceptance(arg, domain, acceptances):
     :return: Tensor of interpolated map values (same shape as x)
     """
     return np.interp(x=arg, xp=domain, fp=acceptances)
+
+def build_position_map_from_data(map_file, axis_names, bins):
+    """
+    """
+    map_df= fd.get_lz_file(map_file)
+    assert isinstance(map_df, pd.DataFrame), 'Must pass in a dataframe to build position map hisotgram'
+
+    mh = Histdd(bins=bins, axis_names=axis_names)
+
+    add_args = []
+    for axis_name in axis_names:
+        add_args.append(map_df[axis_name].values)
+
+    try:
+        weights = map_df['weight'].values
+    except Exception:
+        weights = None
+
+    mh.add(*add_args, weights=weights)
+
+    return mh
 
 
 ##
