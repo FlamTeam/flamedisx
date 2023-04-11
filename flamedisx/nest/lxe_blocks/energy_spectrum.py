@@ -402,7 +402,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     n_time_bins = 24
 
     #: Exposure in tonne year
-     exposure_tonneyear = 1.
+    exposure_tonneyear = 1.
 
     # We can't use energies here, it is used already in the base classes
     # for other purposes
