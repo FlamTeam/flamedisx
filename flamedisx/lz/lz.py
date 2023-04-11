@@ -396,13 +396,18 @@ class LZB8Source(LZSource, fd.nest.B8Source):
 
 
 @export
-class LZTestSource(LZSource, fd.nest.nestSpatialRateERSource):
-    def __init__(self, *args, bins=None, **kwargs):
+class LZDetNRSource(LZSource, fd.nest.nestNRSource):
+    """
+    """
+
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
 
-        mh = build_position_map_from_data('Xe127_spatial_map_data.pkl', ['r', 'z'], bins)
-        self.spatial_hist = mh
+        df_DetNR = fd.get_lz_file('DetNR_spectrum.pkl')
+
+        self.energies = tf.convert_to_tensor(df_DetNR['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_DetNR['spectrum_value_norm'].values, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
 
