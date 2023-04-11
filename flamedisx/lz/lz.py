@@ -146,7 +146,7 @@ class LZSource:
 
         return acceptance
 
-    def s2_acceptance(self, s2, cs2, cs2_acc_curve, fv_acceptance):
+    def s2_acceptance(self, s2, cs2, cs2_acc_curve, fv_acceptance, resistor_acceptance):
 
         acceptance = tf.where((s2 >= self.s2_thr) &
                               (s2 >= self.S2_min) & (cs2 <= self.cS2_max),
@@ -158,6 +158,8 @@ class LZSource:
 
         # We will insert the FV acceptance here
         acceptance *= fv_acceptance
+        # We will insert the resistor acceptance here
+        acceptance *= resistor_acceptance
 
         return acceptance
 
@@ -236,6 +238,21 @@ class LZSource:
             accept_radial = np.where(radius_cm < boundaryR, 1., 0.)
 
             d['fv_acceptance'] = accept_upper_drift_time * accept_lower_drift_time * accept_radial
+
+        if 's2' in d.columns and 'resistor_acceptance' not in d.columns:
+            x = d['x'].values
+            y = d['y'].values
+
+            res1X = -71.2
+            res1Y = 4.4
+            res1R = 6
+            res2X = -69.2
+            res2Y = -14.6
+            res2R = 6
+            not_inside_res1 = np.where(np.sqrt( (x-res1X)*(x-res1X) + (y-res1Y)*(y-res1Y) ) < res1R, 0., 1.)
+            not_inside_res2 = np.where(np.sqrt( (x-res2X)*(x-res2X) + (y-res2Y)*(y-res2Y) ) < res2R, 0., 1.)
+
+            d['resistor_acceptance'] = not_inside_res1 * not_inside_res2
 
 
 ##
