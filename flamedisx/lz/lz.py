@@ -379,6 +379,18 @@ class LZB8Source(LZSource, fd.nest.B8Source):
 
 
 @export
+class LZTestSource(LZSource, fd.nest.nestSpatialRateERSource):
+    def __init__(self, *args, bins=None, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+
+        mh = build_position_map_from_data('Xe127_spatial_map_data.pkl', ['r', 'z'], bins)
+        self.spatial_hist = mh
+
+        super().__init__(*args, **kwargs)
+
+
+@export
 class LZERSourceGroup(LZSource, fd.nest.nestERSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
