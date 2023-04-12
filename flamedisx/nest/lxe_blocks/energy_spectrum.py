@@ -293,6 +293,11 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     def energy_spectrum_rate_multiplier(self, x, y, z):
         if self.polar:
             positions = list(fd.cart_to_pol(x, y)) + [z]
+        elif self.r_z:
+            positions = [fd.cart_to_pol(x, y)[0]] + [z]
+        elif self.r_dt:
+            dt = (self.z_topDrift - z) / self.drift_velocity
+            positions = [fd.cart_to_pol(x, y)[0]] + [dt]
         else:
             positions = [x, y, z]
         return self.local_rate_multiplier.lookup(*positions)
@@ -307,6 +312,13 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
             data[col] = positions[:, idx]
         if self.polar:
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
+        elif self.r_z:
+            theta = np.random.uniform(0, 2*np.pi, size=n_events)
+            data['x'], data['y'] = fd.pol_to_cart(data['r'], theta)
+        elif self.r_dt:
+            theta = np.random.uniform(0, 2*np.pi, size=n_events)
+            data['x'], data['y'] = fd.pol_to_cart(data['r'], theta)
+            data['z'] = self.z_topDrift - data['drift_time'] * self.drift_velocity
         else:
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
