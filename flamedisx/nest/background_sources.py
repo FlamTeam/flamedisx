@@ -202,3 +202,32 @@ class B8Source(fd_nest.nestNRSource):
         self.rates_vs_energy = tf.convert_to_tensor(df_8B['spectrum_value_norm'].values, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
+
+
+
+@export
+class SpatialERSource(fd_nest.nestSpatialRateERSource):
+    """Spatially dependent ER source
+    """ 
+    def __init__(self,mh, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+        self.spatial_hist=mh
+
+        if not hasattr(self,'energies'):    
+            raise( self.__class__.__name__+" Has No Energy Spectra")
+        
+        super().__init__(*args, **kwargs)
+
+@export
+class SpatialNRSource(fd_nest.nestSpatialRateNRSource):
+    """Spatially dependent NR source
+    """   
+    def __init__(self,mh, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+        self.spatial_hist=mh
+        #add energy spectra
+        if not hasattr(self,'energies'):    
+            raise( self.__class__.__name__+" Has No Energy Spectra")
+        super().__init__(*args, **kwargs)
