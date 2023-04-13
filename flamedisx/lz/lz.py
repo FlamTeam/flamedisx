@@ -324,10 +324,18 @@ class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
 
 
 @export
-class LZPb214Source(LZSource, fd.nest.Pb214Source):
-    def __init__(self, *args, **kwargs):
+class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
+    def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if bins is None:
+            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
+                  np.linspace(86000., 936500., num=51))
+
+        mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
+        self.spatial_hist = mh
+
         super().__init__(*args, **kwargs)
 
 
