@@ -127,6 +127,26 @@ class LZSource:
         return g1_gas * tf.ones_like(z)
 
     @staticmethod
+    def get_elife(event_time):
+        t0 = pd.to_datetime('2021-10-01T00:00:00')
+        t0 = t0.tz_localize(tz='America/Denver').value
+
+        time_diff = event_time - t0
+        days_since_t0 = time_diff / (24. * 3600 * 1e9)
+
+        elife = np.piecewise(days_since_t0, [days_since_t0 <= 104.,
+                                             (days_since_t0 > 104.) & (days_since_t0 <= 174.41597),
+                                             days_since_t0 > 174.41597],
+                             [lambda days_since_t0: (5526.52 - np.exp(27.0832 - 0.254022 * days_since_t0)) * 1000.,
+                              lambda days_since_t0: (8271.97 - np.exp(9.5676 - 0.0160078 * days_since_t0)) * 1000.,
+                              lambda days_since_t0: (7941.37 - np.exp(34.3876 - 0.148244 * days_since_t0)) * 1000.])
+
+        return elife
+
+    def electron_detection_eff(self, drift_time, electron_lifetime):
+        return self.extraction_eff * tf.exp(-drift_time / electron_lifetime)
+
+    @staticmethod
     def s1_posDependence(s1_pos_corr_latest):
         return s1_pos_corr_latest
 
@@ -188,13 +208,16 @@ class LZSource:
             d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
             d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
 
+        if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
+            d['electron_lifetime'] = self.get_elife(d['event_time'].values)
+
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_LZAP']
-                * np.exp(d['drift_time'] / self.elife))
+                * np.exp(d['drift_time'] / d['electron_lifetime']))
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
             d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV

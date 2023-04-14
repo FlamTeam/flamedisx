@@ -23,8 +23,11 @@ class EnergySpectrum(fd.FirstBlock):
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
     # This will then also be true at the midpoint of these times.
-    t_start = pd.to_datetime('2019-09-01T08:28:00')
-    t_stop = pd.to_datetime('2020-09-01T08:28:00')
+    t_start = pd.to_datetime('2021-12-23T12:00:00')
+    t_start = t_start.tz_localize(tz='America/Denver')
+
+    t_stop = pd.to_datetime('2022-04-18T12:00:00')
+    t_stop = t_stop.tz_localize(tz='America/Denver')
 
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
