@@ -166,7 +166,8 @@ class LZSource:
 
         return acceptance
 
-    def s2_acceptance(self, s2, cs2, cs2_acc_curve, fv_acceptance, resistor_acceptance):
+    def s2_acceptance(self, s2, cs2, cs2_acc_curve,
+                      fv_acceptance, resistor_acceptance, timestamp_acceptance):
 
         acceptance = tf.where((s2 >= self.s2_thr) &
                               (s2 >= self.S2_min) & (cs2 <= self.cS2_max),
@@ -180,6 +181,8 @@ class LZSource:
         acceptance *= fv_acceptance
         # We will insert the resistor acceptance here
         acceptance *= resistor_acceptance
+        # We will insert the timestamp acceptance here
+        acceptance *= timestamp_acceptance
 
         return acceptance
 
@@ -276,6 +279,17 @@ class LZSource:
             not_inside_res2 = np.where(np.sqrt( (x-res2X)*(x-res2X) + (y-res2Y)*(y-res2Y) ) < res2R, 0., 1.)
 
             d['resistor_acceptance'] = not_inside_res1 * not_inside_res2
+
+        if 's2' in d.columns and 'timestamp_acceptance' not in d.columns:
+            t_start = pd.to_datetime('2021-12-23T12:00:00')
+            t_start = t_start.tz_localize(tz='America/Denver').value
+
+            days_since_start = (d['event_time'].values - t_start) / 3600. / 24. / 1e9
+
+            not_inside_window1 = np.where((days_since_start >= 25.) & (days_since_start <= 33.), 0., 1.)
+            not_inside_window2 = np.where((days_since_start >= 90.) & (days_since_start <= 93.5), 0., 1.)
+
+            d['timestamp_acceptance'] = not_inside_window1 * not_inside_window2
 
 
 ##
