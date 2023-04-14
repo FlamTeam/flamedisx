@@ -4,6 +4,8 @@ import pandas as pd
 import tensorflow as tf
 import wimprates as wr
 
+from scipy import stats
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -327,12 +329,42 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
 
 
 @export
+class TemporalRateEnergySpectrum(FixedShapeEnergySpectrum):
+    model_attributes = (('time_constant_ns',)
+                        + FixedShapeEnergySpectrum.model_attributes)
+    frozen_model_functions = ('energy_spectrum_rate_multiplier',)
+
+    def local_rate_multiplier(self, event_time):
+        pdf = np.exp(-(event_time - self.t_start.value) / self.time_constant_ns)
+        normalisation = 1. / (self.time_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.time_constant_ns)))
+        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+
+        return normalisation * pdf / uniform_pdf
+
+    def energy_spectrum_rate_multiplier(self, event_time):
+        return self.local_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        """
+        """
+        b = (self.t_stop.value - self.t_start.value) / self.time_constant_ns
+        return stats.truncexpon.rvs(b,
+                                    loc=self.t_start.value, scale=self.time_constant_ns,
+                                    size=n_events)
+
+
+@export
 class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
     max_dim_size = {'energy': 150}
 
 
 @export
 class SpatialRateEnergySpectrumER(SpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class TemporalRateEnergySpectrumER(TemporalRateEnergySpectrum):
     max_dim_size = {'energy': 100}
 
 

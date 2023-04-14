@@ -535,5 +535,10 @@ class nestSpatialRateNRSource(nestNRSource):
 
 
 @export
+class nestTemporalRateERSource(nestERSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumER,) + nestERSource.model_blocks[1:]
+
+
+@export
 class nestWIMPSource(nestNRSource):
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]

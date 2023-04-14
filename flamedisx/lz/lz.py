@@ -372,10 +372,16 @@ class LZvERSource(LZSource, fd.nest.vERSource):
 
 
 @export
-class LZAr37Source(LZSource, fd.nest.Ar37Source):
-    def __init__(self, *args, **kwargs):
+class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateERSource):
+    def __init__(self, *args, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if time_constant_ns is None:
+            self.time_constant_ns = 35.0 * 1e9 * 3600. * 24.
+        else:
+            self.time_constant_ns = time_constant_ns
+
         super().__init__(*args, **kwargs)
 
 
