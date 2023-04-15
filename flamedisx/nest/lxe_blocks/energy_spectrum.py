@@ -433,68 +433,10 @@ class InvalidEventTimes(Exception):
 class WIMPEnergySpectrum(VariableEnergySpectrum):
     max_dim_size = {'energy': 150}
 
-    model_attributes = ('pretend_wimps_dont_modulate',
-                        'mw',
-                        'sigma_nucleon',
-                        'exposure_tonneyear',
-                        'n_time_bins',
+    model_attributes = ('n_time_bins',
                         'energy_edges') + VariableEnergySpectrum.model_attributes
 
-    # If set to True, the energy spectrum at each time will be set to its
-    # average over the data taking period.
-    pretend_wimps_dont_modulate = False
-
-    mw = 1e3  # GeV
-    sigma_nucleon = 1e-45  # cm^2
-    n_time_bins = 24
-
-    #: Exposure in tonne year
-    exposure_tonneyear = 1.
-
-    # We can't use energies here, it is used already in the base classes
-    # for other purposes
-    energy_edges = np.linspace(1.4, 75, 369)
-
     frozen_model_functions = ('energy_spectrum',)
-    array_columns = (('energy_spectrum', len(energy_edges) - 1),)
-
-    def setup(self):
-        wimp_kwargs = dict(mw=self.mw,
-                           sigma_nucleon=self.sigma_nucleon,
-                           exposure_tonneyear=self.exposure_tonneyear,
-                           energy_edges=self.energy_edges)
-
-        # BlockModelSource is kind enough to let us change these attributes
-        # at this stage.
-        e_centers = self.bin_centers(wimp_kwargs['energy_edges'])
-        self.energies = fd.np_to_tf(e_centers)
-        self.array_columns = (('energy_spectrum', len(self.energy_edges) - 1),)
-
-        times = np.linspace(wr.j2000(self.t_start.value),
-                            wr.j2000(self.t_stop.value),
-                            self.n_time_bins + 1)
-        time_centers = self.bin_centers(times)
-
-        # Transform wimp_kwargs to arguments that can be passed to wimprates
-        # which means transforming es from edges to centers
-        del wimp_kwargs['energy_edges'], wimp_kwargs['exposure_tonneyear']
-
-        spectra = np.array([wr.rate_wimp_std(t=t,
-                                             es=e_centers,
-                                             **wimp_kwargs)
-                            * np.diff(self.energy_edges)
-                            for t in time_centers])
-        assert spectra.shape == (len(time_centers), len(e_centers))
-
-        self.energy_hist = Histdd.from_histogram(
-            spectra,
-            bin_edges=(times, self.energy_edges)) * self.exposure_tonneyear
-
-        if self.pretend_wimps_dont_modulate:
-            self.energy_hist.histogram = (
-                np.ones_like(self.energy_hist.histogram)
-                * self.energy_hist.sum(axis=0).histogram.reshape(1, -1)
-                / self.n_time_bins)
 
     def energy_spectrum(self, event_time):
         ts = fd.tf_to_np(event_time)
