@@ -281,7 +281,7 @@ class LZSource:
             d['resistor_acceptance'] = not_inside_res1 * not_inside_res2
 
         if 's2' in d.columns and 'timestamp_acceptance' not in d.columns:
-            t_start = pd.to_datetime('2021-12-23T12:00:00')
+            t_start = pd.to_datetime('2021-12-23T09:37:51')
             t_start = t_start.tz_localize(tz='America/Denver').value
 
             days_since_start = (d['event_time'].values - t_start) / 3600. / 24. / 1e9
