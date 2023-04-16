@@ -327,6 +327,37 @@ class nestERSourceGroup(BlockModelSourceGroup, fd_nest.nestERSource):
 
 
 @export
+class nestERGammaWeightedSourceGroup(BlockModelSourceGroup, fd_nest.nestERGammaWeightedSource):
+    model_blocks_left = (
+        fd_nest.DetectPhotons,
+        fd_nest.MakeS1Photoelectrons,
+        fd_nest.DetectS1Photoelectrons,
+        fd_nest.MakeS1)
+
+    model_blocks_right = (
+        fd_nest.DetectElectrons,
+        fd_nest.MakeS2Photons,
+        fd_nest.DetectS2Photons,
+        fd_nest.MakeS2Photoelectrons,
+        fd_nest.MakeS2)
+
+    model_blocks_centre = (
+        fd_nest.FixedShapeEnergySpectrumER,
+        fd_nest.SGMakePhotonsElectronER)
+
+    model_blocks_read_in = (
+        fd_nest.SGMakePhotonsElectronER,)
+
+    def __init__(self, caching=False, **kwargs):
+        if caching is True:
+            self.no_step_dimensions = self.no_step_dimensions + \
+                ('photons_produced',
+                 'electrons_produced')
+
+        super().__init__(**kwargs)
+
+
+@export
 class nestNRSourceGroup(BlockModelSourceGroup, fd_nest.nestNRSource):
     model_blocks_left = (
         fd_nest.DetectPhotons,
