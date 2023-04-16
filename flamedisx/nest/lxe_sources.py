@@ -537,8 +537,23 @@ class nestSpatialRateNRSource(nestNRSource):
 
 
 @export
-class nestTemporalRateERSource(nestERSource):
-    model_blocks = (fd_nest.TemporalRateEnergySpectrumER,) + nestERSource.model_blocks[1:]
+class nestTemporalRateDecayERSource(nestERSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumDecayER,) + nestERSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateDecayNRSource(nestNRSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumDecayNR,) + nestNRSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateOscillationERSource(nestERSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumOscillationER,) + nestERSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateOscillationNRSource(nestNRSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumOscillationNR,) + nestNRSource.model_blocks[1:]
 
 
 @export

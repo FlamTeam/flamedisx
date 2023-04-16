@@ -401,15 +401,31 @@ class LZXe136Source(LZSource, fd.nest.Xe136Source):
 
 
 @export
-class LZvERSource(LZSource, fd.nest.vERSource):
-    def __init__(self, *args, **kwargs):
+class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
+    def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if amplitude is None:
+            self.amplitude = 2. * 0.01671
+        else:
+            self.amplitude = amplitude
+
+        if phase_ns is None:
+            self.phase_ns = pd.to_datetime('2022-01-04T00:00:00').value
+        else:
+            self.phase_ns = phase_ns
+
+        if period_ns is None:
+            self.period_ns = 1. * 3600. * 24. * 365.25 * 1e9
+        else:
+            self.period_ns = period_ns
+
         super().__init__(*args, **kwargs)
 
 
 @export
-class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateERSource):
+class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
     def __init__(self, *args, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'

@@ -332,7 +332,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
 
 
 @export
-class TemporalRateEnergySpectrum(FixedShapeEnergySpectrum):
+class TemporalRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
     model_attributes = (('time_constant_ns',)
                         + FixedShapeEnergySpectrum.model_attributes)
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
@@ -357,6 +357,42 @@ class TemporalRateEnergySpectrum(FixedShapeEnergySpectrum):
 
 
 @export
+class TemporalRateEnergySpectrumOscillation(FixedShapeEnergySpectrum):
+    model_attributes = (('n_time_bins', 'period_ns', 'amplitude', 'phase_ns')
+                        + FixedShapeEnergySpectrum.model_attributes)
+    frozen_model_functions = ('energy_spectrum_rate_multiplier',)
+
+    n_time_bins = 24
+
+    def setup(self):
+        times = np.linspace(self.t_start.value,
+                            self.t_stop.value,
+                            self.n_time_bins + 1)
+        time_centers = 0.5 * (times[1:] + times[:-1])
+
+        weights = 1. + self.amplitude * np.cos(2. * np.pi * (time_centers - self.phase_ns) / self.period_ns)
+
+        self.temporal_hist = Histdd.from_histogram(weights, bin_edges=(times,))
+
+    def local_rate_multiplier(self, event_time):
+        pdf = 1. + self.amplitude * np.cos(2. * np.pi * (event_time - self.phase_ns) / self.period_ns)
+        normalisation = 1. / ((self.t_stop.value - self.t_start.value) + self.amplitude * self.period_ns / (2. * np.pi) * \
+            (np.sin(2. * np.pi * (self.t_stop.value - self.phase_ns) / self.period_ns) - \
+            np.sin(2. * np.pi * (self.t_start.value - self.phase_ns) / self.period_ns)))
+        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+
+        return normalisation * pdf / uniform_pdf
+
+    def energy_spectrum_rate_multiplier(self, event_time):
+        return self.local_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        """
+        """
+        return self.temporal_hist.get_random(size=n_events)
+
+
+@export
 class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
     max_dim_size = {'energy': 150}
 
@@ -367,8 +403,24 @@ class SpatialRateEnergySpectrumER(SpatialRateEnergySpectrum):
 
 
 @export
-class TemporalRateEnergySpectrumER(TemporalRateEnergySpectrum):
+class TemporalRateEnergySpectrumDecayNR(TemporalRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class TemporalRateEnergySpectrumDecayER(TemporalRateEnergySpectrumDecay):
     max_dim_size = {'energy': 100}
+
+
+@export
+class TemporalRateEnergySpectrumOscillationNR(TemporalRateEnergySpectrumOscillation):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class TemporalRateEnergySpectrumOscillationER(TemporalRateEnergySpectrumOscillation):
+    max_dim_size = {'energy': 100}
+
 
 
 ##
