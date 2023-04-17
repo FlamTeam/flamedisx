@@ -286,7 +286,7 @@ class LZSource:
 
             days_since_start = (d['event_time'].values - t_start) / 3600. / 24. / 1e9
 
-            not_inside_window1 = np.where((days_since_start >= 25.) & (days_since_start <= 33.), 0., 1.)
+            not_inside_window1 = np.where((days_since_start >= 25.5) & (days_since_start <= 33.), 0., 1.)
             not_inside_window2 = np.where((days_since_start >= 90.) & (days_since_start <= 93.5), 0., 1.)
 
             d['timestamp_acceptance'] = not_inside_window1 * not_inside_window2
