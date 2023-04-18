@@ -389,7 +389,7 @@ class TemporalRateEnergySpectrumOscillation(FixedShapeEnergySpectrum):
     def draw_time(self, n_events, **params):
         """
         """
-        return self.temporal_hist.get_random(size=n_events)
+        return self.temporal_hist.get_random(size=n_events)[:, 0]
 
 
 @export
