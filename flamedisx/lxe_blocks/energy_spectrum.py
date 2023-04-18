@@ -481,7 +481,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
 
         self.bin_volumes = self.spatial_hist.bin_volumes()
         # Volume element in cylindrical coords = r * (dr dq dz)
-        #self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
+        self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
 
         # Assert energy spectrum
         axes = tuple(self.rates_vs_radius_energy.axis_names)
@@ -534,7 +534,7 @@ class WallEnergySpectrum(VariableEnergySpectrum):
                     .get_random(n_events)
             data['r_fdc'] = r
         else:
-            data['energy'], data['r_fdc'] = self.rates_vs_radius_energy.get_random(n_events).T
+            data['energy'], _ = self.rates_vs_radius_energy.get_random(n_events).T
 
         # r has already been handled, do not overwrite it again
         fix_truth_nor = {k: v for k, v in fix_truth.items() if k != 'r'}
@@ -566,11 +566,4 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         return fd.np_to_tf(result)
 
     def mu_before_efficiencies(self, **params):
-        bin_volumes = self.rates_vs_radius_energy.bin_volumes()
-        # Volume element in cylindrical coords = r * (dr dq dz)
-        bin_volumes *= self.rates_vs_radius_energy.bin_centers('r')[None,:]
-        rates_vs_radius_energy_copy = self.rates_vs_radius_energy.similar_blank_hist()
-        rates_vs_radius_energy_copy.histogram = (
-            (self.rates_vs_radius_energy.histogram / bin_volumes)
-            * bin_volumes.sum())
         return self.rates_vs_radius_energy.n
