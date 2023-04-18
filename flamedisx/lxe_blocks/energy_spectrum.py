@@ -515,7 +515,6 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         randomly drawn.
         """
         data = self.draw_positions(n_events, **params)
-        data['event_time'] = self.draw_time(n_events, **params)
         # energy to be implemented in user specific soure
         return pd.DataFrame(data)
 
