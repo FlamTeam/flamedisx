@@ -750,7 +750,7 @@ class SR1ERSource4wall(SR1Source, fd.ERSource):
 
 @export
 class SR1PhysicsWallSource(fd.WallSource,SR1ERSource4wall):
-    model_attributes = ('t_start', 't_stop') + SR1ERSource4wall.model_attributes
+    model_attributes = ('t_start', 't_stop') + SR1ERSource4wall.model_attributes + fd.WallSource.model_attributes
 
     def draw_time(self, n_events, **params):
         """Return n_events event_times drawn uniformaly
@@ -759,6 +759,18 @@ class SR1PhysicsWallSource(fd.WallSource,SR1ERSource4wall):
             self.t_start.value,
             self.t_stop.value,
             size=n_events)
+
+    def draw_positions(self, n_events, **params):
+        """Return dictionary with x, y, z, r, theta, drift_time
+        drawn from the spatial rate histogram.
+        """
+        data = dict()
+        positions = self.spatial_hist.get_random(size=n_events)
+        for idx, col in enumerate(self.spatial_hist.axis_names):
+            data[col] = positions[:, idx]
+        data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
+        data['drift_time'] = - data['z'] / self.drift_velocity
+        return data
 
     def random_truth(self, n_events, fix_truth=None, **params):
         
