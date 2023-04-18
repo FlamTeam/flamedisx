@@ -444,7 +444,6 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 class WallEnergySpectrum(VariableEnergySpectrum):
     model_attributes = (('spatial_hist', 'spatial_hist_rec', 'rates_vs_radius_energy', 'energies')
                         + VariableEnergySpectrum.model_attributes)
-
     #: spatial_hist: multihist.Histdd of events/bin produced by this source.
     #: Axes must be (r, theta, z).
     #: spatial_hist_rec: multihist.Histdd of events/bin produced by this source.
@@ -508,7 +507,6 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
         data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
-
         data['drift_time'] = - data['z'] / self.drift_velocity
         return data
 
@@ -518,30 +516,8 @@ class WallEnergySpectrum(VariableEnergySpectrum):
         """
         data = self.draw_positions(n_events, **params)
         data['event_time'] = self.draw_time(n_events, **params)
-
-        if 'r_fdc' in fix_truth:
-            r = self.clip_positions(fix_truth['r_fdc'])
-            data['energy'] = self.rates_vs_radius_energy \
-                .slicesum(r, axis='r') \
-                .get_random(n_events)
-        elif 'energy' in fix_truth:
-            # Energy is fixed, so the position distribution differs.
-            e_edges = self.rates_vs_radius_energy.bin_edges('energy')
-            assert e_edges[0] <= fix_truth['energy'] < e_edges[-1], \
-                "fix_truth energy out of bounds"
-            r = self.rates_vs_radius_energy \
-                    .slicesum(fix_truth['energy'], axis='energy') \
-                    .get_random(n_events)
-            data['r_fdc'] = r
-        else:
-            data['energy'], _ = self.rates_vs_radius_energy.get_random(n_events).T
-
-        # r has already been handled, do not overwrite it again
-        fix_truth_nor = {k: v for k, v in fix_truth.items() if k != 'r'}
-        self.source._overwrite_fixed_truths(data, fix_truth_nor, n_events)
-
-        data = pd.DataFrame(data)
-        return data
+        # energy to be implemented in user specific soure
+        return pd.DataFrame(data)
 
     def clip_positions(self, rs):
         """Return positions, clipped to the range of the

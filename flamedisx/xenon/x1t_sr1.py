@@ -4,6 +4,8 @@ from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
 from multihist import Histdd
+import pandas as pd
+
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -702,15 +704,114 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
 class SR1WIMPSource(SR1NRSource, fd.WIMPSource):
     pass
 
+# ER Source for SR1
 @export
-class SR1PhysicsWallSource(fd.WallSource,SR1ERSource):
+class SR1ERSource4wall(SR1Source, fd.ERSource):
+
+    @staticmethod
+    def random_truth(n_events, fix_truth=None, **params):      
+        pass  
+
+    @staticmethod
+    def p_electron(nq, drift_field, *, W=13.7e-3, mean_nexni=0.15,  q0=1.13, q1=0.47,
+                   gamma_er=0.031 , omega_er=31., delta_er=0.24):
+        # gamma_er from paper 0.124/4
+        #F = tf.constant(self.default_drift_field, dtype=fd.float_type())
+
+        if tf.is_tensor(nq):
+            # in _compute, n_events = batch_size
+            # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
+            # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
+
+            drift_field = drift_field[:, None]
+
+        e_kev = nq * W
+        fi = 1. / (1. + mean_nexni)
+        ni, nex = nq * fi, nq * (1. - fi)
+        wiggle_er = gamma_er * tf.exp(-e_kev / omega_er) * drift_field ** (-delta_er)
+
+        # delta_er and gamma_er are highly correlated
+        # F **(-delta_er) set to constant
+        r_er = 1. - tf.math.log(1. + ni * wiggle_er) / (ni * wiggle_er)
+        r_er /= (1. + tf.exp(-(e_kev - q0) / q1))
+        p_el = ni * (1. - r_er) / nq
+        return fd.safe_p(p_el)
+
+    @staticmethod
+    def p_electron_fluctuation(nq, q2=0.034, q3_nq=124.):
+        # From SR0, BBF model, right?
+        # q3 = 1.7 keV ~= 123 quanta
+        # For SR1:
+        return tf.clip_by_value(
+            q2 * (tf.constant(1., dtype=fd.float_type()) - tf.exp(-nq / q3_nq)),
+            tf.constant(1e-4, dtype=fd.float_type()),
+            float('inf'))
+
+
+@export
+class SR1PhysicsWallSource(fd.WallSource,SR1ERSource4wall):
+    model_attributes = ('t_start', 't_stop') + SR1ERSource4wall.model_attributes
+
+    def draw_time(self, n_events, **params):
+        """Return n_events event_times drawn uniformaly
+        between t_start and t_stop"""
+        return np.random.uniform(
+            self.t_start.value,
+            self.t_stop.value,
+            size=n_events)
 
     def random_truth(self, n_events, fix_truth=None, **params):
-        d = super().random_truth(n_events, fix_truth=fix_truth, **params)
+        
+        #d = super().random_truth(n_events, fix_truth=fix_truth, **params)
+        d = pd.DataFrame(self.draw_positions(n_events, **params))
+        d['event_time'] = self.draw_time(n_events, **params)
+        d['r_observed'] = self.drift_field_distortion_map(
+            np.transpose([d['r'].values,
+                          d['z'].values])) 
+        d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
+        d['y_observed'] = d['r_observed'] * np.sin(d['theta'])
+
+        # leave z intact, might want to correct this with drift velocity later
+        d['z_observed'] = self.drift_field_distortion_map_z(
+            np.transpose([d['r'].values,
+                          d['z'].values])) 
+
+        # Adding some smear according to posrec resolution
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=1.2) # 2 cm resolution
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=1.2) # 4 cm resolution
+        d['r_observed'] = np.sqrt(d['x_observed'].values**2+d['y_observed'].values**2)
+
+        # add effective drift velocity depending on (r,z) position
+        # correct drift time using velocity depending on (r,z) position
+        # z observed is evaluated using default drift velocity as done in data processing
+        if self.variable_drift_velocity:
+            d['drift_velocity'] = self.drift_velocity_map(
+                np.transpose([d['r'].values,
+                              d['z'].values]))
+            d['drift_time'] = -d['z']/d['drift_velocity']
+            d['z_observed'] = -self.default_drift_velocity*d['drift_time'] 
+        else:
+            d['drift_velocity'] = self.default_drift_velocity
+        
+        # applying fdc
+        delta_r = self.fdc_map(
+            np.transpose([d['x_observed'].values,
+                          d['y_observed'].values,
+                          d['z_observed'].values,]))
+                              
+        # apply radial correction
+        with np.errstate(invalid='ignore', divide='ignore'):
+            d['r_fdc'] = d['r_observed'] + delta_r
+            scale = d['r_fdc'] / d['r_observed']
+
+        d['x_fdc'] = d['x_observed'] * scale
+        d['y_fdc'] = d['y_observed'] * scale
+        d['z_fdc'] = d['z_observed']
 
         d['energy'] = np.array([self.rates_vs_radius_energy \
                 .slicesum(_r, axis='r') \
                 .get_random(1)[0] for _r in d['r_fdc']])
+
         return d
 
     
