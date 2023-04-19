@@ -760,7 +760,7 @@ class SR1PhysicsWallSource(fd.WallSource,SR1ERSource4wall):
             self.t_stop.value,
             size=n_events)
 
-    def draw_positions(self, n_events, **params):
+    def _draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
         drawn from the spatial rate histogram.
         """
@@ -774,8 +774,7 @@ class SR1PhysicsWallSource(fd.WallSource,SR1ERSource4wall):
 
     def random_truth(self, n_events, fix_truth=None, **params):
         
-        #d = super().random_truth(n_events, fix_truth=fix_truth, **params)
-        d = pd.DataFrame(self.draw_positions(n_events, **params))
+        d = pd.DataFrame(self._draw_positions(n_events, **params))
         d['event_time'] = self.draw_time(n_events, **params)
         d['r_observed'] = self.drift_field_distortion_map(
             np.transpose([d['r'].values,

@@ -444,6 +444,8 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 class WallEnergySpectrum(VariableEnergySpectrum):
     model_attributes = (('spatial_hist', 'spatial_hist_rec', 'rates_vs_radius_energy', 'energies')
                         + VariableEnergySpectrum.model_attributes)
+    model_functions = ('energy_spectrum','spatial_spectrum_rate_multiplier',)
+    frozen_model_functions = ('energy_spectrum','spatial_spectrum_rate_multiplier',)
     #: spatial_hist: multihist.Histdd of events/bin produced by this source.
     #: Axes must be (r, theta, z).
     #: spatial_hist_rec: multihist.Histdd of events/bin produced by this source.
@@ -456,8 +458,6 @@ class WallEnergySpectrum(VariableEnergySpectrum):
     spatial_hist: Histdd
     spatial_hist_rec: Histdd
     rates_vs_radius_energy: Histdd
-
-    frozen_model_functions = ('energy_spectrum',)
 
     def setup(self):
         self.array_columns = (('energy_spectrum', len(self.energies)),)
@@ -535,10 +535,19 @@ class WallEnergySpectrum(VariableEnergySpectrum):
     def energy_spectrum(self, r_fdc):
         rs = fd.tf_to_np(r_fdc)
         rs = self.clip_positions(rs)
-
         result = np.stack([self.rates_vs_radius_energy.slicesum(_r, axis='r').histogram
                            for _r in rs])
         return fd.np_to_tf(result)
+
+    def spatial_spectrum_rate_multiplier(self, x, y, z):
+        positions = list(fd.cart_to_pol(x, y)) + [z]
+        return self.local_rate_multiplier.lookup(*positions)
+
+    def _compute(self, data_tensor, ptensor, *, energy):
+        spectrum = self.gimme('energy_spectrum', data_tensor=data_tensor, ptensor=ptensor)
+        rate_multiplier = self.gimme('spatial_spectrum_rate_multiplier',
+                                     data_tensor=data_tensor, ptensor=ptensor)
+        return spectrum * rate_multiplier[:, o]
 
     def mu_before_efficiencies(self, **params):
         return self.rates_vs_radius_energy.n
