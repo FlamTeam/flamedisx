@@ -361,7 +361,8 @@ class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
 
 
 @export
-class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
+# class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
+class LZPb214Source(LZSource, fd.nest.Pb214Source):
     def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
@@ -401,7 +402,8 @@ class LZXe136Source(LZSource, fd.nest.Xe136Source):
 
 
 @export
-class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
+# class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
+class LZvERSource(LZSource, fd.nest.vERSource):
     def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
@@ -425,7 +427,8 @@ class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillati
 
 
 @export
-class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
+# class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
+class LZAr37Source(LZSource, fd.nest.Ar37Source):
     def __init__(self, *args, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
