@@ -565,9 +565,11 @@ class nestWIMPSource(nestNRSource):
             kwargs['detector'] = 'default'
 
         self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
-        self.n_time_bins = len(self.energy_hist.bin_edges[0])
-        self.energy_edges = self.energy_hist.bin_edges[1]
 
-        self.array_columns = (('energy_spectrum', len(self.energy_edges) - 1),)
+        self.n_time_bins = len(self.energy_hist.bin_edges[0])
+        e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(self.energy_hist.bin_edges[1])
+        self.energies = fd.np_to_tf(e_centers)
+
+        self.array_columns = (('energy_spectrum', len(e_centers)),)
 
         super().__init__(*args, **kwargs)

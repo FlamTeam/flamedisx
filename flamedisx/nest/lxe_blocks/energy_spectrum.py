@@ -486,7 +486,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     max_dim_size = {'energy': 150}
 
     model_attributes = ('n_time_bins',
-                        'energy_edges') + VariableEnergySpectrum.model_attributes
+                        'energy_hist') + VariableEnergySpectrum.model_attributes
 
     frozen_model_functions = ('energy_spectrum',)
 
