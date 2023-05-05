@@ -65,6 +65,22 @@ class NRSource(fd.BlockModelSource):
     def signal_corr(energies, anti_corr=-0.2):
         return anti_corr * tf.ones_like(energies)
 
+    def get_s2(self, s2):
+        return s2
+
+    def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=250, s2_max=2.5e4):
+        s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
+                          tf.zeros_like(s1, dtype=fd.float_type()),
+                          tf.ones_like(s1, dtype=fd.float_type()))
+        s2_acc = tf.where((s2 > s2_max),
+                          tf.zeros_like(s2, dtype=fd.float_type()),
+                          tf.ones_like(s2, dtype=fd.float_type()))
+        s1s2_acc = tf.where((s2 > 400*s1**(0.64)),
+                            tf.ones_like(s2, dtype=fd.float_type()),
+                            tf.zeros_like(s2, dtype=fd.float_type()))
+
+        return (s1_acc * s2_acc * s1s2_acc)
+
     final_dimensions = ('s1',)
 
 
