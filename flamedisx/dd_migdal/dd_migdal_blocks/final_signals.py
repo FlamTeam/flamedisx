@@ -5,6 +5,9 @@ from scipy import stats
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+import math as m
+pi = tf.constant(m.pi)
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -165,8 +168,8 @@ class MakeS1S2SS(fd.Block):
     dimensions = ('energy_first', 's1')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),)
 
-    special_model_functions = ('signal_means', 'signal_vars')
-    model_functions = ('s1s2_acceptance', 'anti_corr') + special_model_functions
+    special_model_functions = ('signal_means', 'signal_vars', 'signal_corr')
+    model_functions = ('get_s2', 's1s2_acceptance') + special_model_functions
 
     # Whether to check acceptances are positive at the observed events.
     # This is recommended, but you'll have to turn it off if your
@@ -178,7 +181,8 @@ class MakeS1S2SS(fd.Block):
     gimme: ty.Callable
     gimme_numpy: ty.Callable
 
-    anti_corr = -0.2
+    def get_s2(self, s2):
+        return s2
 
     def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=250, s2_max=2.5e4):
 
@@ -200,13 +204,13 @@ class MakeS1S2SS(fd.Block):
         s1_mean, s2_mean = self.gimme_numpy('signal_means', energies)
 
         s1_var, s2_var = self.gimme_numpy('signal_vars', (s1_mean, s2_mean))
-        anti_corr = self.gimme_numpy('anti_corr')
+        anti_corr = self.gimme_numpy('signal_corr', energies)
 
         X = np.random.normal(size=len(energies))
         Y = np.random.normal(size=len(energies))
 
         d['s1'] = np.sqrt(s1_var) * X + s1_mean
-        d['s2'] = np.sqrt(s2_var) * (anti_corr * X + np.sqrt(1 - anti_corr * anti_corr) * Y) + s2_mean
+        d['s2'] = np.sqrt(s2_var) * (anti_corr * X + np.sqrt(1. - anti_corr * anti_corr) * Y) + s2_mean
 
         d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
 
@@ -216,43 +220,48 @@ class MakeS1S2SS(fd.Block):
     def _compute(self,
                  data_tensor, ptensor,
                  # Domain
-                 s1s2,
+                 s1,
                  # Dependency domain and value
                  energy_first, rate_vs_energy_first):
-        energies = energy_first[0, :, 0]
+
+        s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor)
+        s2 = tf.repeat(s2[:, o], tf.shape(s1)[1], axis=1)
+        s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
 
         s1_mean, s2_mean = self.gimme('signal_means',
-                                      bonus_arg=energies,
+                                      bonus_arg=energy_first,
                                       data_tensor=data_tensor,
                                       ptensor=ptensor)
-        means = [s1_mean, s2_mean]
-        means = tf.transpose(means)
 
         s1_var, s2_var = self.gimme('signal_vars',
                                     bonus_arg=(s1_mean, s2_mean),
                                     data_tensor=data_tensor,
                                     ptensor=ptensor)
-        s1s2_cov = self.gimme('signal_cov',
-                              bonus_arg=(s1_var, s2_var),
-                              data_tensor=data_tensor,
-                              ptensor=ptensor)
-        covs = [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
-        covs = tf.transpose(covs, perm=[2, 0, 1])
+        s1_std = tf.sqrt(s1_var)
+        s2_std = tf.sqrt(s2_var)
+        anti_corr = self.gimme('signal_corr',
+                               bonus_arg=energy_first,
+                               data_tensor=data_tensor,
+                               ptensor=ptensor)
 
-        scale = tf.linalg.cholesky(covs)
+        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
 
-        means = tf.repeat(means[o, :, :], self.source.batch_size, axis=0)
-        scale = tf.repeat(scale[o, :, :], self.source.batch_size, axis=0)
+        exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
 
-        probs = tfp.distributions.MultivariateNormalTriL(loc=means, scale_tril=scale).prob(s1s2)
+        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
+        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
+        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+
+        probs = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
 
         # Add detection/selection efficiency
         acceptance = self.gimme('s1s2_acceptance',
                                 data_tensor=data_tensor, ptensor=ptensor)
         acceptance = tf.repeat(acceptance[:, o], tf.shape(probs)[1], axis=1)
+        acceptance = tf.repeat(acceptance[:, :, o], tf.shape(probs)[2], axis=2)
         probs *= acceptance
 
-        return probs[:, o, :]
+        return tf.transpose(probs, perm=[0, 2, 1])
 
     def check_data(self):
         if not self.check_acceptances:

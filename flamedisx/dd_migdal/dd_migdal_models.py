@@ -61,6 +61,10 @@ class NRSource(fd.BlockModelSource):
 
         return s1_var, s2_var
 
+    @staticmethod
+    def signal_corr(energies, anti_corr=-0.2):
+        return anti_corr * tf.ones_like(energies)
+
     final_dimensions = ('s1',)
 
 
