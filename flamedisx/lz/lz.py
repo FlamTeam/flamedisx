@@ -371,7 +371,7 @@ class LZPb214Source(LZSource, fd.nest.Pb214Source):
             bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
                   np.linspace(86000., 936500., num=51))
 
-        mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
+        # mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
         self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
