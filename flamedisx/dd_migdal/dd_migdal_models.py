@@ -61,16 +61,7 @@ class NRSource(fd.BlockModelSource):
 
         return s1_var, s2_var
 
-    @staticmethod
-    def signal_cov(*args, anti_corr=-0.2):
-        s1_var = args[0]
-        s2_var = args[1]
-
-        s1s2_cov = anti_corr * tf.sqrt(s1_var * s2_var)
-
-        return s1s2_cov
-
-    final_dimensions = ('s1s2',)
+    final_dimensions = ('s1',)
 
 
 @export

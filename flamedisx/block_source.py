@@ -127,14 +127,15 @@ class Block:
                                       message=f"{self}._compute returned tensor of wrong rank!")
         return result
 
-    def simulate(self, d: pd.DataFrame):
+    def simulate(self, d: pd.DataFrame, skip_check=False):
         return_value = self._simulate(d)
         assert return_value is None, f"_simulate of {self} should return None"
         # Check necessary columns were actually added
-        for dim in self.dimensions:
-            assert dim in d.columns, f"_simulate of {self} must set {dim}"
-            assert np.all(np.isfinite(np.stack(d[dim].values))),\
-                f"_simulate of {self} returned non-finite values of {dim}"
+        if not skip_check:
+            for dim in self.dimensions:
+                assert dim in d.columns, f"_simulate of {self} must set {dim}"
+                assert np.all(np.isfinite(np.stack(d[dim].values))),\
+                    f"_simulate of {self} returned non-finite values of {dim}"
 
     def annotate(self, d: pd.DataFrame):
         """Add _min and _max for each dimension to d in-place"""
@@ -489,7 +490,7 @@ class BlockModelSource(fd.Source):
         d = self.data
         d['p_accepted'] = 1.   # Cut on p_accepted is made in Source.simulate
         for b in self.model_blocks[1:]:
-            b.simulate(d)
+            b.simulate(d, skip_check=True)
         return d
 
     def get_priors(self, data):

@@ -162,27 +162,25 @@ class MakeS1S2SS(fd.Block):
     """
     model_attributes = ('check_acceptances',)
 
-    dimensions = ('energy_first', 's1s2')
+    dimensions = ('energy_first', 's1')
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),)
 
-    special_model_functions = ('signal_means', 'signal_vars', 'signal_cov')
-    model_functions = ('s1s2_acceptance',) + special_model_functions
+    special_model_functions = ('signal_means', 'signal_vars')
+    model_functions = ('s1s2_acceptance', 'anti_corr') + special_model_functions
 
     # Whether to check acceptances are positive at the observed events.
     # This is recommended, but you'll have to turn it off if your
     # likelihood includes regions where only anomalous sources make events.
     check_acceptances = True
 
-    array_columns = (('s1s2', 2),)
-
     # Prevent pycharm warnings:
     source: fd.Source
     gimme: ty.Callable
     gimme_numpy: ty.Callable
 
-    def s1s2_acceptance(self, s1s2, s1_min=20, s1_max=250, s2_max=2.5e4):
-        s1 = s1s2[:, 0]
-        s2 = s1s2[:, 1]
+    anti_corr = -0.2
+
+    def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=250, s2_max=2.5e4):
 
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
@@ -200,25 +198,15 @@ class MakeS1S2SS(fd.Block):
         energies = d['energy_first'].values
 
         s1_mean, s2_mean = self.gimme_numpy('signal_means', energies)
-        means = [s1_mean, s2_mean]
-        means = np.array(means).transpose()
 
         s1_var, s2_var = self.gimme_numpy('signal_vars', (s1_mean, s2_mean))
-        s1s2_cov = self.gimme_numpy('signal_cov', (s1_var, s2_var))
-        covs = [[s1_var, s1s2_cov], [s1s2_cov, s2_var]]
-        covs = np.array(covs).transpose(2, 0, 1)
+        anti_corr = self.gimme_numpy('anti_corr')
 
-        shape = np.broadcast_shapes(means.shape, covs.shape[:-1])
+        X = np.random.normal(size=len(energies))
+        Y = np.random.normal(size=len(energies))
 
-        # Sample instead independently X from Normal(0, Id), then transform to
-        # LX + mu, where L is the Cholesky decomposition of the covariance
-        # matrix and mu is the mean vector
-        X = np.random.standard_normal((*shape, 1))
-        L = np.linalg.cholesky(covs)
-
-        s1s2 = (L @ X).reshape(shape) + means
-
-        d['s1s2'] = list(s1s2)
+        d['s1'] = np.sqrt(s1_var) * X + s1_mean
+        d['s2'] = np.sqrt(s2_var) * (anti_corr * X + np.sqrt(1 - anti_corr * anti_corr) * Y) + s2_mean
 
         d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
 
