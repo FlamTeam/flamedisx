@@ -41,8 +41,8 @@ class NRSource(fd.BlockModelSource):
                      c_s2_0=3.70318382, c_s2_1=-3.49159718, c_s2_2=0.07861683,
                      g1=0.1131, g2=47.35,
                      s1_mean_multiplier=1., s2_mean_multiplier=1.):
-        P = c_s2_0 + c_s2_1 * fd.tf_log10(energy - 1.6) + c_s2_2 * pow(fd.tf_log10(energy - 1.6), 2)
-        s2_mean = s2_mean_multiplier * P
+        P = c_s2_0 + c_s2_1 * (fd.tf_log10(energy) - 1.6) + c_s2_2 * pow((fd.tf_log10(energy) - 1.6), 2)
+        s2_mean = s2_mean_multiplier * P * energy * g2
 
         s1_mean = s1_mean_multiplier * (a * energy**b - s2_mean / g2) * g1
         s1_mean= tf.where(s1_mean < 0.01, 0.01 * tf.ones_like(s1_mean, dtype=fd.float_type()), s1_mean)
