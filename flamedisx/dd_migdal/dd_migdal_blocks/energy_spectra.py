@@ -201,6 +201,9 @@ class EnergySpectrumSecondMSU(fd.Block):
 
 @export
 class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
+    #: Energies from the second scatter
+    energies_second = tf.cast(tf.linspace(0.75, 98.25, 66),
+                            dtype=fd.float_type())
     #: Joint energy spectrum for Migdal2 scatters
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), '../migdal_database/migdal_2_spectrum.pkl'), 'rb'))
@@ -209,6 +212,9 @@ class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
 
 @export
 class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
+    #: Energies from the second scatter
+    energies_second = tf.cast(tf.linspace(0.75, 98.25, 66),
+                            dtype=fd.float_type())
     #: Joint energy spectrum for Migdal3 scatters
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), '../migdal_database/migdal_3_spectrum.pkl'), 'rb'))
@@ -217,6 +223,9 @@ class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
 
 @export
 class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
+    #: Energies from the second scatter
+    energies_second = tf.cast(tf.linspace(0.75, 98.25, 66),
+                            dtype=fd.float_type())
     #: Joint energy spectrum for Migdal4 scatters
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), '../migdal_database/migdal_4_spectrum.pkl'), 'rb'))
