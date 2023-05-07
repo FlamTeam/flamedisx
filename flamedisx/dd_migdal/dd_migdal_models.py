@@ -37,7 +37,7 @@ class NRSource(fd.BlockModelSource):
         return 1.
 
     @staticmethod
-    def signal_means(energy, a=13., b=1.06,
+    def signal_means(energy, a=13.1895962, b=1.06532331,
                      c_s2_0=3.70318382, c_s2_1=-3.49159718, c_s2_2=0.07861683,
                      g1=0.1131, g2=47.35,
                      s1_mean_multiplier=1., s2_mean_multiplier=1.):
