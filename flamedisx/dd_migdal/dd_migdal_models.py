@@ -38,12 +38,11 @@ class NRSource(fd.BlockModelSource):
 
     @staticmethod
     def signal_means(energy, a=13., b=1.06,
-                     c_s2_0=2.51, c_s2_1=0.99, c_s2_2=-0.09, c_s2_3=0.03, c_s2_4=-0.02,
+                     c_s2_0=3.70318382, c_s2_1=-3.49159718, c_s2_2=0.07861683,
                      g1=0.1131, g2=47.35,
                      s1_mean_multiplier=1., s2_mean_multiplier=1.):
-        P = c_s2_0 + c_s2_1 * fd.tf_log10(energy) + c_s2_2 * pow(fd.tf_log10(energy), 2) + \
-            c_s2_3 * pow(fd.tf_log10(energy), 3) + c_s2_4 * pow(fd.tf_log10(energy), 4)
-        s2_mean = s2_mean_multiplier * 10**P
+        P = c_s2_0 + c_s2_1 * fd.tf_log10(energy - 1.6) + c_s2_2 * pow(fd.tf_log10(energy - 1.6), 2)
+        s2_mean = s2_mean_multiplier * P
 
         s1_mean = s1_mean_multiplier * (a * energy**b - s2_mean / g2) * g1
         s1_mean= tf.where(s1_mean < 0.01, 0.01 * tf.ones_like(s1_mean, dtype=fd.float_type()), s1_mean)
@@ -51,7 +50,7 @@ class NRSource(fd.BlockModelSource):
         return s1_mean, s2_mean
 
     @staticmethod
-    def signal_vars(*args, d_s1=1.2, d_s2=39.):
+    def signal_vars(*args, d_s1=1.20307136, d_s2=38.27449296):
         s1_mean = args[0]
         s2_mean = args[1]
 
@@ -62,7 +61,7 @@ class NRSource(fd.BlockModelSource):
         return s1_var, s2_var
 
     @staticmethod
-    def signal_corr(energies, anti_corr=-0.2):
+    def signal_corr(energies, anti_corr=-0.20949764):
         return anti_corr * tf.ones_like(energies)
 
     def get_s2(self, s2):
