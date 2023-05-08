@@ -79,7 +79,7 @@ class NRSource(fd.BlockModelSource):
                             tf.zeros_like(s2, dtype=fd.float_type()))
 
         # return (s1_acc * s2_acc * s1s2_acc)
-        return (s1_acc * s2_acc)
+        return (tf.ones_like(s1))
 
     final_dimensions = ('s1',)
 

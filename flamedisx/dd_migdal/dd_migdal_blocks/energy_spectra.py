@@ -17,7 +17,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     dimensions = ('energy_first',)
     model_attributes = ('energies_first', 'rates_vs_energy_first')
 
-    model_functions = ('get_r_dt_diff_rate', 'get_S2Width_diff_rate')
+    # model_functions = ('get_r_dt_diff_rate', 'get_S2Width_diff_rate')
 
     r_dt_dist = np.load(os.path.join(
         os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
@@ -53,17 +53,17 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
         spectrum *= self.source.mu_before_efficiencies()
 
-        spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate',
-                                         data_tensor=data_tensor,
-                                         ptensor=ptensor)[:, o],
-                              tf.shape(self.energies_first),
-                              axis=1)
-
-        spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',
-                                         data_tensor=data_tensor,
-                                         ptensor=ptensor)[:, o],
-                              tf.shape(self.energies_first),
-                              axis=1)
+        # spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate',
+        #                                  data_tensor=data_tensor,
+        #                                  ptensor=ptensor)[:, o],
+        #                       tf.shape(self.energies_first),
+        #                       axis=1)
+        #
+        # spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',
+        #                                  data_tensor=data_tensor,
+        #                                  ptensor=ptensor)[:, o],
+        #                       tf.shape(self.energies_first),
+        #                       axis=1)
 
         return spectrum
 
@@ -73,10 +73,11 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
                                               axis=0)}
 
     def _annotate(self, d):
-        d['r_dt_diff_rate'] = self.r_dt_diff_rate.lookup(
-            *[d['r'], d['drift_time']])
-
-        d['S2Width_diff_rate'] = self.source.S2Width_diff_rate.lookup(d['S2Width'])
+        # d['r_dt_diff_rate'] = self.r_dt_diff_rate.lookup(
+        #     *[d['r'], d['drift_time']])
+        #
+        # d['S2Width_diff_rate'] = self.source.S2Width_diff_rate.lookup(d['S2Width'])
+        pass
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Return pandas dataframe with event positions and times
