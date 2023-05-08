@@ -11,6 +11,10 @@ from multihist import Histdd
 
 import flamedisx as fd
 
+import pickle as pkl
+
+from multihist import Histdd
+
 export, __all__ = fd.exporter()
 
 
@@ -27,6 +31,27 @@ def interpolate_acceptance(arg, domain, acceptances):
     :return: Tensor of interpolated map values (same shape as x)
     """
     return np.interp(x=arg, xp=domain, fp=acceptances)
+
+def build_position_map_from_data(map_file, axis_names, bins):
+    """
+    """
+    map_df= fd.get_lz_file(map_file)
+    assert isinstance(map_df, pd.DataFrame), 'Must pass in a dataframe to build position map hisotgram'
+
+    mh = Histdd(bins=bins, axis_names=axis_names)
+
+    add_args = []
+    for axis_name in axis_names:
+        add_args.append(map_df[axis_name].values)
+
+    try:
+        weights = map_df['weight'].values
+    except Exception:
+        weights = None
+
+    mh.add(*add_args, weights=weights)
+
+    return mh
 
 
 
@@ -167,6 +192,26 @@ class LZSource:
         return g1_gas * tf.ones_like(z)
 
     @staticmethod
+    def get_elife(event_time):
+        t0 = pd.to_datetime('2021-10-01T00:00:00')
+        t0 = t0.tz_localize(tz='America/Denver').value
+
+        time_diff = event_time - t0
+        days_since_t0 = time_diff / (24. * 3600 * 1e9)
+
+        elife = np.piecewise(days_since_t0, [days_since_t0 <= 104.,
+                                             (days_since_t0 > 104.) & (days_since_t0 <= 174.41597),
+                                             days_since_t0 > 174.41597],
+                             [lambda days_since_t0: (5526.52 - np.exp(27.0832 - 0.254022 * days_since_t0)) * 1000.,
+                              lambda days_since_t0: (8271.97 - np.exp(9.5676 - 0.0160078 * days_since_t0)) * 1000.,
+                              lambda days_since_t0: (7941.37 - np.exp(34.3876 - 0.148244 * days_since_t0)) * 1000.])
+
+        return elife
+
+    def electron_detection_eff(self, drift_time, electron_lifetime):
+        return self.extraction_eff * tf.exp(-drift_time / electron_lifetime)
+
+    @staticmethod
     def s1_posDependence(s1_pos_corr_latest):
         return s1_pos_corr_latest
 
@@ -186,7 +231,8 @@ class LZSource:
 
         return acceptance
 
-    def s2_acceptance(self, s2, cs2, cs2_acc_curve, fv_acceptance):
+    def s2_acceptance(self, s2, cs2, cs2_acc_curve,
+                      fv_acceptance, resistor_acceptance, timestamp_acceptance):
 
         acceptance = tf.where((s2 >= self.s2_thr) &
                               (s2 >= self.S2_min) & (cs2 <= self.cS2_max),
@@ -198,6 +244,10 @@ class LZSource:
 
         # We will insert the FV acceptance here
         acceptance *= fv_acceptance
+        # We will insert the resistor acceptance here
+        acceptance *= resistor_acceptance
+        # We will insert the timestamp acceptance here
+        acceptance *= timestamp_acceptance
 
         return acceptance
 
@@ -226,13 +276,16 @@ class LZSource:
             d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
             d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
 
+        if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
+            d['electron_lifetime'] = self.get_elife(d['event_time'].values)
+
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_LZAP']
-                * np.exp(d['drift_time'] / self.elife))
+                * np.exp(d['drift_time'] / d['electron_lifetime']))
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
             d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
@@ -276,6 +329,32 @@ class LZSource:
             accept_radial = np.where(radius_cm < boundaryR, 1., 0.)
 
             d['fv_acceptance'] = accept_upper_drift_time * accept_lower_drift_time * accept_radial
+
+        if 's2' in d.columns and 'resistor_acceptance' not in d.columns:
+            x = d['x'].values
+            y = d['y'].values
+
+            res1X = -71.2
+            res1Y = 4.4
+            res1R = 6
+            res2X = -69.2
+            res2Y = -14.6
+            res2R = 6
+            not_inside_res1 = np.where(np.sqrt( (x-res1X)*(x-res1X) + (y-res1Y)*(y-res1Y) ) < res1R, 0., 1.)
+            not_inside_res2 = np.where(np.sqrt( (x-res2X)*(x-res2X) + (y-res2Y)*(y-res2Y) ) < res2R, 0., 1.)
+
+            d['resistor_acceptance'] = not_inside_res1 * not_inside_res2
+
+        if 's2' in d.columns and 'timestamp_acceptance' not in d.columns:
+            t_start = pd.to_datetime('2021-12-23T09:37:51')
+            t_start = t_start.tz_localize(tz='America/Denver').value
+
+            days_since_start = (d['event_time'].values - t_start) / 3600. / 24. / 1e9
+
+            not_inside_window1 = np.where((days_since_start >= 25.5) & (days_since_start <= 33.), 0., 1.)
+            not_inside_window2 = np.where((days_since_start >= 90.) & (days_since_start <= 93.5), 0., 1.)
+
+            d['timestamp_acceptance'] = not_inside_window1 * not_inside_window2
 
 
 ##
@@ -347,10 +426,19 @@ class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
 
 
 @export
+# class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
 class LZPb214Source(LZSource, fd.nest.Pb214Source):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if bins is None:
+            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
+                  np.linspace(86000., 936500., num=51))
+
+        # mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
+        self.spatial_hist = mh
+
         super().__init__(*args, **kwargs)
 
 
@@ -379,18 +467,42 @@ class LZXe136Source(LZSource, fd.nest.Xe136Source):
 
 
 @export
+# class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
 class LZvERSource(LZSource, fd.nest.vERSource):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if amplitude is None:
+            self.amplitude = 2. * 0.01671
+        else:
+            self.amplitude = amplitude
+
+        if phase_ns is None:
+            self.phase_ns = pd.to_datetime('2022-01-04T00:00:00').value
+        else:
+            self.phase_ns = phase_ns
+
+        if period_ns is None:
+            self.period_ns = 1. * 3600. * 24. * 365.25 * 1e9
+        else:
+            self.period_ns = period_ns
+
         super().__init__(*args, **kwargs)
 
 
 @export
+# class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
 class LZAr37Source(LZSource, fd.nest.Ar37Source):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if time_constant_ns is None:
+            self.time_constant_ns = 35.0 * 1e9 * 3600. * 24.
+        else:
+            self.time_constant_ns = time_constant_ns
+
         super().__init__(*args, **kwargs)
 
 
@@ -419,7 +531,37 @@ class LZB8Source(LZSource, fd.nest.B8Source):
 
 
 @export
+class LZDetNRSource(LZSource, fd.nest.nestNRSource):
+    """
+    """
+
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+
+        df_DetNR = fd.get_lz_file('DetNR_spectrum.pkl')
+
+        self.energies = tf.convert_to_tensor(df_DetNR['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_DetNR['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
+
+
+##
+# Source groups
+##
+
+
+@export
 class LZERSourceGroup(LZSource, fd.nest.nestERSourceGroup):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZERGammaWeightedSourceGroup(LZSource, fd.nest.nestERGammaWeightedSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'

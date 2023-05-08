@@ -46,7 +46,7 @@ class DetERSource(fd_nest.nestERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        self.energies = tf.cast(np.arange(0.6, 20.01, 0.1), fd.float_type())
+        self.energies = tf.cast(np.arange(0.6, 22.01, 0.1), fd.float_type())
         self.rates_vs_energy = tf.ones_like(self.energies, fd.float_type()) / sum(np.ones_like(self.energies))
 
         super().__init__(*args, **kwargs)

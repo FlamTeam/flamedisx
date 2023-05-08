@@ -3,6 +3,8 @@ import tensorflow as tf
 import configparser
 import os
 
+import pickle as pkl
+
 import flamedisx as fd
 from .. import nest as fd_nest
 
@@ -535,5 +537,39 @@ class nestSpatialRateNRSource(nestNRSource):
 
 
 @export
+class nestTemporalRateDecayERSource(nestERSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumDecayER,) + nestERSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateDecayNRSource(nestNRSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumDecayNR,) + nestNRSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateOscillationERSource(nestERSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumOscillationER,) + nestERSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateOscillationNRSource(nestNRSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumOscillationNR,) + nestNRSource.model_blocks[1:]
+
+
+@export
 class nestWIMPSource(nestNRSource):
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
+
+    def __init__(self, *args, wimp_mass=40, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
+
+        self.n_time_bins = len(self.energy_hist.bin_edges[0])
+        e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(self.energy_hist.bin_edges[1])
+        self.energies = fd.np_to_tf(e_centers)
+
+        self.array_columns = (('energy_spectrum', len(e_centers)),)
+
+        super().__init__(*args, **kwargs)
