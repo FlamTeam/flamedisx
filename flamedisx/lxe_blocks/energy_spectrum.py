@@ -257,9 +257,10 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         data['drift_time'] = - data['z'] / self.drift_velocity
         return data
 
+
 @export
 class WallSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
-    model_attributes = (('spatial_hist','z_modulation')
+    model_attributes = (('spatial_hist', 'z_modulation',)
                         + FixedShapeEnergySpectrum.model_attributes)
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
@@ -304,7 +305,7 @@ class WallSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         else:
             positions = [x, y, z]
         mul = self.local_rate_multiplier.lookup(*positions)
-        mul *= np.clip([sum([par*zz**i for i,par in enumerate(self.z_modulation)]) for zz in positions[3]],0,1)
+        mul *= np.clip([sum([par*zz**i for i, par in enumerate(self.z_modulation)]) for zz in z], 0, 1)
         return mul
 
     def draw_positions(self, n_events, **params):
@@ -510,8 +511,8 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
 class WallEnergySpectrum(VariableEnergySpectrum):
     model_attributes = (('spatial_hist', 'spatial_hist_rec', 'rates_vs_radius_energy', 'energies')
                         + VariableEnergySpectrum.model_attributes)
-    model_functions = ('energy_spectrum','spatial_spectrum_rate_multiplier',)
-    frozen_model_functions = ('energy_spectrum','spatial_spectrum_rate_multiplier',)
+    model_functions = ('energy_spectrum', 'spatial_spectrum_rate_multiplier',)
+    frozen_model_functions = ('energy_spectrum', 'spatial_spectrum_rate_multiplier',)
     #: spatial_hist: multihist.Histdd of events/bin produced by this source.
     #: Axes must be (r, theta, z).
     #: spatial_hist_rec: multihist.Histdd of events/bin produced by this source.
