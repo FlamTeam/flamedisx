@@ -108,4 +108,4 @@ class WIMPSource(NRSource):
 
 @export
 class WallSource(ERSource):
-    model_blocks = (fd.WallEnergySpectrum,) + ERSource.model_blocks[1:]
+    model_blocks = (fd.WallSpatialRateEnergySpectrum,) + ERSource.model_blocks[1:]
