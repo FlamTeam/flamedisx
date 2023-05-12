@@ -211,11 +211,10 @@ class EnergySpectrumFirstMSU3(EnergySpectrumFirstMSU):
 @export
 class EnergySpectrumOthersMSU3(fd.Block):
     dimensions = ('energy_others',)
-    model_attributes = ('energies_second', 'energies_third', 'rates_vs_energy')
+    model_attributes = ('energies_others', 'rates_vs_energy')
 
     #: Energies from the scatters
-    energies_second = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
-    energies_third = energies_second
+    energies_others = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
     #: Joint energy spectrum for MSU3 scatters. Override for other triple scatters
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), '../migdal_database/MSU3_spectrum.pkl'), 'rb'))
@@ -229,8 +228,8 @@ class EnergySpectrumOthersMSU3(fd.Block):
         spectrum_flat = spectrum_numpy.flatten()
 
         Es_first = self.source.energies_first
-        Es_second = self.energies_second
-        Es_third = self.energies_third
+        Es_second = self.energies_others
+        Es_third = self.energies_others
 
         E1_mesh, E2_mesh, E3_mesh = np.meshgrid(Es_first, Es_second, Es_third)
         Es = np.stack((E1_mesh, E2_mesh, E3_mesh), axis=-1)
@@ -266,18 +265,13 @@ class EnergySpectrumOthersMSU3(fd.Block):
     def _calculate_dimsizes_special(self):
         d = self.source.data
 
-        self.source.dimsizes['energy_second'] = len(self.energies_second)
-        self.source.dimsizes['energy_third'] = len(self.energies_third)
+        self.source.dimsizes['energy_others'] = len(self.energies_others)
 
-        d_energy_second = np.diff(self.energies_second)
-        d['energy_second_steps'] = d_energy_second[0]
-        d_energy_third = np.diff(self.energies_third)
-        d['energy_third_steps'] = d_energy_third[0]
+        d_energy = np.diff(self.energies_others)
+        d['energy_others_steps'] = d_energy[0]
 
-        assert np.isclose(self.energies_second[0] + (len(self.energies_second) - 1) * d_energy_second[0],
+        assert np.isclose(self.energies_others[0] + (len(self.energies_others) - 1) * d_energy[0],
                           self.energies_second[-1]), "Logic only works with constant stepping in energy spectrum"
-        assert np.isclose(self.energies_third[0] + (len(self.energies_third) - 1) * d_energy_third[0],
-                          self.energies_third[-1]), "Logic only works with constant stepping in energy spectrum"
 
 
 @export
