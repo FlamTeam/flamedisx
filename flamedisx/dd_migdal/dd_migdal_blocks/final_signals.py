@@ -189,6 +189,83 @@ class MakeS1S2MSU3(fd.Block):
 
         d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
 
+    def _annotate(self, d):
+        pass
+
+    def _compute(self,
+                 data_tensor, ptensor,
+                 # Domain
+                 s1,
+                 # Dependency domains and values
+                 energy_first, rate_vs_energy_first,
+                 energy_others, rate_vs_energy):
+        energies_first = tf.repeat(energy_first[:, :, o], tf.shape(energy_others[0, :,]), axis=2)
+        energies_first = tf.repeat(energies_first[:, :, :, o], tf.shape(energy_others[0, :]), axis=3)
+
+        energies_others= tf.repeat(energy_others[:, o, :], tf.shape(energy_first[0, :, 0]), axis=1)
+        energies_others = tf.repeat(energies_others[:, :, :, o], tf.shape(energy_others[0, :]), axis=3)[:, :, :, :, o]
+
+        s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor)
+        s2 = tf.repeat(s2[:, o], tf.shape(s1)[1], axis=1)
+        s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
+
+        s1 = tf.repeat(s1[:, :, o, :], tf.shape(energy_others[0, :]), axis=2)
+        s1 = tf.repeat(s1[:, :, :, o, :], tf.shape(energy_others[0, :]), axis=3)
+        s2 = tf.repeat(s2[:, :, o, :], tf.shape(energy_others[0, :]), axis=2)
+        s2 = tf.repeat(s2[:, :, :, o, :], tf.shape(energy_others[0, :]), axis=3)
+
+        s1_mean_first, s2_mean_first = self.gimme('signal_means',
+                                                  bonus_arg=energies_first,
+                                                  data_tensor=data_tensor,
+                                                  ptensor=ptensor)
+        s1_mean_others, s2_mean_others = self.gimme('signal_means',
+                                                    bonus_arg=energies_others,
+                                                    data_tensor=data_tensor,
+                                                    ptensor=ptensor)
+        s1_mean = (s1_mean_first + 2. * s1_mean_others)
+        s2_mean = (s2_mean_first + 2. * s2_mean_others)
+
+        s1_var_first, s2_var_first = self.gimme('signal_vars',
+                                                bonus_arg=(s1_mean_first, s2_mean_first),
+                                                data_tensor=data_tensor,
+                                                ptensor=ptensor)
+        s1_var_others, s2_var_others = self.gimme('signal_vars',
+                                                  bonus_arg=(s1_mean_others, s2_mean_others),
+                                                  data_tensor=data_tensor,
+                                                  ptensor=ptensor)
+        s1_var = (s1_var_first + 2. * s1_var_others)
+        s2_var = (s2_var_first + 2. * s2_var_others)
+
+        s1_std = tf.sqrt(s1_var)
+        s2_std = tf.sqrt(s2_var)
+        anti_corr = self.gimme('signal_corr',
+                               bonus_arg=energies_first,
+                               data_tensor=data_tensor,
+                               ptensor=ptensor)
+
+        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
+
+        exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
+
+        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
+        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
+        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+
+        probs = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+
+        R_E1E2E3 = probs * rate_vs_energy[:, :, :, :, o]
+        R_E1E2 = tf.reduce_sum(R_E1E2E3, axis=3)
+        R_E1 = tf.reduce_sum(R_E1E2, axis=2)
+
+        # Add detection/selection efficiency
+        acceptance = self.gimme('s1s2_acceptance',
+                                data_tensor=data_tensor, ptensor=ptensor)
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(R_E1)[1], axis=1)
+        acceptance = tf.repeat(acceptance[:, :, o], tf.shape(R_E1)[2], axis=2)
+        R_E1 *= acceptance
+
+        return tf.transpose(R_E1, perm=[0, 2, 1])
+
 
 @export
 class MakeS1S2SS(fd.Block):

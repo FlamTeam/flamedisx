@@ -223,15 +223,20 @@ class EnergySpectrumOthersMSU3(fd.Block):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, ignore_shape_assertion=True)
 
+    def _compute(self, data_tensor, ptensor, *, energy_others):
+        spectrum = tf.repeat(fd.np_to_tf(self.rates_vs_energy)[o, :, :, :],
+                             self.source.batch_size,
+                             axis=0)
+        return spectrum
+
     def _simulate(self, d):
         spectrum_numpy = fd.tf_to_np(self.rates_vs_energy)
         spectrum_flat = spectrum_numpy.flatten()
 
         Es_first = self.source.energies_first
-        Es_second = self.energies_others
-        Es_third = self.energies_others
+        Es_others = self.energies_others
 
-        E1_mesh, E2_mesh, E3_mesh = np.meshgrid(Es_first, Es_second, Es_third)
+        E1_mesh, E2_mesh, E3_mesh = np.meshgrid(Es_first, Es_others, Es_others)
         Es = np.stack((E1_mesh, E2_mesh, E3_mesh), axis=-1)
         Es_flat = Es.reshape(-1, Es.shape[-1])
 
@@ -256,11 +261,8 @@ class EnergySpectrumOthersMSU3(fd.Block):
         assert np.all(d['energy_third'] >= 0), "Generated negative energies??"
 
     def _annotate(self, d):
-        d['energy_second_min'] = fd.tf_to_np(self.energies_second)[0]
-        d['energy_second_max'] = fd.tf_to_np(self.energies_second)[-1]
-
-        d['energy_third_min'] = fd.tf_to_np(self.energies_third)[0]
-        d['energy_third_max'] = fd.tf_to_np(self.energies_third)[-1]
+        d['energy_others_min'] = fd.tf_to_np(self.energies_others)[0]
+        d['energy_others_max'] = fd.tf_to_np(self.energies_others)[-1]
 
     def _calculate_dimsizes_special(self):
         d = self.source.data
@@ -271,7 +273,7 @@ class EnergySpectrumOthersMSU3(fd.Block):
         d['energy_others_steps'] = d_energy[0]
 
         assert np.isclose(self.energies_others[0] + (len(self.energies_others) - 1) * d_energy[0],
-                          self.energies_second[-1]), "Logic only works with constant stepping in energy spectrum"
+                          self.energies_others[-1]), "Logic only works with constant stepping in energy spectrum"
 
 
 @export
