@@ -135,6 +135,7 @@ class Migdal2Source(NRNRSource):
     s2_mean_ER = itp.interp1d(E_ER, ER_NEST['s2mean'])
     s1_var_ER = itp.interp1d(E_ER, ER_NEST['s1std']**2)
     s2_var_ER = itp.interp1d(E_ER, ER_NEST['s2std']**2)
+    s1s2_corr_ER = itp.interp1d(E_ER, ER_NEST['S1S2corr'])
 
     def __init__(self, *args, **kwargs):
         energies_first = self.model_blocks[0].energies_first
@@ -142,7 +143,7 @@ class Migdal2Source(NRNRSource):
         energies_first = tf.repeat(energies_first[:, o], tf.shape(self.model_blocks[1].energies_second), axis=1)
 
         self.s1_mean_ER_tf, self.s2_mean_ER_tf = self.signal_means_ER(energies_first)
-        self.s1_var_ER_tf, self.s2_var_ER_tf = self.signal_vars_ER(energies_first)
+        self.s1_var_ER_tf, self.s2_var_ER_tf, self.s1s2_cov_ER_tf = self.signal_vars_ER(energies_first)
 
         super().__init__(*args, **kwargs)
 
@@ -157,8 +158,10 @@ class Migdal2Source(NRNRSource):
         energy_cap = np.where(energy <= 49., energy, 49.)
         s1_var = tf.cast(self.s1_var_ER(energy_cap), fd.float_type())
         s2_var = tf.cast(self.s2_var_ER(energy_cap), fd.float_type())
+        s1s2_corr = tf.cast(np.nan_to_num(self.s1s2_corr_ER(energy_cap)), fd.float_type())
+        s1s2_cov = s1s2_corr * tf.sqrt(s1_var * s2_var)
 
-        return s1_var, s2_var
+        return s1_var, s2_var, s1s2_cov
 
 
 @export

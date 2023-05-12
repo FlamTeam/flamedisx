@@ -271,11 +271,16 @@ class MakeS1S2Migdal(fd.Block):
         s1_mean = s1_mean_first + s1_mean_second
         s2_mean = s2_mean_first + s2_mean_second
 
-        s1_var_first, s2_var_first = self.gimme_numpy('signal_vars_ER', energies_first)
+        s1_var_first, s2_var_first, s1s2_cov_first = self.gimme_numpy('signal_vars_ER', energies_first)
         s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
         s1_var = s1_var_first + s1_var_second
         s2_var = s2_var_first + s2_var_second
-        anti_corr = self.gimme_numpy('signal_corr', energies_first)
+
+        s1s2_corr_second = self.gimme_numpy('signal_corr', energies_first)
+        s1s2_cov_second = s1s2_corr_second  * np.sqrt(s1_var_second * s2_var_second)
+
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
 
         X = np.random.normal(size=len(energies_first))
         Y = np.random.normal(size=len(energies_first))
@@ -329,10 +334,16 @@ class MakeS1S2Migdal(fd.Block):
 
         s1_std = tf.sqrt(s1_var)
         s2_std = tf.sqrt(s2_var)
-        anti_corr = self.gimme('signal_corr',
-                               bonus_arg=energies_first,
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)
+
+        s1s2_cov_first = self.source.s1s2_cov_ER_tf
+        s1s2_cov_first = tf.repeat(s1s2_cov_first[o, :, :], tf.shape(s1)[0], axis=0)[:, :, :, o]
+        s1s2_corr_second = self.gimme('signal_corr',
+                                      bonus_arg=energies_first,
+                                      data_tensor=data_tensor,
+                                      ptensor=ptensor)
+        s1s2_cov_second = s1s2_corr_second  * tf.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second
+        anti_corr = s1s2_cov / (s1_std * s2_std)
 
         denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
 
