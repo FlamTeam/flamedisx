@@ -201,6 +201,86 @@ class EnergySpectrumSecondMSU(fd.Block):
 
 
 @export
+class EnergySpectrumFirstMSU3(EnergySpectrumFirstMSU):
+    #: Energies from the first scatter
+    energies_first = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
+    #: Dummy energy spectrum of 1s
+    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type())
+
+
+@export
+class EnergySpectrumOthersMSU3(fd.Block):
+    dimensions = ('energy_others',)
+    model_attributes = ('energies_second', 'energies_third', 'rates_vs_energy')
+
+    #: Energies from the scatters
+    energies_second = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
+    energies_third = energies_second
+    #: Joint energy spectrum for MSU3 scatters. Override for other triple scatters
+    rates_vs_energy = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/MSU3_spectrum.pkl'), 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy), 1.)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, ignore_shape_assertion=True)
+
+    def _simulate(self, d):
+        spectrum_numpy = fd.tf_to_np(self.rates_vs_energy)
+        spectrum_flat = spectrum_numpy.flatten()
+
+        Es_first = self.source.energies_first
+        Es_second = self.energies_second
+        Es_third = self.energies_third
+
+        E1_mesh, E2_mesh, E3_mesh = np.meshgrid(Es_first, Es_second, Es_third)
+        Es = np.stack((E1_mesh, E2_mesh, E3_mesh), axis=-1)
+        Es_flat = Es.reshape(-1, Es.shape[-1])
+
+        assert np.shape(Es)[0] == np.shape(spectrum_numpy)[0], \
+            "Energies and spectrum have different length"
+        assert np.shape(Es)[1] == np.shape(spectrum_numpy)[1], \
+            "Energies and spectrum have different length"
+        assert np.shape(Es)[2] == np.shape(spectrum_numpy)[2], \
+            "Energies and spectrum have different length"
+
+        energy_index = np.random.choice(
+            np.arange(spectrum_flat.size),
+            size=len(d),
+            p=spectrum_flat / spectrum_flat.sum(),
+            replace=True)
+        d['energy_first'] = Es_flat[energy_index][:, 0]
+        d['energy_second'] = Es_flat[energy_index][:, 1]
+        d['energy_third'] = Es_flat[energy_index][:, 2]
+
+        assert np.all(d['energy_first'] >= 0), "Generated negative energies??"
+        assert np.all(d['energy_second'] >= 0), "Generated negative energies??"
+        assert np.all(d['energy_third'] >= 0), "Generated negative energies??"
+
+    def _annotate(self, d):
+        d['energy_second_min'] = fd.tf_to_np(self.energies_second)[0]
+        d['energy_second_max'] = fd.tf_to_np(self.energies_second)[-1]
+
+        d['energy_third_min'] = fd.tf_to_np(self.energies_third)[0]
+        d['energy_third_max'] = fd.tf_to_np(self.energies_third)[-1]
+
+    def _calculate_dimsizes_special(self):
+        d = self.source.data
+
+        self.source.dimsizes['energy_second'] = len(self.energies_second)
+        self.source.dimsizes['energy_third'] = len(self.energies_third)
+
+        d_energy_second = np.diff(self.energies_second)
+        d['energy_second_steps'] = d_energy_second[0]
+        d_energy_third = np.diff(self.energies_third)
+        d['energy_third_steps'] = d_energy_third[0]
+
+        assert np.isclose(self.energies_second[0] + (len(self.energies_second) - 1) * d_energy_second[0],
+                          self.energies_second[-1]), "Logic only works with constant stepping in energy spectrum"
+        assert np.isclose(self.energies_third[0] + (len(self.energies_third) - 1) * d_energy_third[0],
+                          self.energies_third[-1]), "Logic only works with constant stepping in energy spectrum"
+
+
+@export
 class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
     #: Energies from the second scatter
     energies_second = tf.cast(tf.linspace(0.75, 98.25, 66),

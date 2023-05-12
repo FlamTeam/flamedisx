@@ -141,6 +141,56 @@ class MakeS1S2MSU(fd.Block):
 
 
 @export
+class MakeS1S2MSU3(fd.Block):
+    """
+    """
+    model_attributes = ('check_acceptances',)
+
+    dimensions = ('energy_first', 's1')
+    depends_on = ((('energy_first',), 'rate_vs_energy_first'),
+                  (('energy_others',), 'rate_vs_energy'))
+
+    special_model_functions = ('signal_means', 'signal_vars', 'signal_corr')
+    model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
+
+    # Whether to check acceptances are positive at the observed events.
+    # This is recommended, but you'll have to turn it off if your
+    # likelihood includes regions where only anomalous sources make events.
+    check_acceptances = True
+
+    # Prevent pycharm warnings:
+    source: fd.Source
+    gimme: ty.Callable
+    gimme_numpy: ty.Callable
+
+    def _simulate(self, d):
+        energies_first = d['energy_first'].values
+        energies_second = d['energy_second'].values
+        energies_third= d['energy_third'].values
+
+        s1_mean_first, s2_mean_first = self.gimme_numpy('signal_means', energies_first)
+        s1_mean_second, s2_mean_second = self.gimme_numpy('signal_means', energies_second)
+        s1_mean_third, s2_mean_third = self.gimme_numpy('signal_means', energies_third)
+        s1_mean = s1_mean_first + s1_mean_second + s1_mean_third
+        s2_mean = s2_mean_first + s2_mean_second + s2_mean_third
+
+        s1_var_first, s2_var_first = self.gimme_numpy('signal_vars', (s1_mean_first, s2_mean_first))
+        s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
+        s1_var_third, s2_var_third = self.gimme_numpy('signal_vars', (s1_mean_third, s2_mean_third))
+        s1_var = s1_var_first + s1_var_second + s1_var_third
+        s2_var = s2_var_first + s2_var_second + s2_var_third
+        anti_corr = self.gimme_numpy('signal_corr', energies_first)
+
+        X = np.random.normal(size=len(energies_first))
+        Y = np.random.normal(size=len(energies_first))
+
+        d['s1'] = np.sqrt(s1_var) * X + s1_mean
+        d['s2'] = np.sqrt(s2_var) * (anti_corr * X + np.sqrt(1. - anti_corr * anti_corr) * Y) + s2_mean
+
+        d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
+
+
+@export
 class MakeS1S2SS(fd.Block):
     """
     """
