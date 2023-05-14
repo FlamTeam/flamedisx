@@ -202,8 +202,11 @@ class MakeS1S2MSU3(fd.Block):
         energies_first = tf.repeat(energy_first[:, :, o], tf.shape(energy_others[0, :,]), axis=2)
         energies_first = tf.repeat(energies_first[:, :, :, o], tf.shape(energy_others[0, :]), axis=3)
 
-        energies_others= tf.repeat(energy_others[:, o, :], tf.shape(energy_first[0, :, 0]), axis=1)
-        energies_others = tf.repeat(energies_others[:, :, :, o], tf.shape(energy_others[0, :]), axis=3)[:, :, :, :, o]
+        energies_second= tf.repeat(energy_others[:, o, :], tf.shape(energy_first[0, :, 0]), axis=1)
+        energies_second= tf.repeat(energies_second[:, :, :, o], tf.shape(energy_others[0, :]), axis=3)[:, :, :, :, o]
+
+        energies_third= tf.repeat(energy_others[:, o, :], tf.shape(energy_first[0, :, 0]), axis=1)
+        energies_third= tf.repeat(energies_third[:, :, o, :], tf.shape(energy_others[0, :]), axis=2)[:, :, :, :, o]
 
         s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor)
         s2 = tf.repeat(s2[:, o], tf.shape(s1)[1], axis=1)
@@ -218,23 +221,31 @@ class MakeS1S2MSU3(fd.Block):
                                                   bonus_arg=energies_first,
                                                   data_tensor=data_tensor,
                                                   ptensor=ptensor)
-        s1_mean_others, s2_mean_others = self.gimme('signal_means',
-                                                    bonus_arg=energies_others,
+        s1_mean_second, s2_mean_second = self.gimme('signal_means',
+                                                    bonus_arg=energies_second,
                                                     data_tensor=data_tensor,
                                                     ptensor=ptensor)
-        s1_mean = (s1_mean_first + 2. * s1_mean_others)
-        s2_mean = (s2_mean_first + 2. * s2_mean_others)
+        s1_mean_third, s2_mean_third = self.gimme('signal_means',
+                                                 bonus_arg=energies_third,
+                                                 data_tensor=data_tensor,
+                                                 ptensor=ptensor)
+        s1_mean = (s1_mean_first + s1_mean_second + s1_mean_third)
+        s2_mean = (s2_mean_first + s2_mean_second + s2_mean_third)
 
         s1_var_first, s2_var_first = self.gimme('signal_vars',
                                                 bonus_arg=(s1_mean_first, s2_mean_first),
                                                 data_tensor=data_tensor,
                                                 ptensor=ptensor)
-        s1_var_others, s2_var_others = self.gimme('signal_vars',
-                                                  bonus_arg=(s1_mean_others, s2_mean_others),
+        s1_var_second, s2_var_second = self.gimme('signal_vars',
+                                                  bonus_arg=(s1_mean_second, s2_mean_second),
                                                   data_tensor=data_tensor,
                                                   ptensor=ptensor)
-        s1_var = (s1_var_first + 2. * s1_var_others)
-        s2_var = (s2_var_first + 2. * s2_var_others)
+        s1_var_third, s2_var_third = self.gimme('signal_vars',
+                                                bonus_arg=(s1_mean_third, s2_mean_third),
+                                                data_tensor=data_tensor,
+                                                ptensor=ptensor)
+        s1_var = (s1_var_first + s1_var_second + s1_var_third)
+        s2_var = (s2_var_first + s2_var_second + s2_var_third)
 
         s1_std = tf.sqrt(s1_var)
         s2_std = tf.sqrt(s2_var)
