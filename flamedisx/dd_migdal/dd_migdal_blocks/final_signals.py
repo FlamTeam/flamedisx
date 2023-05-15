@@ -583,3 +583,109 @@ class MakeS1S2MigdalMSU(fd.Block):
 
     def _annotate(self, d):
         pass
+
+    def _compute(self,
+                 data_tensor, ptensor,
+                 # Domain
+                 s1,
+                 # Dependency domains and values
+                 energy_first, rate_vs_energy_first,
+                 energy_others, rate_vs_energy):
+        energies_first = tf.repeat(energy_first[:, :, o], tf.shape(energy_others[0, :,]), axis=2)
+        energies_first = tf.repeat(energies_first[:, :, :, o], tf.shape(energy_others[0, :]), axis=3)
+
+        energies_second= tf.repeat(energy_others[:, o, :], tf.shape(energy_first[0, :, 0]), axis=1)
+        energies_second= tf.repeat(energies_second[:, :, :, o], tf.shape(energy_others[0, :]), axis=3)[:, :, :, :, o]
+
+        energies_third= tf.repeat(energy_others[:, o, :], tf.shape(energy_first[0, :, 0]), axis=1)
+        energies_third= tf.repeat(energies_third[:, :, o, :], tf.shape(energy_others[0, :]), axis=2)[:, :, :, :, o]
+
+        s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor)
+        s2 = tf.repeat(s2[:, o], tf.shape(s1)[1], axis=1)
+        s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
+
+        s1 = tf.repeat(s1[:, :, o, :], tf.shape(energy_others[0, :]), axis=2)
+        s1 = tf.repeat(s1[:, :, :, o, :], tf.shape(energy_others[0, :]), axis=3)
+        s2 = tf.repeat(s2[:, :, o, :], tf.shape(energy_others[0, :]), axis=2)
+        s2 = tf.repeat(s2[:, :, :, o, :], tf.shape(energy_others[0, :]), axis=3)
+
+        s1_mean_first = self.source.s1_mean_ER_tf
+        s1_mean_first = tf.repeat(s1_mean_first[o, :, :], tf.shape(s1)[0], axis=0)
+        s1_mean_first = tf.repeat(s1_mean_first[:, :, :, o], tf.shape(s1)[3], axis=3)[:, :, :, :, o]
+        s2_mean_first = self.source.s2_mean_ER_tf
+        s2_mean_first = tf.repeat(s2_mean_first[o, :, :], tf.shape(s1)[0], axis=0)
+        s2_mean_first = tf.repeat(s2_mean_first[:, :, :, o], tf.shape(s1)[3], axis=3)[:, :, :, :, o]
+        s1_mean_second, s2_mean_second = self.gimme('signal_means',
+                                                    bonus_arg=energies_second,
+                                                    data_tensor=data_tensor,
+                                                    ptensor=ptensor)
+        s1_mean_third, s2_mean_third = self.gimme('signal_means',
+                                                 bonus_arg=energies_third,
+                                                 data_tensor=data_tensor,
+                                                 ptensor=ptensor)
+        s1_mean = (s1_mean_first + s1_mean_second + s1_mean_third)
+        s2_mean = (s2_mean_first + s2_mean_second + s2_mean_third)
+
+        s1_var_first = self.source.s1_var_ER_tf
+        s1_var_first = tf.repeat(s1_var_first[o, :, :], tf.shape(s1)[0], axis=0)
+        s1_var_first = tf.repeat(s1_var_first[:, :, :, o], tf.shape(s1)[3], axis=3)[:, :, :, :, o]
+        s2_var_first = self.source.s2_var_ER_tf
+        s2_var_first = tf.repeat(s2_var_first[o, :, :], tf.shape(s1)[0], axis=0)
+        s2_var_first = tf.repeat(s2_var_first[:, :, :, o], tf.shape(s1)[3], axis=3)[:, :, :, :, o]
+        s1_var_second, s2_var_second = self.gimme('signal_vars',
+                                                  bonus_arg=(s1_mean_second, s2_mean_second),
+                                                  data_tensor=data_tensor,
+                                                  ptensor=ptensor)
+        s1_var_third, s2_var_third = self.gimme('signal_vars',
+                                                bonus_arg=(s1_mean_third, s2_mean_third),
+                                                data_tensor=data_tensor,
+                                                ptensor=ptensor)
+        s1_var = (s1_var_first + s1_var_second + s1_var_third)
+        s2_var = (s2_var_first + s2_var_second + s2_var_third)
+
+        s1_std = tf.sqrt(s1_var)
+        s2_std = tf.sqrt(s2_var)
+
+        s1s2_cov_first = self.source.s1s2_cov_ER_tf
+        s1s2_cov_first = tf.repeat(s1s2_cov_first[o, :, :], tf.shape(s1)[0], axis=0)
+        s1s2_cov_first = tf.repeat(s1s2_cov_first[:, :, :, o], tf.shape(s1)[3], axis=3)[:, :, :, :, o]
+        s1s2_corr_others = self.gimme('signal_corr',
+                                      bonus_arg=energies_first,
+                                      data_tensor=data_tensor,
+                                      ptensor=ptensor)
+        s1s2_cov_second = s1s2_corr_others * tf.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov_third = s1s2_corr_others  * tf.sqrt(s1_var_third * s2_var_third)
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second + s1s2_cov_third
+        anti_corr = s1s2_cov / (s1_std * s2_std)
+
+        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
+
+        exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
+
+        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
+        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
+        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+
+        probs = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+
+        R_E1E2E3 = probs * rate_vs_energy[:, :, :, :, o]
+        R_E1E2 = tf.reduce_sum(R_E1E2E3, axis=3)
+        R_E1 = tf.reduce_sum(R_E1E2, axis=2)
+
+        # Add detection/selection efficiency
+        acceptance = self.gimme('s1s2_acceptance',
+                                data_tensor=data_tensor, ptensor=ptensor)
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(R_E1)[1], axis=1)
+        acceptance = tf.repeat(acceptance[:, :, o], tf.shape(R_E1)[2], axis=2)
+        R_E1 *= acceptance
+
+        return tf.transpose(R_E1, perm=[0, 2, 1])
+
+    def check_data(self):
+        if not self.check_acceptances:
+         return
+        s_acc = self.gimme_numpy('s1s2_acceptance')
+        if np.any(s_acc <= 0):
+         raise ValueError(f"Found event with non-positive signal "
+                          f"acceptance: did you apply and configure "
+                          "your cuts correctly?")
