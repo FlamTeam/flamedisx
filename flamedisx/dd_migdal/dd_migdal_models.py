@@ -67,18 +67,21 @@ class NRSource(fd.BlockModelSource):
     def get_s2(self, s2):
         return s2
 
-    def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=250, s2_max=2.5e4):
+    def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=200, s2_min=400, s2_max=3e4):
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
                           tf.ones_like(s1, dtype=fd.float_type()))
-        s2_acc = tf.where((s2 > s2_max),
+        s2_acc = tf.where((s2 < s2_min) | (s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
-        s1s2_acc = tf.where((s2 > 400*s1**(0.64)),
+        s1s2_acc = tf.where((s2 > 200*s1**(0.73)),
                             tf.ones_like(s2, dtype=fd.float_type()),
                             tf.zeros_like(s2, dtype=fd.float_type()))
+        nr_endpoint = tf.where((s1 > 140) & (s2 > 8e3) & (s2 < 11.5e3),
+                            tf.zeros_like(s2, dtype=fd.float_type()),
+                            tf.ones_like(s2, dtype=fd.float_type()))
 
-        # return (s1_acc * s2_acc * s1s2_acc)
+        # return (s1_acc * s2_acc * s1s2_acc * nr_endpoint)
         return (tf.ones_like(s1))
 
     final_dimensions = ('s1',)
