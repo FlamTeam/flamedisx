@@ -108,26 +108,13 @@ class NRNRSource(NRSource):
 
 
 @export
-class NRNRNRSource(NRSource):
+class NRNRNRSource(NRNRSource):
     model_blocks = (
         fd_dd_migdal.EnergySpectrumFirstMSU3,
         fd_dd_migdal.EnergySpectrumOthersMSU3,
         fd_dd_migdal.MakeS1S2MSU3)
 
     no_step_dimensions = ('energy_others')
-
-    S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), './migdal_database/MSU_IECS_S2Width_template.npz'))
-
-    hist_values_S2Width = S2Width_dist['hist_values']
-    S2Width_edges = S2Width_dist['S2Width_edges']
-
-    mh_S2Width = Hist1d(bins=len(S2Width_edges) - 1).from_histogram(hist_values_S2Width, bin_edges=S2Width_edges)
-    mh_S2Width = mh_S2Width / mh_S2Width.n
-    mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
-
-    S2Width_diff_rate = mh_S2Width
-    S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
 
 @export
@@ -194,19 +181,6 @@ class Migdal3Source(Migdal2Source):
         fd_dd_migdal.EnergySpectrumSecondMigdal3,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
-
-    hist_values_S2Width = S2Width_dist['hist_values']
-    S2Width_edges = S2Width_dist['S2Width_edges']
-
-    mh_S2Width = Hist1d(bins=len(S2Width_edges) - 1).from_histogram(hist_values_S2Width, bin_edges=S2Width_edges)
-    mh_S2Width = mh_S2Width / mh_S2Width.n
-    mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
-
-    S2Width_diff_rate = mh_S2Width
-    S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
-
 
 @export
 class Migdal4Source(Migdal2Source):
@@ -214,19 +188,6 @@ class Migdal4Source(Migdal2Source):
         fd_dd_migdal.EnergySpectrumFirstMigdal,
         fd_dd_migdal.EnergySpectrumSecondMigdal4,
         fd_dd_migdal.MakeS1S2Migdal)
-
-    S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
-
-    hist_values_S2Width = S2Width_dist['hist_values']
-    S2Width_edges = S2Width_dist['S2Width_edges']
-
-    mh_S2Width = Hist1d(bins=len(S2Width_edges) - 1).from_histogram(hist_values_S2Width, bin_edges=S2Width_edges)
-    mh_S2Width = mh_S2Width / mh_S2Width.n
-    mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
-
-    S2Width_diff_rate = mh_S2Width
-    S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
 
 @export
