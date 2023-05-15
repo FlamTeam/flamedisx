@@ -146,6 +146,14 @@ class EnergySpectrumFirstMigdal(EnergySpectrumFirstMSU):
 
 
 @export
+class EnergySpectrumFirstMigdalMSU(EnergySpectrumFirstMSU):
+    #: Energies from the first scatter
+    energies_first = fd.np_to_tf(np.geomspace(0.11167041, 17.90984679, 24))
+    #: Dummy energy spectrum of 1s
+    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type())
+
+
+@export
 class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
@@ -258,7 +266,7 @@ class EnergySpectrumOthersMSU3(fd.Block):
         Es_first = self.source.energies_first
         Es_others = self.energies_others
 
-        E1_mesh, E2_mesh, E3_mesh = np.meshgrid(Es_first, Es_others, Es_others)
+        E1_mesh, E2_mesh, E3_mesh = np.meshgrid(Es_first, Es_others, Es_others, indexing='ij')
         Es = np.stack((E1_mesh, E2_mesh, E3_mesh), axis=-1)
         Es_flat = Es.reshape(-1, Es.shape[-1])
 
@@ -328,6 +336,18 @@ class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for Migdal4 scatters
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), '../migdal_database/migdal_4_spectrum.pkl'), 'rb'))
+    assert np.isclose(np.sum(rates_vs_energy), 1.)
+
+
+@export
+class EnergySpectrumOthersMigdalMSU(EnergySpectrumOthersMSU3):
+    #: Energies from the second scatter
+    energies_others = tf.cast(tf.linspace(2.5, 80.5, 27),
+                            dtype=fd.float_type())
+    energies_second = energies_others
+    #: Joint energy spectrum for Migdal2 scatters
+    rates_vs_energy = pkl.load(open(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/migdal_MSU_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
