@@ -122,6 +122,14 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
 
 @export
+class EnergySpectrumFirstMSU3(EnergySpectrumFirstMSU):
+    #: Energies from the first scatter
+    energies_first = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
+    #: Dummy energy spectrum of 1s
+    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type())
+
+
+@export
 class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
     #: Energy spectrum for SS case
     rates_vs_energy_first = pkl.load(open(os.path.join(
@@ -135,6 +143,28 @@ class EnergySpectrumFirstMigdal(EnergySpectrumFirstMSU):
     energies_first = fd.np_to_tf(np.geomspace(1.04712855e-02, 9.54992586e+01, 100))
     #: Dummy energy spectrum of 1s
     rates_vs_energy_first = tf.ones(100, dtype=fd.float_type())
+
+
+@export
+class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
+    #: Energies from the first scatter
+    energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
+    #: Dummy energy spectrum of 1s
+    rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
+
+    r_dt_dist = np.load(os.path.join(
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
+
+    hist_values_r_dt = r_dt_dist['hist_values']
+    r_edges = r_dt_dist['r_edges']
+    dt_edges = r_dt_dist['dt_edges']
+
+    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values_r_dt, bin_edges=[r_edges, dt_edges])
+    mh_r_dt = mh_r_dt / mh_r_dt.n
+    mh_r_dt = mh_r_dt / mh_r_dt.bin_volumes()
+
+    r_dt_diff_rate = mh_r_dt
+    r_dt_events_per_bin = mh_r_dt * mh_r_dt.bin_volumes()
 
 
 @export
@@ -198,14 +228,6 @@ class EnergySpectrumSecondMSU(fd.Block):
 
         assert np.isclose(self.energies_second[0] + (len(self.energies_second) - 1) * d_energy[0],
                           self.energies_second[-1]), "Logic only works with constant stepping in energy spectrum"
-
-
-@export
-class EnergySpectrumFirstMSU3(EnergySpectrumFirstMSU):
-    #: Energies from the first scatter
-    energies_first = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
-    #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type())
 
 
 @export
@@ -307,28 +329,6 @@ class EnergySpectrumSecondMigdal4(EnergySpectrumSecondMSU):
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), '../migdal_database/migdal_4_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
-
-
-@export
-class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
-    #: Energies from the first scatter
-    energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
-    #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
-
-    r_dt_dist = np.load(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
-
-    hist_values_r_dt = r_dt_dist['hist_values']
-    r_edges = r_dt_dist['r_edges']
-    dt_edges = r_dt_dist['dt_edges']
-
-    mh_r_dt = Histdd(bins=[len(r_edges) - 1, len(dt_edges) - 1]).from_histogram(hist_values_r_dt, bin_edges=[r_edges, dt_edges])
-    mh_r_dt = mh_r_dt / mh_r_dt.n
-    mh_r_dt = mh_r_dt / mh_r_dt.bin_volumes()
-
-    r_dt_diff_rate = mh_r_dt
-    r_dt_events_per_bin = mh_r_dt * mh_r_dt.bin_volumes()
 
 
 @export
