@@ -361,9 +361,9 @@ class LogLikelihood:
         ds = pd.concat([pd.DataFrame()] + ds, sort=False)
         return ds.sample(frac=1).reset_index(drop=True)
 
-    def __call__(self, mu_estimators=None, **kwargs):
+    def __call__(self, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
-        return self.log_likelihood(second_order=False, mu_estimators=mu_estimators, **kwargs)[0]
+        return self.log_likelihood(second_order=False, mu_estimators=self.mu_estimators, **kwargs)[0]
 
     def log_likelihood(self, second_order=False,
                        omit_grads=tuple(), mu_estimators=None, **kwargs):
