@@ -361,12 +361,12 @@ class LogLikelihood:
         ds = pd.concat([pd.DataFrame()] + ds, sort=False)
         return ds.sample(frac=1).reset_index(drop=True)
 
-    def __call__(self, **kwargs):
+    def __call__(self, mu_estimators=None, **kwargs):
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
-        return self.log_likelihood(second_order=False, **kwargs)[0]
+        return self.log_likelihood(second_order=False, mu_estimators=mu_estimators, **kwargs)[0]
 
     def log_likelihood(self, second_order=False,
-                       omit_grads=tuple(), **kwargs):
+                       omit_grads=tuple(), mu_estimators=None, **kwargs):
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
         ll = 0.
@@ -398,6 +398,7 @@ class LogLikelihood:
                     omit_grads=omit_grads,
                     second_order=second_order,
                     empty_batch=empty_batch,
+                    mu_estimators=mu_estimators,
                     **params)
                 ll += results[0].numpy().astype(np.float64)
 
@@ -477,7 +478,11 @@ class LogLikelihood:
     def _log_likelihood(self,
                         i_batch, dsetname, data_tensor, batch_info,
                         omit_grads=tuple(), second_order=False,
-                        empty_batch=False, **params):
+                        empty_batch=False, mu_estimators=None,
+                        **params):
+        if mu_estimators is not None:
+            self.mu_estimators = mu_estimators
+
         # Stack the params to create a single node
         # to differentiate with respect to.
         grad_par_stack = tf.stack([
