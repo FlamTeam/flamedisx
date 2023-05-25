@@ -288,6 +288,69 @@ class GridInterpolatedMu(MuEstimator):
 
 
 @export
+class GridInterpolatedMuIrregular(MuEstimator):
+    """Linearly interpolate the estimated mu on a sorted, but irregular, n-dimensional grid"""
+
+    def __init__(self, *args, **kwargs):
+        if ('n_trials' not in kwargs) or (kwargs['n_trials'] is None):
+            kwargs['n_trials'] = int(1e6)
+
+        super().__init__(*args, **kwargs)
+
+    def build(self, source: fd.Source):
+        param_lowers = []
+        param_uppers = []
+        grid_shape = ()
+        grid_dict = dict()
+        for pname, (start, stop) in self.bounds.items():
+            param_lowers.append(start)
+            param_uppers.append(stop)
+            n_anchors = int(self.param_options.get(pname, {}).get('n_anchors', 3))
+            grid_shape += (n_anchors,)
+            grid_dict[pname] = np.linspace(start, stop, n_anchors)
+
+        # Convert dict of anchors to a list of grid points
+        # (like sklearn.ParameterGrid)
+        keys, values = grid_dict.keys(), grid_dict.values()
+        param_grid = [dict(zip(keys, v)) for v in itertools.product(*values)]
+        self.param_grid_points = tuple([fd.np_to_tf(grid_dict[param]) for param in grid_dict])
+        if self.progress:
+            param_grid = tqdm(param_grid, desc="Estimating mus")
+
+        mu_grid = [
+            source.estimate_mu(**params, n_trials=self.n_trials)
+            for params in param_grid
+        ]
+        self.mu_grid = fd.np_to_tf(np.asarray(mu_grid).reshape(grid_shape))
+
+    def build_new_grid(self, source: fd.Source, grid_dict, grid_shape):
+        # Convert dict of anchors to a list of grid points
+        # (like sklearn.ParameterGrid)
+        keys, values = grid_dict.keys(), grid_dict.values()
+        param_grid = [dict(zip(keys, v)) for v in itertools.product(*values)]
+        self.param_grid_points = tuple([fd.np_to_tf(grid_dict[param]) for param in grid_dict])
+        if self.progress:
+            param_grid = tqdm(param_grid, desc="Estimating mus")
+
+        mu_grid = [
+            source.estimate_mu(**params, n_trials=self.n_trials)
+            for params in param_grid
+        ]
+        self.mu_grid = fd.np_to_tf(np.asarray(mu_grid).reshape(grid_shape))
+
+    def __call__(self, **kwargs):
+        # Match kwargs order to grid param order
+        # (LogLikelihood.mu already filtered params)
+        kwargs = {param_name: kwargs[param_name] for param_name in self.bounds}
+
+        return tfp.math.batch_interp_rectilinear_nd_grid(
+            [list(kwargs.values())],
+            x_grid_points=self.param_grid_points,
+            y_ref=self.mu_grid,
+            axis=-len(self.bounds))[0]
+
+
+@export
 def is_mu_estimator_class(x):
     if isinstance(x, partial):
         return is_mu_estimator_class(x.func)
