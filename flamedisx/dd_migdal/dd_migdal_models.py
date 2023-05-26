@@ -139,7 +139,7 @@ class NRSource(fd.BlockModelSource):
 
         return integrate.dblquad(f, self.defaults['s1_min'], self.defaults['s1_max'],
                                  self.defaults['s2_min'], self.defaults['s2_max'],
-                                 epsabs=error, epsrel=error)
+                                 epsabs=error, epsrel=error)[0]
 
 @export
 class NRNRSource(NRSource):
