@@ -1,3 +1,4 @@
+from copy import copy
 import numpy as np
 import tensorflow as tf
 
@@ -6,12 +7,15 @@ import os
 from multihist import Hist1d
 
 import scipy.interpolate as itp
+from scipy import integrate
 
 from .. import dd_migdal as fd_dd_migdal
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
+
+import numba as nb
 
 
 @export
@@ -85,6 +89,57 @@ class NRSource(fd.BlockModelSource):
 
     final_dimensions = ('s1',)
 
+    def pdf_for_mu_pre_populate(self, **params):
+        old_defaults = copy(self.defaults)
+        self.set_defaults(**params)
+
+        s1_mean, s2_mean = self.gimme('signal_means', bonus_arg=self.energies_first)
+        s1_var, s2_var = self.gimme('signal_vars', bonus_arg=(s1_mean, s2_mean))
+        s1_mean = fd.tf_to_np(s1_mean)
+        s2_mean = fd.tf_to_np(s2_mean)
+        s1_var = fd.tf_to_np(s1_var)
+        s2_var = fd.tf_to_np(s2_var)
+
+        s1_std = np.sqrt(s1_var)
+        s2_std = np.sqrt(s2_var)
+
+        anti_corr = self.gimme('signal_corr', bonus_arg=self.energies_first)
+        anti_corr = fd.tf_to_np(anti_corr)
+
+        spectrum = fd.tf_to_np(self.rates_vs_energy_first)
+
+        self.defaults = old_defaults
+
+        return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
+
+    @staticmethod
+    @nb.njit(error_model="numpy",fastmath=True)
+    def pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum):
+        denominator = 2. * np.pi * s1_std * s2_std * np.sqrt(1.- anti_corr * anti_corr)
+        exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
+        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
+        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
+        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+
+        pdf_vals = 1. / denominator * np.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+
+        s1s2_acc = np.where((s2 > 200*s1**(0.73)), 1., 0.)
+        nr_endpoint = np.where((s1 > 140) & (s2 > 8e3) & (s2 < 11.5e3), 0., 1.)
+
+        return np.sum(pdf_vals * s1s2_acc * nr_endpoint * spectrum)
+
+    def estimate_mu(self, error=1e-5, **params):
+        """
+        """
+        s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum = \
+            self.pdf_for_mu_pre_populate(**params)
+
+        f = lambda s2, s1: self.pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var,
+                                           s1_std, s2_std, anti_corr, spectrum)
+
+        return integrate.dblquad(f, self.defaults['s1_min'], self.defaults['s1_max'],
+                                 self.defaults['s2_min'], self.defaults['s2_max'],
+                                 epsabs=error, epsrel=error)
 
 @export
 class NRNRSource(NRSource):
