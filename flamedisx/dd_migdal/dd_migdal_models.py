@@ -109,7 +109,8 @@ class NRSource(fd.BlockModelSource):
         spectrum = fd.tf_to_np(self.rates_vs_energy_first)
 
         self.defaults = old_defaults
-
+        
+        print(s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum)
         return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
 
     @staticmethod
@@ -162,14 +163,6 @@ class NRNRSource(NRSource):
 
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
-
-    def estimate_mu(self, n_trials=int(1e5), **params):
-        """Return estimate of total expected number of events
-        :param n_trials: Number of events to simulate for estimate
-        """
-        d_simulated = self.simulate(n_trials, **params)
-        return (self.mu_before_efficiencies(**params)
-                * len(d_simulated) / n_trials)
 
 
 @export
@@ -297,3 +290,69 @@ class IECSSource(Migdal2Source):
 
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
+    
+@export   
+class ERSource(NRSource):
+    model_blocks = (
+        fd_dd_migdal.EnergySpectrumFirstER,
+        fd_dd_migdal.MakeS1S2ER)
+
+    S2Width_dist = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
+
+    hist_values_S2Width = S2Width_dist['hist_values']
+    S2Width_edges = S2Width_dist['S2Width_edges']
+
+    mh_S2Width = Hist1d(bins=len(S2Width_edges) - 1).from_histogram(hist_values_S2Width, bin_edges=S2Width_edges)
+    mh_S2Width = mh_S2Width / mh_S2Width.n
+    mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
+
+    S2Width_diff_rate = mh_S2Width
+    S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
+    
+    ER_NEST = np.load(os.path.join(
+        os.path.dirname(__file__), './migdal_database/ER_NEST.npz'))
+
+    E_ER = ER_NEST['EkeVee']
+    s1_mean_ER = itp.interp1d(E_ER, ER_NEST['s1mean'])
+    s2_mean_ER = itp.interp1d(E_ER, ER_NEST['s2mean'])
+    s1_var_ER = itp.interp1d(E_ER, ER_NEST['s1std']**2)
+    s2_var_ER = itp.interp1d(E_ER, ER_NEST['s2std']**2)
+    s1s2_corr_ER = itp.interp1d(E_ER, ER_NEST['S1S2corr'])
+
+    def __init__(self, *args, **kwargs):
+        energies_first = self.model_blocks[0].energies_first
+        energies_first = tf.where(energies_first > 49., 49. * tf.ones_like(energies_first), energies_first)
+
+        self.s1_mean_ER_tf, self.s2_mean_ER_tf = self.signal_means(energies_first)
+        self.s1_var_ER_tf, self.s2_var_ER_tf = self.signal_vars(energies_first)
+        self.s1s2_cov_ER_tf = self.signal_corr(energies_first)
+        
+
+        super().__init__(*args, **kwargs)
+
+    def signal_means(self, energy):
+        energy_cap = energy
+        energy_cap = np.where(energy <= 49., energy, 49.)
+        s1_mean = tf.cast(self.s1_mean_ER(energy_cap), fd.float_type())
+        s2_mean = tf.cast(self.s2_mean_ER(energy_cap), fd.float_type())
+
+        return s1_mean, s2_mean
+
+    def signal_vars(self, energy):
+        energy_cap = energy
+        energy_cap = np.where(energy <= 49., energy, 49.)
+        s1_var = tf.cast(self.s1_var_ER(energy_cap), fd.float_type())
+        s2_var = tf.cast(self.s2_var_ER(energy_cap), fd.float_type())
+
+        return s1_var, s2_var
+    
+    def signal_corr(self, energy):
+        energy_cap = energy
+        energy_cap = np.where(energy <= 49., energy, 49.)
+        s1_var = tf.cast(self.s1_var_ER(energy_cap), fd.float_type())
+        s2_var = tf.cast(self.s2_var_ER(energy_cap), fd.float_type())
+        s1s2_corr = tf.cast(np.nan_to_num(self.s1s2_corr_ER(energy_cap)), fd.float_type())
+        s1s2_cov = s1s2_corr * tf.sqrt(s1_var * s2_var)
+        
+        return s1s2_cov
