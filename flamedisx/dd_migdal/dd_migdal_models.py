@@ -163,6 +163,14 @@ class NRNRSource(NRSource):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
+    def estimate_mu(self, n_trials=int(1e5), **params):
+        """Return estimate of total expected number of events
+        :param n_trials: Number of events to simulate for estimate
+        """
+        d_simulated = self.simulate(n_trials, **params)
+        return (self.mu_before_efficiencies(**params)
+                * len(d_simulated) / n_trials)
+
 
 @export
 class NRNRNRSource(NRNRSource):
