@@ -313,7 +313,6 @@ class MakeS1S2SS(fd.Block):
         energies = d['energy_first'].values
 
         s1_mean, s2_mean = self.gimme_numpy('signal_means', energies)
-
         s1_var, s2_var = self.gimme_numpy('signal_vars', (s1_mean, s2_mean))
         anti_corr = self.gimme_numpy('signal_corr', energies)
 
@@ -354,6 +353,16 @@ class MakeS1S2SS(fd.Block):
                                bonus_arg=energy_first,
                                data_tensor=data_tensor,
                                ptensor=ptensor)
+        
+        print('energy_first', energy_first)
+        print('s1 ',s1)
+        print('s2 ',s2)
+        print('s1 mean ',s1_mean)
+        print('s2 mean ',s2_mean)
+        print('s1 var ',s1_var)
+        print('s2 var ',s2_var)
+        print('anti corr ',anti_corr)
+
 
         denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
 
@@ -371,7 +380,9 @@ class MakeS1S2SS(fd.Block):
         acceptance = tf.repeat(acceptance[:, o], tf.shape(probs)[1], axis=1)
         acceptance = tf.repeat(acceptance[:, :, o], tf.shape(probs)[2], axis=2)
         probs *= acceptance
-
+        
+        tf.print(probs)
+        
         return tf.transpose(probs, perm=[0, 2, 1])
 
     def check_data(self):
@@ -680,6 +691,131 @@ class MakeS1S2MigdalMSU(fd.Block):
         R_E1 *= acceptance
 
         return tf.transpose(R_E1, perm=[0, 2, 1])
+
+    def check_data(self):
+        if not self.check_acceptances:
+         return
+        s_acc = self.gimme_numpy('s1s2_acceptance')
+        if np.any(s_acc <= 0):
+         raise ValueError(f"Found event with non-positive signal "
+                          f"acceptance: did you apply and configure "
+                          "your cuts correctly?")
+
+        
+@export
+class MakeS1S2ER(fd.Block):
+    """
+    """
+    model_attributes = ('check_acceptances',)
+
+    dimensions = ('energy_first', 's1')
+    depends_on = ((('energy_first',), 'rate_vs_energy_first'),)
+
+    special_model_functions = ('signal_means', 'signal_vars', 'signal_corr')
+    model_functions = ('get_s2', 's1s2_acceptance') + special_model_functions
+
+    # Whether to check acceptances are positive at the observed events.
+    # This is recommended, but you'll have to turn it off if your
+    # likelihood includes regions where only anomalous sources make events.
+    check_acceptances = True
+
+    # Prevent pycharm warnings:
+    source: fd.Source
+    gimme: ty.Callable
+    gimme_numpy: ty.Callable
+
+    def _simulate(self, d):
+        energies = d['energy_first'].values
+
+        s1_mean, s2_mean = self.gimme_numpy('signal_means', energies)
+        s1_var, s2_var = self.gimme_numpy('signal_vars', energies)
+        s1s2_cov = self.gimme_numpy('signal_corr', energies)
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
+        
+
+        X = np.random.normal(size=len(energies))
+        Y = np.random.normal(size=len(energies))
+
+        d['s1'] = np.sqrt(s1_var) * X + s1_mean
+        d['s2'] = np.sqrt(s2_var) * (anti_corr * X + np.sqrt(1. - anti_corr * anti_corr) * Y) + s2_mean
+
+
+        d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
+
+    def _annotate(self, d):
+        pass
+
+    def _compute(self,
+                 data_tensor, ptensor,
+                 # Domain
+                 s1,
+                 # Dependency domain and value
+                 energy_first, rate_vs_energy_first):
+        
+        s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor)
+        s2 = tf.repeat(s2[:, o], tf.shape(s1)[1], axis=1)
+        s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
+
+        s1_mean = self.source.s1_mean_ER_tf
+        s1_mean = s1_mean[:,:,o]
+        # s1_mean = tf.repeat(s1_mean[:, :, o], tf.shape(s1)[2], axis=2)
+        
+
+        s2_mean = self.source.s2_mean_ER_tf
+        s2_mean = tf.repeat(s2_mean[o,:], tf.shape(s1)[0], axis=0)[:,:,o]
+        # s2_mean = tf.repeat(s2_mean[:, :, o], tf.shape(s1)[2], axis=2)
+        
+        
+        s1_var = self.source.s1_var_ER_tf
+        s1_var = tf.repeat(s1_var[o,:], tf.shape(s1)[0], axis=0)[:,:,o]
+        # s1_var = tf.repeat(s1_var[:, :, o], tf.shape(s1)[2], axis=2)
+        
+        
+        s2_var = self.source.s2_var_ER_tf
+        s2_var = tf.repeat(s2_var[o,:], tf.shape(s1)[0], axis=0)[:,:,o]
+        # s2_var = tf.repeat(s2_var[:, :, o], tf.shape(s1)[2], axis=2)
+        
+        
+        s1s2_cov = self.source.s1s2_cov_ER_tf
+        s1s2_cov = tf.repeat(s1s2_cov[o,:], tf.shape(s1)[0], axis=0)[:,:,o]
+        # s1s2_cov = tf.repeat(s1s2_cov[:, :, o], tf.shape(s1)[2], axis=2)
+        
+        
+        s1_std = tf.sqrt(s1_var)
+        s2_std = tf.sqrt(s2_var)
+        
+        anti_corr = s1s2_cov / tf.sqrt(s1_var * s2_var)
+        
+        # print('tf.shape(s1)[0]', tf.shape(s1)[0], tf.shape(s1)[1], tf.shape(s1)[2])
+        print('s1 ',s1)
+        print('s2 ',s2)
+        print('s1 mean ',s1_mean)
+        print('s2 mean ',s2_mean)
+        print('s1 var ',s1_var)
+        print('s2 var ',s2_var)
+        print('s1s1 cov ',s1s2_cov)
+        
+
+        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
+
+        exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
+
+        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
+        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
+        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+
+        probs = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+
+        # Add detection/selection efficiency
+        acceptance = self.gimme('s1s2_acceptance',
+                                data_tensor=data_tensor, ptensor=ptensor)
+        acceptance = tf.repeat(acceptance[:, o], tf.shape(probs)[1], axis=1)
+        acceptance = tf.repeat(acceptance[:, :, o], tf.shape(probs)[2], axis=2)
+        probs *= acceptance
+        
+        tf.print(probs)
+
+        return tf.transpose(probs, perm=[0, 2, 1])
 
     def check_data(self):
         if not self.check_acceptances:
