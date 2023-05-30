@@ -757,7 +757,7 @@ class MakeS1S2ER(fd.Block):
         s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
 
         s1_mean = self.source.s1_mean_ER_tf
-        s1_mean = s1_mean[:,:,o]
+        s1_mean = tf.repeat(s1_mean[o,:], tf.shape(s1)[0], axis=0)[:,:,o]
         # s1_mean = tf.repeat(s1_mean[:, :, o], tf.shape(s1)[2], axis=2)
         
 
