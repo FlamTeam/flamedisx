@@ -173,18 +173,15 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     r_dt_diff_rate = mh_r_dt
     r_dt_events_per_bin = mh_r_dt * mh_r_dt.bin_volumes()
 
+
 @export
 class EnergySpectrumFirstER(EnergySpectrumFirstMSU):
     #: Flat ER energy spectrum
-    energies_first = fd.np_to_tf(np.linspace(0,35,100))
-    #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.cast(np.ones(100,dtype='float')/100, dtype=fd.float_type())
-    # rates_vs_energy_first = tf.ones(100, dtype=fd.float_type())
+    energies_first = tf.cast(tf.linspace(0.01, 35., 100), fd.float_type())
+    rates_vs_energy_first = tf.ones_like(energies_first, fd.float_type()) / sum(np.ones_like(energies_first))
 
     r_dt_dist = np.load(os.path.join(
         os.path.dirname(__file__), '../migdal_database/ER_spatial_template_230529.npz'))
-        # os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template_230529.npz'))
-    
 
     hist_values_r_dt = r_dt_dist['hist_values']
     r_edges = r_dt_dist['r_edges']
@@ -196,6 +193,7 @@ class EnergySpectrumFirstER(EnergySpectrumFirstMSU):
 
     r_dt_diff_rate = mh_r_dt
     r_dt_events_per_bin = mh_r_dt * mh_r_dt.bin_volumes()
+
 
 @export
 class EnergySpectrumSecondMSU(fd.Block):
@@ -379,5 +377,3 @@ class EnergySpectrumSecondIE_CS(EnergySpectrumSecondMSU):
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
-    
-    
