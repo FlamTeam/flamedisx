@@ -169,7 +169,7 @@ class NRNRSource(NRSource):
         """
         d_simulated = self.simulate(n_trials, **params)
         return (self.mu_before_efficiencies(**params)
-             * len(d_simulated) / n_trials)
+                * len(d_simulated) / n_trials)
 
 
 @export
