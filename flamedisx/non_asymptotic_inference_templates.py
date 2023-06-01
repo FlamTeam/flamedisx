@@ -11,6 +11,46 @@ export, __all__ = fd.exporter()
 
 
 @export
+class TestStatistic():
+    """
+    """
+    def __init__(self, likelihood):
+        self.likelihood = likelihood
+
+    def __call__(self, mu_test, signal_source_name, guess_dict):
+        # To fix the signal RM in the conditional fit
+        fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+
+        guess_dict_nuisance = guess_dict.copy()
+        guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
+
+        # Conditional fit
+        bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
+        # Uncnditional fit
+        bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
+
+        # Return the test statistic, unconditional fit and conditional fit
+        return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
+
+
+@export
+class TestStatisticTMuTilde(TestStatistic):
+    """
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def evaluate(self, bf_unconditional, bf_conditional):
+        """Evaluate the test statistic of equation 11 in
+        https://arxiv.org/abs/1007.1727.
+        """
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        return -2. * (ll_conditional - ll_unconditional)
+
+
+@export
 class FrequentistIntervalRatesOnlyTemplates():
     """NOTE: currently works for a single dataset only.
 
@@ -38,6 +78,7 @@ class FrequentistIntervalRatesOnlyTemplates():
 
     def __init__(
             self,
+            test_statistic: TestStatistic.__class__,
             signal_source_names: ty.Tuple[str],
             background_source_names: ty.Tuple[str],
             sources: ty.Dict[str, fd.Source.__class__],
@@ -73,6 +114,8 @@ class FrequentistIntervalRatesOnlyTemplates():
         else:
             self.log_constraint_fn = log_constraint_fn
 
+        self.test_statistic = test_statistic
+
         self.signal_source_names = signal_source_names
         self.background_source_names = background_source_names
 
@@ -94,27 +137,6 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         self.sources = sources
         self.arguments = arguments
-
-    def test_statistic_tmu_tilde(self, mu_test, signal_source_name, likelihood, guess_dict):
-        """Internal function to evaluate the test statistic of equation 11 in
-        https://arxiv.org/abs/1007.1727.
-        """
-        # To fix the signal RM in the conditional fit
-        fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
-
-        guess_dict_nuisance = guess_dict.copy()
-        guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
-
-        # Conditional fit
-        bf_conditional = likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
-        # Uncnditional fit
-        bf_unconditional = likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
-
-        ll_conditional = likelihood(**bf_conditional)
-        ll_unconditional = likelihood(**bf_unconditional)
-
-        # Return the test statistic
-        return -2. * (ll_conditional - ll_unconditional), bf_unconditional, bf_conditional
 
     def get_test_stat_dists(self, mus_test=None, input_dists=None, input_dists_pcl=None,
                             input_conditional_best_fits=None,
@@ -249,13 +271,15 @@ class FrequentistIntervalRatesOnlyTemplates():
 
             likelihood.set_data(toy_data)
 
+            this_test_statistic = self.test_statistic(likelihood)
+
             guess_dict = simulate_dict.copy()
 
             for key, value in guess_dict.items():
                 if value < 0.1:
                     guess_dict[key] = 0.1
 
-            ts_result = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, guess_dict)
+            ts_result = this_test_statistic(mu_test, signal_source_name, guess_dict)
             ts_values.append(ts_result[0])
             unconditional_bfs.append(ts_result[1])
 
@@ -273,7 +297,7 @@ class FrequentistIntervalRatesOnlyTemplates():
                 if value < 0.1:
                     guess_dict_pcl[key] = 0.1
 
-            ts_result_pcl = self.test_statistic_tmu_tilde(mu_test, signal_source_name, likelihood, guess_dict_pcl)
+            ts_result_pcl = this_test_statistic(mu_test, signal_source_name, guess_dict_pcl)
             ts_values_pcl.append(ts_result_pcl[0])
 
             constraint_vals_dict = dict()
