@@ -51,6 +51,230 @@ class TestStatisticTMuTilde(TestStatistic):
 
 
 @export
+class ToyTSDists():
+    """NOTE: currently works for a single dataset only.
+
+    Arguments:
+        - signal_source_names: tuple of names for signal sources (e.g. WIMPs of different
+            masses)
+        - background_source_names: tuple of names for background sources
+        - sources: dictionary {sourcename: class} of all signal and background source classes
+        - arguments: dictionary {sourcename: {kwarg1: value, ...}, ...}, for
+            passing keyword arguments to source constructors
+        - batch_size: batch size that will be used for the RM fits
+        - expected_background_counts: dictionary of expected counts for background sources
+        - gaussian_constraint_widths: dictionary giving the constraint width for all sources
+            using Gaussian constraints for their rate nuisance parameters
+        - sample_other_constraints: dictionary of functions to sample constraint means
+            in the toys for any sources using non-Gaussian constraints for their rate nuisance
+            parameters. Argument to the function will be either the prior expected counts,
+            or the number of counts at the conditional MLE, depending on the mode
+        - rm_bounds: dictionary {sourcename: (lower, upper)} to set fit bounds on the rate multipliers
+        - ntoys: number of toys that will be run to get test statistic distributions
+        - log_constraint_fn: logarithm of the constraint function used in the likelihood. Any arguments
+            which aren't fit parameters, such as those determining constraint means for toys, will need
+            passing via the set_constraint_extra_args() function
+    """
+
+    def __init__(
+            self,
+            test_statistic: TestStatistic.__class__,
+            signal_source_names: ty.Tuple[str],
+            background_source_names: ty.Tuple[str],
+            sources: ty.Dict[str, fd.Source.__class__],
+            arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
+            expected_background_counts: ty.Dict[str, float] = None,
+            gaussian_constraint_widths: ty.Dict[str, float] = None,
+            sample_other_constraints: ty.Dict[str, ty.Callable] = None,
+            rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
+            log_constraint_fn: ty.Callable = None,
+            ntoys=1000,
+            batch_size=10000):
+
+        for key in sources.keys():
+            if key not in arguments.keys():
+                arguments[key] = dict()
+
+        if gaussian_constraint_widths is None:
+            gaussian_constraints_widths = dict()
+
+        if sample_other_constraints is None:
+            sample_other_constraints = dict()
+
+        if rm_bounds is None:
+            rm_bounds = dict()
+        else:
+            for bounds in rm_bounds.values():
+                assert bounds[0] >= 0., 'Currently do not support negative rate multipliers'
+
+        if log_constraint_fn is None:
+            def log_constraint_fn(**kwargs):
+                return 0.
+            self.log_constraint_fn = log_constraint_fn
+        else:
+            self.log_constraint_fn = log_constraint_fn
+
+        self.ntoys = ntoys
+        self.batch_size = batch_size
+
+        self.test_statistic = test_statistic
+
+        self.signal_source_names = signal_source_names
+        self.background_source_names = background_source_names
+
+        self.sources = sources
+        self.arguments = arguments
+
+        self.expected_background_counts = expected_background_counts
+        self.gaussian_constraint_widths = gaussian_constraint_widths
+        self.sample_other_constraints = sample_other_constraints
+        self.rm_bounds = rm_bounds
+
+    def get_test_stat_dists(self, mus_test=None, conditional_best_fits=None):
+        """Get test statistic distributions.
+
+        Arguments:
+            - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
+                to be tested for each signal source
+            - conditional_best_fits: pass in conditional MLEs from the data if you wish to
+                center rate nuisance parameter constraints on these, rather than prior expected counts
+        """
+        if conditional_best_fits is not None:
+            self.conditional_best_fits = pkl.load(open(conditional_best_fits, 'rb'))
+        else:
+            self.conditional_best_fits = None
+
+        test_stat_dists_SB = dict()
+        test_stat_dists_B = dict()
+        unconditional_best_fits = dict()
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            test_stat_dists = dict()
+            unconditional_bfs = dict()
+            test_stat_dists_pcl = dict()
+
+            sources = dict()
+            arguments = dict()
+            for background_source in self.background_source_names:
+                sources[background_source] = self.sources[background_source]
+                arguments[background_source] = self.arguments[background_source]
+            sources[signal_source] = self.sources[signal_source]
+            arguments[signal_source] = self.arguments[signal_source]
+
+            # Create likelihood of TemplateSources
+            likelihood = fd.LogLikelihood(sources=sources,
+                                          arguments=arguments,
+                                          progress=False,
+                                          batch_size=self.batch_size,
+                                          free_rates=tuple([sname for sname in sources.keys()]))
+
+            rm_bounds = dict()
+            if signal_source in self.rm_bounds.keys():
+                rm_bounds[signal_source] = self.rm_bounds[signal_source]
+            for background_source in self.background_source_names:
+                if background_source in self.rm_bounds.keys():
+                    rm_bounds[background_source] = self.rm_bounds[background_source]
+
+            # Pass rate multiplier bounds to likelihood
+            likelihood.set_rate_multiplier_bounds(**rm_bounds)
+
+            # Pass constraint function to likelihood
+            likelihood.set_log_constraint(self.log_constraint_fn)
+
+            # Save the test statistic values and unconditional best fits for each toy, for each
+            # signal RM scanned over, for this signal source
+            these_mus_test = mus_test[signal_source]
+            # Loop over signal rate multipliers
+            for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
+                ts_dist = self.toy_test_statistic_dist(mu_test, signal_source, likelihood)
+                test_stat_dists[mu_test] = ts_dist[0]
+                unconditional_bfs[mu_test] = ts_dist[1]
+                test_stat_dists_pcl[mu_test] = ts_dist[2]
+
+            test_stat_dists_SB[signal_source] = test_stat_dists
+            test_stat_dists_B[signal_source] = test_stat_dists_pcl
+            unconditional_best_fits[signal_source] = unconditional_bfs
+
+        return test_stat_dists_SB, test_stat_dists_B, unconditional_best_fits
+
+    def toy_test_statistic_dist(self, mu_test, signal_source_name, likelihood):
+        """Internal function to get a test statistic distribution for a given signal source
+        and signal RM.
+        """
+        ts_values = []
+        unconditional_bfs = []
+        ts_values_pcl = []
+
+        # Loop over toys
+        for toy in tqdm(range(self.ntoys), desc='Doing toys'):
+            simulate_dict = dict()
+            constraint_extra_args = dict()
+            for background_source in self.background_source_names:
+                # Case where we use the conditional best fits as constraint centers and simulated values
+                if self.conditional_best_fits is not None:
+                    expected_background_counts = self.conditional_best_fits[signal_source_name][mu_test][f'{background_source}_rate_multiplier']
+                # Case where we use the prior expected counts as constraint centers and simualted values
+                else:
+                    expected_background_counts = self.expected_background_counts[background_source]
+
+                # Sample constraint centers
+                if background_source in self.gaussian_constraint_widths:
+                    draw = stats.norm.rvs(loc=expected_background_counts,
+                                          scale = self.gaussian_constraint_widths[background_source])
+                    constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
+
+                elif background_source in self.sample_other_constraints:
+                    draw = self.sample_other_constraints[background_source](expected_background_counts)
+                    constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
+
+                simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
+
+            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+
+            # Shift the constraint in the likelihood based on the background RMs we drew
+            likelihood.set_constraint_extra_args(**constraint_extra_args)
+
+            # Simulate and set data
+            toy_data = likelihood.simulate(**simulate_dict)
+
+            likelihood.set_data(toy_data)
+
+            this_test_statistic = self.test_statistic(likelihood)
+
+            guess_dict = simulate_dict.copy()
+
+            for key, value in guess_dict.items():
+                if value < 0.1:
+                    guess_dict[key] = 0.1
+
+            ts_result = this_test_statistic(mu_test, signal_source_name, guess_dict)
+            ts_values.append(ts_result[0])
+            unconditional_bfs.append(ts_result[1])
+
+            # Now repeat for PCL
+            simulate_dict[f'{signal_source_name}_rate_multiplier'] = 0.
+
+            # Simulate and set data
+            toy_data_pcl = likelihood.simulate(**simulate_dict)
+
+            likelihood.set_data(toy_data_pcl)
+
+            this_test_statistic = self.test_statistic(likelihood)
+
+            guess_dict_pcl = simulate_dict.copy()
+
+            for key, value in guess_dict_pcl.items():
+                if value < 0.1:
+                    guess_dict_pcl[key] = 0.1
+
+            ts_result_pcl = this_test_statistic(mu_test, signal_source_name, guess_dict_pcl)
+            ts_values_pcl.append(ts_result_pcl[0])
+
+        # Return the test statistic and unconditional best fit
+        return ts_values, unconditional_bfs, ts_values_pcl
+
+
+@export
 class FrequentistIntervalRatesOnlyTemplates():
     """NOTE: currently works for a single dataset only.
 
