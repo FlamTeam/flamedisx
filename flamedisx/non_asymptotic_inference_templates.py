@@ -291,8 +291,8 @@ class ToyTSDists():
             # Save test statistic, and possibly fits
             ts_values_B.append(ts_result_B[0])
             if save_fits:
-                unconditional_bfs_SB.append(ts_result_SB[1])
-                conditional_bfs_SB.append(ts_result_SB[2])
+                unconditional_bfs_B.append(ts_result_SB[1])
+                conditional_bfs_B.append(ts_result_SB[2])
 
         # Add to the test statistic distributions
         test_stat_dists_SB.add_ts_dist(mu_test, ts_values_SB)
