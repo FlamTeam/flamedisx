@@ -70,7 +70,26 @@ class TestStatisticDistributions():
 
 
 @export
-class ToyTSDists():
+class ObservedTestStatistics():
+    """
+    """
+    def __init__(self):
+        self.test_stats = dict()
+        self.unconditional_best_fits = dict()
+        self.conditional_best_fits = dict()
+
+    def add_test_stat(self, mu_test, observed_ts):
+        self.test_stats[mu_test] = observed_ts
+
+    def add_unconditional_best_fit(self, mu_test, fit_values):
+        self.unconditional_best_fits[mu_test] = fit_values
+
+    def add_conditional_best_fit(self, mu_test, fit_values):
+        self.conditional_best_fits[mu_test] = fit_values
+
+
+@export
+class TSEvaluation():
     """NOTE: currently works for a single dataset only.
 
     Arguments:
@@ -149,8 +168,9 @@ class ToyTSDists():
         self.sample_other_constraints = sample_other_constraints
         self.rm_bounds = rm_bounds
 
-    def get_test_stat_dists(self, mus_test=None, conditional_best_fits=None, save_fits=False):
-        """Get test statistic distributions.
+    def run_routine(self, mus_test, save_fits=False,
+                    observed_data=None, conditional_best_fits=None):
+        """BLAH.
 
         Arguments:
             - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
@@ -163,11 +183,13 @@ class ToyTSDists():
         else:
             self.conditional_best_fits = None
 
+        observed_test_stats_collection = dict()
         test_stat_dists_SB_collection = dict()
         test_stat_dists_B_collection = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
+            observed_test_stats = ObservedTestStatistics()
             test_stat_dists_SB = TestStatisticDistributions()
             test_stat_dists_B = TestStatisticDistributions()
 
@@ -199,18 +221,28 @@ class ToyTSDists():
             # Pass constraint function to likelihood
             likelihood.set_log_constraint(self.log_constraint_fn)
 
-            # Save the test statistic values and unconditional best fits for each toy, for each
-            # signal RM scanned over, for this signal source
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
-                self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
-                                             mu_test, signal_source, likelihood, save_fits=save_fits)
+                # Case where we want observed test statistics
+                if observed_data is not None:
+                    self.get_observed_test_stat(observed_test_stats, observed_data,
+                                                mu_test, signal_source, likelihood, save_fits=save_fits)
+                # Case where we want test statistic distributions
+                else:
+                    self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
+                                                 mu_test, signal_source, likelihood, save_fits=save_fits)
 
-            test_stat_dists_SB_collection[signal_source] = test_stat_dists_SB
-            test_stat_dists_B_collection[signal_source] = test_stat_dists_B
+            if observed_data is not None:
+                observed_test_stats_collection[signal_source] = observed_test_stats
+            else:
+                test_stat_dists_SB_collection[signal_source] = test_stat_dists_SB
+                test_stat_dists_B_collection[signal_source] = test_stat_dists_B
 
-        return test_stat_dists_SB_collection, test_stat_dists_B_collection
+        if observed_data is not None:
+            return observed_test_stats_collection
+        else:
+            return test_stat_dists_SB_collection, test_stat_dists_B_collection
 
     def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
                                 mu_test, signal_source_name, likelihood, save_fits=False):
@@ -304,6 +336,40 @@ class ToyTSDists():
             test_stat_dists_SB.add_conditional_best_fit(mu_test, conditional_bfs_SB)
             test_stat_dists_B.add_unconditional_best_fit(mu_test, unconditional_bfs_B)
             test_stat_dists_B.add_conditional_best_fit(mu_test, conditional_bfs_B)
+
+    def get_observed_test_stat(self, observed_test_stats, observed_data,
+                               mu_test, signal_source_name, likelihood, save_fits=False):
+        """Internal function to evaluate the observed test statistic for a given signal source
+        and signal RM.
+        """
+        # The constraints are centered on the expected values
+        constraint_extra_args = dict()
+        for background_source in self.background_source_names:
+            constraint_extra_args[f'{background_source}_expected_counts'] = self.expected_background_counts[background_source]
+
+        likelihood.set_constraint_extra_args(**constraint_extra_args)
+
+        # Set data
+        likelihood.set_data(observed_data)
+        # Create test statistic
+        test_statistic = self.test_statistic(likelihood)
+        # Guesses for fit
+        guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        for background_source in self.background_source_names:
+            guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
+        for key, value in guess_dict.items():
+            if value < 0.1:
+                guess_dict[key] = 0.1
+        # Evaluate test statistic
+        ts_result = test_statistic(mu_test, signal_source_name, guess_dict)
+
+        # Add to the test statistic collection
+        observed_test_stats.add_test_stat(mu_test, ts_result[0])
+
+        # Possibly save the fits
+        if save_fits:
+            observed_test_stats.add_unconditional_best_fit(mu_test, ts_result[1])
+            observed_test_stats.add_conditional_best_fit(mu_test, ts_result[2])
 
 
 @export
