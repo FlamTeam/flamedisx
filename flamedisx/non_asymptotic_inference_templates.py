@@ -169,19 +169,17 @@ class TSEvaluation():
         self.rm_bounds = rm_bounds
 
     def run_routine(self, mus_test, save_fits=False,
-                    observed_data=None, conditional_best_fits=None):
+                    observed_data=None, observed_test_stats=None):
         """BLAH.
 
         Arguments:
             - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
                 to be tested for each signal source
-            - conditional_best_fits: pass in conditional MLEs from the data if you wish to
-                center rate nuisance parameter constraints on these, rather than prior expected counts
         """
-        if conditional_best_fits is not None:
-            self.conditional_best_fits = pkl.load(open(conditional_best_fits, 'rb'))
+        if observed_test_stats is not None:
+            self.observed_test_stats = pkl.load(open(observed_test_stats, 'rb'))
         else:
-            self.conditional_best_fits = None
+            self.observed_test_stats = None
 
         observed_test_stats_collection = dict()
         test_stat_dists_SB_collection = dict()
@@ -263,8 +261,10 @@ class TSEvaluation():
             constraint_extra_args = dict()
             for background_source in self.background_source_names:
                 # Case where we use the conditional best fits as constraint centers and simulated values
-                if self.conditional_best_fits is not None:
-                    expected_background_counts = self.conditional_best_fits[signal_source_name][mu_test][f'{background_source}_rate_multiplier']
+                if self.observed_test_stats is not None:
+                    print(self.observed_test_stats[signal_source_name].conditional_best_fits)
+                    raise()
+                    expected_background_counts = self.observed_test_stats[signal_source_name][mu_test][f'{background_source}_rate_multiplier']
                 # Case where we use the prior expected counts as constraint centers and simualted values
                 else:
                     expected_background_counts = self.expected_background_counts[background_source]
