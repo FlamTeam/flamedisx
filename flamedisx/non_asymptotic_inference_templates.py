@@ -375,6 +375,98 @@ class TSEvaluation():
 
 
 @export
+class IntervalCalculator():
+    """NOTE: currently works for a single dataset only.
+
+    Arguments:
+    """
+
+    def __init__(
+            self,
+            signal_source_names: ty.Tuple[str],
+            observed_test_stats: ObservedTestStatistics,
+            test_stat_dists_SB: TestStatisticDistributions,
+            test_stat_dists_B: TestStatisticDistributions):
+
+        self.signal_source_names = signal_source_names
+        self.observed_test_stats = observed_test_stats
+        self.test_stat_dists_SB = test_stat_dists_SB
+        self.test_stat_dists_B = test_stat_dists_B
+
+    def get_p_vals(self, conf_level):
+        """Internal function to get p-value curves.
+        """
+        p_sb_collection = dict()
+        powers_collection = dict()
+        p_b_collection = dict()
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            # Get test statistic distribitions and observed test statistics
+            test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
+            test_stat_dists_B = self.test_stat_dists_B[signal_source]
+            observed_test_stats = self.observed_test_stats[signal_source]
+
+            print(test_stat_dists_SB.ts_dists)
+            print(test_stat_dists_B.ts_dists)
+            print(observed_test_stats.test_stats)
+
+            assert test_stat_dists_SB.ts_dists.keys() == observed_test_stats.test_stats.keys(), \
+                f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
+                'the same mu values'
+            assert test_stat_dists_B.ts_dists.keys() == observed_test_stats.test_stats.keys(), \
+                f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
+                'the same mu values'
+
+            p_sb = dict()
+            powers = dict()
+            p_b = dict()
+            # Loop over signal rate multipliers
+            for mu_test in observed_test_stats.test_stats.keys():
+                # Compute the p-value from the observed test statistic and the S+B distribition
+                p_sb[mu_test] = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
+                                                                observed_test_stats.test_stats[mu_test],
+                                                                kind='weak')) / 100.
+
+                # Get the critical TS value under the S+B distribution
+                ts_crit = np.quantile(test_stat_dists_SB.ts_dists[mu_test], 1. - conf_level)
+                # Compute the power from the critical TS value and the B distribition
+                powers[mu_test] = (100. - stats.percentileofscore(test_stat_dists_B.ts_dists[mu_test],
+                                                                  ts_crit,
+                                                                  kind='weak')) / 100.
+
+                # Compute the p-value from the observed test statistic and the B-only distribition
+                p_b[mu_test] = stats.percentileofscore(test_stat_dists_B.ts_dists[mu_test],
+                                                       observed_test_stats.test_stats[mu_test],
+                                                       kind='weak') / 100.
+
+            # Record S+B p-value, power, B-only p-value
+            p_sb_collection[signal_source] = p_sb
+            powers_collection[signal_source] = powers
+            p_b_collection[signal_source] = p_b
+
+        return p_sb_collection, powers_collection, p_b_collection
+
+    def get_interval(self, conf_level=0.1, pcl_level=0.16,
+                     use_CLs=False):
+        """Get either upper limit, or possibly upper and lower limits.
+
+        Arguments:
+            - conf_level: confidence level to be used for the limit/interval
+            - pcl_level: BLAH
+        """
+        # Get the p-value curves
+        p_sb, powers, p_b = self.get_p_vals(conf_level)
+
+        print(p_sb)
+
+        lower_lim_all = dict()
+        upper_lim_all = dict()
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            these_p_sb = p_sb[signal_source]
+
+
+@export
 class FrequentistIntervalRatesOnlyTemplates():
     """NOTE: currently works for a single dataset only.
 
