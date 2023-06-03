@@ -415,7 +415,27 @@ class IntervalCalculator():
         self.test_stat_dists_SB = test_stat_dists_SB
         self.test_stat_dists_B = test_stat_dists_B
 
-    def get_p_vals(self, conf_level):
+    @staticmethod
+    def interp_helper(x, y, crossing_points, crit_val,
+                      rising_edge=False, inverse=False):
+        if rising_edge:
+            x_left = x[crossing_points[0]]
+            x_right = x[crossing_points[0] + 1]
+            y_left = y[crossing_points[0]]
+            y_right = y[crossing_points[0] + 1]
+        else:
+            x_left = x[crossing_points[-1]]
+            x_right = x[crossing_points[-1] + 1]
+            y_left = y[crossing_points[-1]]
+            y_right = y[crossing_points[-1] + 1]
+        gradient = (y_right - y_left) / (x_right - x_left)
+
+        if inverse:
+            return (crit_val - y_left) / gradient + x_left
+        else:
+            return (crit_val - x_left) * gradient + y_left
+
+    def get_p_vals(self, conf_level, use_CLs=False):
         """Internal function to get p-value curves.
         """
         p_sb_collection = dict()
@@ -429,18 +449,20 @@ class IntervalCalculator():
             observed_test_stats = self.observed_test_stats[signal_source]
 
             p_sb = test_stat_dists_SB.get_p_vals(observed_test_stats)
-
-            crit_vals = test_stat_dists_SB.get_crit_vals(conf_level)
-            powers = test_stat_dists_B.get_p_vals(crit_vals)
-
-            p_b = test_stat_dists_B.get_p_vals(observed_test_stats, inverse=True)
-
-            # Record S+B p-value, power, B-only p-value
             p_sb_collection[signal_source] = p_sb
-            powers_collection[signal_source] = powers
-            p_b_collection[signal_source] = p_b
 
-        return p_sb_collection, powers_collection, p_b_collection
+            if use_CLs:
+                p_b = test_stat_dists_B.get_p_vals(observed_test_stats, inverse=True)
+                p_b_collection[signal_source] = p_b
+            else:
+                crit_vals = test_stat_dists_SB.get_crit_vals(conf_level)
+                powers = test_stat_dists_B.get_p_vals(crit_vals)
+                powers_collection[signal_source] = powers
+
+        if use_CLs:
+            return p_sb_collection, p_b_collection
+        else:
+            return p_sb_collection, powers_collection
 
     def get_interval(self, conf_level=0.1, pcl_level=0.16,
                      use_CLs=False):
@@ -450,14 +472,47 @@ class IntervalCalculator():
             - conf_level: confidence level to be used for the limit/interval
             - pcl_level: BLAH
         """
-        # Get the p-value curves
-        p_sb, powers, p_b = self.get_p_vals(conf_level)
+        if use_CLs:
+            p_sb, p_b = self.get_p_vals(conf_level, use_CLs=True)
+        else:
+            p_sb, powers = self.get_p_vals(conf_level, use_CLs=False)
 
         lower_lim_all = dict()
         upper_lim_all = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             these_p_sb = p_sb[signal_source]
+            mus = np.array(list(these_p_sb.keys()))
+            p_vals = np.array(list(these_p_sb.values()))
+
+            if use_CLs:
+                these_p_b = p_b[signal_source]
+                p_vals_b = np.array(list(these_p_b.values()))
+                p_vals = p_vals / (1. -p_vals_b)
+            else:
+                these_powers = powers[signal_source]
+                pws = np.array(list(these_powers.values()))
+
+            # Find points where the p-value curve cross the critical value, decreasing
+            upper_lims = np.argwhere(np.diff(np.sign(p_vals - np.ones_like(p_vals) * conf_level)) < 0.).flatten()
+            # Find points where the p-value curve cross the critical value, increasing
+            lower_lims = np.argwhere(np.diff(np.sign(p_vals - np.ones_like(p_vals) * conf_level)) > 0.).flatten()
+
+            if len(lower_lims > 0):
+                # Take the lowest increasing crossing point, and interpolate to get an upper limit
+                lower_lim = self.interp_helper(mus, p_vals, lower_lims, conf_level,
+                                               rising_edge=True, inverse=True)
+            else:
+                # We have no lower limit
+                lower_lim = None
+
+            assert len(upper_lims) > 0, 'No upper limit found!'
+            # Take the highest decreasing crossing point, and interpolate to get an upper limit
+            upper_lim = self.interp_helper(mus, p_vals, upper_lims, conf_level,
+                                           rising_edge=False, inverse=True)
+
+            print(upper_lim)
+            print(lower_lim)
 
 
 @export
@@ -547,42 +602,6 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         self.sources = sources
         self.arguments = arguments
-
-    @staticmethod
-    def inverse_interp_rising_edge(x, y, crossing_points, y_crit):
-        x_left = x[crossing_points[0]]
-        x_right = x[crossing_points[0] + 1]
-        y_left = y[crossing_points[0]]
-        y_right = y[crossing_points[0] + 1]
-
-        gradient = (y_right - y_left) / (x_right - x_left)
-        crossing_point = (y_crit - y_left) / gradient + x_left
-
-        return crossing_point
-
-    @staticmethod
-    def inverse_interp_falling_edge(x, y, crossing_points, y_crit):
-        x_left = x[crossing_points[-1]]
-        x_right = x[crossing_points[-1] + 1]
-        y_left = y[crossing_points[-1]]
-        y_right = y[crossing_points[-1] + 1]
-
-        gradient = (y_right - y_left) / (x_right - x_left)
-        crossing_point = (y_crit - y_left) / gradient + x_left
-
-        return crossing_point
-
-    @staticmethod
-    def interp_falling_edge(x, y, crossing_points, x_crit):
-        x_left = x[crossing_points[-1]]
-        x_right = x[crossing_points[-1] + 1]
-        y_left = y[crossing_points[-1]]
-        y_right = y[crossing_points[-1] + 1]
-
-        gradient = (y_right - y_left) / (x_right - x_left)
-        y_val = (x_crit - x_left) * gradient + y_left
-
-        return y_val
 
     def get_interval(self, conf_level=0.1, pcl_level=0.16, return_p_vals=False,
                      use_CLs=False):
