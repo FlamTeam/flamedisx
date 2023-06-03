@@ -262,9 +262,11 @@ class TSEvaluation():
             for background_source in self.background_source_names:
                 # Case where we use the conditional best fits as constraint centers and simulated values
                 if self.observed_test_stats is not None:
-                    print(self.observed_test_stats[signal_source_name].conditional_best_fits)
-                    raise()
-                    expected_background_counts = self.observed_test_stats[signal_source_name][mu_test][f'{background_source}_rate_multiplier']
+                    try:
+                        conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits
+                        expected_background_counts = conditional_bfs_observed[mu_test][f'{background_source}_rate_multiplier']
+                    except Exception:
+                        raise RuntimeError("Could not find observed conditional best fits")
                 # Case where we use the prior expected counts as constraint centers and simualted values
                 else:
                     expected_background_counts = self.expected_background_counts[background_source]
