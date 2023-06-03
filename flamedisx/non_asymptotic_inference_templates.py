@@ -60,13 +60,35 @@ class TestStatisticDistributions():
         self.conditional_best_fits = dict()
 
     def add_ts_dist(self, mu_test, ts_values):
-        self.ts_dists[mu_test] = ts_values
+        self.ts_dists[mu_test] = np.array(ts_values)
 
     def add_unconditional_best_fit(self, mu_test, fit_values):
         self.unconditional_best_fits[mu_test] = fit_values
 
     def add_conditional_best_fit(self, mu_test, fit_values):
         self.conditional_best_fits[mu_test] = fit_values
+
+    def get_p_vals(self, observed_test_stats, inverse=False):
+        p_vals = dict()
+        assert self.ts_dists.keys() == observed_test_stats.test_stats.keys(), \
+            f'POI values for observed test statistics and test statistic distributions ' \
+            'do not match'
+        for mu_test in observed_test_stats.test_stats.keys():
+            if not inverse:
+                p_vals[mu_test] = (100. - stats.percentileofscore(self.ts_dists[mu_test],
+                                                                  observed_test_stats.test_stats[mu_test],
+                                                                  kind='weak')) / 100.
+            else:
+                p_vals[mu_test] = stats.percentileofscore(self.ts_dists[mu_test],
+                                                         observed_test_stats.test_stats[mu_test],
+                                                         kind='weak') / 100.
+        return p_vals
+
+    def get_crit_vals(self, conf_level):
+        crit_vals = ObservedTestStatistics()
+        for mu_test, ts_dist in self.ts_dists.items():
+            crit_vals.add_test_stat(mu_test, np.quantile(ts_dist, 1. - conf_level))
+        return crit_vals
 
 
 @export
@@ -406,38 +428,12 @@ class IntervalCalculator():
             test_stat_dists_B = self.test_stat_dists_B[signal_source]
             observed_test_stats = self.observed_test_stats[signal_source]
 
-            print(test_stat_dists_SB.ts_dists)
-            print(test_stat_dists_B.ts_dists)
-            print(observed_test_stats.test_stats)
+            p_sb = test_stat_dists_SB.get_p_vals(observed_test_stats)
 
-            assert test_stat_dists_SB.ts_dists.keys() == observed_test_stats.test_stats.keys(), \
-                f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
-                'the same mu values'
-            assert test_stat_dists_B.ts_dists.keys() == observed_test_stats.test_stats.keys(), \
-                f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
-                'the same mu values'
+            crit_vals = test_stat_dists_SB.get_crit_vals(conf_level)
+            powers = test_stat_dists_B.get_p_vals(crit_vals)
 
-            p_sb = dict()
-            powers = dict()
-            p_b = dict()
-            # Loop over signal rate multipliers
-            for mu_test in observed_test_stats.test_stats.keys():
-                # Compute the p-value from the observed test statistic and the S+B distribition
-                p_sb[mu_test] = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
-                                                                observed_test_stats.test_stats[mu_test],
-                                                                kind='weak')) / 100.
-
-                # Get the critical TS value under the S+B distribution
-                ts_crit = np.quantile(test_stat_dists_SB.ts_dists[mu_test], 1. - conf_level)
-                # Compute the power from the critical TS value and the B distribition
-                powers[mu_test] = (100. - stats.percentileofscore(test_stat_dists_B.ts_dists[mu_test],
-                                                                  ts_crit,
-                                                                  kind='weak')) / 100.
-
-                # Compute the p-value from the observed test statistic and the B-only distribition
-                p_b[mu_test] = stats.percentileofscore(test_stat_dists_B.ts_dists[mu_test],
-                                                       observed_test_stats.test_stats[mu_test],
-                                                       kind='weak') / 100.
+            p_b = test_stat_dists_B.get_p_vals(observed_test_stats, inverse=True)
 
             # Record S+B p-value, power, B-only p-value
             p_sb_collection[signal_source] = p_sb
@@ -456,8 +452,6 @@ class IntervalCalculator():
         """
         # Get the p-value curves
         p_sb, powers, p_b = self.get_p_vals(conf_level)
-
-        print(p_sb)
 
         lower_lim_all = dict()
         upper_lim_all = dict()
@@ -553,48 +547,6 @@ class FrequentistIntervalRatesOnlyTemplates():
 
         self.sources = sources
         self.arguments = arguments
-
-    def get_p_vals(self, conf_level):
-        """Internal function to get p-value curves.
-        """
-        self.p_vals = dict()
-        self.powers = dict()
-        self.p_bs = dict()
-        # Loop over signal sources
-        for signal_source in self.signal_source_names:
-            # Get test statistic distribitions and observed test statistics
-            test_stat_dists = self.test_stat_dists[signal_source]
-            test_stat_dists_pcl = self.test_stat_dists_pcl[signal_source]
-            observed_test_stats = self.observed_test_stats[signal_source]
-
-            assert test_stat_dists.keys() == observed_test_stats.keys(), \
-                f'Must get test statistic distributions and observed test statistics for {signal_source} with ' \
-                'the same mu values'
-
-            p_vals = dict()
-            powers = dict()
-            p_bs = dict()
-            # Loop over signal rate multipliers
-            for mu_test in observed_test_stats.keys():
-                # Compute the p-value from the observed test statistic and the S+B distribition
-                p_vals[mu_test] = (100. - stats.percentileofscore(test_stat_dists[mu_test],
-                                                                  observed_test_stats[mu_test],
-                                                                  kind='weak')) / 100.
-                # Get the critical TS value under the S+B distribution
-                ts_crit = np.quantile(test_stat_dists[mu_test], 1. - conf_level)
-                # Compute the power from the critical TS value and the B distribition
-                powers[mu_test] = (100. - stats.percentileofscore(test_stat_dists_pcl[mu_test],
-                                                                  ts_crit,
-                                                                  kind='weak')) / 100.
-                # Compute the p_b value from the observed test statistic and the B distribition
-                p_bs[mu_test] = stats.percentileofscore(test_stat_dists_pcl[mu_test],
-                                                        observed_test_stats[mu_test],
-                                                        kind='weak') / 100.
-
-            # Record p-value, power, p_b curves
-            self.p_vals[signal_source] = p_vals
-            self.powers[signal_source] = powers
-            self.p_bs[signal_source] = p_bs
 
     @staticmethod
     def inverse_interp_rising_edge(x, y, crossing_points, y_crit):
