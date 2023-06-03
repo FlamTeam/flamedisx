@@ -518,7 +518,7 @@ class IntervalCalculator():
                     # Find points where the power curve cross the critical value, increasing
                     upper_lims = np.argwhere(np.diff(np.sign(pws - np.ones_like(pws) * pcl_level)) > 0.).flatten()
                     # Take the lowest increasing crossing point, and interpolate to get an upper limit
-                    upper_lim = self.interp_helper(mus, pws, upper_lims, pcl_level
+                    upper_lim = self.interp_helper(mus, pws, upper_lims, pcl_level,
                                                    rising_edge=True, inverse=True)
 
             lower_lim_all[signal_source] = lower_lim
