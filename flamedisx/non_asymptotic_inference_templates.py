@@ -488,7 +488,7 @@ class IntervalCalculator():
             if use_CLs:
                 these_p_b = p_b[signal_source]
                 p_vals_b = np.array(list(these_p_b.values()))
-                p_vals = p_vals / (1. -p_vals_b)
+                p_vals = p_vals / (1. - p_vals_b)
             else:
                 these_powers = powers[signal_source]
                 pws = np.array(list(these_powers.values()))
@@ -511,166 +511,20 @@ class IntervalCalculator():
             upper_lim = self.interp_helper(mus, p_vals, upper_lims, conf_level,
                                            rising_edge=False, inverse=True)
 
-            print(upper_lim)
-            print(lower_lim)
-
-
-@export
-class FrequentistIntervalRatesOnlyTemplates():
-    """NOTE: currently works for a single dataset only.
-
-    Arguments:
-        - signal_source_names: tuple of names for signal sources (e.g. WIMPs of different
-            masses) of which we want to get limits/intervals
-        - background_source_names: tuple of names for background sources
-        - sources: dictionary {sourcename: class} of all signal and background source classes
-        - arguments: dictionary {sourcename: {kwarg1: value, ...}, ...}, for
-            passing keyword arguments to source constructors
-        - batch_size: batch size that will be used for the RM fits
-        - expected_background_counts: dictionary of expected counts for background sources
-        - gaussian_constraint_widths: dictionary giving the constraint width for all sources
-            using Gaussian constraints for their rate nuisance parameters
-        - sample_other_constraints: dictionary of functions to sample constraint means
-            in the toys for any sources using non-Gaussian constraints for their rate nuisance
-            parameters. Argument to the function will be either the prior expected counts,
-            or the number of counts at the conditional MLE, depending on the mode
-        - rm_bounds: dictionary {sourcename: (lower, upper)} to set fit bounds on the rate multipliers
-        - ntoys: number of toys that will be run to get test statistic distributions
-        - log_constraint_fn: logarithm of the constraint function used in the likelihood. Any arguments
-            which aren't fit parameters, such as those determining constraint means for toys, will need
-            passing via the set_constraint_extra_args() function
-    """
-
-    def __init__(
-            self,
-            test_statistic: TestStatistic.__class__,
-            signal_source_names: ty.Tuple[str],
-            background_source_names: ty.Tuple[str],
-            sources: ty.Dict[str, fd.Source.__class__],
-            arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
-            batch_size=10000,
-            expected_background_counts: ty.Dict[str, float] = None,
-            gaussian_constraint_widths: ty.Dict[str, float] = None,
-            sample_other_constraints: ty.Dict[str, ty.Callable] = None,
-            rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
-            ntoys=1000,
-            log_constraint_fn: ty.Callable = None):
-
-        for key in sources.keys():
-            if key not in arguments.keys():
-                arguments[key] = dict()
-
-        if gaussian_constraint_widths is None:
-            gaussian_constraints_widths = dict()
-
-        if sample_other_constraints is None:
-            sample_other_constraints = dict()
-
-        if rm_bounds is None:
-            rm_bounds = dict()
-        else:
-            for bounds in rm_bounds.values():
-                assert bounds[0] >= 0., 'Currently do not support negative rate multipliers'
-
-        if log_constraint_fn is None:
-            def log_constraint_fn(**kwargs):
-                return 0.
-            self.log_constraint_fn = log_constraint_fn
-        else:
-            self.log_constraint_fn = log_constraint_fn
-
-        self.test_statistic = test_statistic
-
-        self.signal_source_names = signal_source_names
-        self.background_source_names = background_source_names
-
-        self.ntoys = ntoys
-        self.batch_size = batch_size
-
-        self.expected_background_counts = expected_background_counts
-        self.gaussian_constraint_widths = gaussian_constraint_widths
-        self.sample_other_constraints = sample_other_constraints
-        self.rm_bounds = rm_bounds
-
-        self.test_stat_dists = dict()
-        self.test_stat_dists_pcl = dict()
-        self.observed_test_stats = dict()
-        self.conditional_best_fits = dict()
-        self.p_vals = dict()
-        self.powers = dict()
-        self.p_bs = dict()
-
-        self.sources = sources
-        self.arguments = arguments
-
-    def get_interval(self, conf_level=0.1, pcl_level=0.16, return_p_vals=False,
-                     use_CLs=False):
-        """Get either upper limit, or possibly upper and lower limits.
-        Before using this get_test_stat_dists() and get_observed_test_stats() must
-        have bene called.
-
-        Arguments:
-            - conf_level: confidence level to be used for the limit/interval
-            - return_p_vals: whether or not to output the p-value curves
-        """
-        # Get the p-value curves
-        self.get_p_vals(conf_level)
-
-        lower_lim_all = dict()
-        upper_lim_all = dict()
-        # Loop over signal sources
-        for signal_source in self.signal_source_names:
-            these_pvals = self.p_vals[signal_source]
-
-            mus = list(these_pvals.keys())
-            pvals = list(these_pvals.values())
-
-            if use_CLs is True:
-                these_pbs = self.p_bs[signal_source]
-                pbs = list(these_pbs.values())
-
-                pvals = np.array(pvals) / (1. - np.array(pbs))
-            else:
-                these_powers = self.powers[signal_source]
-                powers = list(these_powers.values())
-
-            # Find points where the p-value curve cross the critical value, decreasing
-            upper_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) < 0.).flatten()
-            # Find points where the p-value curve cross the critical value, increasing
-            lower_lims = np.argwhere(np.diff(np.sign(pvals - np.ones_like(pvals) * conf_level)) > 0.).flatten()
-
-            if len(lower_lims > 0):
-                # Take the lowest increasing crossing point, and interpolate to get an upper limit
-                lower_lim = self.inverse_interp_rising_edge(mus, pvals, lower_lims, conf_level)
-            else:
-                # We have no lower limit
-                lower_lim = None
-
-            assert len(upper_lims) > 0, 'No upper limit found!'
-            # Take the highest decreasing crossing point, and interpolate to get an upper limit
-            upper_lim = self.inverse_interp_falling_edge(mus, pvals, upper_lims, conf_level)
-
             if use_CLs is False:
-                if lower_lim is not None:
-                    raise RuntimeError("Current not handling PCL for interval, just upper limit")
-
-                M0 = self.interp_falling_edge(mus, powers, upper_lims, upper_lim)
+                M0 = self.interp_helper(mus, pws, upper_lims, upper_lim,
+                                        rising_edge=False, inverse=False)
                 if M0 < pcl_level:
                     # Find points where the power curve cross the critical value, increasing
-                    upper_lims = np.argwhere(np.diff(np.sign(powers - np.ones_like(powers) * pcl_level)) > 0.).flatten()
+                    upper_lims = np.argwhere(np.diff(np.sign(pws - np.ones_like(pws) * pcl_level)) > 0.).flatten()
                     # Take the lowest increasing crossing point, and interpolate to get an upper limit
-                    upper_lim = self.inverse_interp_rising_edge(mus, powers, upper_lims, pcl_level)
+                    upper_lim = self.interp_helper(mus, pws, upper_lims, pcl_level
+                                                   rising_edge=True, inverse=True)
 
             lower_lim_all[signal_source] = lower_lim
             upper_lim_all[signal_source] = upper_lim
 
-        if return_p_vals is True:
-            if use_CLs is True:
-                extra_return = self.p_bs
-            else:
-                extra_return = self.powers
-            # Return p-value curves, and intervals/limits
-            return self.p_vals, extra_return, lower_lim_all, upper_lim_all
+        if use_CLs is False:
+            return lower_lim_all, upper_lim_all, p_sb, powers
         else:
-            # Return intervals/limits
-            return lower_lim_all, upper_lim_all
+            return lower_lim_all, upper_lim_all, p_sb, p_b
