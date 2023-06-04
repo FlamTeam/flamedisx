@@ -1,7 +1,6 @@
 import flamedisx as fd
 import numpy as np
 from scipy import stats
-import pickle as pkl
 from tqdm.auto import tqdm
 import typing as ty
 
@@ -222,7 +221,7 @@ class TSEvaluation():
                 in place
         """
         if observed_test_stats is not None:
-            self.observed_test_stats = pkl.load(open(observed_test_stats, 'rb'))
+            self.observed_test_stats = observed_test_stats
         else:
             self.observed_test_stats = None
 
