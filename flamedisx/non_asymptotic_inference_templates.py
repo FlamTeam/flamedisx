@@ -12,7 +12,11 @@ export, __all__ = fd.exporter()
 
 @export
 class TestStatistic():
-    """
+    """Class to evaluate a test statistic based on a conidtional and unconditional
+    maximum likelihood fit. Override the evaluate() method in derived classes.
+
+    Arguments:
+        - likelihood: fd.LogLikelihood instance with data already set
     """
     def __init__(self, likelihood):
         self.likelihood = likelihood
@@ -35,15 +39,12 @@ class TestStatistic():
 
 @export
 class TestStatisticTMuTilde(TestStatistic):
-    """
+    """Evaluate the test statistic of equation 11 in https://arxiv.org/abs/1007.1727.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def evaluate(self, bf_unconditional, bf_conditional):
-        """Evaluate the test statistic of equation 11 in
-        https://arxiv.org/abs/1007.1727.
-        """
         ll_conditional = self.likelihood(**bf_conditional)
         ll_unconditional = self.likelihood(**bf_unconditional)
 
@@ -52,7 +53,9 @@ class TestStatisticTMuTilde(TestStatistic):
 
 @export
 class TestStatisticDistributions():
-    """
+    """ Class to store test statistic distribution values (pass in as a list),
+    as well as (optionally) conditional and unconditional fit dictionaries for
+    each toy, for a range of values of the parameter of interest being tested ('mu').
     """
     def __init__(self):
         self.ts_dists = dict()
@@ -69,6 +72,10 @@ class TestStatisticDistributions():
         self.conditional_best_fits[mu_test] = fit_values
 
     def get_p_vals(self, observed_test_stats, inverse=False):
+        """Evaluate the p-value for a set of observed test statistics using the
+        stored test statistic distributions. Pass inverse=True to evaluate the integral
+        from -infinity to t_obs instead of from t_obs to +infinity.
+        """
         p_vals = dict()
         assert self.ts_dists.keys() == observed_test_stats.test_stats.keys(), \
             f'POI values for observed test statistics and test statistic distributions ' \
@@ -85,6 +92,9 @@ class TestStatisticDistributions():
         return p_vals
 
     def get_crit_vals(self, conf_level):
+        """Get the critical value from the test statistic distribution for a test of
+        some confidence level.
+        """
         crit_vals = ObservedTestStatistics()
         for mu_test, ts_dist in self.ts_dists.items():
             crit_vals.add_test_stat(mu_test, np.quantile(ts_dist, 1. - conf_level))
@@ -93,7 +103,9 @@ class TestStatisticDistributions():
 
 @export
 class ObservedTestStatistics():
-    """
+    """ Class to observed test statistic values as well as (optionally) conditional and
+    unconditional fit dictionaries, for a range of values of the parameter of interest
+    being tested ('mu').
     """
     def __init__(self):
         self.test_stats = dict()
@@ -113,15 +125,16 @@ class ObservedTestStatistics():
 @export
 class TSEvaluation():
     """NOTE: currently works for a single dataset only.
+    Class for evaluating both observed test statistics and test statistic distributions.
 
     Arguments:
+        - test_statistic: class type of the test statistic to be used
         - signal_source_names: tuple of names for signal sources (e.g. WIMPs of different
             masses)
         - background_source_names: tuple of names for background sources
         - sources: dictionary {sourcename: class} of all signal and background source classes
         - arguments: dictionary {sourcename: {kwarg1: value, ...}, ...}, for
             passing keyword arguments to source constructors
-        - batch_size: batch size that will be used for the RM fits
         - expected_background_counts: dictionary of expected counts for background sources
         - gaussian_constraint_widths: dictionary giving the constraint width for all sources
             using Gaussian constraints for their rate nuisance parameters
@@ -130,12 +143,12 @@ class TSEvaluation():
             parameters. Argument to the function will be either the prior expected counts,
             or the number of counts at the conditional MLE, depending on the mode
         - rm_bounds: dictionary {sourcename: (lower, upper)} to set fit bounds on the rate multipliers
-        - ntoys: number of toys that will be run to get test statistic distributions
         - log_constraint_fn: logarithm of the constraint function used in the likelihood. Any arguments
             which aren't fit parameters, such as those determining constraint means for toys, will need
             passing via the set_constraint_extra_args() function
+        - ntoys: number of toys that will be run to get test statistic distributions
+        - batch_size: batch size that will be used for the RM fits
     """
-
     def __init__(
             self,
             test_statistic: TestStatistic.__class__,
@@ -192,11 +205,21 @@ class TSEvaluation():
 
     def run_routine(self, mus_test, save_fits=False,
                     observed_data=None, observed_test_stats=None):
-        """BLAH.
+        """If observed_data is passed, evaluate observed test statistics. Otherwise,
+        obtain test statistic distributions (for both S+B and B-only).
 
         Arguments:
-            - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate multipliers
-                to be tested for each signal source
+            - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate
+                multipliers to be tested for each signal source
+            - save_fits: if True, unconditional and conditional fits will be saved along with
+                the test statistic value
+            - observed_data: pass this to evaluate the observed test statistics
+            - observed_test_stats: if obtaining test statistic distributions, and this is
+                passed, and the conditional best fits were saved for the observed data, the
+                background counts for the toys will be fixed to the observed conditional best fits,
+                and the constraint centers which are randomised for each toy will be centered
+                around the conditional best fits. Otherwise, the prior expected counts will be used
+                in place
         """
         if observed_test_stats is not None:
             self.observed_test_stats = pkl.load(open(observed_test_stats, 'rb'))
@@ -266,8 +289,7 @@ class TSEvaluation():
 
     def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
                                 mu_test, signal_source_name, likelihood, save_fits=False):
-        """Internal function to get a test statistic distribution for a given signal source
-        and signal RM.
+        """Internal function to get test statistic distribution.
         """
         ts_values_SB = []
         ts_values_B = []
@@ -363,8 +385,7 @@ class TSEvaluation():
 
     def get_observed_test_stat(self, observed_test_stats, observed_data,
                                mu_test, signal_source_name, likelihood, save_fits=False):
-        """Internal function to evaluate the observed test statistic for a given signal source
-        and signal RM.
+        """Internal function to evaluate observed test statistic.
         """
         # The constraints are centered on the expected values
         constraint_extra_args = dict()
@@ -399,10 +420,21 @@ class TSEvaluation():
 @export
 class IntervalCalculator():
     """NOTE: currently works for a single dataset only.
+    Class for obtaining frequentist confidence intervals from test statistic distributions
+    and observed test statistics.
 
     Arguments:
+        - signal_source_names: tuple of names for signal sources (e.g. WIMPs of different
+            masses)
+        - observed_test_stats: dictionary {sourcename: ObservedTestStatistics} returned
+            by running TSEvaluation routine to get observed test statistics
+        - test_stat_dists_SB: dictionary {sourcename: TestStatisticDistributions} returned
+            by running TSEvaluation routine to get test statistic distirbutions under
+            the S+B hypothesis
+        - test_stat_dists_B: dictionary {sourcename: TestStatisticDistributions} returned
+            by running TSEvaluation routine to get test statistic distirbutions under
+            the B-only hypothesis
     """
-
     def __init__(
             self,
             signal_source_names: ty.Tuple[str],
@@ -466,11 +498,16 @@ class IntervalCalculator():
 
     def get_interval(self, conf_level=0.1, pcl_level=0.16,
                      use_CLs=False):
-        """Get either upper limit, or possibly upper and lower limits.
+        """Get frequentist confidence interval.
 
         Arguments:
-            - conf_level: confidence level to be used for the limit/interval
-            - pcl_level: BLAH
+            - conf_level: confidence level to be used
+            - pcl_level: level at which to power constrain the upper limits
+            - use_CLs: if False, limits will be power constrained
+                (https://arxiv.org/abs/1105.3166), and the final return value will be
+                the powers under H1. If True, the CLs method will be used
+                (https://inspirehep.net/literature/599622), and the final return value
+                will be the p-value curves under H1
         """
         if use_CLs:
             p_sb, p_b = self.get_p_vals(conf_level, use_CLs=True)
