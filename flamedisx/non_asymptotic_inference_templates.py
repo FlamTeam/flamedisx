@@ -81,7 +81,7 @@ class TestStatisticDistributions():
         """
         p_vals = dict()
         assert self.ts_dists.keys() == observed_test_stats.test_stats.keys(), \
-            f'POI values for observed test statistics and test statistic distributions ' \
+            'POI values for observed test statistics and test statistic distributions ' \
             'do not match'
         for mu_test in observed_test_stats.test_stats.keys():
             if not inverse:
@@ -90,8 +90,8 @@ class TestStatisticDistributions():
                                                                   kind='weak')) / 100.
             else:
                 p_vals[mu_test] = stats.percentileofscore(self.ts_dists[mu_test],
-                                                         observed_test_stats.test_stats[mu_test],
-                                                         kind='weak') / 100.
+                                                          observed_test_stats.test_stats[mu_test],
+                                                          kind='weak') / 100.
         return p_vals
 
     def get_crit_vals(self, conf_level):
@@ -172,7 +172,7 @@ class TSEvaluation():
                 arguments[key] = dict()
 
         if gaussian_constraint_widths is None:
-            gaussian_constraints_widths = dict()
+            gaussian_constraint_widths = dict()
 
         if sample_other_constraints is None:
             sample_other_constraints = dict()
@@ -314,7 +314,8 @@ class TSEvaluation():
                 if self.observed_test_stats is not None:
                     try:
                         conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits
-                        expected_background_counts = conditional_bfs_observed[mu_test][f'{background_source}_rate_multiplier']
+                        expected_background_counts = \
+                            conditional_bfs_observed[mu_test][f'{background_source}_rate_multiplier']
                     except Exception:
                         raise RuntimeError("Could not find observed conditional best fits")
                 # Case where we use the prior expected counts as constraint centers and simualted values
@@ -324,7 +325,7 @@ class TSEvaluation():
                 # Sample constraint centers
                 if background_source in self.gaussian_constraint_widths:
                     draw = stats.norm.rvs(loc=expected_background_counts,
-                                          scale = self.gaussian_constraint_widths[background_source])
+                                          scale=self.gaussian_constraint_widths[background_source])
                     constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
                 elif background_source in self.sample_other_constraints:
@@ -402,7 +403,8 @@ class TSEvaluation():
         # The constraints are centered on the expected values
         constraint_extra_args = dict()
         for background_source in self.background_source_names:
-            constraint_extra_args[f'{background_source}_expected_counts'] = self.expected_background_counts[background_source]
+            constraint_extra_args[f'{background_source}_expected_counts'] = \
+                self.expected_background_counts[background_source]
 
         likelihood.set_constraint_extra_args(**constraint_extra_args)
 

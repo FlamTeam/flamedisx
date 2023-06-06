@@ -66,7 +66,7 @@ class TemplateSource(fd.ColumnSource):
             assert len(self.final_dimensions) == 2, "Interpolation only supported for 2D histogram!"
             centers_dim_1 = 0.5 * (bin_edges[0][1:] + bin_edges[0][:-1])
             centers_dim_2 = 0.5 * (bin_edges[1][1:] + bin_edges[1][:-1])
-            self.interp_2d  = interp2d(centers_dim_1, centers_dim_2, np.transpose(template))
+            self.interp_2d = interp2d(centers_dim_1, centers_dim_2, np.transpose(template))
         else:
             self.interp_2d = None
 
@@ -98,7 +98,7 @@ class TemplateSource(fd.ColumnSource):
                                                for r in self.data.itertuples(index=False)])
         else:
             self.data[self.column] = self._mh_diff_rate.lookup(
-            *[self.data[x] for x in self.final_dimensions])
+                *[self.data[x] for x in self.final_dimensions])
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
