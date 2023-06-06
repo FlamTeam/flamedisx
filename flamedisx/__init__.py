@@ -10,7 +10,6 @@ from .bounds import *
 from .mu_estimation import *
 from .frozen_reservoir import *
 from .non_asymptotic_inference import *
-from .non_asymptotic_inference_templates import *
 
 # Original flamedisx models
 # Accessible under fd root package (for now), for backwards compatibility
