@@ -225,6 +225,9 @@ class TSEvaluation():
         else:
             self.observed_test_stats = None
 
+        if observed_data is None:
+            self.background_only_toys = []
+
         observed_test_stats_collection = dict()
         test_stat_dists_SB_collection = dict()
         test_stat_dists_B_collection = dict()
@@ -352,9 +355,15 @@ class TSEvaluation():
 
             # B-only toys
 
-            simulate_dict[f'{signal_source_name}_rate_multiplier'] = 0.
-            # Simulate and set data
-            toy_data_B = likelihood.simulate(**simulate_dict)
+            # Ensure we use the same background-only toy dataset for every signal model in this toy
+            try:
+                toy_data_B = self.background_only_toys[toy]
+            except IndexError:
+                simulate_dict[f'{signal_source_name}_rate_multiplier'] = 0.
+                # Simulate and set data
+                toy_data_B = likelihood.simulate(**simulate_dict)
+                self.background_only_toys.append(toy_data_B)
+
             likelihood.set_data(toy_data_B)
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
