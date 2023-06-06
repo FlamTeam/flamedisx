@@ -47,7 +47,11 @@ class TestStatisticTMuTilde(TestStatistic):
         ll_conditional = self.likelihood(**bf_conditional)
         ll_unconditional = self.likelihood(**bf_unconditional)
 
-        return -2. * (ll_conditional - ll_unconditional)
+        ts = -2. * (ll_conditional - ll_unconditional)
+        if ts < 0.:
+            return 0.
+        else:
+            return ts
 
 
 @export
