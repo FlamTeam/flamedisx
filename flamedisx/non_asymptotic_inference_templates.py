@@ -564,3 +564,37 @@ class IntervalCalculator():
             return lower_lim_all, upper_lim_all, p_sb, powers
         else:
             return lower_lim_all, upper_lim_all, p_sb, p_b
+
+    def get_bands_OLD(self, conf_level=0.1):
+        """
+        """
+        bands = dict()
+
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            # Get test statistic distribitions
+            test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
+            test_stat_dists_B = self.test_stat_dists_B[signal_source]
+
+            mus = []
+            p_val_quantiles = {0: [], 1: [], -1: [], 2: []}
+
+            # Loop over signal rate multipliers
+            for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
+                these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
+                                                               ts_values,
+                                                               kind='weak')) / 100.
+                mus.append(mu_test)
+
+                for key, value in p_val_quantiles.items():
+                    value.append(np.quantile(these_p_vals, stats.norm.cdf(key)))
+
+            these_bands = dict()
+            for key, value in p_val_quantiles.items():
+                upper_lims = np.argwhere(np.diff(np.sign(value - np.ones_like(value) * conf_level)) < 0.).flatten()
+                these_bands[key] = self.interp_helper(mus, value, upper_lims, conf_level,
+                                                      rising_edge=False, inverse=True)
+
+            bands[signal_source] = these_bands
+
+        return bands
