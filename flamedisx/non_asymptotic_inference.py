@@ -585,7 +585,7 @@ class IntervalCalculator():
         return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
                                   rising_edge=False, inverse=True)
 
-    def get_bands(self, conf_level=0.1, quantiles=[0, 1 -1, 2, -2]):
+    def get_bands(self, conf_level=0.1, quantiles=[0, 1, -1, 2, -2]):
         """
         """
         bands = dict()
