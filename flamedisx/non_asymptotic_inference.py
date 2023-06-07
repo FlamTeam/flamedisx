@@ -585,7 +585,7 @@ class IntervalCalculator():
         return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
                                   rising_edge=False, inverse=True)
 
-    def get_bands(self, conf_level=0.1):
+    def get_bands(self, conf_level=0.1, quantiles=[0, 1 -1, 2, -2]):
         """
         """
         bands = dict()
@@ -597,10 +597,7 @@ class IntervalCalculator():
             test_stat_dists_B = self.test_stat_dists_B[signal_source]
 
             mus = []
-            p_val_quantiles = {0: [], 1: [], -1: [], 2: [], -2:[]}
-
             p_val_curves = []
-
             # Loop over signal rate multipliers
             for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
                 these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
@@ -610,13 +607,11 @@ class IntervalCalculator():
                 p_val_curves.append(these_p_vals)
 
             p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
-
             upper_lims_bands = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
 
             these_bands = dict()
-            for key, value in p_val_quantiles.items():
-                these_bands[key] = np.quantile(np.sort(upper_lims_bands), stats.norm.cdf(key))
-
+            for quantile in quantiles:
+                these_bands[quantile] = np.quantile(np.sort(upper_lims_bands), stats.norm.cdf(quantile))
             bands[signal_source] = these_bands
 
         return bands
