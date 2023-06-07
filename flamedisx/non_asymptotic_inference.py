@@ -580,7 +580,12 @@ class IntervalCalculator():
         else:
             return lower_lim_all, upper_lim_all, p_sb, p_b
 
-    def get_bands_OLD(self, conf_level=0.1):
+    def upper_lims_bands(self, pval_curve, mus, conf_level):
+        upper_lims = np.argwhere(np.diff(np.sign(pval_curve - np.ones_like(pval_curve) * conf_level)) < 0.).flatten()
+        return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
+                                  rising_edge=False, inverse=True)
+
+    def get_bands(self, conf_level=0.1):
         """
         """
         bands = dict()
@@ -592,7 +597,9 @@ class IntervalCalculator():
             test_stat_dists_B = self.test_stat_dists_B[signal_source]
 
             mus = []
-            p_val_quantiles = {0: [], 1: [], -1: [], 2: []}
+            p_val_quantiles = {0: [], 1: [], -1: [], 2: [], -2:[]}
+
+            p_val_curves = []
 
             # Loop over signal rate multipliers
             for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
@@ -600,15 +607,15 @@ class IntervalCalculator():
                                                                ts_values,
                                                                kind='weak')) / 100.
                 mus.append(mu_test)
+                p_val_curves.append(these_p_vals)
 
-                for key, value in p_val_quantiles.items():
-                    value.append(np.quantile(these_p_vals, stats.norm.cdf(key)))
+            p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
+
+            upper_lims_bands = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
 
             these_bands = dict()
             for key, value in p_val_quantiles.items():
-                upper_lims = np.argwhere(np.diff(np.sign(value - np.ones_like(value) * conf_level)) < 0.).flatten()
-                these_bands[key] = self.interp_helper(mus, value, upper_lims, conf_level,
-                                                      rising_edge=False, inverse=True)
+                these_bands[key] = np.quantile(np.sort(upper_lims_bands), stats.norm.cdf(key))
 
             bands[signal_source] = these_bands
 
