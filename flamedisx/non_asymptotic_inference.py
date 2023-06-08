@@ -539,7 +539,7 @@ class IntervalCalculator():
             if use_CLs:
                 these_p_b = p_b[signal_source]
                 p_vals_b = np.array(list(these_p_b.values()))
-                p_vals = p_vals / (1. - p_vals_b)
+                p_vals = p_vals / (1. - p_vals_b + 1e-10)
             else:
                 these_powers = powers[signal_source]
                 pws = np.array(list(these_powers.values()))
@@ -585,7 +585,8 @@ class IntervalCalculator():
         return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
                                   rising_edge=False, inverse=True)
 
-    def get_bands(self, conf_level=0.1, quantiles=[0, 1, -1, 2, -2]):
+    def get_bands(self, conf_level=0.1, quantiles=[0, 1, -1, 2, -2],
+                  use_CLs=False):
         """
         """
         bands = dict()
@@ -603,6 +604,11 @@ class IntervalCalculator():
                 these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
                                                                ts_values,
                                                                kind='weak')) / 100.
+                if use_CLs:
+                    these_p_vals_b = stats.percentileofscore(test_stat_dists_B.ts_dists[mu_test],
+                                                             ts_values,
+                                                             kind='weak') / 100.
+                    these_p_vals = these_p_vals / (1. - these_p_vals_b + 1e-10)
                 mus.append(mu_test)
                 p_val_curves.append(these_p_vals)
 
