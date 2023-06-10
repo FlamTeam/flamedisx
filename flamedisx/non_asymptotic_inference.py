@@ -206,8 +206,11 @@ class TSEvaluation():
         self.sample_other_constraints = sample_other_constraints
         self.rm_bounds = rm_bounds
 
-    def run_routine(self, mus_test, save_fits=False,
-                    observed_data=None, observed_test_stats=None):
+    def run_routine(self, mus_test=None, save_fits=False,
+                    observed_data=None,
+                    observed_test_stats=None,
+                    generate_B_toys=False,
+                    simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -223,14 +226,30 @@ class TSEvaluation():
                 and the constraint centers which are randomised for each toy will be centered
                 around the conditional best fits. Otherwise, the prior expected counts will be used
                 in place
+            - generate_B_toys: if true, the routine run will be a generation of background-only
+                datasets
+            - simulate_dict_B: first return argument of the result of calling this function with
+                generate_B_toys=True)
+            - toy_data_B: second return argument of the result of calling this function with
+                generate_B_toys=True)
+            - toy_data_B: third return argument of the result of calling this function with
+                generate_B_toys=True)
         """
         if observed_test_stats is not None:
             self.observed_test_stats = observed_test_stats
         else:
             self.observed_test_stats = None
 
-        if observed_data is None:
-            self.background_only_toys = []
+        if toy_data_B is not None:
+            assert simulate_dict_B is not None, \
+                'Must pass all of simulate_dict_B, toy_data_B and \
+                    constraint_extra_args_B'
+            assert constraint_extra_args_B is not None, \
+                'Must pass all of simulate_dict_B, toy_data_B and \
+                    constraint_extra_args_B'
+            self.simulate_dict_B = simulate_dict_B
+            self.toy_data_B = toy_data_B
+            self.constraint_extra_args_B = constraint_extra_args_B
 
         observed_test_stats_collection = dict()
         test_stat_dists_SB_collection = dict()
@@ -270,6 +289,18 @@ class TSEvaluation():
             # Pass constraint function to likelihood
             likelihood.set_log_constraint(self.log_constraint_fn)
 
+            # Where we want to generate B-only toys
+            if generate_B_toys:
+                toy_data_B_all = []
+                constraint_extra_args_B_all = []
+                for i in range(self.ntoys):
+                    simulate_dict_B, toy_data_B, constraint_extra_args_B = \
+                        self.sample_data_constraints(0., signal_source, likelihood)
+                    toy_data_B_all.append(toy_data_B)
+                    constraint_extra_args_B_all.append(constraint_extra_args_B)
+                simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
+                return simulate_dict_B, toy_data_B_all, constraint_extra_args_B_all
+
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
@@ -293,6 +324,42 @@ class TSEvaluation():
         else:
             return test_stat_dists_SB_collection, test_stat_dists_B_collection
 
+    def sample_data_constraints(self, mu_test, signal_source_name, likelihood):
+        """Internal function to sample the toy data and constraint central values
+        following a frequentist procedure. Method taken depends on whether conditional
+        best fits were passed.
+        """
+        simulate_dict = dict()
+        constraint_extra_args = dict()
+        for background_source in self.background_source_names:
+            # Case where we use the conditional best fits as constraint centers and simulated values
+            if self.observed_test_stats is not None:
+                try:
+                    conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits
+                    expected_background_counts = \
+                        conditional_bfs_observed[mu_test][f'{background_source}_rate_multiplier']
+                except Exception:
+                    raise RuntimeError("Could not find observed conditional best fits")
+            # Case where we use the prior expected counts as constraint centers and simualted values
+            else:
+                expected_background_counts = self.expected_background_counts[background_source]
+
+            # Sample constraint centers
+            if background_source in self.gaussian_constraint_widths:
+                draw = stats.norm.rvs(loc=expected_background_counts,
+                                      scale=self.gaussian_constraint_widths[background_source])
+                constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
+
+            elif background_source in self.sample_other_constraints:
+                draw = self.sample_other_constraints[background_source](expected_background_counts)
+                constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
+
+            simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
+            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+            toy_data = likelihood.simulate(**simulate_dict)
+
+        return simulate_dict, toy_data, constraint_extra_args
+
     def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
                                 mu_test, signal_source_name, likelihood, save_fits=False):
         """Internal function to get test statistic distribution.
@@ -307,46 +374,19 @@ class TSEvaluation():
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
-            simulate_dict = dict()
-            constraint_extra_args = dict()
-            for background_source in self.background_source_names:
-                # Case where we use the conditional best fits as constraint centers and simulated values
-                if self.observed_test_stats is not None:
-                    try:
-                        conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits
-                        expected_background_counts = \
-                            conditional_bfs_observed[mu_test][f'{background_source}_rate_multiplier']
-                    except Exception:
-                        raise RuntimeError("Could not find observed conditional best fits")
-                # Case where we use the prior expected counts as constraint centers and simualted values
-                else:
-                    expected_background_counts = self.expected_background_counts[background_source]
-
-                # Sample constraint centers
-                if background_source in self.gaussian_constraint_widths:
-                    draw = stats.norm.rvs(loc=expected_background_counts,
-                                          scale=self.gaussian_constraint_widths[background_source])
-                    constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
-
-                elif background_source in self.sample_other_constraints:
-                    draw = self.sample_other_constraints[background_source](expected_background_counts)
-                    constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
-
-                simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
-
-            # Shift the constraint in the likelihood based on the background RMs we drew
-            likelihood.set_constraint_extra_args(**constraint_extra_args)
+            simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
+                self.sample_data_constraints(mu_test, signal_source_name, likelihood)
 
             # S+B toys
 
-            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
-            # Simulate and set data
-            toy_data_SB = likelihood.simulate(**simulate_dict)
+            # Shift the constraint in the likelihood based on the background RMs we drew
+            likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
+            # Set data
             likelihood.set_data(toy_data_SB)
             # Create test statistic
             test_statistic_SB = self.test_statistic(likelihood)
             # Guesses for fit
-            guess_dict_SB = simulate_dict.copy()
+            guess_dict_SB = simulate_dict_SB.copy()
             for key, value in guess_dict_SB.items():
                 if value < 0.1:
                     guess_dict_SB[key] = 0.1
@@ -360,23 +400,24 @@ class TSEvaluation():
 
             # B-only toys
 
-            # Ensure we use the same background-only toy dataset for every signal model in this toy
             try:
-                toy_data_B = self.background_only_toys[toy]
-            except IndexError:
-                simulate_dict[f'{signal_source_name}_rate_multiplier'] = 0.
-                # Simulate and set data
-                toy_data_B = likelihood.simulate(**simulate_dict)
-                self.background_only_toys.append(toy_data_B)
+                # Guesses for fit
+                guess_dict_B = self.simulate_dict_B.copy()
+                guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
+                for key, value in guess_dict_B.items():
+                    if value < 0.1:
+                        guess_dict_B[key] = 0.1
+                toy_data_B = self.toy_data_B[toy]
+                constraint_extra_args_B = self.constraint_extra_args_B[toy]
+            except Exception:
+                raise RuntimeError("Could not find background-only datasets")
 
+            # Shift the constraint in the likelihood based on the background RMs we drew
+            likelihood.set_constraint_extra_args(**constraint_extra_args_B)
+            # Set data
             likelihood.set_data(toy_data_B)
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
-            # Guesses for fit
-            guess_dict_B = simulate_dict.copy()
-            for key, value in guess_dict_B.items():
-                if value < 0.1:
-                    guess_dict_B[key] = 0.1
             # Evaluate test statistic
             ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
             # Save test statistic, and possibly fits
