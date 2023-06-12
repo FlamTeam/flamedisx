@@ -356,7 +356,8 @@ class TSEvaluation():
 
             simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
             simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
-            toy_data = likelihood.simulate(**simulate_dict)
+
+        toy_data = likelihood.simulate(**simulate_dict)
 
         return simulate_dict, toy_data, constraint_extra_args
 
