@@ -293,7 +293,7 @@ class TSEvaluation():
             if generate_B_toys:
                 toy_data_B_all = []
                 constraint_extra_args_B_all = []
-                for i in range(self.ntoys):
+                for i in tqdm(range(self.ntoys), desc='Background-only toys'):
                     simulate_dict_B, toy_data_B, constraint_extra_args_B = \
                         self.sample_data_constraints(0., signal_source, likelihood)
                     toy_data_B_all.append(toy_data_B)
