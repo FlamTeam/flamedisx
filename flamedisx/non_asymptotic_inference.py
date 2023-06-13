@@ -210,7 +210,8 @@ class TSEvaluation():
                     observed_data=None,
                     observed_test_stats=None,
                     generate_B_toys=False,
-                    simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,):
+                    simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
+                    toy_batch=0):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -234,6 +235,8 @@ class TSEvaluation():
                 generate_B_toys=True)
             - toy_data_B: third return argument of the result of calling this function with
                 generate_B_toys=True)
+            - toy_batch: if parallelising toys, this should correspond to the parallel batch index
+                (starting at 0) being run, to ensure the correct background-only toys are accessed
         """
         if observed_test_stats is not None:
             self.observed_test_stats = observed_test_stats
@@ -250,6 +253,7 @@ class TSEvaluation():
             self.simulate_dict_B = simulate_dict_B
             self.toy_data_B = toy_data_B
             self.constraint_extra_args_B = constraint_extra_args_B
+            self.toy_batch = toy_batch
 
         observed_test_stats_collection = dict()
         test_stat_dists_SB_collection = dict()
@@ -408,7 +412,7 @@ class TSEvaluation():
                 for key, value in guess_dict_B.items():
                     if value < 0.1:
                         guess_dict_B[key] = 0.1
-                toy_data_B = self.toy_data_B[toy]
+                toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
                 constraint_extra_args_B = self.constraint_extra_args_B[toy]
             except Exception:
                 raise RuntimeError("Could not find background-only datasets")
