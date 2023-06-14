@@ -20,7 +20,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     model_functions = ('get_r_dt_diff_rate', 'get_S2Width_diff_rate')
 
     r_dt_dist = np.load(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/NR_spatial_template_230529.npz'))
+        os.path.dirname(__file__), '../migdal_database/NR_spatial_template.npz'))
 
     r_edges = r_dt_dist['r_edges']
     dt_edges = r_dt_dist['dt_edges']
@@ -76,7 +76,6 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
             *[d['r'], d['drift_time']])
 
         d['S2Width_diff_rate'] = self.source.S2Width_diff_rate.lookup(d['S2Width'])
-        pass
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Return pandas dataframe with event positions and times
@@ -160,7 +159,7 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
 
     r_dt_dist = np.load(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template_230529.npz'))
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
 
     hist_values_r_dt = r_dt_dist['hist_values']
     r_edges = r_dt_dist['r_edges']
@@ -181,7 +180,7 @@ class EnergySpectrumFirstER(EnergySpectrumFirstMSU):
     rates_vs_energy_first = tf.ones_like(energies_first, fd.float_type()) / sum(np.ones_like(energies_first))
 
     r_dt_dist = np.load(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/ER_spatial_template_230529.npz'))
+        os.path.dirname(__file__), '../migdal_database/ER_spatial_template.npz'))
 
     hist_values_r_dt = r_dt_dist['hist_values']
     r_edges = r_dt_dist['r_edges']
