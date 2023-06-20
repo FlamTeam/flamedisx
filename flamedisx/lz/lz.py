@@ -377,10 +377,14 @@ class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSour
 
 
 @export
-class LZDetERSource(LZSource, fd.nest.DetERSource):
+class LZDetERSource(LZSource, fd.nest.DetERSource, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        mh = fd.get_lz_file('DetER_spatial_map_hist.pkl')
+        self.spatial_hist = mh
+
         super().__init__(*args, **kwargs)
 
 
@@ -447,10 +451,18 @@ class LZXe124Source(LZSource, fd.nest.Xe124Source):
 
 
 @export
-class LZXe127Source(LZSource, fd.nest.Xe127Source):
-    def __init__(self, *args, **kwargs):
+class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialRateERSource):
+    def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if bins is None:
+            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
+                  np.linspace(fd.lz.LZERSource().z_bottom, fd.lz.LZERSource().z_top, num=51))
+
+        mh = build_position_map_from_data('Xe127_spatial_map_data.pkl', ['r', 'z'], bins)
+        self.spatial_hist = mh
+
         super().__init__(*args, **kwargs)
 
 
@@ -463,7 +475,7 @@ class LZB8Source(LZSource, fd.nest.B8Source):
 
 
 @export
-class LZDetNRSource(LZSource, fd.nest.nestNRSource):
+class LZDetNRSource(LZSource, fd.nest.nestSpatialRateNRSource):
     """
     """
 
@@ -475,6 +487,9 @@ class LZDetNRSource(LZSource, fd.nest.nestNRSource):
 
         self.energies = tf.convert_to_tensor(df_DetNR['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_DetNR['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        mh = fd.get_lz_file('DetNR_spatial_map_hist.pkl')
+        self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
