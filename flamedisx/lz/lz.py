@@ -451,8 +451,8 @@ class LZXe124Source(LZSource, fd.nest.Xe124Source):
 
 
 @export
-class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialRateERSource):
-    def __init__(self, *args, bins=None, **kwargs):
+class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRateDecayERSource):
+    def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
 
@@ -462,6 +462,11 @@ class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialRateERSour
 
         mh = build_position_map_from_data('Xe127_spatial_map_data.pkl', ['r', 'z'], bins)
         self.spatial_hist = mh
+
+        if time_constant_ns is None:
+            self.time_constant_ns = 36.4 * 1e9 * 3600. * 24.
+        else:
+            self.time_constant_ns = time_constant_ns
 
         super().__init__(*args, **kwargs)
 

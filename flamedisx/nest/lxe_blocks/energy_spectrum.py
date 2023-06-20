@@ -357,6 +357,39 @@ class TemporalRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
 
 
 @export
+class SpatialTemporalRateEnergySpectrumDecay(SpatialRateEnergySpectrum):
+    model_attributes = (('time_constant_ns',)
+                        + SpatialRateEnergySpectrum.model_attributes)
+
+    def temporal_rate_multiplier(self, event_time):
+        pdf = np.exp(-(event_time - self.t_start.value) / self.time_constant_ns)
+        normalisation = 1. / (self.time_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.time_constant_ns)))
+        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+
+        return normalisation * pdf / uniform_pdf
+
+    def energy_spectrum_rate_multiplier(self, x, y, z, event_time):
+        if self.polar:
+            positions = list(fd.cart_to_pol(x, y)) + [z]
+        elif self.r_z:
+            positions = [fd.cart_to_pol(x, y)[0]] + [z]
+        elif self.r_dt:
+            dt = (self.z_topDrift - z) / self.drift_velocity
+            positions = [fd.cart_to_pol(x, y)[0]] + [dt]
+        else:
+            positions = [x, y, z]
+        return self.local_rate_multiplier.lookup(*positions) * self.temporal_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        """
+        """
+        b = (self.t_stop.value - self.t_start.value) / self.time_constant_ns
+        return stats.truncexpon.rvs(b,
+                                    loc=self.t_start.value, scale=self.time_constant_ns,
+                                    size=n_events)
+
+
+@export
 class TemporalRateEnergySpectrumOscillation(FixedShapeEnergySpectrum):
     model_attributes = (('n_time_bins', 'period_ns', 'amplitude', 'phase_ns')
                         + FixedShapeEnergySpectrum.model_attributes)
@@ -409,6 +442,16 @@ class TemporalRateEnergySpectrumDecayNR(TemporalRateEnergySpectrumDecay):
 
 @export
 class TemporalRateEnergySpectrumDecayER(TemporalRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class SpatialTemporalRateEnergySpectrumDecayNR(SpatialTemporalRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class SpatialTemporalRateEnergySpectrumDecayER(SpatialTemporalRateEnergySpectrumDecay):
     max_dim_size = {'energy': 100}
 
 
