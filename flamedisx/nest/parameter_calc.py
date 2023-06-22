@@ -61,7 +61,7 @@ def calculate_density_gas(temp, pressure):
 
 
 @export
-def calculate_drift_velocity(drift_field, density, temp):
+def calculate_drift_velocity(drift_field, density, temp, detector):
     """Returns drift_velocity in cm/ns
 
     """
@@ -120,7 +120,10 @@ def calculate_drift_velocity(drift_field, density, temp):
     if (speed <= 0.):
         raise ValueError("Negative drift velocity!")
 
-    return speed*1e-4
+    if detector == 'lz':
+        return speed * 1e-4 * (0.96 / 0.95)
+    else:
+        return speed * 1e-4
 
 
 @export

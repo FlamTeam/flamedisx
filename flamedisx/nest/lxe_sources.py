@@ -46,7 +46,7 @@ class nestSource(fd.BlockModelSource):
             self.temperature, self.pressure)
         #
         self.drift_velocity = fd_nest.calculate_drift_velocity(
-            self.drift_field, self.density, self.temperature)
+            self.drift_field, self.density, self.temperature, self.detector)
         self.Wq_keV, self.alpha = fd_nest.calculate_work(self.density)
 
         # energy_spectrum.py
