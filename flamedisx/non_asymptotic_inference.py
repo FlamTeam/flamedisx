@@ -9,6 +9,37 @@ import tensorflow as tf
 export, __all__ = fd.exporter()
 
 
+def mu_to_sigma_ratio(likelihood, mu, signal_source_name):
+    mu_ref_SR1 = likelihood.sources[f'{signal_source_name}_SR1'].mu_ref
+    mu_ref_SR2 = likelihood.sources[f'{signal_source_name}_SR2'].mu_ref
+
+    return (mu / (mu_ref_SR1 + mu_ref_SR2))
+
+
+class ModLikelihood(fd.LogLikelihood):
+    def mu(self, *,
+           source_name=None,
+           dataset_name=None,
+           **kwargs):
+        kwargs = {**self.param_defaults, **kwargs}
+        if dataset_name is None and source_name is None:
+            raise ValueError("Provide either source or dataset name")
+        mu = tf.constant(0., dtype=fd.float_type())
+        for sname, sclass in self.sources.items():
+            if (dataset_name is not None
+                    and self.dset_for_source[sname] != dataset_name):
+                continue
+            if source_name is not None and sname != source_name:
+                continue
+            filtered_params = self._filter_source_kwargs(kwargs, sname)
+            if (type(sclass).__name__ == 'SR1WIMPTemplateSource') or (type(sclass).__name__ == 'SR2WIMPTemplateSource'):
+                mu += (sclass.mu_ref * filtered_params['sigma_ratio'])
+            else:
+                mu += (self._get_rate_mult(sname, kwargs)
+                       * self.mu_estimators[sname](**filtered_params))
+        return mu
+
+
 @export
 class TestStatistic():
     """Class to evaluate a test statistic based on a conidtional and unconditional
@@ -22,10 +53,10 @@ class TestStatistic():
 
     def __call__(self, mu_test, signal_source_name, guess_dict):
         # To fix the signal RM in the conditional fit
-        fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        fix_dict = {'sigma_ratio': mu_to_sigma_ratio(self.likelihood, mu_test, signal_source_name)}
 
         guess_dict_nuisance = guess_dict.copy()
-        guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
+        guess_dict_nuisance.pop('sigma_ratio')
 
         # Conditional fit
         bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
@@ -270,15 +301,19 @@ class TSEvaluation():
             for background_source in self.background_source_names:
                 sources[background_source] = self.sources[background_source]
                 arguments[background_source] = self.arguments[background_source]
-            sources[signal_source] = self.sources[signal_source]
-            arguments[signal_source] = self.arguments[signal_source]
+
+            sources[f'{signal_source}_SR1'] = self.sources[f'{signal_source}_SR1']
+            sources[f'{signal_source}_SR2'] = self.sources[f'{signal_source}_SR2']
+            arguments[f'{signal_source}_SR1'] = self.arguments[f'{signal_source}_SR1']
+            arguments[f'{signal_source}_SR2'] = self.arguments[f'{signal_source}_SR2']
 
             # Create likelihood of TemplateSources
-            likelihood = fd.LogLikelihood(sources=sources,
-                                          arguments=arguments,
-                                          progress=False,
-                                          batch_size=self.batch_size,
-                                          free_rates=tuple([sname for sname in sources.keys()]))
+            likelihood = ModLikelihood(sources=sources,
+                                       arguments=arguments,
+                                       progress=False,
+                                       batch_size=self.batch_size,
+                                       free_rates=tuple([sname for sname in self.background_source_names]),
+                                       sigma_ratio=(0., 1000.))
 
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
@@ -302,7 +337,7 @@ class TSEvaluation():
                         self.sample_data_constraints(0., signal_source, likelihood)
                     toy_data_B_all.append(toy_data_B)
                     constraint_extra_args_B_all.append(constraint_extra_args_B)
-                simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
+                simulate_dict_B.pop('sigma_ratio')
                 return simulate_dict_B, toy_data_B_all, constraint_extra_args_B_all
 
             these_mus_test = mus_test[signal_source]
@@ -359,7 +394,7 @@ class TSEvaluation():
                 constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
             simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
-            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+            simulate_dict['sigma_ratio'] = mu_to_sigma_ratio(likelihood, mu_test, signal_source_name)
 
         toy_data = likelihood.simulate(**simulate_dict)
 
@@ -393,7 +428,9 @@ class TSEvaluation():
             # Guesses for fit
             guess_dict_SB = simulate_dict_SB.copy()
             for key, value in guess_dict_SB.items():
-                if value < 0.1:
+                if (key == 'sigma_ratio') and (value < mu_to_sigma_ratio(likelihood, 0.1, signal_source_name)):
+                    guess_dict_SB[key] = mu_to_sigma_ratio(likelihood, 0.1, signal_source_name)
+                if (key != 'sigma_ratio') and (value < 0.1):
                     guess_dict_SB[key] = 0.1
             # Evaluate test statistic
             ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
@@ -408,9 +445,9 @@ class TSEvaluation():
             try:
                 # Guesses for fit
                 guess_dict_B = self.simulate_dict_B.copy()
-                guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
+                guess_dict_B['sigma_ratio'] = mu_to_sigma_ratio(likelihood, 0.1, signal_source_name)
                 for key, value in guess_dict_B.items():
-                    if value < 0.1:
+                    if (key != 'sigma_ratio') and (value < 0.1):
                         guess_dict_B[key] = 0.1
                 toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
                 constraint_extra_args_B = self.constraint_extra_args_B[toy]
