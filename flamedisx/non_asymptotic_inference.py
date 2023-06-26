@@ -313,7 +313,7 @@ class TSEvaluation():
                                        progress=False,
                                        batch_size=self.batch_size,
                                        free_rates=tuple([sname for sname in self.background_source_names]),
-                                       sigma_ratio=(0., 1000.))
+                                       sigma_ratio=(0., 10000.))
 
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
