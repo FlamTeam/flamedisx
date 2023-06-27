@@ -128,18 +128,33 @@ class NRSource(fd.BlockModelSource):
 
         return np.sum(pdf_vals * s1s2_acc * nr_endpoint * spectrum)
 
-    def estimate_mu(self, error=1e-5, **params):
+    def estimate_mu(self, error=1e-5, fast=False, **params):
         """
         """
         s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum = \
             self.pdf_for_mu_pre_populate(**params)
 
-        f = lambda s2, s1: self.pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var,
-                                           s1_std, s2_std, anti_corr, spectrum)
+        if fast:
+            s1_edges = np.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100)
+            s2_edges = np.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 100)
+            s1_centers = 0.5 * (s1_edges[1:] + s1_edges[:-1])
+            s2_centers = 0.5 * (s2_edges[1:] + s2_edges[:-1])
+            s1_diffs = np.diff(s1_edges)
+            s2_diffs = np.diff(s2_edges)
+            integral_sum = 0.
+            for s1, ds1 in zip(s1_centers, s1_diffs):
+                for s2, ds2 in zip(s2_centers, s2_diffs):
+                    integral_sum += ds1 * ds2 * self.pdf_for_mu(s1, s2,
+                                                                s1_mean, s2_mean, s1_var, s2_var,
+                                                                s1_std, s2_std, anti_corr, spectrum)
+            return integral_sum
 
-        return integrate.dblquad(f, self.defaults['s1_min'], self.defaults['s1_max'],
-                                 self.defaults['s2_min'], self.defaults['s2_max'],
-                                 epsabs=error, epsrel=error)[0]
+        else:
+            f = lambda s2, s1: self.pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var,
+                                               s1_std, s2_std, anti_corr, spectrum)
+            return integrate.dblquad(f, self.defaults['s1_min'], self.defaults['s1_max'],
+                                     self.defaults['s2_min'], self.defaults['s2_max'],
+                                     epsabs=error, epsrel=error)[0]
 
 @export
 class NRNRSource(NRSource):
@@ -195,27 +210,6 @@ class NRNRSource(NRSource):
         self.defaults = old_defaults
 
         return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
-
-    def estimate_mu(self, **params):
-        """
-        """
-        s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum = \
-            self.pdf_for_mu_pre_populate(**params)
-
-        s1_edges = np.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100)
-        s2_edges = np.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 100)
-        s1_centers = 0.5 * (s1_edges[1:] + s1_edges[:-1])
-        s2_centers = 0.5 * (s2_edges[1:] + s2_edges[:-1])
-        s1_diffs = np.diff(s1_edges)
-        s2_diffs = np.diff(s2_edges)
-
-        integral_sum = 0.
-        for s1, ds1 in zip(s1_centers, s1_diffs):
-            for s2, ds2 in zip(s2_centers, s2_diffs):
-                integral_sum += ds1 * ds2 * self.pdf_for_mu(s1, s2,
-                                                           s1_mean, s2_mean, s1_var, s2_var,
-                                                           s1_std, s2_std, anti_corr, spectrum)
-        return integral_sum
 
 
 @export
