@@ -163,13 +163,67 @@ class NRNRSource(NRSource):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
-    def estimate_mu(self, n_trials=int(1e5), **params):
+    def pdf_for_mu_pre_populate(self, **params):
+        old_defaults = copy(self.defaults)
+        self.set_defaults(**params)
+
+        e1, e2 = np.meshgrid(self.energies_first, self.energies_second, indexing='ij')
+
+        s1_mean_first, s2_mean_first = self.gimme_numpy('signal_means', e1)
+        s1_mean_second, s2_mean_second = self.gimme_numpy('signal_means', e2)
+        s1_mean = s1_mean_first + s1_mean_second
+        s2_mean = s2_mean_first + s2_mean_second
+
+        s1_var_first, s2_var_first = self.gimme_numpy('signal_vars', (s1_mean_first, s2_mean_first))
+        s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
+        s1_var = s1_var_first + s1_var_second
+        s2_var = s2_var_first + s2_var_second
+
+        s1_mean = fd.tf_to_np(s1_mean)
+        s2_mean = fd.tf_to_np(s2_mean)
+        s1_var = fd.tf_to_np(s1_var)
+        s2_var = fd.tf_to_np(s2_var)
+
+        s1_std = np.sqrt(s1_var)
+        s2_std = np.sqrt(s2_var)
+
+        anti_corr = self.gimme('signal_corr', bonus_arg=self.energies_first)
+        anti_corr = fd.tf_to_np(anti_corr)
+
+        spectrum = fd.tf_to_np(self.rates_vs_energy)
+
+        self.defaults = old_defaults
+
+        return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
+
+    def estimate_mu_old(self, n_trials=int(1e5), **params):
         """Return estimate of total expected number of events
         :param n_trials: Number of events to simulate for estimate
         """
         d_simulated = self.simulate(n_trials, **params)
         return (self.mu_before_efficiencies(**params)
                 * len(d_simulated) / n_trials)
+
+    def estimate_mu(self, **params):
+        """
+        """
+        s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum = \
+            self.pdf_for_mu_pre_populate(**params)
+
+        s1_edges = np.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100)
+        s2_edges = np.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 100)
+        s1_centers = 0.5 * (s1_edges[1:] + s1_edges[:-1])
+        s2_centers = 0.5 * (s2_edges[1:] + s2_edges[:-1])
+        s1_diffs = np.diff(s1_edges)
+        s2_diffs = np.diff(s2_edges)
+
+        integral_sum = 0.
+        for s1, ds1 in zip(s1_centers, s1_diffs):
+            for s2, ds2 in zip(s2_centers, s2_diffs):
+                integral_sum += ds1 * ds2 * self.pdf_for_mu(s1, s2,
+                                                           s1_mean, s2_mean, s1_var, s2_var,
+                                                           s1_std, s2_std, anti_corr, spectrum)
+        return integral_sum
 
 
 @export
@@ -180,6 +234,41 @@ class NRNRNRSource(NRNRSource):
         fd_dd_migdal.MakeS1S2MSU3)
 
     no_step_dimensions = ('energy_others')
+
+    def pdf_for_mu_pre_populate(self, **params):
+        old_defaults = copy(self.defaults)
+        self.set_defaults(**params)
+
+        e1, e2, e3 = np.meshgrid(self.energies_first, self.energies_others, self.energies_others, indexing='ij')
+
+        s1_mean_first, s2_mean_first = self.gimme_numpy('signal_means', e1)
+        s1_mean_second, s2_mean_second = self.gimme_numpy('signal_means', e2)
+        s1_mean_third, s2_mean_third = self.gimme_numpy('signal_means', e3)
+        s1_mean = s1_mean_first + s1_mean_second + s1_mean_third
+        s2_mean = s2_mean_first + s2_mean_second + s2_mean_third
+
+        s1_var_first, s2_var_first = self.gimme_numpy('signal_vars', (s1_mean_first, s2_mean_first))
+        s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
+        s1_var_third, s2_var_third = self.gimme_numpy('signal_vars', (s1_mean_third, s2_mean_third))
+        s1_var = s1_var_first + s1_var_second + s1_var_third
+        s2_var = s2_var_first + s2_var_second + s2_var_third
+
+        s1_mean = fd.tf_to_np(s1_mean)
+        s2_mean = fd.tf_to_np(s2_mean)
+        s1_var = fd.tf_to_np(s1_var)
+        s2_var = fd.tf_to_np(s2_var)
+
+        s1_std = np.sqrt(s1_var)
+        s2_std = np.sqrt(s2_var)
+
+        anti_corr = self.gimme('signal_corr', bonus_arg=self.energies_first)
+        anti_corr = fd.tf_to_np(anti_corr)
+
+        spectrum = fd.tf_to_np(self.rates_vs_energy)
+
+        self.defaults = old_defaults
+
+        return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
 
 
 @export
@@ -240,6 +329,43 @@ class Migdal2Source(NRNRSource):
 
         return s1_var, s2_var, s1s2_cov
 
+    def pdf_for_mu_pre_populate(self, **params):
+        old_defaults = copy(self.defaults)
+        self.set_defaults(**params)
+
+        e1, e2 = np.meshgrid(self.energies_first, self.energies_second, indexing='ij')
+
+        s1_mean_first, s2_mean_first = self.gimme_numpy('signal_means_ER', e1)
+        s1_mean_second, s2_mean_second = self.gimme_numpy('signal_means', e2)
+        s1_mean = s1_mean_first + s1_mean_second
+        s2_mean = s2_mean_first + s2_mean_second
+
+        s1_var_first, s2_var_first, s1s2_cov_first = self.gimme_numpy('signal_vars_ER', e1)
+        s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
+        s1_var = s1_var_first + s1_var_second
+        s2_var = s2_var_first + s2_var_second
+
+        s1_mean = fd.tf_to_np(s1_mean)
+        s2_mean = fd.tf_to_np(s2_mean)
+        s1_var = fd.tf_to_np(s1_var)
+        s2_var = fd.tf_to_np(s2_var)
+
+        s1_std = np.sqrt(s1_var)
+        s2_std = np.sqrt(s2_var)
+
+        s1s2_corr_second = self.gimme_numpy('signal_corr', e1)
+        s1s2_cov_second = s1s2_corr_second  * np.sqrt(s1_var_second * s2_var_second)
+
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
+        anti_corr = fd.tf_to_np(anti_corr)
+
+        spectrum = fd.tf_to_np(self.rates_vs_energy)
+
+        self.defaults = old_defaults
+
+        return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
+
 
 @export
 class Migdal3Source(Migdal2Source):
@@ -279,6 +405,46 @@ class MigdalMSUSource(Migdal2Source):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
+    def pdf_for_mu_pre_populate(self, **params):
+        old_defaults = copy(self.defaults)
+        self.set_defaults(**params)
+
+        e1, e2, e3 = np.meshgrid(self.energies_first, self.energies_others, self.energies_others, indexing='ij')
+
+        s1_mean_first, s2_mean_first = self.gimme_numpy('signal_means_ER', e1)
+        s1_mean_second, s2_mean_second = self.gimme_numpy('signal_means', e2)
+        s1_mean_third, s2_mean_third = self.gimme_numpy('signal_means', e3)
+        s1_mean = s1_mean_first + s1_mean_second + s1_mean_third
+        s2_mean = s2_mean_first + s2_mean_second + s2_mean_third
+
+        s1_var_first, s2_var_first, s1s2_cov_first = self.gimme_numpy('signal_vars_ER', e1)
+        s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
+        s1_var_third, s2_var_third = self.gimme_numpy('signal_vars', (s1_mean_third, s2_mean_third))
+        s1_var = s1_var_first + s1_var_second + s1_var_third
+        s2_var = s2_var_first + s2_var_second + s2_var_third
+
+        s1_mean = fd.tf_to_np(s1_mean)
+        s2_mean = fd.tf_to_np(s2_mean)
+        s1_var = fd.tf_to_np(s1_var)
+        s2_var = fd.tf_to_np(s2_var)
+
+        s1_std = np.sqrt(s1_var)
+        s2_std = np.sqrt(s2_var)
+
+        s1s2_corr_others = self.gimme_numpy('signal_corr', e1)
+        s1s2_cov_second = s1s2_corr_others * np.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov_third = s1s2_corr_others * np.sqrt(s1_var_third * s2_var_third)
+
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second + s1s2_cov_third
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
+        anti_corr = fd.tf_to_np(anti_corr)
+
+        spectrum = fd.tf_to_np(self.rates_vs_energy)
+
+        self.defaults = old_defaults
+
+        return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
+
 
 @export
 class IECSSource(Migdal2Source):
@@ -306,3 +472,26 @@ class ERSource(Migdal2Source):
     model_blocks = (
         fd_dd_migdal.EnergySpectrumFirstER,
         fd_dd_migdal.MakeS1S2ER)
+
+    def pdf_for_mu_pre_populate(self, **params):
+        old_defaults = copy(self.defaults)
+        self.set_defaults(**params)
+
+        s1_mean, s2_mean = self.gimme('signal_means_ER', bonus_arg=self.energies_first)
+        s1_var, s2_var, s1s2_cov = self.gimme('signal_vars_ER',  bonus_arg=self.energies_first)
+        s1_mean = fd.tf_to_np(s1_mean)
+        s2_mean = fd.tf_to_np(s2_mean)
+        s1_var = fd.tf_to_np(s1_var)
+        s2_var = fd.tf_to_np(s2_var)
+
+        s1_std = np.sqrt(s1_var)
+        s2_std = np.sqrt(s2_var)
+
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
+        anti_corr = fd.tf_to_np(anti_corr)
+
+        spectrum = fd.tf_to_np(self.rates_vs_energy_first)
+
+        self.defaults = old_defaults
+
+        return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
