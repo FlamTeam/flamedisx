@@ -196,14 +196,6 @@ class NRNRSource(NRSource):
 
         return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
 
-    def estimate_mu_old(self, n_trials=int(1e5), **params):
-        """Return estimate of total expected number of events
-        :param n_trials: Number of events to simulate for estimate
-        """
-        d_simulated = self.simulate(n_trials, **params)
-        return (self.mu_before_efficiencies(**params)
-                * len(d_simulated) / n_trials)
-
     def estimate_mu(self, **params):
         """
         """
