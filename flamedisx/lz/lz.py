@@ -353,6 +353,14 @@ class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
         super().__init__(*args, **kwargs)
 
 
+@export
+class LZFermionicDMSource(LZSource, fd.nest.FermionicDMSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
 ##
 # Background sources
 ##
