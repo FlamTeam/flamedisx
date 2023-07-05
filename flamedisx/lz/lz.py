@@ -126,18 +126,17 @@ class LZSource:
 
     @staticmethod
     def get_elife(event_time):
-        t0 = pd.to_datetime('2021-10-01T00:00:00')
-        t0 = t0.tz_localize(tz='America/Denver').value
+        t0 = pd.to_datetime('2021-09-30T08:00:00').value
 
         time_diff = event_time - t0
         days_since_t0 = time_diff / (24. * 3600 * 1e9)
 
         elife = np.piecewise(days_since_t0, [days_since_t0 <= 104.,
-                                             (days_since_t0 > 104.) & (days_since_t0 <= 174.41597),
-                                             days_since_t0 > 174.41597],
+                                             (days_since_t0 > 104.) & (days_since_t0 <= 174.4167),
+                                             days_since_t0 > 174.4167],
                              [lambda days_since_t0: (5526.52 - np.exp(27.0832 - 0.254022 * days_since_t0)) * 1000.,
-                              lambda days_since_t0: (8271.97 - np.exp(9.5676 - 0.0160078 * days_since_t0)) * 1000.,
-                              lambda days_since_t0: (7941.37 - np.exp(34.3876 - 0.148244 * days_since_t0)) * 1000.])
+                              lambda days_since_t0: (8315.35 - np.exp(9.5533 - 0.0157167 * days_since_t0)) * 1000.,
+                              lambda days_since_t0: (7935.03 - np.exp(35.0987 - 0.15228 * days_since_t0)) * 1000.])
 
         return elife
 
