@@ -16,6 +16,13 @@ def make_event_reservoir(ntoys: int = None,
 
     Arguments:
         - ntoys: number of toy MCs this reservoir will be used to generate (optional).
+        - input_prefix: if using after make_event_reservoir_no_compute(), the output_prefix
+            that was used there.
+        - input_label: if using after make_event_reservoir_no_compute(), the output_label
+            that was used there.
+        - reservoir_output_name: if supplied, the filename the reservoir will be saved under.
+        - max_rm_dict: dictionary {sourcename: max_rm, ...} giving the maximum rate multiplier
+            scanned over for each source, to control the size of the reservoir.
         - sources: pass in source instances to be used to build the reservoir, like
             'source1'=source1(args, kwargs), 'source2'=source2(args, kwargs), ...
     """
@@ -80,6 +87,10 @@ def make_event_reservoir_no_compute(ntoys: int = None,
 
     Arguments:
         - ntoys: number of toy MCs the reservoir will be used to generate (optional).
+        - output_prefix: supply a directory prefix to save the data tensors under (optional).
+        - output_label: supply a label for the saved data tensor filename (optional).
+        - max_rm_dict: dictionary {sourcename: max_rm, ...} giving the maximum rate multiplier
+            scanned over for each source, to control the size of the reservoir.
         - sources: pass in source instances to be used to build the reservoir, like
             'source1'=source1(args, kwargs), 'source2'=source2(args, kwargs), ...
     """
@@ -129,6 +140,7 @@ class FrozenReservoirSource(fd.ColumnSource):
             '{sorce_name}_diff_rate' with the differential rate of each event
             computed under all base sources that will have a FrozenReservoirSource used
             in the analysis.
+        - input_mu: pass a pre-computed mu for the base source class.
 
     For other arguments, see flamedisx.source.Source
     """
