@@ -440,7 +440,7 @@ class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayER
             kwargs['detector'] = 'lz'
 
         if time_constant_ns is None:
-            self.time_constant_ns = 35.0 * 1e9 * 3600. * 24.
+            self.time_constant_ns = (35.0 / np.log(2)) * 1e9 * 3600. * 24.
         else:
             self.time_constant_ns = time_constant_ns
 
@@ -469,7 +469,7 @@ class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRa
         self.spatial_hist = mh
 
         if time_constant_ns is None:
-            self.time_constant_ns = 36.4 * 1e9 * 3600. * 24.
+            self.time_constant_ns = (36.4 / np.log(2)) * 1e9 * 3600. * 24.
         else:
             self.time_constant_ns = time_constant_ns
 
