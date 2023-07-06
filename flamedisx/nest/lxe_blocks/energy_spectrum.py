@@ -87,13 +87,21 @@ class EnergySpectrum(fd.FirstBlock):
                                       & (res[:, photons_produced] >= photons_produced_min)
                                       & (res[:, photons_produced] <= photons_produced_max)]
 
-            # We use this filtered reservoir to estimate energy bounds
-            self.source.data.loc[batch * self.source.batch_size:
-                                 (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
-                np.quantile(energies, 0.)
-            self.source.data.loc[batch * self.source.batch_size:
-                                 (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
-                np.quantile(energies, 1. - self.source.bounds_prob)
+            if len(energies) == 0:
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
+                    min(res[:, energy])
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
+                    max(res[:, energy])
+            else:
+                # We use this filtered reservoir to estimate energy bounds
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
+                    np.quantile(energies, 0.)
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
+                    np.quantile(energies, 1. - self.source.bounds_prob)
 
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
