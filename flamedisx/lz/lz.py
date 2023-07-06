@@ -372,8 +372,8 @@ class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSour
             kwargs['detector'] = 'lz'
 
         if bins is None:
-            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
-                  np.linspace(86000., 936500., num=51))
+            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=21)),
+                  np.linspace(86000., 936500., num=21))
 
         mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
         self.spatial_hist = mh
@@ -465,7 +465,7 @@ class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRa
             bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
                   np.linspace(fd.lz.LZERSource().z_bottom, fd.lz.LZERSource().z_top, num=51))
 
-        mh = build_position_map_from_data('Xe127_spatial_map_data.pkl', ['r', 'z'], bins)
+        mh = fd.get_lz_file('Xe127_spatial_map_hist.pkl')
         self.spatial_hist = mh
 
         if time_constant_ns is None:

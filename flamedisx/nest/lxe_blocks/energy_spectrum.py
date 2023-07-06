@@ -267,8 +267,10 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     def setup(self):
         assert isinstance(self.spatial_hist, Histdd)
 
-        # Are we Cartesian, polar, 2D (r, z or r, dt), or in trouble?
+        # Are we Cartesian, modified Cartesian (x, y, dt), polar, 2D (r, z or r, dt),
+        # or in trouble?
         axes = tuple(self.spatial_hist.axis_names)
+        self.mod_cart = (axes == ('x', 'y', 'drift_time'))
         self.polar = (axes == ('r', 'theta', 'z'))
         self.r_z = (axes == ('r', 'z'))
         self.r_dt = (axes == ('r', 'drift_time'))
@@ -280,9 +282,10 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         elif (self.r_z or self.r_dt):
             self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
         else:
-            assert axes == ('x', 'y', 'z'), \
+            assert (axes == ('x', 'y', 'z')) or self.mod_cart, \
                 ("axis_names of spatial_rate_hist must be "
-                 "['r', 'theta', 'z'], ['r', 'z'], ['r', 'drift_time'] or ['x', 'y', 'z']")
+                 "['r', 'theta', 'z'], ['r', 'z'], ['r', 'drift_time'], ['x', 'y', 'z'] "
+                 "or ['x', 'y', 'drift_time']")
 
         # Normalize the histogram
         self.spatial_hist.histogram = \
@@ -303,6 +306,9 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         elif self.r_dt:
             dt = (self.z_topDrift - z) / self.drift_velocity
             positions = [fd.cart_to_pol(x, y)[0]] + [dt]
+        elif self.mod_cart:
+            dt = (self.z_topDrift - z) / self.drift_velocity
+            positions = [x, y, dt]
         else:
             positions = [x, y, z]
         return self.local_rate_multiplier.lookup(*positions)
@@ -315,6 +321,8 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         positions = self.spatial_hist.get_random(size=n_events)
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
+        if self.mod_cart:
+            data['z'] = self.z_topDrift - data['drift_time'] * self.drift_velocity
         if self.polar:
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         elif self.r_z:
