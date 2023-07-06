@@ -477,10 +477,26 @@ class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRa
 
 
 @export
-class LZB8Source(LZSource, fd.nest.B8Source):
-    def __init__(self, *args, **kwargs):
+class LZB8Source(LZSource, fd.nest.B8Source, fd.nest.nestTemporalRateOscillationNRSource):
+    def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if amplitude is None:
+            self.amplitude = 2. * 0.01671
+        else:
+            self.amplitude = amplitude
+
+        if phase_ns is None:
+            self.phase_ns = pd.to_datetime('2022-01-04T00:00:00').value
+        else:
+            self.phase_ns = phase_ns
+
+        if period_ns is None:
+            self.period_ns = 1. * 3600. * 24. * 365.25 * 1e9
+        else:
+            self.period_ns = period_ns
+
         super().__init__(*args, **kwargs)
 
 
