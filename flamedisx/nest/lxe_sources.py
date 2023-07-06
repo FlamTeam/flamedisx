@@ -22,7 +22,7 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default', 'XENONnT', 'lz')
+        assert detector in ('default', 'lz')
 
         self.detector = detector
 

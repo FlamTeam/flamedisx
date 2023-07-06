@@ -38,10 +38,6 @@ from . import nest
 # Access through fd.lux.xxx
 from . import lux
 
-# Matthew Syzdagis' XENONnT models
-# Access through fd.xenon_nT_MS.xxx
-from . import xenon_nT_MS
-
 # LZ models
 # Access through fd.lz.xxx
 from . import lz
