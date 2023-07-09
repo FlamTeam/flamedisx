@@ -71,7 +71,7 @@ class LZSource:
     path_s1_acc_curve = 'cS1_acceptance_curve.pkl'
     path_s2_acc_curve = 'cS2_acceptance_curve.pkl'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ignore_maps_acc=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('lz',)
@@ -87,6 +87,19 @@ class LZSource:
         self.cS1_max = config.getfloat('NEST', 'cS1_max_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
+
+        if ignore_maps_acc:
+            self.ignore_acceptances = True
+
+            self.s1_map_LZAP = None
+            self.s2_map_LZAP = None
+            self.s1_map_latest = None
+            self.s2_map_latest = None
+
+            self.cs1_acc_domain = None
+            self.log10_cs2_acc_domain = None
+
+            return
 
         try:
             self.s1_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_LZAP))

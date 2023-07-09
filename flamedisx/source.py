@@ -229,6 +229,8 @@ class Source:
         assert self.bounds_prob_outer > 0., \
             "max_sigma_outer too high!"
 
+        self.ignore_acceptances = False
+
         # Capping the domain size for hidden variable dimensions. Any which aren't
         # set will default to default_max_dim_size
         if not hasattr(self, 'max_dim_sizes'):
@@ -736,7 +738,7 @@ class Source:
                                    keep_padding=keep_padding, **params):
             # Do the forward simulation of the detector response
             d = self._simulate_response()
-            if 'p_accepted' in d.columns:
+            if ('p_accepted' in d.columns) and (self.ignore_acceptances == False):
                 # Draw which events are accepted
                 d = d.iloc[np.random.rand(len(d)) < d['p_accepted'].values].copy()
             if full_annotate:
