@@ -182,13 +182,13 @@ class SourceGroup:
 
             # Create the filename the block will be saved under
             if output_dir is None:
-                 write_out = f'central_block_energy_{energy}_' + \
-                     f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
-                     f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
-             else:
-                 write_out = f'{output_dir}/central_block_energy_{energy}_' + \
-                     f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
-                     f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
+                write_out = f'central_block_energy_{energy}_' + \
+                    f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
+                    f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
+            else:
+                write_out = f'{output_dir}/central_block_energy_{energy}_' + \
+                    f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
+                    f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
             kwargs['write_out'] = write_out
 
             # Compute and save the block
