@@ -9,6 +9,8 @@ export, __all__ = fd.exporter()
 def make_event_reservoir(ntoys: int = None,
                          reservoir_output_name=None,
                          max_rm_dict=None,
+                         input_mus=None,
+                         rescale_diff_rates=False,
                          source_groups_dict=None,
                          quanta_tensor_dirs_dict=None,
                          **sources):
@@ -20,7 +22,11 @@ def make_event_reservoir(ntoys: int = None,
             'source1'=source1(args, kwargs), 'source2'=source2(args, kwargs), ...
         - reservoir_output_name: if supplied, the filename the reservoir will be saved under.
         - max_rm_dict: dictionary {sourcename: max_rm, ...} giving the maximum rate multiplier
-            scanned over for each source, to control the size of the reservoir.
+            scanned over for each source, to control the size of the reservoir. If
+            rescale_diff_rates is true, this should correspond to expected counts after cuts.
+        - input_mus: dictionary {sourcename: mu, ...} giving pre-computed mus for the sources.
+        - rescale_diff_rates: if True, rate multipliers will correspond to expected counts after
+            cuts.
     """
     default_ntoys = 1000
 
@@ -38,6 +44,11 @@ def make_event_reservoir(ntoys: int = None,
             max_rm = max_rm_dict[sname]
         else:
             max_rm = 1.
+
+        if rescale_diff_rates:
+            assert input_mus is not None, "Must pass in input_mus if rescaling"
+            max_rm /= input_mus[sname]
+
         n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
 
         sdata = source.simulate(n_simulate)
