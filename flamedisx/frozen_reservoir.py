@@ -9,6 +9,8 @@ export, __all__ = fd.exporter()
 def make_event_reservoir(ntoys: int = None,
                          reservoir_output_name=None,
                          max_rm_dict=None,
+                         source_groups_dict=None,
+                         quanta_tensor_dirs_dict=None,
                          **sources):
     """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
@@ -44,9 +46,27 @@ def make_event_reservoir(ntoys: int = None,
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
 
-    for sname, source in sources.items():
-        source.set_data(data_reservoir)
-        data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+    if source_groups_dict is None:
+        for sname, source in sources.items():
+            source.set_data(data_reservoir)
+            data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+    else:
+        source_groups_already_calculated = []
+
+        for _, source_group_class in source_groups_dict.items():
+            assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
+            if source_group_class not in source_groups_already_calculated:
+                source_group_class.set_data(data_reservoir)
+
+                if quanta_tensor_dirs_dict is None:
+                    source_group_class.get_diff_rates()
+                else:
+                    source_group_class.get_diff_rates(read_in_dir=quanta_tensor_dirs_dict[source_group_class.base_source.__class__.__name__])
+
+                source_groups_already_calculated.append(source_group_class)
+
+        for sname, source in sources.items():
+            data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
 
     if reservoir_output_name is not None:
         data_reservoir.to_pickle(reservoir_output_name)
@@ -104,4 +124,4 @@ class FrozenReservoirSource(fd.ColumnSource):
         if len(params):
             raise NotImplementedError("FrozenReservoirSource does not yet support alternative parameters in simulate")
 
-        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=True)
+        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=False)
