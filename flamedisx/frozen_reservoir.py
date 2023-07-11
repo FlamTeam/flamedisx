@@ -7,8 +7,6 @@ export, __all__ = fd.exporter()
 
 
 def make_event_reservoir(ntoys: int = None,
-                         input_prefix='',
-                         input_label=None,
                          reservoir_output_name=None,
                          max_rm_dict=None,
                          **sources):
@@ -18,6 +16,9 @@ def make_event_reservoir(ntoys: int = None,
         - ntoys: number of toy MCs this reservoir will be used to generate (optional).
         - sources: pass in source instances to be used to build the reservoir, like
             'source1'=source1(args, kwargs), 'source2'=source2(args, kwargs), ...
+        - reservoir_output_name: if supplied, the filename the reservoir will be saved under.
+        - max_rm_dict: dictionary {sourcename: max_rm, ...} giving the maximum rate multiplier
+            scanned over for each source, to control the size of the reservoir.
     """
     default_ntoys = 1000
 
@@ -28,20 +29,6 @@ def make_event_reservoir(ntoys: int = None,
 
     if max_rm_dict is None:
         max_rm_dict = dict()
-
-    if input_label is not None:
-        data_reservoir = pkl.load(open(f'{input_prefix}partial_toy_reservoir{input_label}.pkl', 'rb'))
-
-        for sname, source in sources.items():
-            source.set_data(data_reservoir,
-                            input_column_index=f'{input_prefix}{sname}_column_index{input_label}.pkl',
-                            input_data_tensor=f'{input_prefix}{sname}_data_tensor{input_label}')
-            data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
-
-        if reservoir_output_name is not None:
-            data_reservoir.to_pickle(reservoir_output_name)
-
-        return data_reservoir
 
     dfs = []
     for sname, source in sources.items():
@@ -67,54 +54,6 @@ def make_event_reservoir(ntoys: int = None,
     return data_reservoir
 
 
-def make_event_reservoir_no_compute(ntoys: int = None,
-                                    output_prefix='',
-                                    output_label='',
-                                    max_rm_dict=None,
-                                    **sources):
-    """Generate data tensor and event reservoir without differetial rates, to be used to
-    generate the full reservoir for a FrozenReservoirSource. This could be useful for
-    pre-computation over a large numbers of CPUs, if the data tensor is particulalry complex
-    or annotation takes a long time. It can then be quickly read in on a GPU, to allow one
-    to maximise the utility of the  GPU computation time they are afforded.
-
-    Arguments:
-        - ntoys: number of toy MCs the reservoir will be used to generate (optional).
-        - sources: pass in source instances to be used to build the reservoir, like
-            'source1'=source1(args, kwargs), 'source2'=source2(args, kwargs), ...
-    """
-    default_ntoys = 1000
-
-    assert len(sources) != 0, "Must pass at least one source instance to event_reservoir_data_tensor()"
-
-    if ntoys is None:
-        ntoys = default_ntoys
-
-    if max_rm_dict is None:
-        max_rm_dict = dict()
-
-    dfs = []
-    for sname, source in sources.items():
-        if sname in max_rm_dict.keys():
-            max_rm = max_rm_dict[sname]
-        else:
-            max_rm = 1.
-        n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
-
-        sdata = source.simulate(n_simulate)
-        sdata['source'] = sname
-        dfs.append(sdata)
-
-    data_reservoir = pd.concat(dfs, ignore_index=True)
-
-    data_reservoir.to_pickle(f'{output_prefix}partial_toy_reservoir{output_label}.pkl')
-
-    for sname, source in sources.items():
-        source.set_data(data_reservoir, output_data_tensor=f'{output_prefix}{sname}_data_tensor{output_label}',
-                        ignore_priors=True)
-        pkl.dump(source.column_index, open(f'{output_prefix}{sname}_column_index{output_label}.pkl', 'wb'))
-
-
 @export
 class FrozenReservoirSource(fd.ColumnSource):
     """Source that looks up precomputed differential rates in a column source,
@@ -130,6 +69,7 @@ class FrozenReservoirSource(fd.ColumnSource):
             '{sorce_name}_diff_rate' with the differential rate of each event
             computed under all base sources that will have a FrozenReservoirSource used
             in the analysis.
+        - input_mu: pass a pre-computed mu for the base source class.
 
     For other arguments, see flamedisx.source.Source
     """
