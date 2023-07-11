@@ -100,7 +100,9 @@ class FrozenReservoirSource(fd.ColumnSource):
             '{sorce_name}_diff_rate' with the differential rate of each event
             computed under all base sources that will have a FrozenReservoirSource used
             in the analysis.
-        - input_mu: pass a pre-computed mu for the base source class.
+        - input_mus: dictionary {sourcename: mu, ...} giving pre-computed mus for the sources.
+        - rescale_diff_rates: if True, rate multipliers will correspond to expected counts after
+            cuts.
 
     For other arguments, see flamedisx.source.Source
     """
@@ -108,7 +110,8 @@ class FrozenReservoirSource(fd.ColumnSource):
     def __init__(self, source_type: fd.Source.__class__ = None, source_name: str = None,
                  source_kwargs: ty.Dict[str, ty.Union[int, float]] = None,
                  reservoir: pd.DataFrame = None,
-                 input_mu=None,
+                 input_mus=None,
+                 rescale_diff_rates=False,
                  *args, **kwargs):
         assert source_type is not None, "Must pass a source type to FrozenReservoirSource"
         assert source_name is not None, "Must pass a source name to FrozenReservoirSource"
@@ -121,11 +124,24 @@ class FrozenReservoirSource(fd.ColumnSource):
         self.reservoir = reservoir
         source = source_type(**source_kwargs)
 
-        self.column = f'{source_name}_diff_rate'
-        if input_mu is None:
-            self.mu = source.estimate_mu()
+        reservoir = reservoir.copy()
+
+        if rescale_diff_rates:
+            assert input_mus is not None, "Must pass in input_mus if rescaling"
+            for key, value in input_mus.items():
+                reservoir[f'{key}_diff_rate'] = reservoir[f'{key}_diff_rate'] / value
+            self.reservoir = reservoir
+            self.mu = 1.
+
         else:
-            self.mu = input_mu
+            self.reservoir = reservoir
+            if input_mus is None:
+                source = source_type(**source_kwargs)
+                self.mu = source.estimate_mu()
+            else:
+                self.mu = input_mus[source_name]
+
+        self.column = f'{source_name}_diff_rate'
 
         super().__init__(*args, **kwargs)
 
