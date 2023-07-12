@@ -9,6 +9,7 @@ import os
 import pandas as pd
 
 import flamedisx as fd
+from .. import nest as fd_nest
 
 import pickle as pkl
 
@@ -233,7 +234,11 @@ class LZSource:
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
-            d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
+            g1 = self.photon_detection_eff(0.)
+            g1_gas = self.s2_photon_detection_eff(0.)
+            g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
+                                      g1_gas, self.extraction_eff)
+            d['ces_er_equivalent'] = (d['cs1'] / g1 + d['cs2'] / g2) * self.Wq_keV
 
         if 'cs1' in d.columns and 'cs1_acc_curve' not in d.columns:
             if self.cs1_acc_domain is not None:

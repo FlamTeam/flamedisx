@@ -56,6 +56,8 @@ def make_event_reservoir(ntoys: int = None,
         dfs.append(sdata)
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
+    if 'ces_er_equivalent' in data_reservoir.columns:
+        data_reservoir = data_reservoir.sort_values(by=['ces_er_equivalent'], ignore_index=True)
 
     if source_groups_dict is None:
         for sname, source in sources.items():
