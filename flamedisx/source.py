@@ -769,9 +769,18 @@ class Source:
         """Return estimate of total expected number of events
         :param n_trials: Number of events to simulate for estimate
         """
-        d_simulated = self.simulate(n_trials, **params)
-        return (self.mu_before_efficiencies(**params)
-                * len(d_simulated) / n_trials)
+        if n_trials > int(1e5):
+            n_batches = int(n_trials / int(1e5))
+            d_sum = 0
+            for i_batch in tqdm(range(n_batches)):
+                d_simulated = self.simulate(int(1e5), **params)
+                d_sum += len(d_simulated)
+            return (self.mu_before_efficiencies(**params)
+                    * d_sum / n_trials)
+        else:
+            d_simulated = self.simulate(n_trials, **params)
+            return (self.mu_before_efficiencies(**params)
+                    * len(d_simulated) / n_trials)
 
     ##
     # Functions you have to override
