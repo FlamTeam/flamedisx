@@ -147,6 +147,8 @@ class FrozenReservoirSource(fd.ColumnSource):
 
         super().__init__(*args, **kwargs)
 
+        self.ignore_acceptances = True
+
     def random_truth(self, n_events, fix_truth=None, **params):
         if fix_truth is not None:
             raise NotImplementedError("FrozenReservoirSource does not yet support fix_truth")
