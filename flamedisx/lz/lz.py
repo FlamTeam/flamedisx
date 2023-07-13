@@ -227,11 +227,14 @@ class LZSource:
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
+            d['cs1_phd'] = d['cs1'] / (1 + self.double_pe_fraction)
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + self.double_pe_fraction))
+
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
             g1 = self.photon_detection_eff(0.)
@@ -257,7 +260,7 @@ class LZSource:
             else:
                 d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
 
-        if 's2' in d.columns and 'fv_acceptance' not in d.columns:
+        if 'fv_acceptance' not in d.columns:
             standoffDistance_cm = 4.
 
             m_idealFiducialWallFit = [72.4403, 0.00933984, 5.06325e-5, 1.65361e-7,
@@ -280,7 +283,7 @@ class LZSource:
 
             d['fv_acceptance'] = accept_upper_drift_time * accept_lower_drift_time * accept_radial
 
-        if 's2' in d.columns and 'resistor_acceptance' not in d.columns:
+        if 'resistor_acceptance' not in d.columns:
             x = d['x'].values
             y = d['y'].values
 
@@ -295,7 +298,7 @@ class LZSource:
 
             d['resistor_acceptance'] = not_inside_res1 * not_inside_res2
 
-        if 's2' in d.columns and 'timestamp_acceptance' not in d.columns:
+        if 'timestamp_acceptance' not in d.columns:
             t_start = pd.to_datetime('2021-12-23T09:37:51')
             t_start = t_start.tz_localize(tz='America/Denver').value
 
@@ -536,6 +539,62 @@ class LZDetNRSource(LZSource, fd.nest.nestSpatialRateNRSource):
         self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
+
+
+@export
+class LZAccidentalsSource(fd.TemplateSource):
+    def __init__(self, *args, simulate_safety_factor=2., **kwargs):
+        hist = fd.get_lz_file('accidentals.npz')
+
+        hist_values = hist['hist_values']
+        s1_edges = hist['s1_edges']
+        s2_edges = hist['s2_edges']
+
+        mh = Histdd(bins=[len(s1_edges) - 1, len(s2_edges) - 1]).from_histogram(hist_values, bin_edges=[s1_edges, s2_edges])
+        mh = mh / mh.n
+        mh = mh / mh.bin_volumes()
+
+        self.simulate_safety_factor = simulate_safety_factor
+
+        super().__init__(*args, template=mh, interp_2d=True,
+                         axis_names=('cs1_phd', 'log10_cs2_phd'),
+                         **kwargs)
+
+    def simulate(self, n_events, fix_truth=None, full_annotate=False,
+                 keep_padding=False, **params):
+        df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
+                              full_annotate=full_annotate, keep_padding=keep_padding, **params)
+
+        lz_source = LZERSource()
+        df_pos = pd.DataFrame(lz_source.model_blocks[0].draw_positions(len(df)))
+        df = df.join(df_pos)
+
+        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(len(df)), columns=['event_time'])
+        df = df.join(df_time)
+
+        lz_source.add_extra_columns(df)
+        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+        df = df[df['acceptance'] == 1.]
+        df = df.reset_index(drop=True)
+
+        try:
+            df = df.head(n_events)
+        except Exception:
+            raise RuntimeError('Too many events lost due to spatial/temporal cuts, try increasing \
+                                simulate_safety_factor')
+        df = df.drop(columns=['fv_acceptance', 'resistor_acceptance', 'timestamp_acceptance',
+                              'acceptance'])
+
+        df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
+        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
+        df['s1'] = df['cs1'] * df['s1_pos_corr_LZAP']
+        df['s2'] = (
+            df['cs2']
+            * df['s2_pos_corr_LZAP']
+            / np.exp(df['drift_time'] / df['electron_lifetime']))
+
+        lz_source.add_extra_columns(df)
+        return df
 
 
 ##
