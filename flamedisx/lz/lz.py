@@ -585,6 +585,17 @@ class LZAccidentalsSource(fd.TemplateSource):
 
         lz_source.add_extra_columns(df)
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+
+        df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
+        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
+        df['s1'] = df['cs1'] * df['s1_pos_corr_LZAP']
+        df['s2'] = (
+            df['cs2']
+            * df['s2_pos_corr_LZAP']
+            / np.exp(df['drift_time'] / df['electron_lifetime']))
+
+        df['acceptance'] *= (df['s2'].values >= lz_source.S2_min)
+
         df = df[df['acceptance'] == 1.]
         df = df.reset_index(drop=True)
 
@@ -595,14 +606,6 @@ class LZAccidentalsSource(fd.TemplateSource):
                                 simulate_safety_factor')
         df = df.drop(columns=['fv_acceptance', 'resistor_acceptance', 'timestamp_acceptance',
                               'acceptance'])
-
-        df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
-        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
-        df['s1'] = df['cs1'] * df['s1_pos_corr_LZAP']
-        df['s2'] = (
-            df['cs2']
-            * df['s2_pos_corr_LZAP']
-            / np.exp(df['drift_time'] / df['electron_lifetime']))
 
         lz_source.add_extra_columns(df)
         return df
