@@ -543,6 +543,9 @@ class LZDetNRSource(LZSource, fd.nest.nestSpatialRateNRSource):
 
 @export
 class LZAccidentalsSource(fd.TemplateSource):
+    path_s1_corr_LZAP = 's1_map_22Apr22.json'
+    path_s2_corr_LZAP = 's2_map_30Mar22.json'
+
     def __init__(self, *args, simulate_safety_factor=2., **kwargs):
         hist = fd.get_lz_file('accidentals.npz')
 
@@ -555,6 +558,14 @@ class LZAccidentalsSource(fd.TemplateSource):
         mh = mh / mh.bin_volumes()
 
         self.simulate_safety_factor = simulate_safety_factor
+
+        try:
+            self.s1_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_LZAP))
+            self.s2_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_LZAP))
+        except Exception:
+            print("Could not load maps; setting position corrections to 1")
+            self.s1_map_LZAP = None
+            self.s2_map_LZAP = None
 
         super().__init__(*args, template=mh, interp_2d=True,
                          axis_names=('cs1_phd', 'log10_cs2_phd'),
@@ -595,6 +606,36 @@ class LZAccidentalsSource(fd.TemplateSource):
 
         lz_source.add_extra_columns(df)
         return df
+
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+
+        if (self.s1_map_LZAP is not None) and (self.s2_map_LZAP is not None):
+            d['s1_pos_corr_LZAP'] = self.s1_map_LZAP(
+                np.transpose([d['x'].values,
+                              d['y'].values,
+                              d['drift_time'].values * 1e-9 / 1e-6]))
+            d['s2_pos_corr_LZAP'] = self.s2_map_LZAP(
+                np.transpose([d['x'].values,
+                              d['y'].values]))
+        else:
+            d['s1_pos_corr_LZAP'] = np.ones_like(d['x'].values)
+            d['s2_pos_corr_LZAP'] = np.ones_like(d['x'].values)
+
+        lz_source = LZERSource()
+
+        if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
+            d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
+
+        if 's1' in d.columns and 'cs1' not in d.columns:
+            d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
+            d['cs1_phd'] = d['cs1'] / (1 + lz_source.double_pe_fraction)
+        if 's2' in d.columns and 'cs2' not in d.columns:
+            d['cs2'] = (
+                d['s2']
+                / d['s2_pos_corr_LZAP']
+                * np.exp(d['drift_time'] / d['electron_lifetime']))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
 
 
 ##
