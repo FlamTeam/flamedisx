@@ -547,7 +547,7 @@ class LZAccidentalsSource(fd.TemplateSource):
     path_s2_corr_LZAP = 's2_map_30Mar22.json'
 
     def __init__(self, *args, simulate_safety_factor=2., **kwargs):
-        hist = fd.get_lz_file('accidentals.npz')
+        hist = fd.get_lz_file('Accidentals.npz')
 
         hist_values = hist['hist_values']
         s1_edges = hist['s1_edges']
