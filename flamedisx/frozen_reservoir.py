@@ -13,6 +13,7 @@ def make_event_reservoir(ntoys: int = None,
                          rescale_diff_rates=False,
                          source_groups_dict=None,
                          quanta_tensor_dirs_dict=None,
+                         template_source_names=None,
                          **sources):
     """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
@@ -45,11 +46,13 @@ def make_event_reservoir(ntoys: int = None,
         else:
             max_rm = 1.
 
-        if rescale_diff_rates:
-            assert input_mus is not None, "Must pass in input_mus if rescaling"
-            max_rm /= input_mus[sname]
-
-        n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
+        if sname in template_source_names:
+            n_simulate = int(max_rm * ntoys)
+        else:
+            if rescale_diff_rates:
+                assert input_mus is not None, "Must pass in input_mus if rescaling"
+                max_rm /= input_mus[sname]
+            n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
 
         sdata = source.simulate(n_simulate)
         sdata['source'] = sname
@@ -79,7 +82,11 @@ def make_event_reservoir(ntoys: int = None,
                 source_groups_already_calculated.append(source_group_class)
 
         for sname, source in sources.items():
-            data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
+            if sname in template_source_names:
+                source.set_data(data_reservoir)
+                data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
+            else:
+                data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
 
     if reservoir_output_name is not None:
         data_reservoir.to_pickle(reservoir_output_name)
