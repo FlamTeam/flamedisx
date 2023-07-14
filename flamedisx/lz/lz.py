@@ -582,6 +582,9 @@ class LZAccidentalsSource(fd.TemplateSource):
 
         lz_source.add_extra_columns(df)
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+        df['acceptance'] *= (df['cs1'].values >= self.cS1_min)
+        df['acceptance'] *= (df['cs1'].values <= self.cS1_max)
+        df['acceptance'] *= (df['cs2'].values <= self.cS2_max)
 
         df = df[df['acceptance'] == 1.]
         df = df.reset_index(drop=True)
@@ -591,10 +594,8 @@ class LZAccidentalsSource(fd.TemplateSource):
         except Exception:
             raise RuntimeError('Too many events lost due to spatial/temporal cuts, try increasing \
                                 simulate_safety_factor')
-        df = df.drop(columns=['fv_acceptance', 'resistor_acceptance', 'timestamp_acceptance',
-                              'acceptance'])
+        df = df.drop(columns=['acceptance'])
 
-        lz_source.add_extra_columns(df)
         return df
 
     def add_extra_columns(self, d):
