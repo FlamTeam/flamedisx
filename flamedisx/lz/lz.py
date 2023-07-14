@@ -582,9 +582,9 @@ class LZAccidentalsSource(fd.TemplateSource):
 
         lz_source.add_extra_columns(df)
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
-        df['acceptance'] *= (df['cs1'].values >= self.cS1_min)
-        df['acceptance'] *= (df['cs1'].values <= self.cS1_max)
-        df['acceptance'] *= (df['cs2'].values <= self.cS2_max)
+        df['acceptance'] *= (df['cs1'].values >= lz_source.cS1_min)
+        df['acceptance'] *= (df['cs1'].values <= lz_source.cS1_max)
+        df['acceptance'] *= (df['cs2'].values <= lz_source.cS2_max)
 
         df = df[df['acceptance'] == 1.]
         df = df.reset_index(drop=True)
