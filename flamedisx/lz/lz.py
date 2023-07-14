@@ -571,6 +571,17 @@ class LZAccidentalsSource(fd.TemplateSource):
                          axis_names=('cs1_phd', 'log10_cs2_phd'),
                          **kwargs)
 
+    def _annotate(self, **kwargs):
+        super()._annotate(**kwargs)
+
+        lz_source = LZERSource()
+        self.data[self.column] /= (1 + lz_source.double_pe_fraction)
+        self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
+        self.data[self.column] /= self.data['s1_pos_corr_LZAP'].values
+        self.data[self.column] *= (np.exp(self.data['drift_time'].values /
+                                          self.data['electron_lifetime'].values) /
+                                   self.data['s2_pos_corr_LZAP'].values)
+
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
         df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
