@@ -227,11 +227,13 @@ class LZSource:
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
+            d['cs1_phd'] = d['cs1'] / (1 + lz_source.double_pe_fraction)
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
             g1 = self.photon_detection_eff(0.)
@@ -544,7 +546,7 @@ class LZAccidentalsSource(fd.TemplateSource):
     path_s2_corr_LZAP = 's2_map_30Mar22.json'
 
     def __init__(self, *args, simulate_safety_factor=2., **kwargs):
-        hist = fd.get_lz_file('test.npz')
+        hist = fd.get_lz_file('Accidentals.npz')
 
         hist_values = hist['hist_values']
         s1_edges = hist['s1_edges']
@@ -565,8 +567,19 @@ class LZAccidentalsSource(fd.TemplateSource):
             self.s2_map_LZAP = None
 
         super().__init__(*args, template=mh, interp_2d=True,
-                         axis_names=('s1', 's2'),
+                         axis_names=('cs1_phd', 'log10_cs2_phd'),
                          **kwargs)
+
+    def _annotate(self, **kwargs):
+        super()._annotate(**kwargs)
+
+        lz_source = LZERSource()
+        self.data[self.column] /= (1 + lz_source.double_pe_fraction)
+        self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
+        self.data[self.column] /= self.data['s1_pos_corr_LZAP'].values
+        self.data[self.column] *= (np.exp(self.data['drift_time'].values /
+                                          self.data['electron_lifetime'].values) /
+                                   self.data['s2_pos_corr_LZAP'].values)
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
@@ -582,9 +595,16 @@ class LZAccidentalsSource(fd.TemplateSource):
 
         lz_source.add_extra_columns(df)
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
-        df['acceptance'] *= (df['cs1'].values >= lz_source.cS1_min)
-        df['acceptance'] *= (df['cs1'].values <= lz_source.cS1_max)
-        df['acceptance'] *= (df['cs2'].values <= lz_source.cS2_max)
+
+        df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
+        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
+        df['s1'] = df['cs1'] * df['s1_pos_corr_LZAP']
+        df['s2'] = (
+            df['cs2']
+            * df['s2_pos_corr_LZAP']
+            / np.exp(df['drift_time'] / df['electron_lifetime']))
+
+        df['acceptance'] *= (df['s2'].values >= lz_source.S2_min)
 
         df = df[df['acceptance'] == 1.]
         df = df.reset_index(drop=True)
@@ -620,11 +640,13 @@ class LZAccidentalsSource(fd.TemplateSource):
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
+            d['cs1_phd'] = d['cs1'] / (1 + lz_source.double_pe_fraction)
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
 
 
 ##
