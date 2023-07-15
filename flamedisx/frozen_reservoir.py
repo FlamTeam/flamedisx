@@ -13,7 +13,7 @@ def make_event_reservoir(ntoys: int = None,
                          rescale_diff_rates=False,
                          source_groups_dict=None,
                          quanta_tensor_dirs_dict=None,
-                         template_source_names=None,
+                         template_source_names=[],
                          **sources):
     """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
@@ -100,7 +100,7 @@ class FrozenReservoirSource(fd.ColumnSource):
     with the added ability to simulate.
 
     Arguments:
-        - source_type: base flamedisx source class.
+        - source_type: base flamedisx source class. Pass if not passing input_mus
         - source_name: name given to the base source; must match the source name
             in the reservoir.
         - source_kwargs: any kwargs needed to instantiate the base source.
@@ -122,7 +122,9 @@ class FrozenReservoirSource(fd.ColumnSource):
                  input_mus=None,
                  rescale_diff_rates=False,
                  *args, **kwargs):
-        assert source_type is not None, "Must pass a source type to FrozenReservoirSource"
+        if input_mus is None:
+            assert source_type is not None, "Must pass a source type to FrozenReservoirSource, if not passing \
+                input mus"
         assert source_name is not None, "Must pass a source name to FrozenReservoirSource"
         assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
 
@@ -131,8 +133,6 @@ class FrozenReservoirSource(fd.ColumnSource):
 
         self.source_name = source_name
         self.reservoir = reservoir
-        source = source_type(**source_kwargs)
-
         reservoir = reservoir.copy()
 
         if rescale_diff_rates:
