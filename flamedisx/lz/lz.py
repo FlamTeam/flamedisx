@@ -614,7 +614,10 @@ class LZAccidentalsSource(fd.TemplateSource):
         except Exception:
             raise RuntimeError('Too many events lost due to spatial/temporal cuts, try increasing \
                                 simulate_safety_factor')
-        df = df.drop(columns=['acceptance'])
+        df = df.drop(columns=['fv_acceptance', 'resistor_acceptance', 'timestamp_acceptance',
+                              'acceptance'])
+
+        lz_source.add_extra_columns(df)
 
         return df
 
