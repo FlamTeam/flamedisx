@@ -227,13 +227,13 @@ class LZSource:
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
-            d['cs1_phd'] = d['cs1'] / (1 + lz_source.double_pe_fraction)
+            d['cs1_phd'] = d['cs1'] / (1 + self.double_pe_fraction)
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
-            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + self.double_pe_fraction))
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
             g1 = self.photon_detection_eff(0.)
@@ -647,6 +647,17 @@ class LZAccidentalsSource(fd.TemplateSource):
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
             d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
+
+    def estimate_position_acceptance(self, n_trials=int(1e5)):
+        lz_source = LZERSource()
+        df = pd.DataFrame(lz_source.model_blocks[0].draw_positions(n_trials))
+        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
+        df = df.join(df_time)
+
+        lz_source.add_extra_columns(df)
+        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+
+        return np.sum(df['acceptance'].values) / n_trials
 
 
 ##
