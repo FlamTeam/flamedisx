@@ -18,7 +18,7 @@ export, __all__ = fd.exporter()
 
 
 @export
-class CH3TSource(fd_nest.nestERSource):
+class CH3TSource(fd_nest.nestFasterERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'

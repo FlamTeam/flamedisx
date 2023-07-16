@@ -364,8 +364,6 @@ class LZCH3TSource(LZSource, fd.nest.CH3TSource):
             kwargs['detector'] = 'lz'
         super().__init__(*args, **kwargs)
 
-        self.max_dim_sizes['energy'] = 50
-
     @staticmethod
     def get_elife(event_time):
         return 6600000.

@@ -265,6 +265,11 @@ class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
 
 
 @export
+class FixedShapeEnergySpectrumFaster(FixedShapeEnergySpectrum):
+    max_dim_size = {'energy': 50}
+
+
+@export
 class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     model_attributes = (('spatial_hist',)
                         + FixedShapeEnergySpectrum.model_attributes)
