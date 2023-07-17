@@ -235,6 +235,14 @@ class LZSource:
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
             d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + self.double_pe_fraction))
 
+        if 'cs1' in d.columns and 's1' not in d.columns:
+            d['s1'] = d['cs1'] * d['s1_pos_corr_LZAP']
+        if 'cs2' in d.columns and 's2' not in d.columns:
+            d['s2'] = (
+                d['cs2']
+                * d['s2_pos_corr_LZAP']
+                / np.exp(d['drift_time'] / d['electron_lifetime']))
+
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
             g1 = self.photon_detection_eff(0.)
             g1_gas = self.s2_photon_detection_eff(0.)
