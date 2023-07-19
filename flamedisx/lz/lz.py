@@ -228,6 +228,7 @@ class LZSource:
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
             d['cs1_phd'] = d['cs1'] / (1 + self.double_pe_fraction)
+            d['cs1'] = np.where(d['cs1'].values <= self.cS1_max, d['cs1'].values, self.cS1_max)
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
