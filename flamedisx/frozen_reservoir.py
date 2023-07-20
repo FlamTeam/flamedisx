@@ -54,6 +54,9 @@ def make_event_reservoir(ntoys: int = None,
                 max_rm /= input_mus[sname]
             n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
 
+        # Safety factor for Poisson fluctuations
+        n_simulate = int(n_simulate + 5. * np.sqrt(n_simulate))
+
         sdata = source.simulate(n_simulate)
         sdata['source'] = sname
         dfs.append(sdata)
@@ -87,6 +90,10 @@ def make_event_reservoir(ntoys: int = None,
                 data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
             else:
                 data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
+
+    cols = [c for c in data_reservoir.columns if (c[-9:] == 'diff_rate')]
+    cols.append('source')
+    data_reservoir = data_reservoir[cols]
 
     if reservoir_output_name is not None:
         data_reservoir.to_pickle(reservoir_output_name)
@@ -162,4 +169,4 @@ class FrozenReservoirSource(fd.ColumnSource):
         if len(params):
             raise NotImplementedError("FrozenReservoirSource does not yet support alternative parameters in simulate")
 
-        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=False)
+        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=True)
