@@ -141,8 +141,8 @@ class FrozenReservoirSource(fd.ColumnSource):
             source_kwargs = dict()
 
         self.source_name = source_name
-        self.reservoir = reservoir
         reservoir = reservoir.copy()
+        reservoir = reservoir[reservoir['source'] == self.source_name]
 
         if rescale_diff_rates:
             assert input_mus is not None, "Must pass in input_mus if rescaling"
@@ -171,4 +171,4 @@ class FrozenReservoirSource(fd.ColumnSource):
         if len(params):
             raise NotImplementedError("FrozenReservoirSource does not yet support alternative parameters in simulate")
 
-        return self.reservoir[self.reservoir['source'] == self.source_name].sample(n_events, replace=True)
+        return self.reservoir.sample(n_events, replace=True)
