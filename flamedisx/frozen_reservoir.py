@@ -1,6 +1,7 @@
 import typing as ty
 import pandas as pd
 import pickle as pkl
+import numpy as np
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
