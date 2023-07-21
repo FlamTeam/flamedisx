@@ -47,16 +47,17 @@ def make_event_reservoir(ntoys: int = None,
         else:
             max_rm = 1.
 
+        # Safety factor for Poisson fluctuations
+        max_rm = max_rm + 5. * np.sqrt(max_rm)
+
         if sname in template_source_names:
             n_simulate = int(max_rm * ntoys)
         else:
-            if rescale_diff_rates:
-                assert input_mus is not None, "Must pass in input_mus if rescaling"
-                max_rm /= input_mus[sname]
-            n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
+            assert rescale_diff_rates, "Not handling non-rescaling case yet!"
+            assert input_mus is not None, "Must pass in input_mus if rescaling"
 
-        # Safety factor for Poisson fluctuations
-        n_simulate = int(n_simulate + 5. * np.sqrt(n_simulate))
+            max_rm /= input_mus[sname]
+            n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
 
         sdata = source.simulate(n_simulate)
         sdata['source'] = sname
