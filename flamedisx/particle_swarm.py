@@ -44,7 +44,7 @@ class Particles():
             for j, param in enumerate(self.fit_params):
                 eval_dict[param] = self.X[j, i]
 
-            self.pbest_obj[i] = -2. * likelihood(**eval_dict)
+            self.pbest_obj[i] = -2. * likelihood(**eval_dict, ignore_grads=True)
 
         self.gbest = self.pbest[:, self.pbest_obj.argmin()]
         self.gbest_obj = self.pbest_obj.min()
@@ -62,7 +62,7 @@ class Particles():
             for j, param in enumerate(self.fit_params):
                 eval_dict[param] = self.X[j, i]
 
-            obj[i] = -2. * likelihood(**eval_dict)
+            obj[i] = -2. * likelihood(**eval_dict, ignore_grads=True)
 
         self.pbest[:, (self.pbest_obj >= obj)] = self.X[:, (self.pbest_obj >= obj)]
         self.pbest_obj = np.array([self.pbest_obj, obj]).min(axis=0)
