@@ -100,3 +100,10 @@ class PSOOptimiser():
         for i in range(self.n_iterations):
             self.particles.update_particles(self.likelihood,
                                             self.c1, self.c2, self.w)
+
+    def bestfit(self):
+        bf = dict()
+        for i, param in enumerate(self.fit_params):
+            bf[param] = self.gbest[i]
+
+        return bf
