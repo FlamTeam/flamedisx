@@ -43,10 +43,33 @@ class Particles():
             eval_dict = dict()
             for j, param in enumerate(self.fit_params):
                 eval_dict[param] = self.X[j, i]
-                self.pbest_obj[i] = -2. * likelihood(**eval_dict)
+
+            self.pbest_obj[i] = -2. * likelihood(**eval_dict)
 
         self.gbest = self.pbest[:, self.pbest_obj.argmin()]
         self.gbest_obj = self.pbest_obj.min()
+
+    def update_particles(c1, c2, w):
+
+        r1, r2 = np.random.rand(2)
+        self.V = w * self.V + c1 * r1 * (self.pbest -self. X) + \
+            c2 * r2 * (gbest.reshape(-1, 1) - self.X)
+        self.X = self.X + self.V
+
+        obj = np.zeros_like(self.pbest_obj)
+        for i in range(len(obj)):
+            eval_dict = dict()
+            for j, param in enumerate(self.fit_params):
+                eval_dict[param] = self.X[j, i]
+
+            obj[i] = -2. * likelihood(**eval_dict)
+
+        self.pbest[:, (self.pbest_obj >= obj)] = self.X[:, (self.pbest_obj >= obj)]
+        self.pbest_obj = np.array([self.pbest_obj, obj]).min(axis=0)
+
+        self.gbest = self.pbest[:, self.pbest_obj.argmin()]
+        self.gbest_obj = self.pbest_obj.min()
+
 
 @export
 class PSOOptimiser():
@@ -58,7 +81,8 @@ class PSOOptimiser():
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
                  n_particles=50,
-                 n_iterations=50):
+                 n_iterations=50
+                 c1=0.1, c2=0.1, w=0.8):
 
         self.likelihood = likelihood
 
@@ -67,3 +91,7 @@ class PSOOptimiser():
         self.particles = Particles(likelihood=self.likelihood, fit_params=fit_params,
                                    bounds=bounds, guess_dict=guess_dict,
                                    n_particles=n_particles)
+
+        self.c1 = c1
+        self.c2 = c2
+        self.w = w
