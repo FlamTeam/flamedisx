@@ -103,7 +103,7 @@ class PSOOptimiser():
 
     def bestfit(self):
         bf = dict()
-        for i, param in enumerate(self.fit_params):
+        for i, param in enumerate(self.particles.fit_params):
             bf[param] = self.gbest[i]
 
         return bf
