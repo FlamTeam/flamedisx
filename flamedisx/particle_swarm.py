@@ -11,14 +11,14 @@ class Particles():
     """
     """
     def __init__(self,
-                 source: fd.Source = None,
+                 sources: ty.Dict[str, fd.Source] = None,
                  fit_params: ty.Tuple[str] = None,
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
                  n_particles=50,
                  velocity_scaling=0.01):
 
-        self.source = source
+        self.sources = sources
 
         self.fit_params = fit_params
         self.bounds = bounds
@@ -79,10 +79,13 @@ class Particles():
                 continue
             params_filter[key] = value
 
-        mu = self.source.estimate_mu(**params_filter, fast=True)
-        dr = self.source.batched_differential_rate(**params_filter, progress=False)
+        dr_sum = 0.
+        mu_sum = 0.
+        for sname, source in self.sources.items():
+            dr_sum += source.batched_differential_rate(**params_filter, progress=False) * params[f'{sname}_rate_multiplier']
+            mu_sum += source.estimate_mu(**params_filter, fast=True) * params[f'{sname}_rate_multiplier']
 
-        return (-mu * params['NR_rate_multiplier'] + np.sum(np.log(dr * params['NR_rate_multiplier'])))
+        return (-mu_sum + np.sum(np.log(dr_sum)))
 
 
 @export
@@ -90,7 +93,7 @@ class PSOOptimiser():
     """
     """
     def __init__(self,
-                 source = None,
+                 sources: ty.Dict[str, fd.Source] = None,
                  fit_params: ty.Tuple[str] = None,
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
@@ -98,11 +101,9 @@ class PSOOptimiser():
                  n_iterations=50,
                  c1=0.1, c2=0.1, w=0.8):
 
-        self.source = source
-
         self.n_iterations = n_iterations
 
-        self.particles = Particles(source=self.source, fit_params=fit_params,
+        self.particles = Particles(sources=sources, fit_params=fit_params,
                                    bounds=bounds, guess_dict=guess_dict,
                                    n_particles=n_particles)
 
