@@ -366,11 +366,7 @@ class LogLikelihood:
         return self.log_likelihood(second_order=False, mu_estimators=self.mu_estimators, **kwargs)[0]
 
     def log_likelihood(self, second_order=False,
-                       omit_grads=tuple(), mu_estimators=None,
-                       ignore_grads=False, **kwargs):
-        if ignore_grads:
-            omit_grads = self.param_names
-
+                       omit_grads=tuple(), mu_estimators=None, **kwargs):
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
         ll = 0.
@@ -406,13 +402,12 @@ class LogLikelihood:
                     **params)
                 ll += results[0].numpy().astype(np.float64)
 
-                if not ignore_grads:
-                    if self.param_names:
-                        if results[1] is None:
-                            raise ValueError("TensorFlow returned None as gradient!")
-                        llgrad += results[1].numpy().astype(np.float64)
-                        if second_order:
-                            llgrad2 += results[2].numpy().astype(np.float64)
+                if self.param_names:
+                    if results[1] is None:
+                        raise ValueError("TensorFlow returned None as gradient!")
+                    llgrad += results[1].numpy().astype(np.float64)
+                    if second_order:
+                        llgrad2 += results[2].numpy().astype(np.float64)
 
         if second_order:
             return ll, llgrad, llgrad2
