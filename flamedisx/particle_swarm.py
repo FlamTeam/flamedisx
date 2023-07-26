@@ -7,6 +7,13 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
+class PSOColumnSource(fd.ColumnSource):
+    def __init__(self, *args, column_name=None, mu=None, **kwargs):
+        self.column = column_name
+        self.mu = mu
+        super().__init__(*args, **kwargs)
+
+
 class Particles():
     """
     """
@@ -93,13 +100,36 @@ class PSOOptimiser():
     """
     """
     def __init__(self,
-                 sources: ty.Dict[str, fd.Source] = None,
+                 regular_sources: ty.Dict[str, fd.Source] = None,
+                 column_sources: ty.Dict[str, fd.Source] = None,
+                 data: pd.DataFrame = None,
                  fit_params: ty.Tuple[str] = None,
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
                  n_particles=50,
                  n_iterations=100,
                  c1=0.1, c2=0.1, w=0.8):
+
+        shape_params = dict()
+        for key, value in guess_dict.items():
+            if key[-16:] == '_rate_multiplier':
+                continue
+            shape_params[key] = value
+
+        for sname, source in column_sources.items():
+            source.set_data(data)
+            data[f'{sname}_diff_rate'] = source.batched_differential_rate(**shape_params, progress=False)
+
+        sources = dict()
+        for sname, source in regular_sources.items():
+            sources[sname] = source
+        for sname, source in column_sources.items():
+            mu = source.estimate_mu(**shape_params)
+            sources[sname] = PSOColumnSource(column_name=f'{sname}_diff_rate', mu=mu,
+                                             batch_size=len(data))
+
+        for source in sources.values():
+            source.set_data(data)
 
         self.n_iterations = n_iterations
 
