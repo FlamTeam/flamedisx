@@ -98,7 +98,7 @@ class PSOOptimiser():
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
                  n_particles=50,
-                 n_iterations=50,
+                 n_iterations=100,
                  c1=0.1, c2=0.1, w=0.8):
 
         self.n_iterations = n_iterations
