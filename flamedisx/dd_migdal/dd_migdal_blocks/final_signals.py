@@ -49,7 +49,12 @@ class MakeS1S2MSU(fd.Block):
         s1_var_second, s2_var_second = self.gimme_numpy('signal_vars', (s1_mean_second, s2_mean_second))
         s1_var = s1_var_first + s1_var_second
         s2_var = s2_var_first + s2_var_second
-        anti_corr = self.gimme_numpy('signal_corr', energies_first)
+
+        s1s2_corr_nr = self.gimme_numpy('signal_corr', energies_first)
+        s1s2_cov_first = s1s2_corr_nr  * np.sqrt(s1_var_first * s2_var_first)
+        s1s2_cov_second = s1s2_corr_nr  * np.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
 
         X = np.random.normal(size=len(energies_first))
         Y = np.random.normal(size=len(energies_first))
@@ -103,10 +108,15 @@ class MakeS1S2MSU(fd.Block):
 
         s1_std = tf.sqrt(s1_var)
         s2_std = tf.sqrt(s2_var)
-        anti_corr = self.gimme('signal_corr',
-                               bonus_arg=energies_first,
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)
+
+        s1s2_corr_nr = self.gimme('signal_corr',
+                                  bonus_arg=energies_first,
+                                  data_tensor=data_tensor,
+                                  ptensor=ptensor)
+        s1s2_cov_first = s1s2_corr_nr  * tf.sqrt(s1_var_first * s2_var_first)
+        s1s2_cov_second = s1s2_corr_nr  * tf.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second
+        anti_corr = s1s2_cov / (s1_std * s2_std)
 
         denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
 
@@ -163,7 +173,13 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         s1_var_third, s2_var_third = self.gimme_numpy('signal_vars', (s1_mean_third, s2_mean_third))
         s1_var = s1_var_first + s1_var_second + s1_var_third
         s2_var = s2_var_first + s2_var_second + s2_var_third
-        anti_corr = self.gimme_numpy('signal_corr', energies_first)
+
+        s1s2_corr_nr = self.gimme_numpy('signal_corr', energies_first)
+        s1s2_cov_first = s1s2_corr_nr  * np.sqrt(s1_var_first * s2_var_first)
+        s1s2_cov_second = s1s2_corr_nr  * np.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov_third = s1s2_corr_nr  * np.sqrt(s1_var_third * s2_var_third)
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second + s1s2_cov_third
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
 
         X = np.random.normal(size=len(energies_first))
         Y = np.random.normal(size=len(energies_first))
@@ -230,10 +246,16 @@ class MakeS1S2MSU3(MakeS1S2MSU):
 
         s1_std = tf.sqrt(s1_var)
         s2_std = tf.sqrt(s2_var)
-        anti_corr = self.gimme('signal_corr',
-                               bonus_arg=energies_first,
-                               data_tensor=data_tensor,
-                               ptensor=ptensor)
+
+        s1s2_corr_nr = self.gimme('signal_corr',
+                                  bonus_arg=energies_first,
+                                  data_tensor=data_tensor,
+                                  ptensor=ptensor)
+        s1s2_cov_first = s1s2_corr_nr  * tf.sqrt(s1_var_first * s2_var_first)
+        s1s2_cov_second = s1s2_corr_nr  * tf.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov_third = s1s2_corr_nr  * tf.sqrt(s1_var_third * s2_var_third)
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second + s1s2_cov_third
+        anti_corr = s1s2_cov / (s1_std * s2_std)
 
         denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
 
@@ -582,8 +604,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
 class MakeS1S2ER(MakeS1S2SS):
     """
     """
-    special_model_functions = ('signal_means_ER', 'signal_vars_ER',
-                               'signal_corr')
+    special_model_functions = ('signal_means_ER', 'signal_vars_ER')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
     def _simulate(self, d):

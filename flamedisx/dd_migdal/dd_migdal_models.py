@@ -202,7 +202,12 @@ class NRNRSource(NRSource):
         s1_std = np.sqrt(s1_var)
         s2_std = np.sqrt(s2_var)
 
-        anti_corr = self.gimme('signal_corr', bonus_arg=self.energies_first)
+        s1s2_corr_nr = self.gimme_numpy('signal_corr', e1)
+        s1s2_cov_first = s1s2_corr_nr  * np.sqrt(s1_var_first * s2_var_first)
+        s1s2_cov_second = s1s2_corr_nr  * np.sqrt(s1_var_second * s2_var_second)
+
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
         anti_corr = fd.tf_to_np(anti_corr)
 
         spectrum = fd.tf_to_np(self.rates_vs_energy)
@@ -247,7 +252,13 @@ class NRNRNRSource(NRNRSource):
         s1_std = np.sqrt(s1_var)
         s2_std = np.sqrt(s2_var)
 
-        anti_corr = self.gimme('signal_corr', bonus_arg=self.energies_first)
+        s1s2_corr_nr = self.gimme_numpy('signal_corr', e1)
+        s1s2_cov_first = s1s2_corr_nr  * np.sqrt(s1_var_first * s2_var_first)
+        s1s2_cov_second = s1s2_corr_nr  * np.sqrt(s1_var_second * s2_var_second)
+        s1s2_cov_third = s1s2_corr_nr  * np.sqrt(s1_var_third * s2_var_third)
+
+        s1s2_cov = s1s2_cov_first + s1s2_cov_second + s1s2_cov_third
+        anti_corr = s1s2_cov / np.sqrt(s1_var * s2_var)
         anti_corr = fd.tf_to_np(anti_corr)
 
         spectrum = fd.tf_to_np(self.rates_vs_energy)
