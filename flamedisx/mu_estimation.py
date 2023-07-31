@@ -300,7 +300,7 @@ class GridInterpolatedMu(MuEstimator):
 def is_mu_estimator_class(x):
     if isinstance(x, partial):
         return is_mu_estimator_class(x.func)
-    if type(x) != type:
+    if type(x) is not type:
         # x is no class (issubclass would crash, annoyingly)
         return False
     return issubclass(x, fd.MuEstimator)

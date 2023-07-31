@@ -134,7 +134,7 @@ class Block:
         # Check necessary columns were actually added
         for dim in self.dimensions:
             assert dim in d.columns, f"_simulate of {self} must set {dim}"
-            assert np.all(np.isfinite(d[dim].values)),\
+            assert np.all(np.isfinite(d[dim].values)), \
                 f"_simulate of {self} returned non-finite values of {dim}"
 
     def annotate(self, d: pd.DataFrame):
