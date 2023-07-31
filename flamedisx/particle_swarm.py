@@ -65,6 +65,10 @@ class Particles():
             c2 * r2 * (self.gbest.reshape(-1, 1) - self.X)
         self.X = self.X + self.V
 
+        for i, param in enumerate(self.fit_params):
+            if param[-16:] == '_rate_multiplier':
+                self.X[i, :][self.X[i, :] < 1e-9] = 1e-9
+
         obj = np.zeros_like(self.pbest_obj)
         for i in range(len(obj)):
             eval_dict = dict()
