@@ -22,6 +22,7 @@ class Particles():
                  fit_params: ty.Tuple[str] = None,
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
+                 log_constraint = None,
                  n_particles=50,
                  velocity_scaling=0.01):
 
@@ -30,6 +31,11 @@ class Particles():
         self.fit_params = fit_params
         self.bounds = bounds
         self.guess_dict = guess_dict
+
+        if log_constraint is None:
+            def log_constraint(**kwargs):
+                return 0.
+        self.log_constraint = log_constraint
 
         self.n_particles = n_particles
 
@@ -96,7 +102,7 @@ class Particles():
             dr_sum += source.batched_differential_rate(**params_filter, progress=False) * params[f'{sname}_rate_multiplier']
             mu_sum += source.estimate_mu(**params_filter, fast=True) * params[f'{sname}_rate_multiplier']
 
-        return (-mu_sum + np.sum(np.log(dr_sum)))
+        return (-mu_sum + np.sum(np.log(dr_sum)) + self.log_constraint(**params))
 
 
 @export
@@ -110,6 +116,7 @@ class PSOOptimiser():
                  fit_params: ty.Tuple[str] = None,
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
+                 log_constraint = None,
                  n_particles=100,
                  n_iterations=200,
                  c1=1., c2=1., w=0.8):
@@ -139,6 +146,7 @@ class PSOOptimiser():
 
         self.particles = Particles(sources=sources, fit_params=fit_params,
                                    bounds=bounds, guess_dict=guess_dict,
+                                   log_constraint=log_constraint,
                                    n_particles=n_particles)
 
         self.c1 = c1
