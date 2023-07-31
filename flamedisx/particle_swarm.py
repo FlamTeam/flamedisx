@@ -108,7 +108,7 @@ class PSOOptimiser():
                  guess_dict: ty.Dict[str, float] = None,
                  n_particles=100,
                  n_iterations=200,
-                 c1=0.1, c2=0.1, w=0.8):
+                 c1=1., c2=1., w=0.8):
 
         shape_params = dict()
         for key, value in guess_dict.items():
