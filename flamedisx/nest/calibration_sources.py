@@ -18,7 +18,7 @@ export, __all__ = fd.exporter()
 
 
 @export
-class CH3TSource(fd_nest.nestERSource):
+class CH3TSource(fd_nest.nestFasterERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
@@ -34,7 +34,7 @@ class CH3TSource(fd_nest.nestERSource):
         x = (2. * pi * ZZ * aa) * (energies + m_e) / tf.sqrt(energies**2 + 2. * energies * m_e)
         spectrum = tf.sqrt(2. * energies * m_e) * (energies + m_e) * (qValue - energies) * \
             (qValue - energies) * x * (1. / (1. - tf.exp(-x))) * (1.002037 - 0.001427 * B)
-        spectrum = spectrum / tf.math.reduce_max(spectrum)
+        spectrum = spectrum / tf.reduce_sum(spectrum)
 
         self.energies = tf.cast(energies, fd.float_type())
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())

@@ -10,6 +10,7 @@ import pandas as pd
 from multihist import Histdd
 
 import flamedisx as fd
+from .. import nest as fd_nest
 
 import pickle as pkl
 
@@ -136,8 +137,10 @@ class LZSource:
     path_s1_acc_curve = 'cS1_acceptance_curve.pkl'
     path_s2_acc_curve = 'cS2_acceptance_curve.pkl'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ignore_maps_acc=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.cap_upper_cs1 = cap_upper_cs1
 
         assert kwargs['detector'] in ('lz',)
 
@@ -148,12 +151,23 @@ class LZSource:
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
                                  kwargs['detector'] + '.ini'))
 
-        self.drift_velocity = self.drift_velocity * 0.96 / 0.95
-
         self.cS1_min = config.getfloat('NEST', 'cS1_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS1_max = config.getfloat('NEST', 'cS1_max_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
+
+        if ignore_maps_acc:
+            self.ignore_acceptances = True
+
+            self.s1_map_LZAP = None
+            self.s2_map_LZAP = None
+            self.s1_map_latest = None
+            self.s2_map_latest = None
+
+            self.cs1_acc_domain = None
+            self.log10_cs2_acc_domain = None
+
+            return
 
         try:
             self.s1_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_LZAP))
@@ -193,18 +207,17 @@ class LZSource:
 
     @staticmethod
     def get_elife(event_time):
-        t0 = pd.to_datetime('2021-10-01T00:00:00')
-        t0 = t0.tz_localize(tz='America/Denver').value
+        t0 = pd.to_datetime('2021-09-30T08:00:00').value
 
         time_diff = event_time - t0
         days_since_t0 = time_diff / (24. * 3600 * 1e9)
 
         elife = np.piecewise(days_since_t0, [days_since_t0 <= 104.,
-                                             (days_since_t0 > 104.) & (days_since_t0 <= 174.41597),
-                                             days_since_t0 > 174.41597],
+                                             (days_since_t0 > 104.) & (days_since_t0 <= 174.4167),
+                                             days_since_t0 > 174.4167],
                              [lambda days_since_t0: (5526.52 - np.exp(27.0832 - 0.254022 * days_since_t0)) * 1000.,
-                              lambda days_since_t0: (8271.97 - np.exp(9.5676 - 0.0160078 * days_since_t0)) * 1000.,
-                              lambda days_since_t0: (7941.37 - np.exp(34.3876 - 0.148244 * days_since_t0)) * 1000.])
+                              lambda days_since_t0: (8315.35 - np.exp(9.5533 - 0.0157167 * days_since_t0)) * 1000.,
+                              lambda days_since_t0: (7935.03 - np.exp(35.0987 - 0.15228 * days_since_t0)) * 1000.])
 
         return elife
 
@@ -281,14 +294,30 @@ class LZSource:
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
+            d['cs1_phd'] = d['cs1'] / (1 + self.double_pe_fraction)
+            if self.cap_upper_cs1 == True:
+                d['cs1'] = np.where(d['cs1'].values <= self.cS1_max, d['cs1'].values, self.cS1_max)
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_LZAP']
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + self.double_pe_fraction))
+
+        if 'cs1' in d.columns and 's1' not in d.columns:
+            d['s1'] = d['cs1'] * d['s1_pos_corr_LZAP']
+        if 'cs2' in d.columns and 's2' not in d.columns:
+            d['s2'] = (
+                d['cs2']
+                * d['s2_pos_corr_LZAP']
+                / np.exp(d['drift_time'] / d['electron_lifetime']))
 
         if 'cs1' in d.columns and 'cs2' in d.columns and 'ces_er_equivalent' not in d.columns:
-            d['ces_er_equivalent'] = (d['cs1'] / self.g1 + d['cs2'] / self.g2) * self.Wq_keV
+            g1 = self.photon_detection_eff(0.)
+            g1_gas = self.s2_photon_detection_eff(0.)
+            g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
+                                      g1_gas, self.extraction_eff)
+            d['ces_er_equivalent'] = (d['cs1'] / g1 + d['cs2'] / g2) * self.Wq_keV
 
         if 'cs1' in d.columns and 'cs1_acc_curve' not in d.columns:
             if self.cs1_acc_domain is not None:
@@ -307,7 +336,7 @@ class LZSource:
             else:
                 d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
 
-        if 's2' in d.columns and 'fv_acceptance' not in d.columns:
+        if 'fv_acceptance' not in d.columns:
             standoffDistance_cm = 4.
 
             m_idealFiducialWallFit = [72.4403, 0.00933984, 5.06325e-5, 1.65361e-7,
@@ -330,7 +359,7 @@ class LZSource:
 
             d['fv_acceptance'] = accept_upper_drift_time * accept_lower_drift_time * accept_radial
 
-        if 's2' in d.columns and 'resistor_acceptance' not in d.columns:
+        if 'resistor_acceptance' not in d.columns:
             x = d['x'].values
             y = d['y'].values
 
@@ -345,7 +374,7 @@ class LZSource:
 
             d['resistor_acceptance'] = not_inside_res1 * not_inside_res2
 
-        if 's2' in d.columns and 'timestamp_acceptance' not in d.columns:
+        if 'timestamp_acceptance' not in d.columns:
             t_start = pd.to_datetime('2021-12-23T09:37:51')
             t_start = t_start.tz_localize(tz='America/Denver').value
 
@@ -401,10 +430,20 @@ class LZNRSource(LZSource, fd.nest.nestNRSource):
 
 @export
 class LZCH3TSource(LZSource, fd.nest.CH3TSource):
+    t_start = pd.to_datetime('2022-04-19T00:00:00')
+    t_start = t_start.tz_localize(tz='America/Denver')
+
+    t_stop = pd.to_datetime('2022-04-19T00:00:00')
+    t_stop = t_stop.tz_localize(tz='America/Denver')
+
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
         super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def get_elife(event_time):
+        return 6600000.
 
 
 ##
@@ -420,33 +459,44 @@ class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
         super().__init__(*args, **kwargs)
 
 
+@export
+class LZFermionicDMSource(LZSource, fd.nest.FermionicDMSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
 ##
 # Background sources
 ##
 
 
 @export
-# class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
-class LZPb214Source(LZSource, fd.nest.Pb214Source):
+class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
 
         if bins is None:
-            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
-                  np.linspace(86000., 936500., num=51))
+            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=21)),
+                  np.linspace(86000., 936500., num=21))
 
-        # mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
+        mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
         self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
 
 @export
-class LZDetERSource(LZSource, fd.nest.DetERSource):
+class LZDetERSource(LZSource, fd.nest.DetERSource, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        mh = fd.get_lz_file('DetER_spatial_map_hist.pkl')
+        self.spatial_hist = mh
+
         super().__init__(*args, **kwargs)
 
 
@@ -467,8 +517,7 @@ class LZXe136Source(LZSource, fd.nest.Xe136Source):
 
 
 @export
-# class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
-class LZvERSource(LZSource, fd.nest.vERSource):
+class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
     def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
@@ -492,14 +541,13 @@ class LZvERSource(LZSource, fd.nest.vERSource):
 
 
 @export
-# class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
-class LZAr37Source(LZSource, fd.nest.Ar37Source):
+class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
     def __init__(self, *args, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
 
         if time_constant_ns is None:
-            self.time_constant_ns = 35.0 * 1e9 * 3600. * 24.
+            self.time_constant_ns = (35.0 / np.log(2)) * 1e9 * 3600. * 24.
         else:
             self.time_constant_ns = time_constant_ns
 
@@ -515,23 +563,52 @@ class LZXe124Source(LZSource, fd.nest.Xe124Source):
 
 
 @export
-class LZXe127Source(LZSource, fd.nest.Xe127Source):
-    def __init__(self, *args, **kwargs):
+class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRateDecayERSource):
+    def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if bins is None:
+            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
+                  np.linspace(fd.lz.LZERSource().z_bottom, fd.lz.LZERSource().z_top, num=51))
+
+        mh = fd.get_lz_file('Xe127_spatial_map_hist.pkl')
+        self.spatial_hist = mh
+
+        if time_constant_ns is None:
+            self.time_constant_ns = (36.4 / np.log(2)) * 1e9 * 3600. * 24.
+        else:
+            self.time_constant_ns = time_constant_ns
+
         super().__init__(*args, **kwargs)
 
 
 @export
-class LZB8Source(LZSource, fd.nest.B8Source):
-    def __init__(self, *args, **kwargs):
+class LZB8Source(LZSource, fd.nest.B8Source, fd.nest.nestTemporalRateOscillationNRSource):
+    def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
+
+        if amplitude is None:
+            self.amplitude = 2. * 0.01671
+        else:
+            self.amplitude = amplitude
+
+        if phase_ns is None:
+            self.phase_ns = pd.to_datetime('2022-01-04T00:00:00').value
+        else:
+            self.phase_ns = phase_ns
+
+        if period_ns is None:
+            self.period_ns = 1. * 3600. * 24. * 365.25 * 1e9
+        else:
+            self.period_ns = period_ns
+
         super().__init__(*args, **kwargs)
 
 
 @export
-class LZDetNRSource(LZSource, fd.nest.nestNRSource):
+class LZDetNRSource(LZSource, fd.nest.nestSpatialRateNRSource):
     """
     """
 
@@ -544,7 +621,133 @@ class LZDetNRSource(LZSource, fd.nest.nestNRSource):
         self.energies = tf.convert_to_tensor(df_DetNR['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_DetNR['spectrum_value_norm'].values, dtype=fd.float_type())
 
+        mh = fd.get_lz_file('DetNR_spatial_map_hist.pkl')
+        self.spatial_hist = mh
+
         super().__init__(*args, **kwargs)
+
+
+@export
+class LZAccidentalsSource(fd.TemplateSource):
+    path_s1_corr_LZAP = 's1_map_22Apr22.json'
+    path_s2_corr_LZAP = 's2_map_30Mar22.json'
+
+    def __init__(self, *args, simulate_safety_factor=2., **kwargs):
+        hist = fd.get_lz_file('Accidentals.npz')
+
+        hist_values = hist['hist_values']
+        s1_edges = hist['s1_edges']
+        s2_edges = hist['s2_edges']
+
+        mh = Histdd(bins=[len(s1_edges) - 1, len(s2_edges) - 1]).from_histogram(hist_values, bin_edges=[s1_edges, s2_edges])
+        mh = mh / mh.n
+        mh = mh / mh.bin_volumes()
+
+        self.simulate_safety_factor = simulate_safety_factor
+
+        try:
+            self.s1_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_LZAP))
+            self.s2_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_LZAP))
+        except Exception:
+            print("Could not load maps; setting position corrections to 1")
+            self.s1_map_LZAP = None
+            self.s2_map_LZAP = None
+
+        super().__init__(*args, template=mh, interp_2d=True,
+                         axis_names=('cs1_phd', 'log10_cs2_phd'),
+                         **kwargs)
+
+    def _annotate(self, **kwargs):
+        super()._annotate(**kwargs)
+
+        lz_source = LZERSource()
+        self.data[self.column] /= (1 + lz_source.double_pe_fraction)
+        self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
+        self.data[self.column] /= self.data['s1_pos_corr_LZAP'].values
+        self.data[self.column] *= (np.exp(self.data['drift_time'].values /
+                                          self.data['electron_lifetime'].values) /
+                                   self.data['s2_pos_corr_LZAP'].values)
+
+    def simulate(self, n_events, fix_truth=None, full_annotate=False,
+                 keep_padding=False, **params):
+        df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
+                              full_annotate=full_annotate, keep_padding=keep_padding, **params)
+
+        lz_source = LZERSource()
+        df_pos = pd.DataFrame(lz_source.model_blocks[0].draw_positions(len(df)))
+        df = df.join(df_pos)
+
+        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(len(df)), columns=['event_time'])
+        df = df.join(df_time)
+
+        lz_source.add_extra_columns(df)
+        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+
+        df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
+        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
+        df['s1'] = df['cs1'] * df['s1_pos_corr_LZAP']
+        df['s2'] = (
+            df['cs2']
+            * df['s2_pos_corr_LZAP']
+            / np.exp(df['drift_time'] / df['electron_lifetime']))
+
+        df['acceptance'] *= (df['s2'].values >= lz_source.S2_min)
+
+        df = df[df['acceptance'] == 1.]
+        df = df.reset_index(drop=True)
+
+        try:
+            df = df.head(n_events)
+        except Exception:
+            raise RuntimeError('Too many events lost due to spatial/temporal cuts, try increasing \
+                                simulate_safety_factor')
+        df = df.drop(columns=['fv_acceptance', 'resistor_acceptance', 'timestamp_acceptance',
+                              'acceptance'])
+
+        lz_source.add_extra_columns(df)
+
+        return df
+
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+
+        if (self.s1_map_LZAP is not None) and (self.s2_map_LZAP is not None):
+            d['s1_pos_corr_LZAP'] = self.s1_map_LZAP(
+                np.transpose([d['x'].values,
+                              d['y'].values,
+                              d['drift_time'].values * 1e-9 / 1e-6]))
+            d['s2_pos_corr_LZAP'] = self.s2_map_LZAP(
+                np.transpose([d['x'].values,
+                              d['y'].values]))
+        else:
+            d['s1_pos_corr_LZAP'] = np.ones_like(d['x'].values)
+            d['s2_pos_corr_LZAP'] = np.ones_like(d['x'].values)
+
+        lz_source = LZERSource()
+
+        if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
+            d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
+
+        if 's1' in d.columns and 'cs1' not in d.columns:
+            d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
+            d['cs1_phd'] = d['cs1'] / (1 + lz_source.double_pe_fraction)
+        if 's2' in d.columns and 'cs2' not in d.columns:
+            d['cs2'] = (
+                d['s2']
+                / d['s2_pos_corr_LZAP']
+                * np.exp(d['drift_time'] / d['electron_lifetime']))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
+
+    def estimate_position_acceptance(self, n_trials=int(1e5)):
+        lz_source = LZERSource()
+        df = pd.DataFrame(lz_source.model_blocks[0].draw_positions(n_trials))
+        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
+        df = df.join(df_time)
+
+        lz_source.add_extra_columns(df)
+        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+
+        return np.sum(df['acceptance'].values) / n_trials
 
 
 ##

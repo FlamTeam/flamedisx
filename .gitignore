@@ -51,6 +51,7 @@ resource_cache
 !flamedisx/nest/calibration_spectra/*.pkl
 !flamedisx/nest/background_spectra/*.pkl
 !flamedisx/nest/wimp_spectra/*.pkl
+!flamedisx/nest/fermionic_DM_spectra/*.pkl
 
 # Apple
 .DS_Store

@@ -22,7 +22,7 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default', 'XENONnT', 'lz')
+        assert detector in ('default', 'lz')
 
         self.detector = detector
 
@@ -46,7 +46,7 @@ class nestSource(fd.BlockModelSource):
             self.temperature, self.pressure)
         #
         self.drift_velocity = fd_nest.calculate_drift_velocity(
-            self.drift_field, self.density, self.temperature)
+            self.drift_field, self.density, self.temperature, self.detector)
         self.Wq_keV, self.alpha = fd_nest.calculate_work(self.density)
 
         # energy_spectrum.py
@@ -527,6 +527,11 @@ class nestERGammaWeightedSource(nestERSource):
 
 
 @export
+class nestFasterERSource(nestERSource):
+    model_blocks = (fd_nest.FixedShapeEnergySpectrumFaster,) + nestERSource.model_blocks[1:]
+
+
+@export
 class nestSpatialRateERSource(nestERSource):
     model_blocks = (fd_nest.SpatialRateEnergySpectrumER,) + nestERSource.model_blocks[1:]
 
@@ -544,6 +549,16 @@ class nestTemporalRateDecayERSource(nestERSource):
 @export
 class nestTemporalRateDecayNRSource(nestNRSource):
     model_blocks = (fd_nest.TemporalRateEnergySpectrumDecayNR,) + nestNRSource.model_blocks[1:]
+
+
+@export
+class nestSpatialTemporalRateDecayERSource(nestERSource):
+    model_blocks = (fd_nest.SpatialTemporalRateEnergySpectrumDecayER,) + nestERSource.model_blocks[1:]
+
+
+@export
+class nestSpatialTemporalRateDecayNRSource(nestNRSource):
+    model_blocks = (fd_nest.SpatialTemporalRateEnergySpectrumDecayNR,) + nestNRSource.model_blocks[1:]
 
 
 @export

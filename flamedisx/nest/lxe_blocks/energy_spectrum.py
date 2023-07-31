@@ -87,13 +87,21 @@ class EnergySpectrum(fd.FirstBlock):
                                       & (res[:, photons_produced] >= photons_produced_min)
                                       & (res[:, photons_produced] <= photons_produced_max)]
 
-            # We use this filtered reservoir to estimate energy bounds
-            self.source.data.loc[batch * self.source.batch_size:
-                                 (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
-                np.quantile(energies, 0.)
-            self.source.data.loc[batch * self.source.batch_size:
-                                 (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
-                np.quantile(energies, 1. - self.source.bounds_prob)
+            if len(energies) == 0:
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
+                    min(res[:, energy])
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
+                    max(res[:, energy])
+            else:
+                # We use this filtered reservoir to estimate energy bounds
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_min'] = \
+                    np.quantile(energies, 0.)
+                self.source.data.loc[batch * self.source.batch_size:
+                                     (batch + 1) * self.source.batch_size - 1, 'energy_max'] = \
+                    np.quantile(energies, 1. - self.source.bounds_prob)
 
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
@@ -257,6 +265,11 @@ class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
 
 
 @export
+class FixedShapeEnergySpectrumFaster(FixedShapeEnergySpectrum):
+    max_dim_size = {'energy': 50}
+
+
+@export
 class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     model_attributes = (('spatial_hist',)
                         + FixedShapeEnergySpectrum.model_attributes)
@@ -267,8 +280,10 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     def setup(self):
         assert isinstance(self.spatial_hist, Histdd)
 
-        # Are we Cartesian, polar, 2D (r, z or r, dt), or in trouble?
+        # Are we Cartesian, modified Cartesian (x, y, dt), polar, 2D (r, z or r, dt),
+        # or in trouble?
         axes = tuple(self.spatial_hist.axis_names)
+        self.mod_cart = (axes == ('x', 'y', 'drift_time'))
         self.polar = (axes == ('r', 'theta', 'z'))
         self.r_z = (axes == ('r', 'z'))
         self.r_dt = (axes == ('r', 'drift_time'))
@@ -280,9 +295,10 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         elif (self.r_z or self.r_dt):
             self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
         else:
-            assert axes == ('x', 'y', 'z'), \
+            assert (axes == ('x', 'y', 'z')) or self.mod_cart, \
                 ("axis_names of spatial_rate_hist must be "
-                 "['r', 'theta', 'z'], ['r', 'z'], ['r', 'drift_time'] or ['x', 'y', 'z']")
+                 "['r', 'theta', 'z'], ['r', 'z'], ['r', 'drift_time'], ['x', 'y', 'z'] "
+                 "or ['x', 'y', 'drift_time']")
 
         # Normalize the histogram
         self.spatial_hist.histogram = \
@@ -303,6 +319,9 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         elif self.r_dt:
             dt = (self.z_topDrift - z) / self.drift_velocity
             positions = [fd.cart_to_pol(x, y)[0]] + [dt]
+        elif self.mod_cart:
+            dt = (self.z_topDrift - z) / self.drift_velocity
+            positions = [x, y, dt]
         else:
             positions = [x, y, z]
         return self.local_rate_multiplier.lookup(*positions)
@@ -315,6 +334,8 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         positions = self.spatial_hist.get_random(size=n_events)
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
+        if self.mod_cart:
+            data['z'] = self.z_topDrift - data['drift_time'] * self.drift_velocity
         if self.polar:
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         elif self.r_z:
@@ -346,6 +367,39 @@ class TemporalRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
 
     def energy_spectrum_rate_multiplier(self, event_time):
         return self.local_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        """
+        """
+        b = (self.t_stop.value - self.t_start.value) / self.time_constant_ns
+        return stats.truncexpon.rvs(b,
+                                    loc=self.t_start.value, scale=self.time_constant_ns,
+                                    size=n_events)
+
+
+@export
+class SpatialTemporalRateEnergySpectrumDecay(SpatialRateEnergySpectrum):
+    model_attributes = (('time_constant_ns',)
+                        + SpatialRateEnergySpectrum.model_attributes)
+
+    def temporal_rate_multiplier(self, event_time):
+        pdf = np.exp(-(event_time - self.t_start.value) / self.time_constant_ns)
+        normalisation = 1. / (self.time_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.time_constant_ns)))
+        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+
+        return normalisation * pdf / uniform_pdf
+
+    def energy_spectrum_rate_multiplier(self, x, y, z, event_time):
+        if self.polar:
+            positions = list(fd.cart_to_pol(x, y)) + [z]
+        elif self.r_z:
+            positions = [fd.cart_to_pol(x, y)[0]] + [z]
+        elif self.r_dt:
+            dt = (self.z_topDrift - z) / self.drift_velocity
+            positions = [fd.cart_to_pol(x, y)[0]] + [dt]
+        else:
+            positions = [x, y, z]
+        return self.local_rate_multiplier.lookup(*positions) * self.temporal_rate_multiplier(event_time)
 
     def draw_time(self, n_events, **params):
         """
@@ -409,6 +463,16 @@ class TemporalRateEnergySpectrumDecayNR(TemporalRateEnergySpectrumDecay):
 
 @export
 class TemporalRateEnergySpectrumDecayER(TemporalRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class SpatialTemporalRateEnergySpectrumDecayNR(SpatialTemporalRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class SpatialTemporalRateEnergySpectrumDecayER(SpatialTemporalRateEnergySpectrumDecay):
     max_dim_size = {'energy': 100}
 
 

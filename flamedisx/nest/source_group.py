@@ -123,7 +123,8 @@ class SourceGroup:
         # Store the results in the base_source data attribute
         self.base_source.data['energies_diff_rates'] = energies_diff_rates_all
 
-    def cache_central_block(self, central_block_class, energy, electrons_min, electrons_max, photons_min, photons_max):
+    def cache_central_block(self, central_block_class, energy, electrons_min, electrons_max, photons_min, photons_max,
+                            output_dir=None):
         """Cache the P(electrons_produced, photons_produced | energy) values of the central block
         for a particular energy.
 
@@ -180,9 +181,14 @@ class SourceGroup:
             kwargs.update(b._domain_dict_bonus(self.base_source.data_tensor[0]))
 
             # Create the filename the block will be saved under
-            write_out = f'central_block_energy_{energy}_' + \
-                f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
-                f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
+            if output_dir is None:
+                write_out = f'central_block_energy_{energy}_' + \
+                    f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
+                    f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
+            else:
+                write_out = f'{output_dir}/central_block_energy_{energy}_' + \
+                    f'electrons_{electrons_min}_{electrons_steps}_{electrons_dimsize}_' + \
+                    f'photons_{photons_min}_{photons_steps}_{photons_dimsize}'
             kwargs['write_out'] = write_out
 
             # Compute and save the block
