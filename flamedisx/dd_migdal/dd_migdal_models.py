@@ -71,7 +71,7 @@ class NRSource(fd.BlockModelSource):
     def get_s2(self, s2):
         return s2
 
-    def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=200, s2_min=400, s2_max=3e4):
+    def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=200, s2_min=400, s2_max=2e4):
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
                           tf.ones_like(s1, dtype=fd.float_type()))
