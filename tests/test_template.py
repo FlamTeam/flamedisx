@@ -48,7 +48,7 @@ def test_template_interpolation():
     data = pd.DataFrame({'x': [0.5, 1.5, 3.5], 'y': [0.5, 0.5, 2.5]})
 
     # Interpolate using flamedisx
-    s = fd.TemplateSource(mh, interp_2d=True)
+    s = fd.TemplateSource(mh, interpolate=True)
     s.set_data(data)
     dr_flamedisx = s.batched_differential_rate()
 
@@ -60,3 +60,9 @@ def test_template_interpolation():
         values=mh.histogram,
         method='linear')(z)
     assert np.allclose(dr_flamedisx, dr_itp)
+
+    # With interpolation turned off, flamedisx just looks up the diff rates
+    s = fd.TemplateSource(mh, interpolate=False)
+    s.set_data(data)
+    dr_flamedisx_noitp = s.batched_differential_rate()
+    assert np.allclose(dr_flamedisx_noitp, mh.lookup(data['x'], data['y']))
