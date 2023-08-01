@@ -29,6 +29,8 @@ class PSOOptimiser():
                  batch_size=5000,
                  n_iterations=5):
 
+        self.batch_size = batch_size
+
         self.guess_dict = guess_dict
         shape_params = dict()
         for key, value in self.guess_dict.items():
@@ -38,7 +40,7 @@ class PSOOptimiser():
 
         self.column_sources = column_sources
         for sname, source in self.column_sources.items():
-            s = source(batch_size=batch_size)
+            s = source(batch_size=self.batch_size)
             s.set_data(data)
             data[f'{sname}_diff_rate'] = s.batched_differential_rate(**shape_params, progress=False)
 
@@ -68,7 +70,7 @@ class PSOOptimiser():
         self.likelihood = fd.LogLikelihood(sources=sources,
                                            arguments=arguments,
                                            free_rates={sname for sname in sources.keys()},
-                                           batch_size=batch_size,
+                                           batch_size=self.batch_size,
                                            log_constraint=log_constraint,
                                            mu_estimators = est,
                                            **bounds
@@ -82,4 +84,22 @@ class PSOOptimiser():
         bf = self.likelihood.bestfit(guess=self.guess_dict)
         print(bf)
 
-        # for i in range(self.n_iterations):
+        for i in range(self.n_iterations - 1):
+            shape_params = dict()
+            for key, value in bf.items():
+                if key[-16:] == '_rate_multiplier':
+                    continue
+                shape_params[key] = value
+
+            for sname, source in self.column_sources.items():
+                s = source(batch_size=self.batch_size)
+                s.set_data(self.data)
+                self.data[f'{sname}_diff_rate'] = s.batched_differential_rate(**shape_params, progress=False)
+                self.mus[sname] = s.estimate_mu(**shape_params)
+
+            for sname, source in self.column_sources.items():
+                self.likelihood.mu_estimators[sname] = fd.ConstantMu(source=PSOColumnSource(mu=self.mus[sname]))
+
+            self.likelihood.set_data(self.data)
+            bf = self.likelihood.bestfit(guess=bf)
+            print(bf)
