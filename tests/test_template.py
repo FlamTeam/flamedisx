@@ -35,7 +35,7 @@ def test_template():
 
 
 def test_template_interpolation():
-    """Test linear interpolation of a template source"""
+    """Test inter-bin interpolation in a single template source"""
 
     # Simple 2d histogram
     mh = Histdd.from_histogram(
@@ -45,7 +45,7 @@ def test_template_interpolation():
     )
 
     # Events / points to interpolate
-    data = pd.DataFrame({'x': [0.5, 1.5, 3.5], 'y': [0.5, 0.5, 2.5]})
+    data = pd.DataFrame({'x': [0.5, 1.2, 3.42], 'y': [0.5, 0.6, 2.3]})
 
     # Interpolate using flamedisx
     s = fd.TemplateSource(mh, interpolate=True)
@@ -66,3 +66,71 @@ def test_template_interpolation():
     s.set_data(data)
     dr_flamedisx_noitp = s.batched_differential_rate()
     assert np.allclose(dr_flamedisx_noitp, mh.lookup(data['x'], data['y']))
+
+
+def test_multi_template():
+    """Test linear interpolation of multiple templates"""
+
+    # Differential rate histograms, with values offset by constants.
+    offsets = np.array([12, 14.3, 18.4, 3.1])
+    mhs = []
+    for offset in offsets:
+        mhs.append(Histdd.from_histogram(
+            histogram=offset + np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]),
+            bin_edges=[np.array([0, 1, 2, 3, 4]), np.array([0, 1, 2, 3])],
+            axis_names=('x', 'y'),
+        ))
+
+    # Observable events
+    data = pd.DataFrame({'x': [0.5, 1.5, 2.5], 'y': [0.5, 0.5, 2.5]})
+    # diff rate values at offset=0 will be [1, 4, 9]
+    base_diffrate = np.array([1, 4, 9])
+
+    s = fd.MultiTemplateSource(
+        params_and_templates=[
+            ({'a': 0., 'b': 0.}, mhs[0]),
+            ({'a': 0., 'b': 1.}, mhs[1]),
+            ({'a': 1., 'b': 0.}, mhs[2]),
+            ({'a': 1., 'b': 1.}, mhs[3]),
+        ],
+        interpolate=False)
+    s.set_data(data)
+
+    ##
+    # Test differential rate interpolation
+    ##
+
+    # Default values are those of the first template
+    np.testing.assert_allclose(
+        s.batched_differential_rate(),
+        base_diffrate + offsets[0])
+
+    # at (a=0, b=0.5), get average of offset 0 and 1
+    np.testing.assert_allclose(
+        s.batched_differential_rate(b=0.5),
+        base_diffrate + (offsets[0] + offsets[1])/2)
+
+    # at (a=0.5, b=0), get average of offset 0 and 2
+    np.testing.assert_allclose(
+        s.batched_differential_rate(a=0.5),
+        base_diffrate + (offsets[0] + offsets[2])/2)
+
+    # at (a=0.5, b=0.5), get average of all offsets
+    np.testing.assert_allclose(
+        s.batched_differential_rate(a=0.5, b=0.5),
+        base_diffrate + offsets.mean())
+
+    ##
+    # Test mu interpolation
+    ##
+    np.testing.assert_allclose(
+        s.estimate_mu(),
+        s._templates[0].mu)
+
+    np.testing.assert_allclose(
+        s.estimate_mu(a=0, b=0.5),
+        (s._templates[0].mu + s._templates[1].mu)/2)
+
+    np.testing.assert_allclose(
+        s.estimate_mu(a=0.5, b=0),
+        (s._templates[0].mu + s._templates[2].mu)/2)
