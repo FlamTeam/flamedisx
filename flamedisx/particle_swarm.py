@@ -23,8 +23,7 @@ class Particles():
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
                  log_constraint = None,
-                 n_particles=50,
-                 velocity_scaling=0.01):
+                 n_particles=50):
 
         self.sources = sources
 
@@ -42,14 +41,18 @@ class Particles():
         self.X = np.zeros((len(fit_params), n_particles))
         self.V = np.zeros((len(fit_params), n_particles))
 
-        self.initialise_particles(velocity_scaling=velocity_scaling)
+        self.initialise_particles()
 
-    def initialise_particles(self, velocity_scaling):
+    def initialise_particles(self):
 
         for i, param in enumerate(self.fit_params):
             self.X[i, :] = np.random.rand(np.shape(self.X)[1]) * \
                 (self.bounds[param][1] - self.bounds[param][0]) + self.bounds[param][0]
-            self.V[i, :] = np.random.randn(np.shape(self.X)[1]) * velocity_scaling * self.guess_dict[param]
+
+            lower_velocity_bound = -np.abs(self.bounds[param][1] - self.bounds[param][0])
+            upper_velocity_bound = np.abs(self.bounds[param][1] - self.bounds[param][0])
+            self.V[i, :] = np.random.randn(np.shape(self.X)[1]) * \
+                (upper_velocity_bound - lower_velocity_bound) + lower_velocity_bound
 
         self.pbest = self.X
         self.pbest_obj = np.zeros(len(self.X[0, :]))
