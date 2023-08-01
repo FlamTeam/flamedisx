@@ -9,6 +9,9 @@ from multihist import Hist1d
 import scipy.interpolate as itp
 from scipy import integrate
 
+import math as m
+pi = tf.constant(m.pi)
+
 from .. import dd_migdal as fd_dd_migdal
 
 import flamedisx as fd
@@ -89,72 +92,67 @@ class NRSource(fd.BlockModelSource):
 
     final_dimensions = ('s1',)
 
-    def pdf_for_mu_pre_populate(self, **params):
-        old_defaults = copy(self.defaults)
-        self.set_defaults(**params)
+    def estimate_mu(self, **params):
+        ptensor = self.ptensor_from_kwargs(**params)
 
-        s1_mean, s2_mean = self.gimme('signal_means', bonus_arg=self.energies_first)
-        s1_var, s2_var = self.gimme('signal_vars', bonus_arg=(s1_mean, s2_mean))
-        s1_mean = fd.tf_to_np(s1_mean)
-        s2_mean = fd.tf_to_np(s2_mean)
-        s1_var = fd.tf_to_np(s1_var)
-        s2_var = fd.tf_to_np(s2_var)
+        s1_edges = tf.cast(tf.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100), fd.float_type())
+        s2_edges = tf.cast(tf.experimental.numpy.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 100), fd.float_type())
+        s1 = 0.5 * (s1_edges[1:] + s1_edges[:-1])
+        s2 = 0.5 * (s2_edges[1:] + s2_edges[:-1])
+        s1_diffs = tf.experimental.numpy.diff(s1_edges)
+        s2_diffs = tf.experimental.numpy.diff(s2_edges)
 
-        s1_std = np.sqrt(s1_var)
-        s2_std = np.sqrt(s2_var)
+        energies = fd.np_to_tf(self.energies_first)
+        rates_vs_energy = fd.np_to_tf(self.rates_vs_energy_first)
 
-        anti_corr = self.gimme('signal_corr', bonus_arg=self.energies_first)
-        anti_corr = fd.tf_to_np(anti_corr)
+        s1 = tf.repeat(s1[:, o], tf.shape(s2), axis=1)
+        s1 = tf.repeat(s1[:, :, o], tf.shape(energies), axis=2)
 
-        spectrum = fd.tf_to_np(self.rates_vs_energy_first)
+        s2 = tf.repeat(s2[o, :], tf.shape(s1)[0], axis=0)
+        s2 = tf.repeat(s2[:, :, o], tf.shape(energies), axis=2)
 
-        self.defaults = old_defaults
+        energies = tf.repeat(energies[o, :], tf.shape(s1)[0], axis=0)
+        energies = tf.repeat(energies[:, o, :], tf.shape(s1)[1], axis=1)
 
-        return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
+        rates_vs_energy = tf.repeat(rates_vs_energy[o, :], tf.shape(s1)[0], axis=0)
+        rates_vs_energy = tf.repeat(rates_vs_energy[:, o, :], tf.shape(s1)[1], axis=1)
 
-    @staticmethod
-    @nb.njit(error_model="numpy",fastmath=True)
-    def pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum):
-        denominator = 2. * np.pi * s1_std * s2_std * np.sqrt(1.- anti_corr * anti_corr)
+        s1_mean, s2_mean = self.gimme('signal_means',
+                                      bonus_arg=energies,
+                                      ptensor=ptensor)
+
+        s1_var, s2_var = self.gimme('signal_vars',
+                                    bonus_arg=(s1_mean, s2_mean),
+                                    ptensor=ptensor)
+        s1_std = tf.sqrt(s1_var)
+        s2_std = tf.sqrt(s2_var)
+        anti_corr = self.gimme('signal_corr',
+                               bonus_arg=energies,
+                               ptensor=ptensor)
+
+        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
+
         exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
+
         exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
         exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
         exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
 
-        pdf_vals = 1. / denominator * np.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+        probs = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
 
-        s1s2_acc = np.where((s2 > 200*s1**(0.73)), 1., 0.)
-        nr_endpoint = np.where((s1 > 140) & (s2 > 8e3) & (s2 < 11.5e3), 0., 1.)
+        acceptance = self.gimme('s1s2_acceptance',
+                                bonus_arg=(s1, s2),
+                                special_call=True)
+        probs *= acceptance
+        probs *= rates_vs_energy
 
-        return np.sum(pdf_vals * s1s2_acc * nr_endpoint * spectrum)
+        probs = tf.reduce_sum(probs, axis=2)
 
-    def estimate_mu(self, error=1e-5, fast=False, **params):
-        """
-        """
-        s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum = \
-            self.pdf_for_mu_pre_populate(**params)
+        result = s1_diffs[o, :] @ probs
+        result = result @ s2_diffs[:, o]
+        result = result[0][0]
 
-        if fast:
-            s1_edges = np.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100)
-            s2_edges = np.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 100)
-            s1_centers = 0.5 * (s1_edges[1:] + s1_edges[:-1])
-            s2_centers = 0.5 * (s2_edges[1:] + s2_edges[:-1])
-            s1_diffs = np.diff(s1_edges)
-            s2_diffs = np.diff(s2_edges)
-            integral_sum = 0.
-            for s1, ds1 in zip(s1_centers, s1_diffs):
-                for s2, ds2 in zip(s2_centers, s2_diffs):
-                    integral_sum += ds1 * ds2 * self.pdf_for_mu(s1, s2,
-                                                                s1_mean, s2_mean, s1_var, s2_var,
-                                                                s1_std, s2_std, anti_corr, spectrum)
-            return integral_sum
-
-        else:
-            f = lambda s2, s1: self.pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var,
-                                               s1_std, s2_std, anti_corr, spectrum)
-            return integrate.dblquad(f, self.defaults['s1_min'], self.defaults['s1_max'],
-                                     self.defaults['s2_min'], self.defaults['s2_max'],
-                                     epsabs=error, epsrel=error)[0]
+        return result
 
 @export
 class NRNRSource(NRSource):
@@ -215,6 +213,34 @@ class NRNRSource(NRSource):
         self.defaults = old_defaults
 
         return s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum
+
+    @staticmethod
+    @nb.njit(error_model="numpy",fastmath=True)
+    def pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum):
+        denominator = 2. * np.pi * s1_std * s2_std * np.sqrt(1.- anti_corr * anti_corr)
+        exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
+        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
+        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
+        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+
+        pdf_vals = 1. / denominator * np.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+
+        s1s2_acc = np.where((s2 > 200*s1**(0.73)), 1., 0.)
+        nr_endpoint = np.where((s1 > 140) & (s2 > 8e3) & (s2 < 11.5e3), 0., 1.)
+
+        return np.sum(pdf_vals * s1s2_acc * nr_endpoint * spectrum)
+
+    def estimate_mu(self, error=1e-5, **params):
+        """
+        """
+        s1_mean, s2_mean, s1_var, s2_var, s1_std, s2_std, anti_corr, spectrum = \
+            self.pdf_for_mu_pre_populate(**params)
+
+        f = lambda s2, s1: self.pdf_for_mu(s1, s2, s1_mean, s2_mean, s1_var, s2_var,
+                                           s1_std, s2_std, anti_corr, spectrum)
+        return integrate.dblquad(f, self.defaults['s1_min'], self.defaults['s1_max'],
+                                 self.defaults['s2_min'], self.defaults['s2_max'],
+                                 epsabs=error, epsrel=error)[0]
 
 
 @export

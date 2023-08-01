@@ -524,7 +524,8 @@ class Source:
 
     def gimme(self, fname,
               *,
-              data_tensor=None, ptensor=None, bonus_arg=None, numpy_out=False):
+              data_tensor=None, ptensor=None, bonus_arg=None, numpy_out=False,
+              special_call=False):
         """Evaluate the model function fname with all required arguments
 
         :param fname: Name of the model function to compute
@@ -538,7 +539,8 @@ class Source:
             Before using gimme, you must use set_data to
             populate the internal caches.
         """
-        assert (bonus_arg is not None) == (fname in self.special_model_functions)
+        if not special_call:
+            assert (bonus_arg is not None) == (fname in self.special_model_functions)
         assert isinstance(fname, str), \
             f"gimme needs fname to be a string, not {type(fname)}"
 
@@ -560,12 +562,19 @@ class Source:
                 return self._fetch(fname, data_tensor)
 
         if callable(f):
-            args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
+            if not special_call:
+                args = [self._fetch(x, data_tensor) for x in self.f_dims[fname]]
             if bonus_arg is not None:
                 if isinstance(bonus_arg, (list, tuple)):
-                    args = list(bonus_arg) + args
+                    if special_call:
+                        args = list(bonus_arg)
+                    else:
+                        args = list(bonus_arg) + args
                 else:
-                    args = [bonus_arg] + args
+                    if special_call:
+                        args = [bonus_arg]
+                    else:
+                        args = [bonus_arg] + args
             kwargs = {pname: self._fetch_param(pname, ptensor)
                       for pname in self.f_params[fname]}
             res = f(*args, **kwargs)
