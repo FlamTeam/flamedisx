@@ -46,8 +46,8 @@ class Source:
     #: Columns that we don't want to include in the tensor of data columns
     exclude_data_tensor: ty.Tuple[str] = tuple()
 
-    #: Names of array-valued data columns
-    array_columns: ty.Tuple[str] = tuple()
+    #: Array-valued data columns: tuple of (name, length)
+    array_columns: ty.Tuple[ty.Tuple[str, int]] = tuple()
 
     #: Any additional source attributes that should be configurable.
     model_attributes = tuple()
