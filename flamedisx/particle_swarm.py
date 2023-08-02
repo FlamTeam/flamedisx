@@ -7,7 +7,7 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 
 
-class PSOColumnSource(fd.ColumnSource):
+class IterativeColumnSource(fd.ColumnSource):
     def __init__(self, *args, column_name=None, mu=None, **kwargs):
         self.column = column_name
         self.mu = mu
@@ -15,14 +15,13 @@ class PSOColumnSource(fd.ColumnSource):
 
 
 @export
-class PSOOptimiser():
+class IterativeOptimiser():
     """
     """
     def __init__(self,
                  regular_sources: ty.Dict[str, fd.Source.__class__] = None,
                  column_sources: ty.Dict[str, fd.Source.__class__] = None,
                  data: pd.DataFrame = None,
-                 fit_params: ty.Tuple[str] = None,
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
                  log_constraint = None,
@@ -56,7 +55,7 @@ class PSOOptimiser():
         for sname, source in regular_sources.items():
             est[sname] = fd.SimulateEachCallMu(source=source())
         for sname, source in self.column_sources.items():
-            est[sname] = fd.ConstantMu(source=PSOColumnSource(mu=self.mus[sname]))
+            est[sname] = fd.ConstantMu(source=IterativeColumnSource(mu=self.mus[sname]))
 
         sources = dict()
         arguments = dict()
@@ -64,7 +63,7 @@ class PSOOptimiser():
             sources[sname] = source
             arguments[sname] = dict()
         for sname in self.column_sources.keys():
-            sources[sname] = PSOColumnSource
+            sources[sname] = IterativeColumnSource
             arguments[sname] = {'column_name': column_names[sname]}
 
         self.likelihood = fd.LogLikelihood(sources=sources,
@@ -98,8 +97,10 @@ class PSOOptimiser():
                 self.mus[sname] = s.estimate_mu(**shape_params)
 
             for sname, source in self.column_sources.items():
-                self.likelihood.mu_estimators[sname] = fd.ConstantMu(source=PSOColumnSource(mu=self.mus[sname]))
+                self.likelihood.mu_estimators[sname] = fd.ConstantMu(source=IterativeColumnSource(mu=self.mus[sname]))
 
             self.likelihood.set_data(self.data)
             bf = self.likelihood.bestfit(guess=bf)
             print(bf)
+
+        return bf
