@@ -9,7 +9,7 @@ from .inference import *
 from .bounds import *
 from .mu_estimation import *
 from .frozen_reservoir import *
-from .particle_swarm import *
+from .iterative_optimiser import *
 
 # Original flamedisx models
 # Accessible under fd root package (for now), for backwards compatibility
