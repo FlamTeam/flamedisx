@@ -77,10 +77,12 @@ class IterativeOptimiser():
 
         self.n_iterations = n_iterations
 
-    def bestfit(self):
+    def bestfit(self,
+                fix_dict: ty.Dict[str, float] = None):
         self.likelihood.set_data(self.data)
 
-        bf = self.likelihood.bestfit(guess=self.guess_dict)
+        bf = self.likelihood.bestfit(guess=self.guess_dict,
+                                     fix=fix_dict)
         print(bf)
 
         for i in range(self.n_iterations - 1):
@@ -100,7 +102,8 @@ class IterativeOptimiser():
                 self.likelihood.mu_estimators[sname] = fd.ConstantMu(source=IterativeColumnSource(mu=self.mus[sname]))
 
             self.likelihood.set_data(self.data)
-            bf = self.likelihood.bestfit(guess=bf)
+            bf = self.likelihood.bestfit(guess=bf,
+                                         fix=fix_dict)
             print(bf)
 
         return bf

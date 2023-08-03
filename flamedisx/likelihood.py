@@ -864,9 +864,9 @@ class LogLikelihood:
         del df['index']
 
         print("Correlation matrix:")
-        pd.set_option('precision', 3)
+        pd.set_option('display.precision', 3)
         print(df)
-        pd.reset_option('precision')
+        pd.reset_option('display.precision')
 
 
 @export
