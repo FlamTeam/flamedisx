@@ -81,7 +81,15 @@ class IterativeOptimiser():
                 fix_dict: ty.Dict[str, float] = None):
         self.likelihood.set_data(self.data)
 
-        bf = self.likelihood.bestfit(guess=self.guess_dict,
+        if fix_dict is None:
+            fix_dict = dict()
+
+        guess_dict_cond = self.guess_dict.copy()
+        for key in fix_dict.keys():
+            if key in guess_dict_cond:
+                guess_dict_cond.pop(key)
+
+        bf = self.likelihood.bestfit(guess=guess_dict_cond,
                                      fix=fix_dict)
         print(bf)
 
@@ -102,7 +110,13 @@ class IterativeOptimiser():
                 self.likelihood.mu_estimators[sname] = fd.ConstantMu(source=IterativeColumnSource(mu=self.mus[sname]))
 
             self.likelihood.set_data(self.data)
-            bf = self.likelihood.bestfit(guess=bf,
+
+            guess_dict_cond = bf.copy()
+            for key in fix_dict.keys():
+                if key in guess_dict_cond:
+                    guess_dict_cond.pop(key)
+
+            bf = self.likelihood.bestfit(guess=guess_dict_cond,
                                          fix=fix_dict)
             print(bf)
 
