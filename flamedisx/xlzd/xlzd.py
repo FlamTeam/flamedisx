@@ -25,7 +25,7 @@ class XLZDSource:
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('xlzd',)
-        assert kwargs['configuration'] in ('80t', '60t', '40t', '20t', '60t_AR1', '40t_wide',)
+        assert kwargs['configuration'] in ('80t', '60t', '40t', '20t')
 
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), '../nest/config/', kwargs['detector'] + '.ini'))
@@ -38,15 +38,9 @@ class XLZDSource:
         self.z_topDrift = config.getfloat(kwargs['configuration'], 'z_topDrift_config')
         self.z_top = config.getfloat(kwargs['configuration'], 'z_top_config')
         self.z_bottom = config.getfloat(kwargs['configuration'], 'z_bottom_config')
-        self.anode_gate = config.getfloat(kwargs['configuration'], 'anode_gate_config')
-
-        self.S1_max = config.getfloat(kwargs['configuration'], 'S1_max_config')
 
         self.configuration = kwargs['configuration']
 
-        self.anode_gate_80t = config.getfloat('NEST', 'anode_gate_80t_config')
-
-        # self.drift_field = drift_field_V_cm / self.anode_gate * self.anode_gate_80t
         self.drift_field = drift_field_V_cm
         self.gas_field = gas_field_kV_cm
         self.elife = elife_ns
@@ -66,37 +60,31 @@ class XLZDSource:
         Requires z to be in cm, and in the FV.
         """
         if self.configuration == '80t':
-            a = 3.82211839e-01
-            b = 1.14254580e-03
-            c = 2.24850367e-06
-            d = -9.77272624e-10
+            a = 4.93526997e-01
+            b = 5.58488459e-04
+            c = -1.06051830e-07
+            d = -1.02545243e-08
+            e = -1.30897496e-11
         elif self.configuration == '60t':
-            a = 4.16053591e-01
-            b = 9.99867174e-04
-            c = 2.83162470e-06
-            d = -1.50717789e-09
+            a = 5.00828879e-01
+            b = 4.25478465e-04
+            c = 2.02171646e-07
+            d = -1.31075129e-08
+            e = -2.29858516e-11
         elif self.configuration == '40t':
-            a = 4.71252343e-01
-            b = 7.83829990e-04
-            c = 4.42536234e-06
-            d = 2.09610330e-10
+            a = 5.68299226e-01
+            b = 7.29787915e-05
+            c = -4.37731127e-06
+            d = -6.39383595e-08
+            e = -1.87387400e-10
         elif self.configuration == '20t':
             a = 5.56369703e-01
             b = 3.81596554e-04
             c = 7.92471387e-06
             d = 2.44831514e-08
-        elif self.configuration == '60t_AR1':
-            a = 4.62941158e-01
-            b = 8.02019214e-04
-            c = 3.54689661e-06
-            d = -1.27689610e-09
-        elif self.configuration == '40t_wide':
-            a = 5.19626499e-01
-            b = 5.61037171e-04
-            c = 5.06533421e-06
-            d = 2.51777266e-09
+            LCE = a + b * z + c * z**2 + d * z**3
 
-        LCE = a + b * z + c * z**2 + d * z**3
+        LCE = a + b * z + c * z**2 + d * z**3 + e * z**4
 
         return LCE
 
@@ -105,17 +93,13 @@ class XLZDSource:
 
         # Numbers from https://docs.google.com/presentation/d/13qbvvxCj4eE79Hdw-IpaF56i2h85Tc-Kh_ZfQIjZHj8/edit#slide=id.g21b562c0a80_0_40
         if self.configuration == '80t':
-            LCE_average = 0.317666
+            LCE_average = 0.472
         elif self.configuration == '60t':
-            LCE_average = 0.383039
+            LCE_average = 0.493
         elif self.configuration == '40t':
-            LCE_average = 0.465242
+            LCE_average = 0.570
         elif self.configuration == '20t':
             LCE_average = 0.55959
-        elif self.configuration == '60t_AR1':
-            LCE_average = 0.453847
-        elif self.configuration == '40t_wide':
-            LCE_average = 0.522645
         d['s1_pos_corr'] = self.s1_posDependence(d['z'].values) / LCE_average # normalise to volume-averaged LCE
 
         if 's1' in d.columns and 'cs1' not in d.columns:
