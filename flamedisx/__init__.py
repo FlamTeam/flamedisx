@@ -42,6 +42,10 @@ from . import lux
 from . import lz
 from .lz.data import *
 
+# XLZD models
+# Access through fd.xlzd.xxx
+from . import xlzd
+
 # Custom TFP files
 # Access through fd.tfp_files.xxx
 from . import tfp_files
