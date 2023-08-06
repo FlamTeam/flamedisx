@@ -24,6 +24,7 @@ class EnergySpectrum(fd.FirstBlock):
     # average speed.
     # This will then also be true at the midpoint of these times.
     t_start = pd.to_datetime('2019-09-01T08:28:00')
+    t_stop = pd.to_datetime('2019-09-01T08:28:00')
 
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
