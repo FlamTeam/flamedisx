@@ -32,7 +32,7 @@ class vERSource(fd_nest.nestERSource):
         df_vER = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/vER_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_vER['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * 54.759
+        scale = fid_mass * livetime * 48.404
         self.rates_vs_energy = tf.convert_to_tensor(df_vER['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
@@ -108,7 +108,7 @@ class vNRSolarSource(fd_nest.nestNRSource):
         df_CEvNS_solar = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/CEvNS_solar_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_CEvNS_solar['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * 246.345
+        scale = fid_mass * livetime * 754.914
         self.rates_vs_energy = tf.convert_to_tensor(df_CEvNS_solar['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
@@ -128,7 +128,7 @@ class vNROtherSource(fd_nest.nestNRSource):
         df_CEvNS_other = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/CEvNS_other_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_CEvNS_other['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * 0.071
+        scale = fid_mass * livetime * 0.079
         self.rates_vs_energy = tf.convert_to_tensor(df_CEvNS_other['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
