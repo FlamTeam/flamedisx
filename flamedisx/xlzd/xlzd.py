@@ -82,7 +82,7 @@ class XLZDSource:
             b = 3.81596554e-04
             c = 7.92471387e-06
             d = 2.44831514e-08
-            LCE = a + b * z + c * z**2 + d * z**3
+            return (a + b * z + c * z**2 + d * z**3)
 
         LCE = a + b * z + c * z**2 + d * z**3 + e * z**4
 
