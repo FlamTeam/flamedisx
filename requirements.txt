@@ -1,4 +1,4 @@
-numpy==1.25.1
+numpy==1.24.3
 scipy==1.11.1
 pandas==2.0.3
 multihist==0.6.5
