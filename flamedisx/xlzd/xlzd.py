@@ -93,7 +93,7 @@ class XLZDSource:
 
         # Numbers from https://docs.google.com/presentation/d/13qbvvxCj4eE79Hdw-IpaF56i2h85Tc-Kh_ZfQIjZHj8/edit#slide=id.g21b562c0a80_0_40
         if self.configuration == '80t':
-            LCE_average = 0.472
+            LCE_average = 0.471
         elif self.configuration == '60t':
             LCE_average = 0.493
         elif self.configuration == '40t':
