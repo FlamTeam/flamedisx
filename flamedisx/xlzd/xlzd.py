@@ -25,7 +25,7 @@ class XLZDSource:
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('xlzd',)
-        assert kwargs['configuration'] in ('80t', '60t', '40t', '20t')
+        assert kwargs['configuration'] in ('80t', '60t', '40t')
 
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), '../nest/config/', kwargs['detector'] + '.ini'))
@@ -77,12 +77,6 @@ class XLZDSource:
             c = -4.37731127e-06
             d = -6.39383595e-08
             e = -1.87387400e-10
-        elif self.configuration == '20t':
-            a = 5.56369703e-01
-            b = 3.81596554e-04
-            c = 7.92471387e-06
-            d = 2.44831514e-08
-            return (a + b * z + c * z**2 + d * z**3)
 
         LCE = a + b * z + c * z**2 + d * z**3 + e * z**4
 
@@ -91,15 +85,12 @@ class XLZDSource:
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
 
-        # Numbers from https://docs.google.com/presentation/d/13qbvvxCj4eE79Hdw-IpaF56i2h85Tc-Kh_ZfQIjZHj8/edit#slide=id.g21b562c0a80_0_40
         if self.configuration == '80t':
             LCE_average = 0.471
         elif self.configuration == '60t':
             LCE_average = 0.493
         elif self.configuration == '40t':
             LCE_average = 0.570
-        elif self.configuration == '20t':
-            LCE_average = 0.55959
         d['s1_pos_corr'] = self.s1_posDependence(d['z'].values) / LCE_average # normalise to volume-averaged LCE
 
         if 's1' in d.columns and 'cs1' not in d.columns:
