@@ -21,7 +21,7 @@ export, __all__ = fd.exporter()
 class XLZDSource:
     def __init__(self, *args,
                  drift_field_V_cm=100., gas_field_kV_cm=8., elife_ns=10000e3, g1=0.27,
-                 **kwargs):
+                 ignore_maps_acc=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         assert kwargs['detector'] in ('xlzd',)
@@ -33,6 +33,9 @@ class XLZDSource:
         config = configparser.ConfigParser(inline_comment_prefixes=';')
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
                                  kwargs['detector'] + '.ini'))
+
+        if ignore_maps_acc:
+            self.ignore_acceptances = True
 
         self.radius = config.getfloat(kwargs['configuration'], 'radius_config')
         self.z_topDrift = config.getfloat(kwargs['configuration'], 'z_topDrift_config')
