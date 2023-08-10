@@ -9,12 +9,10 @@ export, __all__ = fd.exporter()
 
 def make_event_reservoir(ntoys: int = None,
                          reservoir_output_name=None,
-                         max_rm_dict=None,
                          input_mus=None,
-                         rescale_diff_rates=False,
                          source_groups_dict=None,
                          quanta_tensor_dirs_dict=None,
-                         template_source_names=[],
+                         save_comb=False,
                          **sources):
     """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
@@ -23,12 +21,7 @@ def make_event_reservoir(ntoys: int = None,
         - sources: pass in source instances to be used to build the reservoir, like
             'source1'=source1(args, kwargs), 'source2'=source2(args, kwargs), ...
         - reservoir_output_name: if supplied, the filename the reservoir will be saved under.
-        - max_rm_dict: dictionary {sourcename: max_rm, ...} giving the maximum rate multiplier
-            scanned over for each source, to control the size of the reservoir. If
-            rescale_diff_rates is true, this should correspond to expected counts after cuts.
         - input_mus: dictionary {sourcename: mu, ...} giving pre-computed mus for the sources.
-        - rescale_diff_rates: if True, rate multipliers will correspond to expected counts after
-            cuts.
     """
     default_ntoys = 1000
 
@@ -37,31 +30,19 @@ def make_event_reservoir(ntoys: int = None,
     if ntoys is None:
         ntoys = default_ntoys
 
-    if max_rm_dict is None:
-        max_rm_dict = dict()
-
     dfs = []
     for sname, source in sources.items():
-        if sname in max_rm_dict.keys():
-            max_rm = max_rm_dict[sname]
-        else:
-            max_rm = 1.
+        factor = 1.1
+        while True:
+            n_simulate = int(factor * ntoys * source.mu_before_efficiencies())
+            sdata = source.simulate(n_simulate)
+            sdata['source'] = sname
 
-        # Safety factor for Poisson fluctuations
-        max_rm = max_rm + 5. * np.sqrt(max_rm)
-
-        if sname in template_source_names:
-            n_simulate = int(max_rm * ntoys)
-        else:
-            assert rescale_diff_rates, "Not handling non-rescaling case yet!"
-            assert input_mus is not None, "Must pass in input_mus if rescaling"
-
-            max_rm /= input_mus[sname]
-            n_simulate = int(max_rm * ntoys * source.mu_before_efficiencies())
-
-        sdata = source.simulate(n_simulate)
-        sdata['source'] = sname
-        dfs.append(sdata)
+            if len(sdata) >= np.ceil(input_mus[sname]):
+                dfs.append(sdata[0:int(np.ceil(input_mus[sname]))])
+                break
+            else:
+                factor += 0.1
 
     data_reservoir = pd.concat(dfs, ignore_index=True)
     if 'ces_er_equivalent' in data_reservoir.columns:
@@ -86,14 +67,18 @@ def make_event_reservoir(ntoys: int = None,
 
                 source_groups_already_calculated.append(source_group_class)
 
-        for sname, source in sources.items():
-            if sname in template_source_names:
-                source.set_data(data_reservoir)
-                data_reservoir[f'{sname}_diff_rate'] = source.batched_differential_rate()
-            else:
+                if save_comb:
+                    data_reservoir[f'{source_group_class.base_source.__class__.__name__}_energies_diff_rates'] = \
+                        source_group_class.base_source.data['energies_diff_rates']
+
+        if not save_comb:
+            for sname, source in sources.items():
                 data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
 
-    cols = [c for c in data_reservoir.columns if (c[-9:] == 'diff_rate')]
+    if save_comb:
+        cols = [c for c in data_reservoir.columns if (c[-19:] == 'energies_diff_rates')]
+    else:
+        cols = [c for c in data_reservoir.columns if (c[-9:] == 'diff_rate')]
     cols.append('source')
     data_reservoir = data_reservoir[cols]
 
