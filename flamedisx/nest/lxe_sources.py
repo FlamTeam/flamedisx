@@ -575,11 +575,13 @@ class nestTemporalRateOscillationNRSource(nestNRSource):
 class nestWIMPSource(nestNRSource):
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
 
-    def __init__(self, *args, wimp_mass=40, **kwargs):
+    def __init__(self, *args, wimp_mass=40, fid_mass=1., livetime=1., **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
+        scale = fid_mass * livetime
+        self.energy_hist *= scale
 
         self.n_time_bins = len(self.energy_hist.bin_edges[0])
         e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(self.energy_hist.bin_edges[1])
