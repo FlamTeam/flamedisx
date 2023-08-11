@@ -241,4 +241,4 @@ class SourceGroup:
             # Multiply the probabilities and spectrum values together and sum to obtain the differential rates
             diff_rates.extend(self.scale_by_spectrum(energies_diff_rates, spectrum_values))
 
-        return diff_rates
+        return diff_rates[:self.base_source.n_events]

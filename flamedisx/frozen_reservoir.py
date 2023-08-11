@@ -13,6 +13,7 @@ def make_event_reservoir(ntoys: int = None,
                          source_groups_dict=None,
                          quanta_tensor_dirs_dict=None,
                          save_comb=False,
+                         read_comb=None,
                          **sources):
     """Generate an annotated reservoir of events to be used in FrozenReservoirSource s.
 
@@ -29,6 +30,31 @@ def make_event_reservoir(ntoys: int = None,
 
     if ntoys is None:
         ntoys = default_ntoys
+
+    if read_comb is not None:
+        data_reservoir = pkl.load(open(read_comb, 'rb'))
+
+        source_groups_already_calculated = []
+        for _, source_group_class in source_groups_dict.items():
+            assert isinstance(source_group_class, fd.nest.SourceGroup), "Must be using source groups here!"
+            if source_group_class not in source_groups_already_calculated:
+                if 'energies_diff_rates' in data_reservoir:
+                    data_reservoir = data_reservoir.drop(columns=['energies_diff_rates'])
+                data_reservoir = data_reservoir.rename(columns={f'{source_group_class.base_source.__class__.__name__}_energies_diff_rates': 'energies_diff_rates'})
+                source_group_class.set_data(data_reservoir.copy())
+                source_groups_already_calculated.append(source_group_class)
+
+        for sname, source in sources.items():
+            data_reservoir[f'{sname}_diff_rate'] = source_groups_dict[sname].get_diff_rate_source(source)
+
+        cols = [c for c in data_reservoir.columns if (c[-9:] == 'diff_rate')]
+        cols.append('source')
+        data_reservoir = data_reservoir[cols]
+
+        if reservoir_output_name is not None:
+            data_reservoir.to_pickle(reservoir_output_name)
+
+        return data_reservoir
 
     dfs = []
     for sname, source in sources.items():
@@ -77,6 +103,7 @@ def make_event_reservoir(ntoys: int = None,
 
     if save_comb:
         cols = [c for c in data_reservoir.columns if (c[-19:] == 'energies_diff_rates')]
+        cols.extend(['s1', 's2', 'x', 'y', 'z', 'r', 'theta', 'drift_time', 'event_time'])
     else:
         cols = [c for c in data_reservoir.columns if (c[-9:] == 'diff_rate')]
     cols.append('source')
@@ -156,4 +183,4 @@ class FrozenReservoirSource(fd.ColumnSource):
         if len(params):
             raise NotImplementedError("FrozenReservoirSource does not yet support alternative parameters in simulate")
 
-        return self.reservoir.sample(n_events, replace=True)
+        return self.reservoir.sample(n_events, replace=False)
