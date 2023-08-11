@@ -355,7 +355,8 @@ class LogLikelihood:
             mu = rm * s.mu_before_efficiencies(
                 **self._filter_source_kwargs(params, sname))
             # Simulate this many events from source
-            n_to_sim = np.random.poisson(mu)
+            # THIS IS HACKY
+            n_to_sim = int(np.ceil(mu))
             if n_to_sim == 0:
                 continue
             d = s.simulate(n_to_sim,

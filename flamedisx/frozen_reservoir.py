@@ -64,8 +64,8 @@ def make_event_reservoir(ntoys: int = None,
             sdata = source.simulate(n_simulate)
             sdata['source'] = sname
 
-            if len(sdata) >= np.ceil(input_mus[sname]):
-                dfs.append(sdata[0:int(np.ceil(input_mus[sname]))])
+            if len(sdata) >= (ntoys * np.ceil(input_mus[sname])):
+                dfs.append(sdata[0:int(ntoys * np.ceil(ntoys * input_mus[sname]))])
                 break
             else:
                 factor += 0.1
@@ -142,12 +142,14 @@ class FrozenReservoirSource(fd.ColumnSource):
                  reservoir: pd.DataFrame = None,
                  input_mus=None,
                  rescale_diff_rates=False,
+                 ignore_events_check=False,
                  *args, **kwargs):
         if input_mus is None:
             assert source_type is not None, "Must pass a source type to FrozenReservoirSource, if not passing \
                 input mus"
         assert source_name is not None, "Must pass a source name to FrozenReservoirSource"
-        assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
+        if not ignore_events_check:
+            assert source_name in reservoir['source'].values, "The reservoir must contain events from this source type"
 
         if source_kwargs is None:
             source_kwargs = dict()

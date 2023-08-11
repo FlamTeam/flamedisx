@@ -5,6 +5,8 @@ from copy import deepcopy
 
 import glob
 
+from tqdm import tqdm
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -222,7 +224,7 @@ class SourceGroup:
         this_source.set_data(self.base_source.data, data_is_annotated=True)
 
         diff_rates = []
-        for i_batch in range(this_source.n_batches):
+        for i_batch in tqdm(range(this_source.n_batches)):
             q = this_source.data_tensor[i_batch]
             # Grab the probabilities of events in this batch under its set of trimmed/stepped energies.
             # Grab also the spectrum values of the source under those energies
