@@ -65,7 +65,7 @@ def make_event_reservoir(ntoys: int = None,
             sdata['source'] = sname
 
             if len(sdata) >= (ntoys * np.ceil(input_mus[sname])):
-                dfs.append(sdata[0:int(ntoys * np.ceil(ntoys * input_mus[sname]))])
+                dfs.append(sdata[0:int(ntoys * np.ceil(input_mus[sname]))])
                 break
             else:
                 factor += 0.1
