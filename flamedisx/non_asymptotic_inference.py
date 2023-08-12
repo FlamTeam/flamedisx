@@ -55,6 +55,24 @@ class TestStatisticTMuTilde(TestStatistic):
 
 
 @export
+class TestStatisticQMu(TestStatistic):
+    """Evaluate the test statistic of equation 11 in https://arxiv.org/abs/1007.1727.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def evaluate(self, bf_unconditional, bf_conditional):
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        ts = -2. * (ll_conditional - ll_unconditional)
+        if bf_unconditional[f'{signal_source_name}_rate_multiplier'] > mu_test:
+            return 0.
+        else:
+            return ts
+
+
+@export
 class TestStatisticDistributions():
     """ Class to store test statistic distribution values (pass in as a list),
     as well as (optionally) conditional and unconditional fit dictionaries for
