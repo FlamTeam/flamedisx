@@ -211,7 +211,8 @@ class TSEvaluation():
                     observed_test_stats=None,
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
-                    toy_batch=0):
+                    toy_batch=0,
+                    skip_S_toys=False):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -315,7 +316,8 @@ class TSEvaluation():
                 # Case where we want test statistic distributions
                 else:
                     self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
-                                                 mu_test, signal_source, likelihood, save_fits=save_fits)
+                                                 mu_test, signal_source, likelihood, save_fits=save_fits,
+                                                 skip_S_toys=skip_S_toys)
 
             if observed_data is not None:
                 observed_test_stats_collection[signal_source] = observed_test_stats
@@ -366,7 +368,8 @@ class TSEvaluation():
         return simulate_dict, toy_data, constraint_extra_args
 
     def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
-                                mu_test, signal_source_name, likelihood, save_fits=False):
+                                mu_test, signal_source_name, likelihood, save_fits=False,
+                                skip_S_toys=False):
         """Internal function to get test statistic distribution.
         """
         ts_values_SB = []
@@ -379,29 +382,31 @@ class TSEvaluation():
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
-            simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
-                self.sample_data_constraints(mu_test, signal_source_name, likelihood)
+            if not skip_S_toys:
+                simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
+                    self.sample_data_constraints(mu_test, signal_source_name, likelihood)
 
             # S+B toys
 
-            # Shift the constraint in the likelihood based on the background RMs we drew
-            likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
-            # Set data
-            likelihood.set_data(toy_data_SB)
-            # Create test statistic
-            test_statistic_SB = self.test_statistic(likelihood)
-            # Guesses for fit
-            guess_dict_SB = simulate_dict_SB.copy()
-            for key, value in guess_dict_SB.items():
-                if value < 0.1:
-                    guess_dict_SB[key] = 0.1
-            # Evaluate test statistic
-            ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
-            # Save test statistic, and possibly fits
-            ts_values_SB.append(ts_result_SB[0])
-            if save_fits:
-                unconditional_bfs_SB.append(ts_result_SB[1])
-                conditional_bfs_SB.append(ts_result_SB[2])
+            if not skip_S_toys:
+                # Shift the constraint in the likelihood based on the background RMs we drew
+                likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
+                # Set data
+                likelihood.set_data(toy_data_SB)
+                # Create test statistic
+                test_statistic_SB = self.test_statistic(likelihood)
+                # Guesses for fit
+                guess_dict_SB = simulate_dict_SB.copy()
+                for key, value in guess_dict_SB.items():
+                    if value < 0.1:
+                        guess_dict_SB[key] = 0.1
+                # Evaluate test statistic
+                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
+                # Save test statistic, and possibly fits
+                ts_values_SB.append(ts_result_SB[0])
+                if save_fits:
+                    unconditional_bfs_SB.append(ts_result_SB[1])
+                    conditional_bfs_SB.append(ts_result_SB[2])
 
             # B-only toys
 
