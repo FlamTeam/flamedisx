@@ -71,6 +71,9 @@ class TestStatisticQMu(TestStatistic):
         else:
             return ts
 
+    def p_value_asymptotic(self, ts_values):
+        return (1. - stats.norm.cdf(np.sqrt(ts_values)))
+
 
 @export
 class TestStatisticDistributions():
@@ -690,3 +693,27 @@ class IntervalCalculator():
             bands[signal_source] = these_bands
 
         return bands
+
+    def get_median_asymptotic(self, test_statistic, conf_level=0.1):
+        """
+        """
+        medians = dict()
+
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            # Get B-only test statistic distribition
+            test_stat_dists_B = self.test_stat_dists_B[signal_source]
+
+            mus = []
+            p_val_curves = []
+            # Loop over signal rate multipliers
+            for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
+                mus.append(mu_test)
+                p_val_curves.append(test_statistic(None).p_value_asymptotic(ts_values))
+
+            p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
+            upper_lims = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
+
+            medians[signal_source] = np.quantile(np.sort(upper_lims), stats.norm.cdf(0.5))
+
+        return medians
