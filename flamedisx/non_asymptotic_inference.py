@@ -33,7 +33,7 @@ class TestStatistic():
         bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
         # Return the test statistic, unconditional fit and conditional fit
-        return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
+        return self.evaluate(bf_unconditional, bf_conditional, signal_source_name, mu_test), bf_unconditional, bf_conditional
 
 
 @export
@@ -43,7 +43,7 @@ class TestStatisticTMuTilde(TestStatistic):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def evaluate(self, bf_unconditional, bf_conditional):
+    def evaluate(self, bf_unconditional, bf_conditional, signal_source_name, mu_test):
         ll_conditional = self.likelihood(**bf_conditional)
         ll_unconditional = self.likelihood(**bf_unconditional)
 
@@ -61,7 +61,7 @@ class TestStatisticQMu(TestStatistic):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def evaluate(self, bf_unconditional, bf_conditional):
+    def evaluate(self, bf_unconditional, bf_conditional, signal_source_name, mu_test):
         ll_conditional = self.likelihood(**bf_conditional)
         ll_unconditional = self.likelihood(**bf_unconditional)
 
