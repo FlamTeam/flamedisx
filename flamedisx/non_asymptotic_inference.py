@@ -544,10 +544,13 @@ class IntervalCalculator():
             y_left = y[crossing_points[0]]
             y_right = y[crossing_points[0] + 1]
         else:
-            x_left = x[crossing_points[-1]]
-            x_right = x[crossing_points[-1] + 1]
-            y_left = y[crossing_points[-1]]
-            y_right = y[crossing_points[-1] + 1]
+            try:
+                x_left = x[crossing_points[-1]]
+                x_right = x[crossing_points[-1] + 1]
+                y_left = y[crossing_points[-1]]
+                y_right = y[crossing_points[-1] + 1]
+            except Exception:
+                return x[-1]
         gradient = (y_right - y_left) / (x_right - x_left)
 
         if inverse:
