@@ -68,6 +68,8 @@ class TestStatisticQMu(TestStatistic):
         ts = -2. * (ll_conditional - ll_unconditional)
         if bf_unconditional[f'{signal_source_name}_rate_multiplier'] > mu_test:
             return 0.
+        elif ts < 0.:
+            return 0.
         else:
             return ts
 
