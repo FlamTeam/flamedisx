@@ -40,3 +40,24 @@ class CH3TSource(fd_nest.nestFasterERSource):
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
 
         super().__init__(*args, **kwargs)
+
+
+@export
+class DDSource(fd_nest.nestNRSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        expFall = 10.
+        peakFrac = 0.1
+        peakMu = 60.
+        peakSig = 25.
+
+        energies = tf.linspace(0.01, 80., 1000)
+
+        spectrum = tf.exp(-energies / expFall) + peakFrac * tf.exp(-pow((energies - peakMu) / peakSig, 2.))
+
+        self.energies = tf.cast(energies, fd.float_type())
+        self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
+
+        super().__init__(*args, **kwargs)

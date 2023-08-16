@@ -381,6 +381,24 @@ class LZCH3TSource(LZSource, fd.nest.CH3TSource):
         return 6600000.
 
 
+@export
+class LZDDSource(LZSource, fd.nest.DDSource):
+    t_start = pd.to_datetime('2022-04-19T00:00:00')
+    t_start = t_start.tz_localize(tz='America/Denver')
+
+    t_stop = pd.to_datetime('2022-04-19T00:00:00')
+    t_stop = t_stop.tz_localize(tz='America/Denver')
+
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def get_elife(event_time):
+        return 6600000.
+
+
 ##
 # Signal sources
 ##
