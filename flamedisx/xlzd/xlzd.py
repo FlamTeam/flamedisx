@@ -161,6 +161,16 @@ class XLZDWIMPSource(XLZDSource, fd.nest.nestWIMPSource):
         super().__init__(*args, **kwargs)
 
 
+@export
+class XLZDSolarAxionSource(XLZDSource, fd.nest.nestSolarAxionSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = '80t'
+        super().__init__(*args, **kwargs)
+
+
 ##
 # Background sources
 ##

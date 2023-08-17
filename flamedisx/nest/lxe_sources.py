@@ -4,6 +4,7 @@ import configparser
 import os
 
 import pickle as pkl
+import pandas as pd
 
 import flamedisx as fd
 from .. import nest as fd_nest
@@ -588,5 +589,20 @@ class nestWIMPSource(nestNRSource):
         self.energies = fd.np_to_tf(e_centers)
 
         self.array_columns = (('energy_spectrum', len(e_centers)),)
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class nestSolarAxionSource(nestERSource):
+    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        df_solar_axion = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'solar_axion_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_solar_axion['energy_keV'].values, dtype=fd.float_type())
+        scale = fid_mass * livetime * 1.577
+        self.rates_vs_energy = tf.convert_to_tensor(df_solar_axion['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
