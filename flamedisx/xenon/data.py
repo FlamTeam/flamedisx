@@ -64,14 +64,24 @@ def get_bbf_file(data_file_name):
 
 
 @export
-def get_nt_file(data_file_name):
+def get_nt_file(data_file_name, aptf=False):
     """Return information from file in XENONnT/Flamedisx/...
 
     Do NOT call on import time --
     that would make flamedisx unusable to non-XENON folks!
     """
-    ensure_repo('XENONnT/Flamedisx.git', NTFD_PATH)
-    return fd.get_resource(f'{NTFD_PATH}/{data_file_name}')
+
+    if aptf:
+        this_flavour = 'Appletree file'
+        this_path = APTF_PATH
+        this_repo = 'XENONnT/applefiles.git'
+    else:
+        this_flavour = 'Flamedisx maps'
+        this_path = NTFD_PATH
+        this_repo = 'XENONnT/Flamedisx.git'
+
+    ensure_repo(this_repo, this_path)
+    return fd.get_resource(f'{this_path}/{data_file_name}')
 
 
 @export
