@@ -16,7 +16,7 @@ BBF_PATH = './bbf'
 # already cloned XENONnT/Flamedisx
 # (Do not export it. If you do, reassigning fd.NTFD_PATH won't update this one.)
 NTFD_PATH = './flamedisx_maps'
-
+APTF_PATH = './apt_files' # appletree files
 
 @export
 def pax_file(x):
@@ -74,13 +74,24 @@ def get_nt_file(data_file_name):
 
 
 @export
-def refresh_nt(token=None):
-    """Cloning latest version of XENONnT/Flamedisx (prompting for credentials) if we do not have it"""
+def refresh_nt(token=None, aptf=False):
+    """Cloning latest version of XENONnT/Flamedisx or appletree files
+    (prompting for credentials) if we do not have it"""
+
+    if aptf:
+        this_flavour = 'Appletree file'
+        this_path = APTF_PATH
+        this_repo = '@github.com/XENONnT/applefiles.git'
+    else:
+        this_flavour = 'Flamedisx maps'
+        this_path = NTFD_PATH
+        this_repo = '@github.com/XENONnT/Flamedisx.git'
+
     # `git pull` does not work if not in a git repo and not everybody wants to `git init`
     # Delete old repo and clone again
-    if os.path.exists(NTFD_PATH):
-        fd.run_command(f'rm -rf {NTFD_PATH}')
-    print("XENONnT private data requested, we are cloning latest Flamedisx folder.")
+    if os.path.exists(this_path):
+        fd.run_command(f'rm -rf {this_path}')
+    print(f"XENONnT private data requested, we are cloning latest {this_flavour} folder.")
     token = ensure_token()
     fd.run_command(f'git clone https://{token}:x-oauth-basic'
-                   f'@github.com/XENONnT/Flamedisx.git {NTFD_PATH}')
+                   f'{this_repo} {this_path}')
