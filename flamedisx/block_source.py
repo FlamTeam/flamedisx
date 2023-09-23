@@ -230,7 +230,7 @@ class FirstBlock(Block):
 
 
 @export
-class BlockModelSource(fd.Source):
+class BlockModelSource(fd.IntegratingSource):
     """Source whose model is split over different Blocks
     """
 
@@ -496,43 +496,7 @@ class BlockModelSource(fd.Source):
             b.simulate(d)
         return d
 
-    def get_priors(self, data):
-        """Obtain priors on certain hidden variable dimensions, to obtain more
-        accurate Bayes bounds.
-
-        Requires populating source.mc_reservoir during the source's annotate(). The
-        source should also set prior_dimensions, which is a list of
-        [(prior_dims), (filter_dims)]. For each batch of events, the extremal
-        bounds values from annotate() for (filter_dims) are used to filter the
-        MC reservoir to obtain bounds on (prior_dims).
-        """
-        if self.mc_reservoir.empty:
-            return
-
-        for set in self.prior_dimensions:
-            prior_dims = set[0]
-            filter_dims = set[1]
-
-            prior_data_columns, filter_data_columns = [], []
-            for dim in prior_dims:
-                prior_data_columns.append(self.mc_reservoir.columns.get_loc(dim))
-            for dim in filter_dims:
-                filter_data_columns.append(self.mc_reservoir.columns.get_loc(dim))
-
-            for batch in range(self.n_batches):
-                df_batch = data[batch * self.batch_size:(batch + 1) * self.batch_size]
-
-                filter_dims_min, filter_dims_max = [], []
-                for dim in filter_dims:
-                    filter_dims_min.append(min(df_batch[dim + '_min']))
-                for dim in filter_dims:
-                    filter_dims_max.append(max(df_batch[dim + '_max']))
-
-                fd.bounds.get_priors(self, self.mc_reservoir.values, prior_dims,
-                                     prior_data_columns, filter_data_columns,
-                                     filter_dims_min, filter_dims_max)
-
-    def _annotate(self, _skip_bounds_computation=False):
+    def _annotate(self):
         d = self.data
         # By going in reverse order through the blocks, we can use the bounds
         # on hidden variables closer to the final signals (easy to compute)
@@ -542,7 +506,7 @@ class BlockModelSource(fd.Source):
 
         # Next, we obtain any desired hidden variable priors, in case we want
         # to improve the bounds estimation for any hidden variables.
-        self.get_priors(self.data)
+        super()._annotate()
 
         # If any blocks want to do bounds estimation differently, using either
         # the calculated priors or bounds on hidden variables deeper than themselves,
