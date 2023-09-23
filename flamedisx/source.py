@@ -31,10 +31,6 @@ class Source:
     #: rate computation
     trace_difrate = True
 
-    default_max_sigma = 3
-    default_max_sigma_outer = 3
-    default_max_dim_size = 70
-
     #: Names of model functions
     model_functions: ty.Tuple[str] = tuple()
 
@@ -47,26 +43,6 @@ class Source:
     #: Note these cannot have any fittable parameters.
     frozen_model_functions: ty.Tuple[str] = tuple()
 
-    #: Names of final observable dimensions (e.g. s1, s2)
-    #: for use in domain / cross-domain
-    final_dimensions: ty.Tuple[str] = tuple()
-
-    #: Names of dimensions of hidden variables (e.g. produced electrons)
-    #: for which domain computations and dimsize calculations are to be done
-    inner_dimensions: ty.Tuple[str] = tuple()
-
-    #: inner_dimensions excluded from variable stepping logic, i.e.
-    #: for which the domain is always a single interval of integers
-    no_step_dimensions: ty.Tuple[str] = tuple()
-
-    #: inner_dimensions which take non-integer values
-    non_integer_dimensions: ty.Tuple[str] = tuple()
-
-    #: Names of dimensions of hidden variables for which
-    #: dimsize calculations are NOT done here (but in user-defined code)
-    #: but for which we DO track _min and _dimsizes
-    bonus_dimensions: ty.Tuple[str] = tuple()
-
     #: Columns that we don't want to include in the tensor of data columns
     exclude_data_tensor: ty.Tuple[str] = tuple()
 
@@ -75,12 +51,6 @@ class Source:
 
     #: Any additional source attributes that should be configurable.
     model_attributes = tuple()
-
-    #: Dimensions beyond inner/bonus dimensions that we want to calculate bounds and stepping for
-    additional_bounds_dimensions: ty.Tuple[str] = tuple()
-
-    # Dimensions which we want to calculate priors for, in bounds computation.
-    prior_dimensions: ty.List[ty.Tuple[ty.Tuple[str], ty.Tuple[str]]] = []
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
@@ -194,8 +164,6 @@ class Source:
     def __init__(self,
                  data=None,
                  batch_size=10,
-                 max_sigma=None,
-                 max_sigma_outer=None,
                  data_is_annotated=False,
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
@@ -206,10 +174,6 @@ class Source:
 
         :param data: Dataframe with events to use in the inference
         :param batch_size: Number of events / tensorflow batch
-        :param max_sigma: Hint for hidden variable bounds computation
-            If omitted, set to default_max_sigma
-        param max_sigma_outer: Hint for hidden variable bounds computation for outer blocks
-            If omitted, set to default_max_sigma_outer
         :param data_is_annotated: If True, skip annotation
         :param _skip_tf_init: If True, skip tensorflow cache initialization
         :param _skip_bounds_computation: If True, skip bounds compuation
@@ -219,26 +183,6 @@ class Source:
         :param params: New defaults to for parameters, and new values for
         constant-valued model functions.
         """
-        if max_sigma is None:
-            max_sigma = self.default_max_sigma
-        if max_sigma_outer is None:
-            max_sigma_outer = self.default_max_sigma_outer
-        self.bounds_prob = stats.norm.cdf(-max_sigma)
-        self.bounds_prob_outer = stats.norm.cdf(-max_sigma_outer)
-        self.max_sigma = max_sigma
-        assert self.bounds_prob > 0., \
-            "max_sigma too high!"
-        assert self.bounds_prob_outer > 0., \
-            "max_sigma_outer too high!"
-
-        # Capping the domain size for hidden variable dimensions. Any which aren't
-        # set will default to default_max_dim_size
-        if not hasattr(self, 'max_dim_sizes'):
-            self.max_dim_sizes = dict()
-        for dim in (self.inner_dimensions + self.bonus_dimensions + self.additional_bounds_dimensions):
-            if dim not in self.max_dim_sizes:
-                self.max_dim_sizes[dim] = self.default_max_dim_size
-
         # Check for duplicated model functions
         for attrname in ['model_functions', 'special_model_functions']:
             l_ = getattr(self, attrname)
@@ -259,20 +203,9 @@ class Source:
         self.array_columns = dict(self.array_columns)
 
         # Which columns are needed from data?
-        ctc = list(set(sum(self.f_dims.values(), [])))      # Used in model functions.
-        ctc += list(self.final_dimensions)                  # Final observables (e.g. S1, S2)
+        ctc = list(set(sum(self.f_dims.values(), [])))      # Used in model functions
         ctc += self.extra_needed_columns()                  # Manually fetched columns
-        ctc += self.frozen_model_functions                     # Frozen methods (e.g. not tf-compatible)
-        ctc += [x + '_min' for x in self.inner_dimensions]  # Left bounds of domains
-        ctc += [x + '_max' for x in self.inner_dimensions]  # Right bounds of domains
-        ctc += [x + '_min' for x in self.additional_bounds_dimensions]  # Left bounds of domains
-        ctc += [x + '_max' for x in self.additional_bounds_dimensions]  # Right bounds of domains
-        ctc += [x + '_min' for x in self.bonus_dimensions]  # Left bounds of domains
-        ctc += [x + '_steps' for x in self.inner_dimensions]  # Step sizes
-        ctc += [x + '_steps' for x in self.bonus_dimensions]  # Step sizes
-        ctc += [x + '_dimsizes' for x in self.inner_dimensions]  # Dimension sizes
-        ctc += [x + '_dimsizes' for x in self.bonus_dimensions]  # Dimension sizes
-        ctc += [x + '_dimsizes' for x in self.final_dimensions]  # Dimension sizes
+        ctc += self.frozen_model_functions                  # Frozen methods (e.g. not tf-compatible)
         self.ctc = list(set(ctc) - set([x for x in self.exclude_data_tensor]))  # We want to ignore these
 
         self.column_index = fd.index_lookup_dict(self.ctc,
@@ -280,12 +213,6 @@ class Source:
         self.n_columns_in_data_tensor = (
                 len(self.column_index) + sum(self.array_columns.values())
                 - len(self.array_columns))
-
-        # A source may choose to fill these in for improved bounds computation.
-        # See bounds.py for details
-        self.mc_reservoir = pd.DataFrame()
-        self.prior_PDFs_LB = tuple(dict())
-        self.prior_PDFs_UB = tuple(dict())
 
         self.set_defaults(**params)
 
@@ -450,49 +377,9 @@ class Source:
             with tf.io.TFRecordWriter(output_data_tensor) as writer:
                 writer.write(write_out.numpy())
 
-    def cap_dimsizes(self, dim, cap):
-        if dim in self.no_step_dimensions:
-            pass
-        else:
-            self.dimsizes[dim] = cap * np.greater(self.dimsizes[dim], cap) + \
-                self.dimsizes[dim] * np.less_equal(self.dimsizes[dim], cap)
-
     def _calculate_dimsizes(self):
-        self.dimsizes = dict()
-        d = self.data
-        for dim in self.inner_dimensions:
-            ma = d[dim + '_max'].to_numpy()
-            mi = d[dim + '_min'].to_numpy()
-            self.dimsizes[dim] = ma - mi + 1
-            # Ensure we don't go over max_dim_size in a domain
-            self.cap_dimsizes(dim, self.max_dim_sizes[dim])
-
-            # Calculate steps if we have cappeed the dimesize
-            steps = tf.where((ma-mi+1) > self.dimsizes[dim],
-                             tf.math.ceil((ma-mi) / (self.dimsizes[dim]-1)),
-                             1).numpy()  # Cover to at least the upper bound
-
-            # For non-integer dimensions, always set to max_dim_size, then step in non-integers
-            if dim in self.non_integer_dimensions:
-                self.dimsizes[dim] = self.max_dim_sizes[dim]
-                steps = (ma - mi) / (self.dimsizes[dim] - 1)
-
-            # Store the steps in the dataframe
-            d[dim + '_steps'] = steps
-
-        for dim in self.final_dimensions:
-            self.dimsizes[dim] = np.ones(len(d))
-
-        # Calculate all custom dimsizes
-        self.calculate_dimsizes_special()
-
-        # Store the dimsizes in the dataframe
-        for dim in self.inner_dimensions:
-            d[dim + "_dimsizes"] = self.dimsizes[dim]
-        for dim in self.bonus_dimensions:
-            d[dim + "_dimsizes"] = self.dimsizes[dim]
-        for dim in self.final_dimensions:
-            d[dim + "_dimsizes"] = self.dimsizes[dim]
+        # Overriden in IntegratingSource
+        pass
 
     @contextmanager
     def _set_temporarily(self, data, keep_padding=False, **kwargs):
@@ -668,37 +555,6 @@ class Source:
                                      for k in self.defaults])
 
     ##
-    # Helpers for response model implementation
-    ##
-
-    def domain(self, x, data_tensor=None):
-        """Return (n_events, n_x) matrix containing all
-        possible integer values of x for each event.
-
-        If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
-        tensor with observed values -- NOT a (n_events,) array!
-        """
-        if x in self.final_dimensions:
-            return self._fetch(x, data_tensor=data_tensor)[:, o]
-
-        # Cover the bounds range in integer steps not necessarily of 1
-        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
-        steps = self._fetch(x + '_steps', data_tensor=data_tensor)[:, o]
-        x_range = tf.range(tf.reduce_max(self._fetch(x + '_dimsizes', data_tensor=data_tensor))) * steps
-        return left_bound + x_range
-
-    def cross_domains(self, x, y, data_tensor):
-        """Return (x, y) two-tuple of (n_events, n_x, n_y) tensors
-        containing possible integer values of x and y, respectively.
-        """
-        # TODO: somehow mask unnecessary elements and save computation time
-        x_domain = self.domain(x, data_tensor)
-        y_domain = self.domain(y, data_tensor)
-        result_x = tf.repeat(x_domain[:, :, o], tf.shape(y_domain)[1], axis=2)
-        result_y = tf.repeat(y_domain[:, o, :], tf.shape(x_domain)[1], axis=1)
-        return result_x, result_y
-
-    ##
     # Simulation methods and helpers
     ##
 
@@ -803,9 +659,6 @@ class Source:
         """
         return self.data
 
-    def calculate_dimsizes_special(self):
-        pass
-
 
 @export
 class ColumnSource(Source):
@@ -830,3 +683,196 @@ class ColumnSource(Source):
 
     def _differential_rate(self, data_tensor, ptensor):
         return self._fetch(self.column, data_tensor)
+
+
+@export
+class IntegratingSource(Source):
+    """Source that sums or integrates its differential rate over one or more
+    unobservable dimensions / hidden variables"""
+
+    #: Names of final observable dimensions (e.g. s1, s2)
+    #: for use in domain / cross-domain
+    final_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of dimensions of hidden variables (e.g. produced electrons)
+    #: for which domain computations and dimsize calculations are to be done
+    inner_dimensions: ty.Tuple[str] = tuple()
+
+    #: inner_dimensions excluded from variable stepping logic, i.e.
+    #: for which the domain is always a single interval of integers
+    no_step_dimensions: ty.Tuple[str] = tuple()
+
+    #: inner_dimensions which take non-integer values; integral will be
+    #: approximated as a sum, with resolution controlled by max_dim_sizes
+    #: if defined, otherwise by default_max_dim_size.
+    non_integer_dimensions: ty.Tuple[str] = tuple()
+
+    #: Names of dimensions of hidden variables for which
+    #: dimsize calculations are NOT done here (but in user-defined code)
+    #: but for which we DO track _min and _dimsizes
+    bonus_dimensions: ty.Tuple[str] = tuple()
+
+    # Dimensions for which we want to calculate priors in bounds computation.
+    prior_dimensions: ty.Tuple[ty.Tuple[ty.Tuple[str], ty.Tuple[str]]] = tuple()
+
+    #: Hints for hidden variable bound computation
+    default_max_sigma = 3
+    default_max_sigma_outer = 3
+    default_max_dim_size = 70
+
+    def __init__(self, *args, max_sigma=None, max_sigma_outer=None, **kwargs):
+        """Create an integrating source
+
+        :param max_sigma: Hint for hidden variable bounds computation
+            If omitted, set to default_max_sigma
+        :param max_sigma_outer: Hint for hidden variable bounds computation for outer blocks
+            If omitted, set to default_max_sigma_outer
+
+        All other arguments are passed to Source.__init__
+        """
+        if max_sigma is None:
+            max_sigma = self.default_max_sigma
+        if max_sigma_outer is None:
+            max_sigma_outer = self.default_max_sigma_outer
+        self.bounds_prob = stats.norm.cdf(-max_sigma)
+        self.bounds_prob_outer = stats.norm.cdf(-max_sigma_outer)
+        self.max_sigma = max_sigma
+        assert self.bounds_prob > 0., \
+            "max_sigma too high!"
+        assert self.bounds_prob_outer > 0., \
+            "max_sigma_outer too high!"
+
+        # Capping the domain size for hidden variable dimensions. Any which aren't
+        # set will default to default_max_dim_size
+        if not hasattr(self, 'max_dim_sizes'):
+            self.max_dim_sizes = dict()
+
+        # A source may choose to fill these in for improved bounds computation.
+        # See bounds.py for details
+        self.mc_reservoir = pd.DataFrame()
+        self.prior_PDFs_LB = tuple(dict())
+        self.prior_PDFs_UB = tuple(dict())
+
+        super().__init__(*args, **kwargs)
+
+    def domain(self, x, data_tensor=None):
+        """Return (n_events, n_x) matrix containing all
+        possible integer values of x for each event.
+
+        If x is a final dimension (e.g. s1, s2), we return an (n_events, 1)
+        tensor with observed values -- NOT a (n_events,) array!
+        """
+        if x in self.final_dimensions:
+            return self._fetch(x, data_tensor=data_tensor)[:, o]
+
+        # Cover the bounds range in integer steps not necessarily of 1
+        left_bound = self._fetch(x + '_min', data_tensor=data_tensor)[:, o]
+        steps = self._fetch(x + '_steps', data_tensor=data_tensor)[:, o]
+        x_range = tf.range(tf.reduce_max(self._fetch(x + '_dimsizes', data_tensor=data_tensor))) * steps
+        return left_bound + x_range
+
+    def cross_domains(self, x, y, data_tensor):
+        """Return (x, y) two-tuple of (n_events, n_x, n_y) tensors
+        containing possible integer values of x and y, respectively.
+        """
+        x_domain = self.domain(x, data_tensor)
+        y_domain = self.domain(y, data_tensor)
+        result_x = tf.repeat(x_domain[:, :, o], tf.shape(y_domain)[1], axis=2)
+        result_y = tf.repeat(y_domain[:, o, :], tf.shape(x_domain)[1], axis=1)
+        return result_x, result_y
+
+    def extra_needed_columns(self):
+        cols = []
+        for dim in (self.inner_dimensions + self.bonus_dimensions):
+            # Track domain bounds and stepping information
+            cols += [dim + '_' + x for x in ('min', 'steps', 'dimsizes')]
+        for dim in self.final_dimensions:
+            # Need the dimension sizes (though they are always 1...)
+            # and the observed values themselves
+            cols += [dim, dim + '_dimsizes']
+        return cols + super().extra_needed_columns()
+
+    def _calculate_dimsizes(self):
+        self.dimsizes = dict()
+        d = self.data
+
+        for dim in self.inner_dimensions:
+            # Minimum and maximum value to compute. This is a per-event quantity,
+            # so these are arrays
+            ma = d[dim + '_max'].to_numpy()
+            mi = d[dim + '_min'].to_numpy()
+            # Number of integer steps in the dimension, including endpoints
+            n = ma - mi + 1
+
+            if dim in self.no_step_dimensions:
+                cap = np.inf
+            else:
+                cap = self.max_dim_sizes.get(dim, self.default_max_dim_size)
+
+            if dim in self.non_integer_dimensions:
+                # Step size is non-integer
+                self.dimsizes[dim] = self.max_dim_sizes[dim]
+                step_size = (ma - mi) / (cap - 1)
+            else:
+                # Step size is an integer multiple of 1
+                # Step size = (original n.of intervals) / (new n.of intervals)
+                # E.g. [1,2,3,4,5] => [1,3,5] means step size (5-1)/(3-1) = 2
+                self.dimsizes[dim] = n.clip(None, cap)
+                step_size = np.ceil((n - 1) / (self.dimsizes[dim] - 1))
+
+            # Store the step size in the dataframe
+            d[dim + '_steps'] = step_size
+
+        for dim in self.final_dimensions:
+            self.dimsizes[dim] = np.ones(len(d))
+
+        # Calculate all custom dimsizes
+        self.calculate_dimsizes_special()
+
+        # Store the dimsizes in the dataframe
+        for dim in (self.inner_dimensions + self.bonus_dimensions + self.final_dimensions):
+            d[dim + "_dimsizes"] = self.dimsizes[dim]
+
+    def calculate_dimsizes_special(self):
+        pass
+
+    def _annotate(self):
+        """Add columns needed in inference to self.data
+        """
+        # Obtain any desired hidden variable priors, in case we want
+        # to improve the bounds estimation for any hidden variables.
+        #
+        # Requires populating source.mc_reservoir during the source's annotate().
+        # The source should also set prior_dimensions, which is a list of
+        # [(prior_dims), (filter_dims)]. For each batch of events, the extremal
+        # bounds values from annotate() for (filter_dims) are used to filter the
+        # MC reservoir to obtain bounds on (prior_dims).
+        if self.mc_reservoir.empty:
+            return
+
+        for prior_dims, filter_dims in self.prior_dimensions:
+            prior_data_columns = [
+                self.mc_reservoir.columns.get_loc(dim)
+                for dim in prior_dims
+            ]
+            filter_data_columns = [
+                self.mc_reservoir.columns.get_loc(dim)
+                for dim in filter_dims
+            ]
+
+            for batch in range(self.n_batches):
+                start, stop = batch * self.batch_size, (batch + 1) * self.batch_size
+                df_batch = self.data[start:stop]
+
+                filter_dims_min = [
+                    min(df_batch[dim + '_min'])
+                    for dim in filter_dims
+                ]
+                filter_dims_max = [
+                    max(df_batch[dim + '_max'])
+                    for dim in filter_dims
+                ]
+
+                fd.bounds.get_priors(self, self.mc_reservoir.values, prior_dims,
+                                     prior_data_columns, filter_data_columns,
+                                     filter_dims_min, filter_dims_max)
