@@ -141,7 +141,7 @@ For example, the :py:class:`~flamedisx.lxe_blocks.energy_spectrum.FixedShapeEner
     class MySource(fd.ERSource):
         """Flat ER spectrum from 0 to 5 keV"""
         energies = tf.linspace(0., 5., 100, dtype=fd.float_type())
-        rate_vs_energy = tf.ones(100, dtype=fd.float_type())
+        rates_vs_energy = tf.ones(100, dtype=fd.float_type())
 
 to change the energy spectrum. This is simply another form of 'common customization', just like the more common model function overriding.
 
