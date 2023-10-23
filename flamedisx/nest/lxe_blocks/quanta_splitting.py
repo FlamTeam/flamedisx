@@ -39,7 +39,7 @@ class MakePhotonsElectronsNR(fd.Block):
             self.array_columns = (('ions_produced_min',
                                    max(len(self.source.energies), 2)),)
 
-def _compute(self,
+    def _compute(self,
                  data_tensor, ptensor,
                  # Domain
                  electrons_produced, photons_produced,
