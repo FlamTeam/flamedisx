@@ -218,25 +218,53 @@ class nestERSource(nestSource):
 
     # quanta_splitting.py
 
-    def mean_yield_electron(self, energy):
+    def mean_yield_electron(self, energy,*,
+                            er_m1_a=30.66,
+                            er_m1_b=6.1978,
+                            er_m1_d=73.855,
+                            er_m1_e=2.0318,
+                            er_m1_f=0.41883,
+
+                            er_m10_a=0.0508273937,
+                            er_m10_b=0.1166087199,
+                            er_m10_c= 0.0508273937,
+                            er_m10_d=1.39260460e+02,
+                            er_m10_e=-0.65763592,
+
+                            er_Qy_a=77.2931084,
+                            er_Qy_b=0.13946236,
+                            er_Qy_c=0.52561312,
+                            er_Qy_d=1.82217496,
+                            er_Qy_e=2.82528809,
+                            er_Qy_f=1.82217496,
+                            er_Qy_g=144.65029656,
+                            er_Qy_h=-2.80532006,
+                            er_Qy_i=0.3344049589,
+                            er_Qy_k=7.02921301,
+                            er_Qy_l=98.27936794 ,
+                            er_Qy_m=7.0292130,
+                            er_Qy_n=256.48156448,
+                            er_Qy_o=1.29119251,
+                            er_Qy_p=4.285781736
+                            ):
         Wq_eV = self.Wq_keV * 1e3
 
-        Nq = energy * 1e3 / Wq_eV
+        Nq = energy * 1e3 / Wq_eV       
 
-        m1 = tf.cast(30.66 + (6.1978 - 30.66) / pow(1. + pow(self.drift_field / 73.855, 2.0318), 0.41883),
+        m1 = tf.cast(er_m1_a + (er_m1_b - er_m1_a) / pow(1. + pow(self.drift_field / er_m1_d, er_m1_e), er_m1_f),
                      fd.float_type())
         m5 = tf.cast(Nq / energy / (1 + self.alpha * tf.math.erf(0.05 * energy)), fd.float_type()) - m1
-        m10 = tf.cast((0.0508273937 + (0.1166087199 - 0.0508273937) /
-                      (1 + pow(self.drift_field / 1.39260460e+02, -0.65763592))),
+        m10 = tf.cast((er_m10_a + (er_m10_b - er_m10_c) /
+                      (1 + pow(self.drift_field / er_m10_d, er_m10_e))),
                       fd.float_type())
 
-        Qy = m1 + (77.2931084 - m1) / pow((1. + pow(energy / (fd.tf_log10(tf.cast(self.drift_field, fd.float_type())) *
-                                                    0.13946236 + 0.52561312),
-                                                    1.82217496 + (2.82528809 - 1.82217496) /
-                                                    (1 + pow(self.drift_field / 144.65029656, -2.80532006)))),
-                                          0.3344049589) + \
-            m5 + (0. - m5) / pow((1. + pow(energy / (7.02921301 + (98.27936794 - 7.02921301) /
-                                 (1. + pow(self.drift_field / 256.48156448, 1.29119251))), 4.285781736)), m10)
+        Qy = m1 + (er_Qy_a - m1) / pow((1. + pow(energy / (fd.tf_log10(tf.cast(self.drift_field, fd.float_type())) *
+                                                    er_Qy_b + er_Qy_c),
+                                                    er_Qy_d + (er_Qy_e - er_Qy_f) /
+                                                    (1 + pow(self.drift_field / er_Qy_g, er_Qy_h)))),
+                                          er_Qy_i) + \
+            m5 + (0. - m5) / pow((1. + pow(energy / (er_Qy_k + (er_Qy_l - er_Qy_m) /
+                                 (1. + pow(self.drift_field / er_Qy_n, er_Qy_o))), er_Qy_p)), m10)
 
         coeff_TI = tf.cast(pow(1. / XENON_REF_DENSITY, 0.3), fd.float_type())
         coeff_Ni = tf.cast(pow(1. / XENON_REF_DENSITY, 1.4), fd.float_type())
