@@ -373,23 +373,23 @@ class nestNRSource(nestSource):
 
     # quanta_splitting.py
 
-    def mean_yields(self, energy):
-        nr_nuis_a = 11.
-        nr_nuis_b = 1.1
-        nr_nuis_c = 0.0480
-        nr_nuis_d = -0.0533
-        nr_nuis_e = 12.6
-        nr_nuis_f = 0.3
-        nr_nuis_g = 2.
-        nr_nuis_h = 0.3
-        nr_nuis_i = 2
-        nr_nuis_j = 0.5
-        nr_nuis_k = 1.
-        nr_nuis_l = 1.
-
-        TIB = nr_nuis_c * pow(self.drift_field, nr_nuis_d) * pow(self.density / XENON_REF_DENSITY, 0.3)
-        Qy = 1. / (TIB * pow(energy + nr_nuis_e, nr_nuis_j))
-        Qy *= (1. - (1. / pow(1. + pow(energy / nr_nuis_f, nr_nuis_g), nr_nuis_k)))
+    def mean_yields(self, energy,*
+        ,nr_nuis_alpha = 11.
+        ,nr_nuis_beta = 1.1
+        ,nr_nuis_gamma = 0.0480
+        ,nr_nuis_delta = -0.0533
+        ,nr_nuis_eta = 12.6
+        ,nr_nuis_zeta = 0.3
+        ,nr_nuis_eta = 2.
+        ,nr_nuis_theta = 0.3
+        ,nr_nuis_l = 2
+        ,nr_nuis_p = 0.5
+        ,nr_new_nuis_a = 1.
+        ,nr_new_nuis_b = 1.
+        ):
+        TIB = nr_nuis_gamma * pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
+        Qy = 1. / (TIB * pow(energy + nr_nuis_eta, nr_nuis_p))
+        Qy *= (1. - (1. / pow(1. + pow(energy / nr_nuis_zeta, nr_nuis_eta), nr_new_nuis_a)))
 
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
@@ -397,9 +397,9 @@ class nestNRSource(nestSource):
                        0 * nel_temp,
                        nel_temp)
 
-        nq_temp = nr_nuis_a * pow(energy, nr_nuis_b)
+        nq_temp = nr_nuis_alpha * pow(energy, nr_nuis_beta)
 
-        nph_temp = (nq_temp - nel) * (1. - (1. / pow(1. + pow(energy / nr_nuis_h, nr_nuis_i), nr_nuis_l)))
+        nph_temp = (nq_temp - nel) * (1. - (1. / pow(1. + pow(energy / nr_nuis_theta, nr_nuis_l), nr_new_nuis_b)))
         # Don't let number of photons go negative
         nph = tf.where(nph_temp < 0,
                        0 * nph_temp,
