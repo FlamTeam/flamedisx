@@ -161,7 +161,7 @@ class MakePhotonsElectronsNR(fd.Block):
                                                 skewness=skew,
                                                 owens_t_terms=owens_t_terms).prob(nel_2D)
             else:
-                p_nel_1D =fd.tfp_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
+                p_nel_1D = fd.tfp_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
                                                                         skewness=skew,
                                                                         limit=ni_nel_2D,
                                                                         owens_t_terms=owens_t_terms).prob(nel_2D)
@@ -171,6 +171,7 @@ class MakePhotonsElectronsNR(fd.Block):
             p_nel=tf.gather_nd(params=p_nel_1D,indices=index_nel[:,o],batch_dims=0)
             p_nel=tf.reshape(tf.reshape(p_nel,[-1]),[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[3]])
             p_nel=tf.repeat(p_nel[:,:,o,:],tf.shape(nq)[2],axis=2)
+            
             #modified contractions remove need for costly repeats in ions dimension.
             if self.is_ER:
                 p_mult = p_ni * p_nel
@@ -198,9 +199,9 @@ class MakePhotonsElectronsNR(fd.Block):
 
         nq = electrons_produced + photons_produced
         #remove degenerate dimensions
-        # unique_quanta,index_nq=unique(nq[:,:,:,0])#nevts x nph x nel->unique_nq
-        # unique_nel,index_nel=unique(electrons_produced[:,:,0,0])#nevts x nel->unique_nel
+        #nevtxnelxnph->nq
         unique_quanta,index_nq=tf.unique(tf.reshape(nq[:,:,:,0],[-1]))
+        #nevtxnel->nel'
         unique_nel,index_nel=tf.unique(tf.reshape(electrons_produced[:,:,0,0],[-1]))
         
 
