@@ -406,7 +406,7 @@ class nestNRSource(nestSource):
         ,nr_nuis_beta = 1.1
         ,nr_nuis_gamma = 0.0480
         ,nr_nuis_delta = -0.0533
-        ,nr_nuis_eta = 12.6
+        ,nr_nuis_epsilon = 12.6
         ,nr_nuis_zeta = 0.3
         ,nr_nuis_eta = 2.
         ,nr_nuis_theta = 0.3
@@ -416,7 +416,7 @@ class nestNRSource(nestSource):
         ,nr_new_nuis_b = 1.
         ):
         TIB = nr_nuis_gamma * pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
-        Qy = 1. / (TIB * pow(energy + nr_nuis_eta, nr_nuis_p))
+        Qy = 1. / (TIB * pow(energy + nr_nuis_epsilon, nr_nuis_p))
         Qy *= (1. - (1. / pow(1. + pow(energy / nr_nuis_zeta, nr_nuis_eta), nr_new_nuis_a)))
 
         nel_temp = Qy * energy
