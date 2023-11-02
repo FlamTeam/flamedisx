@@ -252,7 +252,7 @@ class LZSource:
             g1_gas = self.s2_photon_detection_eff(0.)
             g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
                                       g1_gas, self.extraction_eff)
-            d['ces_er_equivalent'] = (d['cs1'] / g1 + d['cs2'] / g2) * self.Wq_keV
+            d['ces_er_equivalent'] = (d['cs1'] / fd.tf_to_np(g1) + d['cs2'] / fd.tf_to_np(g2)) * self.Wq_keV
 
         if 'cs1' in d.columns and 'cs1_acc_curve' not in d.columns:
             if self.cs1_acc_domain is not None:
