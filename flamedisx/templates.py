@@ -6,6 +6,7 @@ import pandas as pd
 from scipy.interpolate import interp2d
 
 import numpy as np
+from scipy import stats
 
 import flamedisx as fd
 
@@ -128,14 +129,17 @@ class TemplateProductSource(fd.ColumnSource):
             axis_names=None,
             t_start=None,
             t_stop=None,
+            decay_constant_ns=None,
             *args,
             **kwargs):
         assert(len(templates) == len(axis_names))
         self.interp_2d_list = []
         self.final_dimensions_list = []
         self.mh_list = []
+
         self.t_start = t_start
         self.t_stop = t_stop
+        self.decay_constant_ns = decay_constant_ns
 
         # Get templates, bin_edges, and axis_names
         for template, axis in zip(templates, axis_names):
@@ -174,6 +178,12 @@ class TemplateProductSource(fd.ColumnSource):
             else:
                 self.data[self.column] *= mh.lookup(*[self.data[x] for x in final_dims])
 
+        if (self.decay_constant_ns is not None) and ('event_time' in self.final_dimensions):
+            pdf = np.exp(-(self.data['event_time'].values - self.t_start.value) / self.decay_constant_ns)
+            normalisation = 1. / (self.decay_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.decay_constant_ns)))
+            uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+            self.data[self.column] *= normalisation * pdf / uniform_pdf
+
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
         """Simulate n events.
@@ -187,4 +197,18 @@ class TemplateProductSource(fd.ColumnSource):
         for final_dims, mh in zip(self.final_dimensions_list, self.mh_list):
             sim_colums.append(pd.DataFrame(dict(zip(
                 final_dims, mh.get_random(n_events).T))))
-        return pd.concat(sim_colums, axis=1)
+        df = pd.concat(sim_colums, axis=1)
+
+        if 'event_time' in self.final_dimensions:
+            if self.decay_constant_ns is None:
+                df['event_time'] = np.random.uniform(
+                    self.t_start.value,
+                    self.t_stop.value,
+                    size=n_events)
+            else:
+                b = (self.t_stop.value - self.t_start.value) / self.decay_constant_ns
+                df['event_time'] = stats.truncexpon.rvs(b,
+                    loc=self.t_start.value, scale=self.decay_constant_ns,
+                    size=n_events)
+
+        return df
