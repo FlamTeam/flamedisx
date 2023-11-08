@@ -126,20 +126,26 @@ class TemplateProductSource(fd.ColumnSource):
             self,
             templates=None,
             axis_names=None,
+            t_start=None,
+            t_stop=None,
             *args,
             **kwargs):
         assert(len(templates) == len(axis_names))
         self.interp_2d_list = []
         self.final_dimensions_list = []
         self.mh_list = []
+        self.t_start = t_start
+        self.t_stop = t_stop
 
         # Get templates, bin_edges, and axis_names
         for template, axis in zip(templates, axis_names):
             this_template, these_bin_edges = template.histogram, template.bin_edges
-            assert(len(np.shape(this_template)) == 2)
-            centers_dim_1 = 0.5 * (these_bin_edges[0][1:] + these_bin_edges[0][:-1])
-            centers_dim_2 = 0.5 * (these_bin_edges[1][1:] + these_bin_edges[1][:-1])
-            self.interp_2d_list.append(interp2d(centers_dim_1, centers_dim_2, np.transpose(this_template)))
+            if len(np.shape(this_template)) == 2:
+                centers_dim_1 = 0.5 * (these_bin_edges[0][1:] + these_bin_edges[0][:-1])
+                centers_dim_2 = 0.5 * (these_bin_edges[1][1:] + these_bin_edges[1][:-1])
+                self.interp_2d_list.append(interp2d(centers_dim_1, centers_dim_2, np.transpose(this_template)))
+            else:
+                self.interp_2d_list.append(None)
             self.final_dimensions_list.append(axis)
             mh = Histdd.from_histogram(this_template, bin_edges=these_bin_edges)
             self.mh_list.append(mh)
@@ -160,10 +166,13 @@ class TemplateProductSource(fd.ColumnSource):
         """Add columns needed in inference to self.data
         """
         self.data[self.column] = np.ones_like(len(self.data))
-        for final_dims, interp_2d in zip(self.final_dimensions_list, self.interp_2d_list):
-            self.data[self.column] *= np.array([interp_2d(r[self.data.columns.get_loc(final_dims[0])],
-                                                          r[self.data.columns.get_loc(final_dims[1])])[0]
-                                                for r in self.data.itertuples(index=False)])
+        for final_dims, interp_2d, mh in zip(self.final_dimensions_list, self.interp_2d_list, self.mh_list):
+            if interp_2d is not None:
+                self.data[self.column] *= np.array([interp_2d(r[self.data.columns.get_loc(final_dims[0])],
+                                                            r[self.data.columns.get_loc(final_dims[1])])[0]
+                                                    for r in self.data.itertuples(index=False)])
+            else:
+                self.data[self.column] *= mh.lookup(*[self.data[x] for x in final_dims])
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
