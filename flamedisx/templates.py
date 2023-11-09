@@ -144,6 +144,7 @@ class TemplateProductSource(fd.ColumnSource):
         # Get templates, bin_edges, and axis_names
         for template, axis in zip(templates, axis_names):
             this_template, these_bin_edges = template.histogram, template.bin_edges
+            assert len(np.shape(this_template)) == len(axis)
             if len(np.shape(this_template)) == 2:
                 centers_dim_1 = 0.5 * (these_bin_edges[0][1:] + these_bin_edges[0][:-1])
                 centers_dim_2 = 0.5 * (these_bin_edges[1][1:] + these_bin_edges[1][:-1])
