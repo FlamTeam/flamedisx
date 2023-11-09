@@ -194,11 +194,7 @@ class TemplateProductSource(fd.ColumnSource):
         assert isinstance(n_events, (int, float)), \
             f"n_events must be an int or float, not {type(n_events)}"
 
-        sim_colums = []
-        for final_dims, mh in zip(self.final_dimensions_list, self.mh_list):
-            sim_colums.append(pd.DataFrame(dict(zip(
-                final_dims, mh.get_random(n_events).T))))
-        df = pd.concat(sim_colums, axis=1)
+        df = pd.DataFrame()
 
         if 'event_time' in self.final_dimensions:
             if self.decay_constant_ns is None:
@@ -211,5 +207,21 @@ class TemplateProductSource(fd.ColumnSource):
                 df['event_time'] = stats.truncexpon.rvs(b,
                     loc=self.t_start.value, scale=self.decay_constant_ns,
                     size=n_events)
+
+        sim_colums = []
+        for final_dims, mh in zip(self.final_dimensions_list, self.mh_list):
+            if 'event_time' in final_dims:
+                events = []
+                for t in df['event_time'].values:
+                    test = mh.slicesum(t, axis=final_dims.index('event_time'))
+                    new_final_dims = tuple([x for x in final_dims if x != 'event_time'])
+                    events.append(pd.DataFrame(dict(zip(
+                        new_final_dims, test.get_random(1).T))))
+                sim_colums.append(pd.concat(events, ignore_index=True,))
+                sim_colums.append(df['event_time'])
+                continue
+            sim_colums.append(pd.DataFrame(dict(zip(
+                final_dims, mh.get_random(n_events).T))))
+        df = pd.concat(sim_colums, axis=1)
 
         return df
