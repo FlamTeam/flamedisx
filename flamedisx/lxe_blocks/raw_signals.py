@@ -30,7 +30,7 @@ class MakeFinalSignals(fd.Block):
         if self.quanta_name == 'electron':
             mean = (d[self.quanta_name + 's_detected']
                     * self.gimme_numpy(self.quanta_name + '_gain_mean'))
-            std = (d[self.quanta_name + 's_detected']**0.5
+            std  = (d[self.quanta_name + 's_detected']**0.5
                     * self.gimme_numpy(self.quanta_name + '_gain_std'))
             alfa = (mean/(std + 1e-10))**2
             beta = mean/(std + 1e-10)**2
