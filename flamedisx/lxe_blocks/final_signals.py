@@ -32,11 +32,22 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
-        d[self.signal_name] = stats.norm.rvs(
-            loc=(d[self.quanta_name + 's_detected']
-                 * self.gimme_numpy(self.quanta_name + '_gain_mean')),
-            scale=(d[self.quanta_name + 's_detected']**0.5
-                   * self.gimme_numpy(self.quanta_name + '_gain_std')))
+        if self.quanta_name == 'electron':
+            mean = (d[self.quanta_name + 's_detected']
+                    * self.gimme_numpy(self.quanta_name + '_gain_mean'))
+            std = (d[self.quanta_name + 's_detected']**0.5
+                    * self.gimme_numpy(self.quanta_name + '_gain_std'))
+            alfa = (mean/(std + 1e-10))**2
+            beta = mean/(std + 1e-10)**2
+            d[self.signal_name] = stats.gamma.rvs(
+                loc=alfa,
+                scale=1/beta)
+        else:
+            d[self.signal_name] = stats.norm.rvs(
+                loc=(d[self.quanta_name + 's_detected']
+                    * self.gimme_numpy(self.quanta_name + '_gain_mean')),
+                scale=(d[self.quanta_name + 's_detected']**0.5
+                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
 
         # Call add_extra_columns now, since s1 and s2 are known and derived
         # observables from it (cs1, cs2) might be used in the acceptance.
@@ -76,9 +87,16 @@ class MakeFinalSignals(fd.Block):
         std = quanta_detected ** 0.5 * std_per_q
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
-        result = tfp.distributions.Normal(
-            loc=mean, scale=std + 1e-10
-        ).prob(s_observed)
+        if self.quanta_name == 'electron':
+            alfa = (mean/(std + 1e-10))**2
+            beta = mean/(std + 1e-10)**2
+            result = tfp.distributions.Gamma(
+                concentration = alpha, rate=beta, 
+            ).prob(s_observed)
+        else:
+            result = tfp.distributions.Normal(
+                loc=mean, scale=std + 1e-10
+            ).prob(s_observed)
 
         # Add detection/selection efficiency
         result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
