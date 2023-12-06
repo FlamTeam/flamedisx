@@ -73,7 +73,7 @@ class MakeFinalSignals(fd.Block):
                                ptensor=ptensor)[:, o, o]
 
         mean = quanta_detected * mean_per_q
-        std = quanta_detected ** 0.5 * std_per_q
+        std  = quanta_detected ** 0.5 * std_per_q
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         if self.quanta_name == 'electron':
