@@ -32,11 +32,12 @@ class MakeFinalSignals(fd.Block):
                     * self.gimme_numpy(self.quanta_name + '_gain_mean'))
             std  = (d[self.quanta_name + 's_detected']**0.5
                     * self.gimme_numpy(self.quanta_name + '_gain_std'))
-            alfa = (mean/(std + 1e-10))**2
-            beta = mean/(std + 1e-10)**2
+            alfa = np.clip(np.nan_to_num((mean/(std + 1e-10))**2),1e-10, 1e10)
+            beta = np.clip(np.nan_to_num(mean/(std + 1e-10)**2), 1e-10, 1e10)
+            theta = 1/beta           
             d[self.signal_name] = stats.gamma.rvs(
                 alfa,
-                scale=np.clip(1/beta, 1e-10,None))
+                scale=theta)
         else:
             d[self.signal_name] = stats.norm.rvs(
                 loc=(d[self.quanta_name + 's_detected']
