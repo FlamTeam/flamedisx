@@ -78,10 +78,10 @@ class MakeFinalSignals(fd.Block):
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         if self.quanta_name == 'electron':
-            alfa = (mean/(std + 1e-10))**2
-            beta = mean/(std + 1e-10)**2
+            alfa = tf.clip_by_value((mean/(std + 1e-10))**2,1e-10, 1e10)
+            beta = tf.clip_by_value(mean/(std + 1e-10)**2,1e-10, 1e10)
             result = tfp.distributions.Gamma(
-                concentration = alpha, rate=beta, 
+                concentration = alfa, rate=beta, 
             ).prob(s_observed)
         else:
             result = tfp.distributions.Normal(
