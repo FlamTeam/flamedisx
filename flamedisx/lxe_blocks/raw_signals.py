@@ -36,7 +36,7 @@ class MakeFinalSignals(fd.Block):
             beta = mean/(std + 1e-10)**2
             d[self.signal_name] = stats.gamma.rvs(
                 alfa,
-                scale=np.max(1/beta, 1e-10))
+                scale=np.clip(1/beta, 1e-10,None))
         else:
             d[self.signal_name] = stats.norm.rvs(
                 loc=(d[self.quanta_name + 's_detected']
