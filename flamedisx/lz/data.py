@@ -47,8 +47,6 @@ def ensure_repo(repo_name, repo_path, user=None, token=None):
 @export
 def clone_lz_repo():
     ensure_repo('luxzeplin/stats/LZFlameFit.git', PATH)
-    import os
-    print(os.getcwd())
 
 
 @export
