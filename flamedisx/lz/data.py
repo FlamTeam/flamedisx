@@ -39,7 +39,7 @@ def ensure_repo(repo_name, repo_path, user=None, token=None):
         user, token = ensure_token()
         temp_folder = ''.join(random.choices(string.ascii_lowercase, k=8))
         fd.run_command(f'git clone https://{user}:{token}'
-                    f'@gitlab.com/{repo_name} {temp_folder}')
+                       f'@gitlab.com/{repo_name} {temp_folder}')
         fd.run_command(f'mv {temp_folder}/{repo_path} .')
         fd.run_command(f'rm -r -f {temp_folder}')
 
