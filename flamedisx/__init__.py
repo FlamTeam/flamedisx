@@ -37,6 +37,10 @@ from . import nest
 # Access through fd.lux.xxx
 from . import lux
 
+# LZ data access
+# Access through fd.lz.xxx
+from . import lz
+
 # Custom TFP files
 # Access through fd.tfp_files.xxx
 from . import tfp_files
