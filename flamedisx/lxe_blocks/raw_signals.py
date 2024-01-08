@@ -28,16 +28,8 @@ class MakeFinalSignals(fd.Block):
 
     def _simulate(self, d):
         if self.quanta_name == 'electron':
-            mean = (d[self.quanta_name + 's_detected']
+            d[self.signal_name] = stats.poisson.rvs(d[self.quanta_name + 's_detected']
                     * self.gimme_numpy(self.quanta_name + '_gain_mean'))
-            std  = (d[self.quanta_name + 's_detected']**0.5
-                    * self.gimme_numpy(self.quanta_name + '_gain_std'))
-            alfa = np.clip(np.nan_to_num((mean/(std + 1e-10))**2),1e-10, 1e10)
-            beta = np.clip(np.nan_to_num(mean/(std + 1e-10)**2), 1e-10, 1e10)
-            theta = 1/beta           
-            d[self.signal_name] = stats.gamma.rvs(
-                alfa,
-                scale=theta)
         else:
             d[self.signal_name] = stats.norm.rvs(
                 loc=(d[self.quanta_name + 's_detected']
@@ -78,11 +70,8 @@ class MakeFinalSignals(fd.Block):
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         if self.quanta_name == 'electron':
-            alfa = tf.clip_by_value((mean/(std + 1e-10))**2,1e-10, 1e10)
-            beta = tf.clip_by_value(mean/(std + 1e-10)**2,1e-10, 1e10)
-            result = tfp.distributions.Gamma(
-                concentration = alfa, rate=beta, 
-            ).prob(s_observed)
+            result = tfp.distributions.Poisson(
+                rate = mean).prob(s_observed)
         else:
             result = tfp.distributions.Normal(
                 loc=mean, scale=std + 1e-10
