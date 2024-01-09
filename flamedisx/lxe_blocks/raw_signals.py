@@ -70,7 +70,7 @@ class MakeFinalSignals(fd.Block):
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         if self.quanta_name == 'electron':
-            s_observed = np.clip(s_observed, 1e-15, tf.float32.max)
+            s_observed = tf.clip_by_value(s_observed, 1e-15, tf.float32.max)
             result = tfp.distributions.Poisson(
                 rate = mean + 1e-10 ).prob(s_observed)
         else:
