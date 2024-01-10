@@ -16,6 +16,7 @@ class ERSource(fd.BlockModelSource):
         fd.ReconstructS1,
         fd.DetectElectrons,
         fd.MakeS2,
+        fd.MakeS2AfterLoss,
         fd.ReconstructS2)
 
     @staticmethod
@@ -50,6 +51,7 @@ class NRSource(fd.BlockModelSource):
         fd.ReconstructS1,
         fd.DetectElectrons,
         fd.MakeS2,
+        fd.MakeS2AfterLoss,
         fd.ReconstructS2)
 
     final_dimensions = ('s1', 's2')

@@ -27,15 +27,14 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
+        d[self.signal_name] = stats.norm.rvs(
+            loc=(d[self.quanta_name + 's_detected']
+                * self.gimme_numpy(self.quanta_name + '_gain_mean')),
+            scale=(d[self.quanta_name + 's_detected']**0.5
+                * self.gimme_numpy(self.quanta_name + '_gain_std')))
         if self.quanta_name == 'electron':
-            d[self.signal_name] = stats.poisson.rvs(d[self.quanta_name + 's_detected']
-                    * self.gimme_numpy(self.quanta_name + '_gain_mean'))
-        else:
-            d[self.signal_name] = stats.norm.rvs(
-                loc=(d[self.quanta_name + 's_detected']
-                    * self.gimme_numpy(self.quanta_name + '_gain_mean')),
-                scale=(d[self.quanta_name + 's_detected']**0.5
-                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
+            d[self.signal_name] = stats.binom.rvs(d[self.signal_name],
+                    p=self.gimme_numpy(self.quanta_name + '_loss_mean'))
 
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
@@ -70,13 +69,18 @@ class MakeFinalSignals(fd.Block):
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
         if self.quanta_name == 'electron':
-            s_observed = tf.clip_by_value(s_observed, 1e-15, tf.float32.max)
-            result = tfp.distributions.Poisson(
-                rate = mean + 1e-10 ).prob(s_observed)
+            mean_electron_loss = self.gimme(self.quanta_name + '_loss_mean',
+                                data_tensor=data_tensor,
+                                ptensor=ptensor)[:, o, o]
+            result = tfp.distributions.Normal(
+            loc=mean, scale=std + 1e-10
+        ).prob(s_observed)
+            result = tfp.distributions.Binomial(result, probs =mean_electron_loss).prob(s_observed)
         else:
             result = tfp.distributions.Normal(
                 loc=mean, scale=std + 1e-10
             ).prob(s_observed)
+
 
         ''' Think can also remove this chunk
         # Add detection/selection efficiency
@@ -131,6 +135,8 @@ class MakeS2(MakeFinalSignals):
         return g2 * tf.ones_like(z)
 
     electron_gain_std = 5.
+
+    electron_loss_mean = 1.
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2_raw):

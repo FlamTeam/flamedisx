@@ -14,7 +14,7 @@ class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
     model_attributes = ('check_acceptances',)
-    non_integer_dimensions = ('s1_raw', 's2_raw',)
+    non_integer_dimensions = ('s1_raw', 's2_raw_after_loss',)
 
     # Whether to check acceptances are positive at the observed events.
     # This is recommended, but you'll have to turn it off if your
@@ -186,10 +186,10 @@ class ReconstructS1(ReconstructSignals):
 @export
 class ReconstructS2(ReconstructSignals):
 
-    raw_signal_name = 's2_raw'
+    raw_signal_name = 's2_raw_after_loss'
     signal_name = 's2'
 
-    dimensions = ('s2_raw', 's2')
+    dimensions = ('s2_raw_after_loss', 's2')
     special_model_functions = (
         'reconstruction_bias_s2_simulate',
         'reconstruction_smear_s2_simulate',
@@ -200,7 +200,7 @@ class ReconstructS2(ReconstructSignals):
         ('s2_acceptance',)
         + special_model_functions)
 
-    max_dim_size = {'s2_raw': 240}
+    max_dim_size = {'s2_raw_after_loss': 240}
     s2_smear_load = 3e-3
 
     def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
@@ -208,45 +208,45 @@ class ReconstructS2(ReconstructSignals):
                         tf.zeros_like(s2, dtype=fd.float_type()),
                         tf.ones_like(s2, dtype=fd.float_type()))
 
-    # Getting from s2_raw -> s2
-    def reconstruction_bias_s2_simulate(self, s2_raw):
+    # Getting from s2_raw_after_loss -> s2
+    def reconstruction_bias_s2_simulate(self, s2_raw_after_loss):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
-        return tf.ones_like(s2_raw, dtype=fd.float_type())
+        return tf.ones_like(s2_raw_after_loss, dtype=fd.float_type())
 
-    def reconstruction_smear_s2_simulate(self, s2_raw):
+    def reconstruction_smear_s2_simulate(self, s2_raw_after_loss):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
         Not quite a dirac delta, which will make this block an identity matrix
         but computationally intractible or at least not trivially. Need to smear
-        this dirac delta out by a small loading term of 0.001. A larger s2_raw
+        this dirac delta out by a small loading term of 0.001. A larger s2_raw_after_loss
         max_dim_size would need a smaller loading term.
         """
-        return tf.zeros_like(s2_raw, dtype=fd.float_type())+self.s2_smear_load
+        return tf.zeros_like(s2_raw_after_loss, dtype=fd.float_type())+self.s2_smear_load
 
-    # Getting from s2 -> s2_raw
-    def reconstruction_bias_s2_annotate(self, s2_raw):
+    # Getting from s2 -> s2_raw_after_loss
+    def reconstruction_bias_s2_annotate(self, s2_raw_after_loss):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
-        return tf.ones_like(s2_raw, dtype=fd.float_type())
+        return tf.ones_like(s2_raw_after_loss, dtype=fd.float_type())
 
-    def reconstruction_smear_s2_annotate(self, s2_raw):
+    def reconstruction_smear_s2_annotate(self, s2_raw_after_loss):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
         Not quite a dirac delta, which will make this block an identity matrix
         but computationally intractible or at least not trivially. Need to smear
-        this dirac delta out by a small loading term of 0.001. A larger s2_raw
+        this dirac delta out by a small loading term of 0.001. A larger s2_raw_after_loss
         max_dim_size would need a smaller loading term.
         """
-        return tf.zeros_like(s2_raw, dtype=fd.float_type())+self.s2_smear_load
+        return tf.zeros_like(s2_raw_after_loss, dtype=fd.float_type())+self.s2_smear_load
 
     def _compute(self, data_tensor, ptensor,
-                 s2_raw, s2):
+                 s2_raw_after_loss, s2):
         return super()._compute(
-            s_raw=s2_raw,
+            s_raw=s2_raw_after_loss,
             s_observed=s2,
             data_tensor=data_tensor, ptensor=ptensor)
