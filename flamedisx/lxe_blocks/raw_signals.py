@@ -32,9 +32,6 @@ class MakeFinalSignals(fd.Block):
                 * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                 * self.gimme_numpy(self.quanta_name + '_gain_std')))
-        if self.quanta_name == 'electron':
-            d[self.signal_name] = stats.binom.rvs(d[self.signal_name],
-                    p=self.gimme_numpy(self.quanta_name + '_loss_mean'))
 
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
@@ -68,18 +65,9 @@ class MakeFinalSignals(fd.Block):
         std  = quanta_detected ** 0.5 * std_per_q
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
-        if self.quanta_name == 'electron':
-            mean_electron_loss = self.gimme(self.quanta_name + '_loss_mean',
-                                data_tensor=data_tensor,
-                                ptensor=ptensor)[:, o, o]
-            result = tfp.distributions.Normal(
+        result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
         ).prob(s_observed)
-            result = tfp.distributions.Binomial(result, probs =mean_electron_loss).prob(s_observed)
-        else:
-            result = tfp.distributions.Normal(
-                loc=mean, scale=std + 1e-10
-            ).prob(s_observed)
 
 
         ''' Think can also remove this chunk
