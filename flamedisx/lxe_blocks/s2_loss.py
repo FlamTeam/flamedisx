@@ -26,7 +26,7 @@ class MakeS2AfterLoss(fd.Block):
         # s2_raw_after_loss distributed as Binom(s2_raw, p=s2_survival_probability)
         s2_raw_after_loss = tf.clip_by_value(s2_raw_after_loss, 1e-15, tf.float32.max)
         result = tfp.distributions.Binomial(
-                total_count=tf.cast(s2_raw, dtype=fd.int_type()),
+                total_count=tf.clip_by_value(tf.cast(s2_raw, dtype=fd.int_type()),1e-15, tf.int32.max),
                 probs=tf.clip_by_value(tf.cast(s2_survival_probability, dtype=fd.float_type()), 0.,1.)
             ).prob(s2_raw_after_loss)
 
@@ -34,7 +34,7 @@ class MakeS2AfterLoss(fd.Block):
 
     def _simulate(self, d):
         d['s2_raw_after_loss'] = stats.binom.rvs(
-            n=d['s2_raw'].astype(dtype=np.int32),
+            n=np.clip(d['s2_raw'].astype(dtype=np.int32),0,np.iinfo(np.int32).max),
             p=np.nan_to_num(self.gimme_numpy('s2_survival_p')).clip(0., 1.))
 
     def _annotate(self, d):
