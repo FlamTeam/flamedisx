@@ -28,7 +28,7 @@ class MakeS2AfterLoss(fd.Block):
         s2_raw = tf.clip_by_value(tf.cast(s2_raw, dtype=fd.int_type()), 0, tf.int32.max)
         s2_survival_probability = tf.clip_by_value(tf.cast(s2_survival_probability, dtype=fd.float_type()), 0.,1.)
         result = tfp.distributions.Binomial(
-                total_count=s2_raw,
+                total_count=tf.cast(s2_raw, dtype=fd.float_type()),
                 probs=s2_survival_probability
             ).prob(s2_raw_after_loss)
 
