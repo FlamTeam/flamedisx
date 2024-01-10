@@ -38,11 +38,11 @@ class MakeS2AfterLoss(fd.Block):
             p=np.nan_to_num(self.gimme_numpy('s2_survival_p')).clip(0., 1.))
 
     def _annotate(self, d):
-        # TODO: this assumes the spread from the double PE effect is subdominant
+        # TODO: copied from double PE effect
         s2_survival_probability = self.gimme_numpy('s2_survival_p')
         for suffix, intify in (('min', np.floor),
                                ('max', np.ceil),
                                ('mle', lambda x: x)):
             d['s2_raw_' + suffix] = \
                 intify(d['s2_raw_after_loss_' + suffix].values
-                       / (1 + s2_survival_p))
+                       / (1 + s2_survival_probability))
