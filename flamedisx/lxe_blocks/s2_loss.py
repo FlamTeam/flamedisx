@@ -34,7 +34,7 @@ class MakeS2AfterLoss(fd.Block):
 
     def _simulate(self, d):
         d['s2_raw_after_loss'] = stats.binom.rvs(
-            n=np.clip(d['s2_raw'], 1e-15, tf.float32.max).astype(dtype=fd.int_type()),
+            n=np.clip(d['s2_raw'], 1e-15, np.float32.max).astype(dtype=np.int32),
             p=np.nan_to_num(self.gimme_numpy('s2_survival_p')).clip(0., 1.))
 
     def _annotate(self, d):
