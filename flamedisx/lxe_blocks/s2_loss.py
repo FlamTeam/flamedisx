@@ -33,7 +33,6 @@ class MakeS2AfterLoss(fd.Block):
         return result
 
     def _simulate(self, d):
-        smear = np.clip(smear, 1e-15, tf.float32.max)
         d['s2_raw_after_loss'] = stats.binom.rvs(
             n=np.clip(d['s2_raw'], 1e-15, tf.float32.max),
             p=np.nan_to_num(self.gimme_numpy('s2_survival_p')).clip(0., 1.))
