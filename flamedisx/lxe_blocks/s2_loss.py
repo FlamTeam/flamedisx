@@ -53,6 +53,6 @@ class MakeS2AfterLoss(fd.Block):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d['s2_raw'  + bound] = intify(
+            d['s2_raw_'  + bound] = intify(
                 mle + sign * self.source.max_sigma * scale
             ).clip(0, None).astype(int)
