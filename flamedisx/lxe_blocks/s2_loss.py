@@ -24,35 +24,27 @@ class MakeS2AfterLoss(fd.Block):
                            data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         # s2_raw_after_loss distributed as Binom(s2_raw, p=s2_survival_probability)
-        s2_raw_after_loss = tf.clip_by_value(s2_raw_after_loss, 1e-15, tf.float32.max)
         s2_raw = tf.clip_by_value(tf.cast(s2_raw, dtype=fd.int_type()), 0, tf.int32.max)
-        s2_survival_probability = tf.clip_by_value(tf.cast(s2_survival_probability, dtype=fd.float_type()), 0.,1.)
         result = tfp.distributions.Binomial(
                 total_count=tf.cast(s2_raw, dtype=fd.float_type()),
-                probs=s2_survival_probability
+                probs=tf.clip_by_value(s2_survival_probability, 0.,1.)
             ).prob(s2_raw_after_loss)
 
         return result
 
     def _simulate(self, d):
-        d['s2_raw_after_loss'] = stats.binom.rvs(
-            n=np.clip(d['s2_raw'].astype(dtype=np.int32),0,np.iinfo(np.int32).max),
-            p=np.nan_to_num(self.gimme_numpy('s2_survival_p')).clip(0., 1.))
-
+        d['s2_raw_after_loss'] = tfp.distributions.Binomial(
+                total_count=tf.cast(d['s2_raw'], dtype=fd.float_type()),
+                probs=tf.clip_by_value(s2_survival_probability, 0.,1.)
+            ).sample()
+        
     def _annotate(self, d):
         # TODO: copied from double PE effect
         s2_survival_probability = self.gimme_numpy('s2_survival_p')
 
         mle = d['s2_raw' + '_mle'] = \
             (d['s2_raw_after_loss' + '_mle'] / s2_survival_probability).clip(0, None)
-        s = d['s2_raw' + '_mle'] * s2_survival_probability*(1-s2_survival_probability)
-        scale = mle**0.5 * s / s2_survival_probability
-
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
-            # For detected quanta the MLE is quite accurate
-            # (since fluctuations are tiny)
-            # so let's just use the relative error on the MLE)
-            d['s2_raw_'  + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(int)
+        scale = mle*s2_survival_probability*(1-s2_survival_probability)
+        
+        d['s2_raw'  + '_min'] = np.floor(mle-self.source.max_sigma*scale).clip(0, None).astype(int)
+        d['s2_raw'  + '_max'] = np.ceil(mle+self.source.max_sigma*scale).clip(0, None).astype(int)
