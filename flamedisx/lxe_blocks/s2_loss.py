@@ -42,9 +42,17 @@ class MakeS2AfterLoss(fd.Block):
     def _annotate(self, d):
         # TODO: copied from double PE effect
         s2_survival_probability = self.gimme_numpy('s2_survival_p')
-        for suffix, intify in (('min', np.floor),
-                               ('max', np.ceil),
-                               ('mle', lambda x: x)):
-            d['s2_raw_' + suffix] = \
-                intify(d['s2_raw_after_loss_' + suffix].values
-                       / (1 + s2_survival_probability))
+
+        mle = d['s2_raw' + '_mle'] = \
+            (d['s2_raw_after_loss_' + '_mle'] / s2_survival_probability).clip(0, None)
+        s = d['s2_raw'] * s2_survival_probability*(1-s2_survival_probability)
+        scale = mle**0.5 * s / s2_survival_probability
+
+        for bound, sign, intify in (('min', -1, np.floor),
+                                    ('max', +1, np.ceil)):
+            # For detected quanta the MLE is quite accurate
+            # (since fluctuations are tiny)
+            # so let's just use the relative error on the MLE)
+            d['s2_raw'  + bound] = intify(
+                mle + sign * self.source.max_sigma * scale
+            ).clip(0, None).astype(int)
