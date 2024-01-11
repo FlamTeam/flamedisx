@@ -44,7 +44,7 @@ class MakeS2AfterLoss(fd.Block):
         s2_survival_probability = self.gimme_numpy('s2_survival_p')
 
         mle = d['s2_raw' + '_mle'] = \
-            (d['s2_raw_after_loss_' + '_mle'] / s2_survival_probability).clip(0, None)
+            (d['s2_raw_after_loss' + '_mle'] / s2_survival_probability).clip(0, None)
         s = d['s2_raw'] * s2_survival_probability*(1-s2_survival_probability)
         scale = mle**0.5 * s / s2_survival_probability
 
