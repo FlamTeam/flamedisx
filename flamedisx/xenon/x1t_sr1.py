@@ -31,7 +31,6 @@ DEFAULT_DRIFT_FIELD = 81.
 DEFAULT_G2_TOTAL = DEFAULT_G2 / (1.-DEFAULT_AREA_FRACTION_TOP)
 DEFAULT_SINGLE_ELECTRON_GAIN = DEFAULT_G2_TOTAL / DEFAULT_EXTRACTION_EFFICIENCY
 DEFAULT_SINGLE_ELECTRON_WIDTH = 0.25 * DEFAULT_SINGLE_ELECTRON_GAIN
-DEFAULT_S2_SURVIVAL_PROBABILITY = 1.
 
 # Official numbers from BBF
 DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT = 0.5948841302444277
@@ -514,11 +513,6 @@ class SR1Source:
                           single_electron_width=DEFAULT_SINGLE_ELECTRON_WIDTH):
         # 0 * light yield is to fix the shape
         return single_electron_width + 0. * s2_relative_ly
-
-    @staticmethod
-    def s2_survival_p(z,*, s2_survival_prob=DEFAULT_S2_SURVIVAL_PROBABILITY):
-        # 0 * light yield is to fix the shape
-        return s2_survival_prob + 0. * z
 
     
     @staticmethod
