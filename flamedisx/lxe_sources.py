@@ -16,7 +16,6 @@ class ERSource(fd.BlockModelSource):
         fd.ReconstructS1,
         fd.DetectElectrons,
         fd.MakeS2,
-        fd.MakeS2AfterLoss,
         fd.ReconstructS2)
 
     @staticmethod
