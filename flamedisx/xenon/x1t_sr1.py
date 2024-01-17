@@ -414,8 +414,8 @@ class SR1Source:
                           d['z'].values])) 
 
         # Adding some smear according to posrec resolution
-        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=1.2) # 2 cm resolution
-        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=1.2) # 4 cm resolution
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=1.5) # 2 cm resolution
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=1.5) # 4 cm resolution
         d['r_observed'] = np.sqrt(d['x_observed'].values**2+d['y_observed'].values**2)
 
         # add effective drift velocity depending on (r,z) position

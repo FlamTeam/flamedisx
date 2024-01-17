@@ -124,8 +124,6 @@ class MakeS2(MakeFinalSignals):
 
     electron_gain_std = 5.
 
-    electron_loss_mean = 1.
-
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2_raw):
         return super()._compute(
