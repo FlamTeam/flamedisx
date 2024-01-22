@@ -14,6 +14,7 @@ class ERSource(fd.BlockModelSource):
         fd.MakeS1Photoelectrons,
         fd.MakeS1,
         fd.ReconstructS1,
+        fd.ElectronWallLoss,
         fd.DetectElectrons,
         fd.MakeS2,
         fd.ReconstructS2)
@@ -48,6 +49,7 @@ class NRSource(fd.BlockModelSource):
         fd.MakeS1Photoelectrons,
         fd.MakeS1,
         fd.ReconstructS1,
+        fd.ElectronWallLoss,
         fd.DetectElectrons,
         fd.MakeS2,
         fd.ReconstructS2)

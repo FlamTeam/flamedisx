@@ -16,6 +16,7 @@ from .non_asymptotic_inference import *
 from .lxe_blocks.energy_spectrum import *
 from .lxe_blocks.quanta_generation import *
 from .lxe_blocks.quanta_splitting import *
+from .lxe_blocks.electron_wall_loss import *
 from .lxe_blocks.detection import *
 from .lxe_blocks.double_pe import *
 from .lxe_blocks.raw_signals import *
