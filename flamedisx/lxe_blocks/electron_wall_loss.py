@@ -29,7 +29,7 @@ class ElectronWallLoss(fd.Block):
                        data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
 
         result = tfp.distributions.Binomial(
-                total_count=quanta_produced,
+                total_count=electrons_produced,
                 probs=tf.cast(p, dtype=fd.float_type())
             ).prob(electrons_survived)
 
