@@ -59,10 +59,15 @@ class DetectPhotonsOrElectrons(fd.Block):
                 'penning_quenching_eff', d['photons_produced'].values)
         else:
             p *= self.gimme_numpy(
-                'electron_loss', d['electrons_produced'].values)
+                'electron_loss', d['electrons_survived'].values)
+
+        if self.quanta_name == 'photon':
+            n = d[self.quanta_name + 's_produced']
+        else:
+            n = d['electrons_survived']
 
         d[self.quanta_name + 's_detected'] = stats.binom.rvs(
-            n=d[self.quanta_name + 's_produced'],
+            n=n,
             p=p)
         d['p_accepted'] *= self.gimme_numpy(
             self.quanta_name + '_acceptance',
@@ -85,8 +90,12 @@ class DetectPhotonsOrElectrons(fd.Block):
                              "configure your cuts correctly?")
 
         # Estimate produced quanta
-        n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
-            d[self.quanta_name + 's_detected_mle'] / eff
+        if self.quanta_name == 'photon':
+            n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
+                d[self.quanta_name + 's_detected_mle'] / eff
+        else:
+            n_prod_mle = d['electrons_survived_mle'] = \
+                d[self.quanta_name + 's_detected_mle'] / eff
 
         # Estimating the spread in number of produced quanta is tricky since
         # the number of detected quanta is itself uncertain.
@@ -96,9 +105,14 @@ class DetectPhotonsOrElectrons(fd.Block):
 
         for bound, sign, intify in (('min', -1, np.floor),
                                     ('max', +1, np.ceil)):
-            d[self.quanta_name + 's_produced_' + bound] = intify(
-                n_prod_mle + sign * self.source.max_sigma * _std
-            ).clip(0, None).astype(int)
+            if self.quanta_name == 'photon':
+                d[self.quanta_name + 's_produced_' + bound] = intify(
+                    n_prod_mle + sign * self.source.max_sigma * _std
+                ).clip(0, None).astype(int)
+            else:
+                d['electrons_survived_' + bound] = intify(
+                    n_prod_mle + sign * self.source.max_sigma * _std
+                ).clip(0, None).astype(int)
 
 
 @export
@@ -133,12 +147,12 @@ class DetectPhotons(DetectPhotonsOrElectrons):
 
 @export
 class DetectElectrons(DetectPhotonsOrElectrons):
-    dimensions = ('electrons_produced', 'electrons_detected')
+    dimensions = ('electrons_survived', 'electrons_detected')
 
     special_model_functions = ('electron_acceptance', 'electron_loss')
     model_functions = ('electron_detection_eff',) + special_model_functions
 
-    max_dim_size = {'electrons_produced': 100}
+    max_dim_size = {'electrons_survived_mle': 100}
 
     @staticmethod
     def electron_detection_eff(drift_time, *,
@@ -157,7 +171,7 @@ class DetectElectrons(DetectPhotonsOrElectrons):
     quanta_name = 'electron'
 
     def _compute(self, data_tensor, ptensor,
-                 electrons_produced, electrons_detected):
-        return super()._compute(quanta_produced=electrons_produced,
+                 electrons_survived, electrons_detected):
+        return super()._compute(quanta_produced=electrons_survived,
                                 quanta_detected=electrons_detected,
                                 data_tensor=data_tensor, ptensor=ptensor)
