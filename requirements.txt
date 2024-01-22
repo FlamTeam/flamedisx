@@ -1,5 +1,5 @@
 numpy==1.24.3
-scipy==1.11.4
+scipy==1.12.0
 pandas==2.2.0
 multihist==0.6.5
 wimprates==0.5.0
