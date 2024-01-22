@@ -46,15 +46,9 @@ class ElectronWallLoss(fd.Block):
         # Get efficiency
         eff = self.gimme_numpy('electron_survival_probability')
 
-        # Check for bad efficiencies
-        if self.check_efficiencies and np.any(eff <= 0):
-            raise ValueError(f"Found event with nonpositive "
-                             "electron_survival_probability: did you apply and "
-                             "configure your inputs correctly?")
-
         # Estimate produced electrons
         n_prod_mle = d[self.quanta_name + 's_produced_mle'] = \
-            d['electrons_survived'] / eff
+            d['electrons_survived_mle'] / eff
 
         # Estimating the spread in number of produced quanta is tricky since
         # the number of produced_after_loss quanta is itself uncertain.
