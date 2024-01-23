@@ -27,14 +27,19 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
+        gain= self.gimme_numpy(self.quanta_name + '_gain_mean')
+        if self.quanta_name == 'electron':
+            gain *= self.gimme_numpy('geometrical_acceptance',d['electrons_detected'].values)            
         d[self.signal_name] = stats.norm.rvs(
             loc=(d[self.quanta_name + 's_detected']
-                * self.gimme_numpy(self.quanta_name + '_gain_mean')),
+                * gain),
             scale=(d[self.quanta_name + 's_detected']**0.5
                 * self.gimme_numpy(self.quanta_name + '_gain_std')))
 
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
+        if self.quanta_name == 'electron':
+            m *= self.gimme_numpy('geometrical_acceptance',d['s2_raw'].values/m)
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
@@ -57,6 +62,10 @@ class MakeFinalSignals(fd.Block):
         mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
                                 data_tensor=data_tensor,
                                 ptensor=ptensor)[:, o, o]
+        if self.quanta_name == 'electron':
+            mean_per_q = mean_per_q * self.gimme('geometrical_acceptance',
+                               bonus_arg=quanta_detected,
+                               data_tensor=data_tensor, ptensor=ptensor)
         std_per_q = self.gimme(self.quanta_name + '_gain_std',
                                data_tensor=data_tensor,
                                ptensor=ptensor)[:, o, o]
@@ -110,7 +119,7 @@ class MakeS2(MakeFinalSignals):
     signal_name = 's2_raw'
 
     dimensions = ('electrons_detected', 's2_raw')
-    special_model_functions = ()
+    special_model_functions = ('geometrical_acceptance',)
     model_functions = (
         ('electron_gain_mean',
          'electron_gain_std',)
@@ -123,6 +132,8 @@ class MakeS2(MakeFinalSignals):
         return g2 * tf.ones_like(z)
 
     electron_gain_std = 5.
+
+    geometrical_acceptance = 1.
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2_raw):
