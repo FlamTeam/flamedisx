@@ -113,11 +113,8 @@ class MakeS2(MakeFinalSignals):
     signal_name = 's2_raw'
 
     dimensions = ('electrons_detected', 's2_raw')
-    special_model_functions = ('geometrical_acceptance',)
-    model_functions = (
-        ('electron_gain_mean',
-         'electron_gain_std',)
-        + special_model_functions)
+    special_model_functions = ('electron_gain_mean',)
+    model_functions = ('electron_gain_std',) + special_model_functions
 
     max_dim_size = {'electrons_detected': 120}
 
