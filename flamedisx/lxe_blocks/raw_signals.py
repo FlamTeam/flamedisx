@@ -39,7 +39,7 @@ class MakeFinalSignals(fd.Block):
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
         if self.quanta_name == 'electron':
-            m *= self.gimme_numpy('geometrical_acceptance',d['s2_raw'].values/m)
+            m *= self.gimme_numpy('geometrical_acceptance',d['s2_raw_mle'].values/m)
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
