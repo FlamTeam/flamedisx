@@ -128,12 +128,14 @@ class MakeS2(MakeFinalSignals):
     max_dim_size = {'electrons_detected': 120}
 
     @staticmethod
+    def geometrical_acceptance(z, *, geo_acc=1):
+        return geo_acc * tf.ones_like(z)
+
+    @staticmethod
     def electron_gain_mean(z, *, g2=20):
         return g2 * tf.ones_like(z)
 
     electron_gain_std = 5.
-
-    geometrical_acceptance = 1.
 
     def _compute(self, data_tensor, ptensor,
                  electrons_detected, s2_raw):
