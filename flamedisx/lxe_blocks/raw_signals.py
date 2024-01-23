@@ -122,10 +122,6 @@ class MakeS2(MakeFinalSignals):
     def electron_gain_mean(eld):
         return tf.ones_like(eld)
 
-    @staticmethod
-    def electron_gain_mean(z, *, g2=20):
-        return g2 * tf.ones_like(z)
-
     electron_gain_std = 5.
 
     def _compute(self, data_tensor, ptensor,
