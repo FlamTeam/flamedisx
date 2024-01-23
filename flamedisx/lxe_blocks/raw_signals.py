@@ -27,19 +27,15 @@ class MakeFinalSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
-        gain= self.gimme_numpy(self.quanta_name + '_gain_mean')
-        if self.quanta_name == 'electron':
-            gain *= self.gimme_numpy('geometrical_acceptance',d['electrons_detected'].values)            
         d[self.signal_name] = stats.norm.rvs(
             loc=(d[self.quanta_name + 's_detected']
-                * gain),
+                * self.gimme_numpy(self.quanta_name + '_gain_mean',d[self.quanta_name + 's_detected'].values)
+                ),
             scale=(d[self.quanta_name + 's_detected']**0.5
                 * self.gimme_numpy(self.quanta_name + '_gain_std')))
 
     def _annotate(self, d):
-        m = self.gimme_numpy(self.quanta_name + '_gain_mean')
-        if self.quanta_name == 'electron':
-            m *= self.gimme_numpy('geometrical_acceptance',d['s2_raw_mle'].values/m)
+        m = self.gimme_numpy(self.quanta_name + '_gain_mean', d['s2_raw_mle'].values)
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
@@ -60,12 +56,9 @@ class MakeFinalSignals(fd.Block):
                  data_tensor, ptensor):
         # Lookup signal gain mean and std per detected quanta
         mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
+                                bonus_arg=quanta_detected,
                                 data_tensor=data_tensor,
                                 ptensor=ptensor)[:, o, o]
-        if self.quanta_name == 'electron':
-            mean_per_q = mean_per_q * self.gimme('geometrical_acceptance',
-                               bonus_arg=quanta_detected,
-                               data_tensor=data_tensor, ptensor=ptensor)
         std_per_q = self.gimme(self.quanta_name + '_gain_std',
                                data_tensor=data_tensor,
                                ptensor=ptensor)[:, o, o]
@@ -94,14 +87,15 @@ class MakeS1(MakeFinalSignals):
     signal_name = 's1_raw'
 
     dimensions = ('photoelectrons_detected', 's1_raw')
-    special_model_functions = ()
-    model_functions = (
-        'photoelectron_gain_mean',
-        'photoelectron_gain_std',) + special_model_functions
+    special_model_functions = ('photoelectron_gain_mean',)
+    model_functions = ('photoelectron_gain_std',) + special_model_functions
 
     max_dim_size = {'photoelectrons_detected': 120}
 
-    photoelectron_gain_mean = 1.
+    @staticmethod
+    def photoelectron_gain_mean(phd):
+        return tf.ones_like(phd)
+        
     photoelectron_gain_std = 0.5
 
     def _compute(self, data_tensor, ptensor,
@@ -128,8 +122,8 @@ class MakeS2(MakeFinalSignals):
     max_dim_size = {'electrons_detected': 120}
 
     @staticmethod
-    def geometrical_acceptance(z, *, geo_acc=1):
-        return geo_acc * tf.ones_like(z)
+    def electron_gain_mean(eld):
+        return tf.ones_like(eld)
 
     @staticmethod
     def electron_gain_mean(z, *, g2=20):
