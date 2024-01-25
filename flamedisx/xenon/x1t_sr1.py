@@ -500,12 +500,12 @@ class SR1Source:
         return extraction_eff * tf.exp(-drift_time / elife)
 
     @staticmethod
-    def electron_gain_mean(s2_relative_ly,
+    def electron_gain_mean(electrons_detected, s2_relative_ly,
                            se_gain_relative,
                            *,
                            single_electron_gain=DEFAULT_SINGLE_ELECTRON_GAIN):
                 
-        return single_electron_gain*s2_relative_ly*se_gain_relative
+        return single_electron_gain*s2_relative_ly*se_gain_relative + 0.*electrons_detected
     
     @staticmethod
     def electron_gain_std(s2_relative_ly,
