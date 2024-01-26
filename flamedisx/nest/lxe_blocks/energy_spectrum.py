@@ -15,7 +15,7 @@ o = tf.newaxis
 class EnergySpectrum(fd.FirstBlock):
     dimensions = ('energy',)
     model_attributes = (
-        'energies',
+        'energies','max_dim_size',
         'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
         't_start', 't_stop')
@@ -32,7 +32,13 @@ class EnergySpectrum(fd.FirstBlock):
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
-
+    
+    default_size=100
+    max_dim_size : dict
+    def setup(self):
+        assert isinstance(self.max_dim_size,dict)
+        self.max_dim_size={'energy':self.max_dim_size['energy']}
+        
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
 
@@ -253,15 +259,16 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     def mu_before_efficiencies(self, **params):
         return np.sum(fd.np_to_tf(self.rates_vs_energy))
 
-
+#Relics from before dimsize was an attribute-maybe this can be changed?
 @export
 class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
-    max_dim_size = {'energy': 150}
-
-
+    def setup(self):
+        self.max_dim_size=self.max_dim_size
 @export
 class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
-    max_dim_size = {'energy': 100}
+    def setup(self):
+        self.max_dim_size=self.max_dim_size
+
 
 
 @export
