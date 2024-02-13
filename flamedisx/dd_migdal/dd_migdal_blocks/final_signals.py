@@ -287,19 +287,41 @@ class MakeS1S2SS(MakeS1S2MSU):
     """
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),)
 
-    def _simulate(self, d):
+    def _simulate(self, d): 
         energies = d['energy_first'].values
 
         s1_mean, s2_mean = self.gimme_numpy('signal_means', energies)
         s1_var, s2_var = self.gimme_numpy('signal_vars', (s1_mean, s2_mean))
         anti_corr = self.gimme_numpy('signal_corr', energies)
+        s1_skew, s2_skew = self.gimme('signal_skews', energies) 
 
-        X = np.random.normal(size=len(energies))
-        Y = np.random.normal(size=len(energies))
+        skewa = [s1_skew, s2_skew]
+        final_std = [np.sqrt(s1_var),np.sqrt(s2_var)]
+        final_mean = [s1_mean,s2_mean]
+        dim=2
 
-        d['s1'] = np.sqrt(s1_var) * X + s1_mean
-        d['s2'] = np.sqrt(s2_var) * (anti_corr * X + np.sqrt(1. - anti_corr * anti_corr) * Y) + s2_mean
+        
+        cov = np.array([[1., anti_corr],[anti_corr,1.]])
+        
+        aCa = skewa @ cov @ skewa
+        delta = (1. / np.sqrt(1. + aCa)) * cov @ skewa
 
+        cov_star = np.block([[np.ones(1),     delta],
+                                 [delta[:, None], cov]])
+
+        x = scipy.stats.multivariate_normal(np.zeros(dim+1), cov_star).rvs(size=size)
+        x0, x1 = x[:, 0], x[:, 1:]
+        inds = (x0 <= 0)
+        x1[inds] = -1 * x1[inds]
+
+        scale = final_std / np.sqrt(1. - 2 * delta**2 / np.pi)
+        loc = final_mean - scale * delta * np.sqrt(2/np.pi)
+
+        samples = x1*scale+loc 
+        
+        d['s1'] = samples[:,0]
+        d['s2'] = samples[:,1]
+        
         d['p_accepted'] *= self.gimme_numpy('s1s2_acceptance')
 
     def _compute(self,
@@ -308,10 +330,6 @@ class MakeS1S2SS(MakeS1S2MSU):
                  s1,
                  # Dependency domain and value
                  energy_first, rate_vs_energy_first):
-
-        s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor)
-        s2 = tf.repeat(s2[:, o], tf.shape(s1)[1], axis=1)
-        s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
 
         s1_mean, s2_mean = self.gimme('signal_means',
                                       bonus_arg=energy_first,
@@ -322,14 +340,29 @@ class MakeS1S2SS(MakeS1S2MSU):
                                     bonus_arg=(s1_mean, s2_mean),
                                     data_tensor=data_tensor,
                                     ptensor=ptensor)
-        s1_std = tf.sqrt(s1_var)
-        s2_std = tf.sqrt(s2_var)
+
         anti_corr = self.gimme('signal_corr',
                                bonus_arg=energy_first,
                                data_tensor=data_tensor,
                                ptensor=ptensor)
+        
+        s1_skew, s2_skew = self.gimme('signal_skews', # 240213 - AV added
+                                        bonus_arg=energy_first,
+                                        data_tensor=data_tensor,
+                                        ptensor=ptensor)
+        
+        s1_std = tf.sqrt(s1_var)
+        s2_std = tf.sqrt(s2_var)
+        
+        s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor)
+        s2 = tf.repeat(s2[:, o], tf.shape(s1)[1], axis=1)
+        s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
+ 
+        
+        # Define a Bivariate Normal PDF: 
+        ## https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Bivariate_case
 
-        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
+        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr) 
 
         exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
 
@@ -337,7 +370,16 @@ class MakeS1S2SS(MakeS1S2MSU):
         exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
         exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
 
-        probs = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+        mvn_pdf = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+        
+        # Phi(x) = (1 + Erf(x/sqrt(2)))/2
+        Erf_arg = (s1_skew * s1) + (s2_skew * s2)
+        Erf = tf.math.erf( Erf_arg / tf.sqrt(2) )
+        norm_cdf = ( 1 + Erf ) / 2
+        
+        # skew(s1,s2) = mvn_pdf(s1,s2) * 2 * norm_cdf(alpha1*s1 + alpha2*s2)
+        probs = mvn_pdf * 2 * norm_cdf
+        
 
         # Add detection/selection efficiency
         acceptance = self.gimme('s1s2_acceptance',

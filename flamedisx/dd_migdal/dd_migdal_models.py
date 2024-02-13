@@ -22,7 +22,7 @@ import numba as nb
 
 
 @export
-class NRSource(fd.BlockModelSource):
+class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     model_blocks = (
         fd_dd_migdal.EnergySpectrumFirstSS,
         fd_dd_migdal.MakeS1S2SS)
@@ -52,7 +52,7 @@ class NRSource(fd.BlockModelSource):
         s2_mean = s2_mean_multiplier * P * energy * g2
 
         s1_mean = s1_mean_multiplier * (a * energy**b - s2_mean / g2) * g1
-        s1_mean= tf.where(s1_mean < 0.01, 0.01 * tf.ones_like(s1_mean, dtype=fd.float_type()), s1_mean)
+        s1_mean = tf.where(s1_mean < 0.01, 0.01 * tf.ones_like(s1_mean, dtype=fd.float_type()), s1_mean)
 
         return s1_mean, s2_mean
 
@@ -70,11 +70,18 @@ class NRSource(fd.BlockModelSource):
     @staticmethod
     def signal_corr(energies, anti_corr=-0.20949764):
         return anti_corr * tf.ones_like(energies)
+    
+    @staticmethod # 240213 - AV added
+    def signal_skews(energies, s1_skew=0,s2_skew=0):
+        s1_skew *= tf.ones_like(energies)
+        s2_skew *= tf.ones_like(energies)
+        
+        return s1_skew, s2_skew
 
     def get_s2(self, s2):
         return s2
 
-    def s1s2_acceptance(self, s1, s2, s1_min=20, s1_max=200, s2_min=400, s2_max=2e4):
+    def s1s2_acceptance(self, s1, s2, s1_min=5, s1_max=200, s2_min=400, s2_max=2e4): # 231208 AV adjusted s1_min from 20 --> 5 phd
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
                           tf.ones_like(s1, dtype=fd.float_type()))
@@ -124,13 +131,24 @@ class NRSource(fd.BlockModelSource):
         s1_var, s2_var = self.gimme('signal_vars',
                                     bonus_arg=(s1_mean, s2_mean),
                                     ptensor=ptensor)
-        s1_std = tf.sqrt(s1_var)
-        s2_std = tf.sqrt(s2_var)
+        
         anti_corr = self.gimme('signal_corr',
                                bonus_arg=energies,
                                ptensor=ptensor)
+        
+        s1_skew, s2_skew = self.gimme('signal_skews', # 240213 - AV added
+                                        bonus_arg=energy_first,
+                                        ptensor=ptensor)
+        
+        s1_std = tf.sqrt(s1_var)
+        s2_std = tf.sqrt(s2_var)
+        
 
-        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr)
+        ### 240213 - AV added skew
+        # Define a Bivariate Normal PDF: 
+        ## https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Bivariate_case
+
+        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr) 
 
         exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
 
@@ -138,7 +156,17 @@ class NRSource(fd.BlockModelSource):
         exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
         exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
 
-        probs = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+        mvn_pdf = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
+        
+        # Phi(x) = (1 + Erf(x/sqrt(2)))/2
+        Erf_arg = (s1_skew * s1) + (s2_skew * s2)
+        Erf = tf.math.erf( Erf_arg / tf.sqrt(2) )
+        norm_cdf = ( 1 + Erf ) / 2
+        
+        # skew(s1,s2) = mvn_pdf(s1,s2) * 2 * norm_cdf(alpha1*s1 + alpha2*s2)
+        probs = mvn_pdf * 2 * norm_cdf
+        
+        ###
 
         acceptance = self.gimme('s1s2_acceptance',
                                 bonus_arg=(s1, s2),
