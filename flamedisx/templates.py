@@ -12,7 +12,6 @@ import flamedisx as fd
 
 export, __all__ = fd.exporter()
 
-
 @export
 class TemplateSource(fd.ColumnSource):
     """Source that looks up precomputed differential rates in a template
@@ -27,6 +26,7 @@ class TemplateSource(fd.ColumnSource):
             If None, get this info from template.
         - events_per_bin: set to True if template specifies expected events per
             bin, rather than differential rate.
+        - component: component name [for joint likelihood purposes]
 
     For other arguments, see flamedisx.source.Source
     """
@@ -38,6 +38,9 @@ class TemplateSource(fd.ColumnSource):
             bin_edges=None,
             axis_names=None,
             events_per_bin=False,
+            component_name=None,
+            POI_name=None,
+            mu_ref=None,
             *args,
             **kwargs):
         # Get template, bin_edges, and axis_names
@@ -62,6 +65,21 @@ class TemplateSource(fd.ColumnSource):
         if not axis_names or len(axis_names) != len(template.shape):
             raise ValueError("Axis names missing or mismatched")
         self.final_dimensions = axis_names
+
+        if component_name is None:
+            self.component_name = 'SRx' # generic name for a single science run if not user specified
+        else:
+            self.component_name = component_name
+
+        if POI_name is None:
+            self.POI_name = 'mu'
+        else:
+            self.POI_name  = POI_name
+
+        self.mu_ref = mu_ref
+        if self.mu_ref is not None:
+            self.mu_before_efficiencies = self.mu_ref_before_efficiencies
+            self._differential_rate = self._scaled_differential_rate
 
         if interp_2d:
             assert len(self.final_dimensions) == 2, "Interpolation only supported for 2D histogram!"
@@ -100,6 +118,9 @@ class TemplateSource(fd.ColumnSource):
         else:
             self.data[self.column] = self._mh_diff_rate.lookup(
                 *[self.data[x] for x in self.final_dimensions])
+            
+        ## added to ensure that any data not matching the right component name is discluded but not sure this is necessary
+        self.data[self.column] *= self.data['component_name'] == self.component_name 
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
@@ -113,6 +134,21 @@ class TemplateSource(fd.ColumnSource):
         # TODO: all other arguments are ignored, they make no sense
         # for this source. Should we warn about this? Remove them from def?
 
-        return pd.DataFrame(dict(zip(
-            self.final_dimensions,
-            self._mh_events_per_bin.get_random(n_events).T)))
+        df = pd.DataFrame(dict(zip(self.final_dimensions,
+                            self._mh_events_per_bin.get_random(n_events).T)))
+        
+    
+        df['component_name'] = self.component_name # generic version of adding name to template 
+
+        return df
+    
+
+    def scale_factor(self, POI=1.):
+      return self.mu_ref * POI
+    
+    def mu_ref_before_efficiencies(self, **params):
+        return self.mu_ref * params[f'{self.POI_name}']
+
+    def _scaled_differential_rate(self, data_tensor, ptensor):
+        return self.gimme('scale_factor', data_tensor=data_tensor, ptensor=ptensor) * self._fetch(self.column, data_tensor)
+

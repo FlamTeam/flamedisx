@@ -198,6 +198,7 @@ class Source:
                  _skip_bounds_computation=False,
                  fit_params=None,
                  progress=False,
+                 POI_calc_dict=None,
                  input_mc_reservoir=None,
                  **params):
         """Initialize a flamedisx source

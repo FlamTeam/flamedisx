@@ -3,15 +3,15 @@ import numpy as np
 from scipy import stats
 from tqdm.auto import tqdm
 import typing as ty
+import pandas as pd
 
 import tensorflow as tf
 
 export, __all__ = fd.exporter()
 
-
 @export
 class TestStatistic():
-    """Class to evaluate a test statistic based on a conidtional and unconditional
+    """Class to evaluate a test statistic based on a conditional and unconditional
     maximum likelihood fit. Override the evaluate() method in derived classes.
 
     Arguments:
@@ -22,10 +22,16 @@ class TestStatistic():
 
     def __call__(self, mu_test, signal_source_name, guess_dict):
         # To fix the signal RM in the conditional fit
-        fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        if len(self.likelihood.components) > 1:
+            POI_name = self.likelihood.POI_name
+            fix_dict = {f'{signal_source_name}_{POI_name}': self.likelihood.calc_POI_fn(self.likelihood, mu_test, signal_source_name)}
+            name_pop = f'{signal_source_name}_{POI_name}'
+        else:
+            fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+            name_pop = f'{signal_source_name}_rate_multiplier'
 
         guess_dict_nuisance = guess_dict.copy()
-        guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
+        guess_dict_nuisance.pop(name_pop)
 
         # Conditional fit
         bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
@@ -149,8 +155,10 @@ class TSEvaluation():
         - log_constraint_fn: logarithm of the constraint function used in the likelihood. Any arguments
             which aren't fit parameters, such as those determining constraint means for toys, will need
             passing via the set_constraint_extra_args() function
+        - POI_calc_dict: dict containing name of POI, range of POI, and function to calculate POI from mu
         - ntoys: number of toys that will be run to get test statistic distributions
         - batch_size: batch size that will be used for the RM fits
+        - components: list of components of joint likelihood [one if not joint likelihood]
     """
     def __init__(
             self,
@@ -164,6 +172,8 @@ class TSEvaluation():
             sample_other_constraints: ty.Dict[str, ty.Callable] = None,
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             log_constraint_fn: ty.Callable = None,
+            POI_calc_dict = None,
+            components = None,
             ntoys=1000,
             batch_size=10000):
 
@@ -189,6 +199,16 @@ class TSEvaluation():
             self.log_constraint_fn = log_constraint_fn
         else:
             self.log_constraint_fn = log_constraint_fn
+
+        if POI_calc_dict is None:
+            self.POI_name = 'mu'
+        else:
+            self.POI_name = POI_calc_dict.get('POI_name')
+            self.POI_range = POI_calc_dict.get('POI_range')
+            self.calc_POI_fn = POI_calc_dict.get('calc_POI_fn')
+
+        if components is None:
+            components = ['SRx']
 
         self.ntoys = ntoys
         self.batch_size = batch_size
@@ -243,6 +263,18 @@ class TSEvaluation():
         else:
             self.observed_test_stats = None
 
+        if observed_data is not None: 
+            print('observed data is not none')
+            if isinstance(observed_data, pd.DataFrame):
+                assert(len(self.components) == 1), \
+                'Must pass data set for each component'
+                observed_data['component_name'] = self.components[0]
+            if isinstance(observed_data, dict):
+                assert(len(observed_data) == len(self.components)), \
+                'Number of datasets passed must equal number of components'
+                for i, key in enumerate(list(observed_data.keys())):
+                    observed_data[key]['component_name'] = self.components[i]
+
         if toy_data_B is not None:
             assert simulate_dict_B is not None, \
                 'Must pass all of simulate_dict_B, toy_data_B and \
@@ -270,15 +302,20 @@ class TSEvaluation():
             for background_source in self.background_source_names:
                 sources[background_source] = self.sources[background_source]
                 arguments[background_source] = self.arguments[background_source]
-            sources[signal_source] = self.sources[signal_source]
-            arguments[signal_source] = self.arguments[signal_source]
+
+            # get the appropriate sources/args for each component of likelihood [to allow for joint]
+            for component_name in self.components:
+                sources[f'{signal_source}_{component_name}'] = self.sources[f'{signal_source}_{component_name}']
+                arguments[f'{signal_source}_{component_name}'] = self.arguments[f'{signal_source}_{component_name}']
 
             # Create likelihood of TemplateSources
             likelihood = fd.LogLikelihood(sources=sources,
                                           arguments=arguments,
                                           progress=False,
                                           batch_size=self.batch_size,
-                                          free_rates=tuple([sname for sname in sources.keys()]))
+                                          free_rates=tuple([sname for sname in sources.keys()]),
+                                          components=self.components,
+                                          POI_calc_dict=self.POI_calc_dict)
 
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
@@ -302,7 +339,12 @@ class TSEvaluation():
                         self.sample_data_constraints(0., signal_source, likelihood)
                     toy_data_B_all.append(toy_data_B)
                     constraint_extra_args_B_all.append(constraint_extra_args_B)
-                simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
+
+                if len(self.components > 1):
+                    simulate_dict_B.pop(f'{signal_source}_{self.likelihood.POI_name}')
+                else:
+                    simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
+
                 return simulate_dict_B, toy_data_B_all, constraint_extra_args_B_all
 
             these_mus_test = mus_test[signal_source]
@@ -359,7 +401,11 @@ class TSEvaluation():
                 constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
             simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
-            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+            
+            if len(self.components) > 1:
+                simulate_dict[f'{signal_source_name}_{self.likelihood.POI_name}'] = self.calc_POI_fn(likelihood, mu_test, signal_source_name)
+            else:
+                simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
 
         toy_data = likelihood.simulate(**simulate_dict)
 
@@ -393,8 +439,12 @@ class TSEvaluation():
             # Guesses for fit
             guess_dict_SB = simulate_dict_SB.copy()
             for key, value in guess_dict_SB.items():
-                if value < 0.1:
+                compare_key = f'{signal_source_name}_{self.POI_name}'
+                if (key == compare_key) and (value < self.calc_POI_fn(likelihood, 0.1, signal_source_name)):
+                    guess_dict_SB[key] = self.POI_calc_fn(likelihood, 0.1, signal_source_name)
+                if (key != compare_key) and (value < 0.1):
                     guess_dict_SB[key] = 0.1
+                
             # Evaluate test statistic
             ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
             # Save test statistic, and possibly fits
@@ -408,9 +458,14 @@ class TSEvaluation():
             try:
                 # Guesses for fit
                 guess_dict_B = self.simulate_dict_B.copy()
-                guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
+
+                if len(self.components) > 1:
+                    guess_dict_B[f'{signal_source_name}_{self.POI_name}'] = self.calc_POI_fn(likelihood, 0.1, signal_source_name)
+                else:
+                    guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
                 for key, value in guess_dict_B.items():
-                    if value < 0.1:
+                    compare_key = f'{signal_source_name}_{self.POI_name}'
+                    if (key != compare_key) and (value < 0.1): 
                         guess_dict_B[key] = 0.1
                 toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
                 constraint_extra_args_B = self.constraint_extra_args_B[toy]
@@ -454,17 +509,24 @@ class TSEvaluation():
 
         likelihood.set_constraint_extra_args(**constraint_extra_args)
 
+        print('in get_observed_test_stat')
         # Set data
         likelihood.set_data(observed_data)
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
+
         # Guesses for fit
-        guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        if len(self.components) > 1:
+            guess_dict = {f'{signal_source_name}_{self.POI_name}': self.calc_POI_fn(likelihood, mu_test, signal_source_name)}
+        else:
+            guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+
         for background_source in self.background_source_names:
             guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
         for key, value in guess_dict.items():
             if value < 0.1:
                 guess_dict[key] = 0.1
+
         # Evaluate test statistic
         ts_result = test_statistic(mu_test, signal_source_name, guess_dict)
 

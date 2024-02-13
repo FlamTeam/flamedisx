@@ -50,6 +50,7 @@ class LogLikelihood:
                 None,
                 pd.DataFrame,
                 ty.Dict[str, pd.DataFrame]] = None,
+            components=None,
             free_rates=None,
             batch_size=10,
             max_sigma=None,
@@ -59,6 +60,7 @@ class LogLikelihood:
             bounds_specified=True,
             progress=True,
             defaults=None,
+            POI_calc_dict=None,
             mu_estimators=None,
             data_is_annotated=False,
             **common_param_specs):
@@ -74,6 +76,9 @@ class LogLikelihood:
         :param data: Dictionary {datasetname: pd.DataFrame},
             or just pd.DataFrame if you have one dataset,
             or None if you set data later.
+
+        :param components: list of component names of joint likelihood, if None or one defaults
+            to usual single likelihood
 
         :param free_rates: names of sources whose rates are floating
 
@@ -114,6 +119,18 @@ class LogLikelihood:
             on the parameters, and mu_options are instructions to the mu estimator.
             By default, mu_options controls the number of interpolation anchor points.
         """
+        if components is None:
+            components = ['SRx'] 
+            
+        self.components = components
+
+        if POI_calc_dict is None:
+            self.POI_name = 'mu'
+        else:
+            self.POI_name = POI_calc_dict.get('POI_name')
+            self.POI_range = POI_calc_dict.get('POI_range')
+            self.calc_POI_fn = POI_calc_dict.get('calc_POI_fn')
+
         if arguments is None:
             arguments = dict()
             for key, value in sources.items():
@@ -260,11 +277,14 @@ class LogLikelihood:
         Data can contain any subset of the original data keys to only
         update specific datasets.
         """
+        
         if isinstance(data, pd.DataFrame):
             assert len(self.dsetnames) == 1, \
                 "You passed one DataFrame but there are multiple datasets"
             data = {DEFAULT_DSETNAME: data}
-
+            if 'component_name' not in data[DEFAULT_DSETNAME].columns:
+                data[DEFAULT_DSETNAME]['component_name'] = self.components[0]
+        
         is_none = [d is None for d in data.values()]
         if any(is_none):
             if not all(is_none):
@@ -276,23 +296,29 @@ class LogLikelihood:
                 return
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=int)
-
+       
         for sname, source in self.sources.items():
             dname = self.dset_for_source[sname]
+            #print(data)
             if dname not in data:
                 warnings.warn(f"Dataset {dname} not provided in set_data")
+                print('dname not in data')
                 continue
 
+            print('before copy')
+            print(data[dname])
             # Copy ensures annotations don't clobber
             source.set_data(deepcopy(data[dname]), data_is_annotated)
-
+            print('after copy')
             # Update batch info
             dset_index = self.dsetnames.index(dname)
+            print('after setting index names')
             batch_info[dset_index, :] = [
                 source.n_batches, source.batch_size, source.n_padding]
 
         # Choose sensible default rate multiplier guesses:
         #  (1) Assume each free source produces just 1 event
+        print('before 2nd for loop')
         for sname in self.sources:
             if self.dset_for_source[sname] not in data:
                 # This dataset is not being updated, skip
@@ -306,6 +332,7 @@ class LogLikelihood:
 
         # (2) If we still saw more events than expected, assume the
         #     first free source is responsible for all of this.
+        print('before 3rd for loop')
         for dname, _data in data.items():
             n_observed = len(_data)
             n_expected = self.mu(dataset_name=dname).numpy()
@@ -476,15 +503,22 @@ class LogLikelihood:
         if dataset_name is None and source_name is None:
             raise ValueError("Provide either source or dataset name")
         mu = tf.constant(0., dtype=fd.float_type())
-        for sname in self.sources:
+        for sname in self.sources: 
             if (dataset_name is not None
                     and self.dset_for_source[sname] != dataset_name):
                 continue
             if source_name is not None and sname != source_name:
                 continue
-            filtered_params = self._filter_source_kwargs(kwargs, sname)
-            mu += (self._get_rate_mult(sname, kwargs)
-                   * self.mu_estimators[sname](**filtered_params))
+    
+            filtered_params = self._filter_source_kwargs(kwargs, sname) # gets out params for specific source
+
+            # can input mu_ref as an optional arg in the template source class 
+            # obviously this will need to be adjusted for tensor calc
+            if (self.sources[sname].mu_ref is not None): 
+                mu += (self.sources[sname].mu_ref * filtered_params[self.POI_range])
+            else:
+                mu += (self._get_rate_mult(sname, kwargs)
+                       * self.mu_estimators[sname](**filtered_params))
         return mu
 
     @tf.function
