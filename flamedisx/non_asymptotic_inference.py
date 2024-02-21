@@ -172,8 +172,8 @@ class TSEvaluation():
             sample_other_constraints: ty.Dict[str, ty.Callable] = None,
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             log_constraint_fn: ty.Callable = None,
-            POI_calc_dict = None,
-            components = None,
+            POI_calc_dict=None,
+            components=None,
             ntoys=1000,
             batch_size=10000):
 
@@ -202,13 +202,17 @@ class TSEvaluation():
 
         if POI_calc_dict is None:
             self.POI_name = 'mu'
+            self.POI_calc_dict = None
         else:
             self.POI_name = POI_calc_dict.get('POI_name')
             self.POI_range = POI_calc_dict.get('POI_range')
             self.calc_POI_fn = POI_calc_dict.get('calc_POI_fn')
+            self.POI_calc_dict = POI_calc_dict
 
         if components is None:
-            components = ['SRx']
+            self.components = ['SRx']
+        else:
+            self.components = components
 
         self.ntoys = ntoys
         self.batch_size = batch_size
@@ -302,11 +306,8 @@ class TSEvaluation():
             for background_source in self.background_source_names:
                 sources[background_source] = self.sources[background_source]
                 arguments[background_source] = self.arguments[background_source]
-
-            # get the appropriate sources/args for each component of likelihood [to allow for joint]
-            for component_name in self.components:
-                sources[f'{signal_source}_{component_name}'] = self.sources[f'{signal_source}_{component_name}']
-                arguments[f'{signal_source}_{component_name}'] = self.arguments[f'{signal_source}_{component_name}']
+            sources[signal_source] = self.sources[signal_source]
+            arguments[signal_source] = self.arguments[signal_source]
 
             # Create likelihood of TemplateSources
             likelihood = fd.LogLikelihood(sources=sources,

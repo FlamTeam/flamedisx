@@ -126,6 +126,7 @@ class LogLikelihood:
 
         if POI_calc_dict is None:
             self.POI_name = 'mu'
+            self.POI_calc_dict = None
         else:
             self.POI_name = POI_calc_dict.get('POI_name')
             self.POI_range = POI_calc_dict.get('POI_range')
