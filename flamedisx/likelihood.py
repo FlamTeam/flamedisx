@@ -142,7 +142,8 @@ class LogLikelihood:
                     for key in value:
                         arguments[key] = dict()
         param_defaults = dict()
-
+        
+        # needs fixing / generalizing 
         self.dsetnames = list(sources.keys())
     
         if defaults is None:
@@ -172,6 +173,7 @@ class LogLikelihood:
                 self.sources[sname] = s
         del sources  # so we don't use it by accident
 
+        # flatten arguments
         self.arguments = dict()
         for dsetname in arguments.keys():
             for sname, sargs in arguments[dsetname].items():
@@ -519,7 +521,7 @@ class LogLikelihood:
             # can input mu_ref as an optional arg in the template source class 
             # obviously this will need to be adjusted for tensor calc
             if (self.sources[sname].mu_ref is not None): 
-                mu += (self.sources[sname].mu_ref * filtered_params[self.POI_range])
+                mu += (self.sources[sname].mu_ref * self.POI_range)
             else:
                 mu += (self._get_rate_mult(sname, kwargs)
                        * self.mu_estimators[sname](**filtered_params))
