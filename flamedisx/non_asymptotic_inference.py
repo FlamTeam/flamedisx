@@ -207,12 +207,19 @@ class TSEvaluation():
             self.POI_name = POI_calc_dict.get('POI_name')
             self.POI_range = POI_calc_dict.get('POI_range')
             self.calc_POI_fn = POI_calc_dict.get('calc_POI_fn')
+            self.mu_from_POI_fn = POI_calc_dict.get('mu_from_POI_fn')
             self.POI_calc_dict = POI_calc_dict
 
         if components is None:
             self.components = ['SRx']
         else:
             self.components = components
+
+        # this is basically a kind of dumb check that the sources dict 
+        # is going to be structured in the expected way - likely to change
+        if self.components[0] not in sources:
+            for component in self.components:
+                sources = {component: sources}
 
         self.ntoys = ntoys
         self.batch_size = batch_size
@@ -277,7 +284,7 @@ class TSEvaluation():
                 assert(len(observed_data) == len(self.components)), \
                 'Number of datasets passed must equal number of components'
                 for i, key in enumerate(list(observed_data.keys())):
-                    observed_data[key]['component_name'] = self.components[i]
+                    assert(key == self.components[i]) # assert that the dataset key matches the component name
 
         if toy_data_B is not None:
             assert simulate_dict_B is not None, \
@@ -304,19 +311,32 @@ class TSEvaluation():
             sources = dict()
             arguments = dict()
             for background_source in self.background_source_names:
-                sources[background_source] = self.sources[background_source]
-                arguments[background_source] = self.arguments[background_source]
-            sources[signal_source] = self.sources[signal_source]
-            arguments[signal_source] = self.arguments[signal_source]
+                for component in self.components:
+                    if component not in arguments: 
+                        arguments[component] = dict()
+                        sources[component] = dict()
+                    if background_source in self.sources[component]:    
+                        sources[component][background_source] = self.sources[component][background_source]
+                        arguments[component][background_source] = self.arguments[component][background_source]
+            for component in self.components:
+                if component not in arguments: 
+                        arguments[component] = dict()
+                        sources[component] = dict()
+                if signal_source in self.sources[component]:
+                    sources[component][signal_source] = self.sources[component][signal_source]
+                    arguments[component][signal_source] = self.arguments[component][signal_source]
+
+            all_free_rate_names = [sname for ss in sources.values() for sname in ss.keys()]
 
             # Create likelihood of TemplateSources
             likelihood = fd.LogLikelihood(sources=sources,
                                           arguments=arguments,
                                           progress=False,
                                           batch_size=self.batch_size,
-                                          free_rates=tuple([sname for sname in sources.keys()]),
+                                          free_rates=tuple(all_free_rate_names),
                                           components=self.components,
-                                          POI_calc_dict=self.POI_calc_dict)
+                                          POI_calc_dict=self.POI_calc_dict
+                                          )
 
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
@@ -442,12 +462,13 @@ class TSEvaluation():
             for key, value in guess_dict_SB.items():
                 compare_key = f'{signal_source_name}_{self.POI_name}'
                 if (key == compare_key) and (value < self.calc_POI_fn(likelihood, 0.1, signal_source_name)):
-                    guess_dict_SB[key] = self.POI_calc_fn(likelihood, 0.1, signal_source_name)
+                    guess_dict_SB[key] = self.calc_POI_fn(likelihood, 0.1, signal_source_name)
                 if (key != compare_key) and (value < 0.1):
                     guess_dict_SB[key] = 0.1
                 
             # Evaluate test statistic
             ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
+
             # Save test statistic, and possibly fits
             ts_values_SB.append(ts_result_SB[0])
             if save_fits:
@@ -503,6 +524,7 @@ class TSEvaluation():
         """Internal function to evaluate observed test statistic.
         """
         # The constraints are centered on the expected values
+
         constraint_extra_args = dict()
         for background_source in self.background_source_names:
             constraint_extra_args[f'{background_source}_expected_counts'] = \
@@ -510,9 +532,9 @@ class TSEvaluation():
 
         likelihood.set_constraint_extra_args(**constraint_extra_args)
 
-        print('in get_observed_test_stat')
         # Set data
         likelihood.set_data(observed_data)
+
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
 

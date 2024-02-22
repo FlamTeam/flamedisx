@@ -131,6 +131,7 @@ class LogLikelihood:
             self.POI_name = POI_calc_dict.get('POI_name')
             self.POI_range = POI_calc_dict.get('POI_range')
             self.calc_POI_fn = POI_calc_dict.get('calc_POI_fn')
+            self.mu_from_POI_fn = POI_calc_dict.get('mu_from_POI_fn')
 
         if arguments is None:
             arguments = dict()
@@ -142,6 +143,8 @@ class LogLikelihood:
                         arguments[key] = dict()
         param_defaults = dict()
 
+        self.dsetnames = list(sources.keys())
+    
         if defaults is None:
             defaults = dict()
         if isinstance(data, pd.DataFrame) or data is None:
@@ -152,10 +155,9 @@ class LogLikelihood:
             assert len(data) == 1, "Specify which sources belong to which dataset"
             sources: ty.Dict[str, ty.Dict[str, fd.Source.__class__]] = \
                 {DEFAULT_DSETNAME: sources}
-        assert data.keys() == sources.keys(), "Inconsistent dataset names"
+            assert data.keys() == sources.keys(), "Inconsistent dataset names"
 
-        self.dsetnames = list(data.keys())
-
+        
         # Flatten sources, make sources <-> dataset name mappings
         self.sources: ty.Dict[str, fd.Source.__class__] = dict()
         self.dset_for_source = dict()
@@ -170,6 +172,12 @@ class LogLikelihood:
                 self.sources[sname] = s
         del sources  # so we don't use it by accident
 
+        self.arguments = dict()
+        for dsetname in arguments.keys():
+            for sname, sargs in arguments[dsetname].items():
+                self.arguments[sname] = sargs
+        del arguments
+
         if free_rates is None:
             free_rates = tuple()
         if isinstance(free_rates, str):
@@ -180,9 +188,10 @@ class LogLikelihood:
             # The rate multiplier guesses will be improved after data is set
             param_defaults[sn + '_rate_multiplier'] = 1.
 
+    
         # Create sources
         self.sources = {
-            sname: sclass(**(arguments.get(sname)),
+            sname: sclass(**(self.arguments.get(sname)),
                           data=None,
                           max_sigma=max_sigma,
                           max_sigma_outer=max_sigma_outer,
@@ -191,7 +200,7 @@ class LogLikelihood:
                           fit_params=list(k for k in common_param_specs.keys()),
                           batch_size=batch_size,
                           **defaults)
-            for sname, sclass in self.sources.items()}
+            for sname, sclass in self.sources.items()}       
 
         for pname in common_param_specs:
             # Check defaults for common parameters are consistent between
@@ -285,7 +294,8 @@ class LogLikelihood:
             data = {DEFAULT_DSETNAME: data}
             if 'component_name' not in data[DEFAULT_DSETNAME].columns:
                 data[DEFAULT_DSETNAME]['component_name'] = self.components[0]
-        
+
+
         is_none = [d is None for d in data.values()]
         if any(is_none):
             if not all(is_none):
@@ -295,31 +305,25 @@ class LogLikelihood:
             for s in self.sources.values():
                 s.set_data(None)
                 return
-
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=int)
        
         for sname, source in self.sources.items():
             dname = self.dset_for_source[sname]
-            #print(data)
             if dname not in data:
                 warnings.warn(f"Dataset {dname} not provided in set_data")
-                print('dname not in data')
                 continue
 
-            print('before copy')
-            print(data[dname])
             # Copy ensures annotations don't clobber
             source.set_data(deepcopy(data[dname]), data_is_annotated)
-            print('after copy')
+         
             # Update batch info
             dset_index = self.dsetnames.index(dname)
-            print('after setting index names')
+         
             batch_info[dset_index, :] = [
                 source.n_batches, source.batch_size, source.n_padding]
 
         # Choose sensible default rate multiplier guesses:
         #  (1) Assume each free source produces just 1 event
-        print('before 2nd for loop')
         for sname in self.sources:
             if self.dset_for_source[sname] not in data:
                 # This dataset is not being updated, skip
@@ -333,7 +337,6 @@ class LogLikelihood:
 
         # (2) If we still saw more events than expected, assume the
         #     first free source is responsible for all of this.
-        print('before 3rd for loop')
         for dname, _data in data.items():
             n_observed = len(_data)
             n_expected = self.mu(dataset_name=dname).numpy()

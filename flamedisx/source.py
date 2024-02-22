@@ -359,11 +359,13 @@ class Source:
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  **params):
+        
         self.set_defaults(**params)
 
         if data is None:
             self.data = self.n_batches = self.n_padding = None
             return
+        
         self.data = data
         del data
 

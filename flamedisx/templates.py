@@ -117,11 +117,8 @@ class TemplateSource(fd.ColumnSource):
                                                for r in self.data.itertuples(index=False)])
         else:
             self.data[self.column] = self._mh_diff_rate.lookup(
-                *[self.data[x] for x in self.final_dimensions])
-            
-        ## added to ensure that any data not matching the right component name is discluded but not sure this is necessary
-        self.data[self.column] *= self.data['component_name'] == self.component_name 
-
+                *[self.data[x] for x in self.final_dimensions])  
+       
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
         """Simulate n events.
