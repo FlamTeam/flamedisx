@@ -650,9 +650,12 @@ class IntervalCalculator():
             return lower_lim_all, upper_lim_all, p_sb, p_b
 
     def upper_lims_bands(self, pval_curve, mus, conf_level):
-        upper_lims = np.argwhere(np.diff(np.sign(pval_curve - np.ones_like(pval_curve) * conf_level)) < 0.).flatten()
-        return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
-                                  rising_edge=False, inverse=True)
+        try:
+            upper_lims = np.argwhere(np.diff(np.sign(pval_curve - np.ones_like(pval_curve) * conf_level)) < 0.).flatten()
+            return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
+                                    rising_edge=False, inverse=True)
+        except Exception:
+            return 0.
 
     def get_bands(self, conf_level=0.1, quantiles=[0, 1, -1, 2, -2],
                   use_CLs=False):
@@ -691,10 +694,11 @@ class IntervalCalculator():
 
         return bands
 
-    def get_median_asymptotic(self, test_statistic, conf_level=0.1):
+    def get_bands_asymptotic(self, test_statistic, conf_level=0.1,
+                             quantiles=[0, 1, -1]):
         """
         """
-        medians = dict()
+        bands = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
@@ -711,6 +715,13 @@ class IntervalCalculator():
             p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
             upper_lims = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
 
-            medians[signal_source] = np.quantile(np.sort(upper_lims), stats.norm.cdf(0.5))
+            if len(upper_lims[upper_lims == 0.]) > 0.:
+                print(f'Found {len(upper_lims[upper_lims == 0.])} failed toy for {signal_source}; removing...')
+                upper_lims = upper_lims[upper_lims > 0.]
 
-        return medians
+            these_bands = dict()
+            for quantile in quantiles:
+                these_bands[quantile] = np.quantile(np.sort(upper_lims), stats.norm.cdf(quantile))
+            bands[signal_source] = these_bands
+
+        return bands
