@@ -15,7 +15,7 @@ from scipy.optimize import NonlinearConstraint
 __all__ = ['LOWER_RATE_MULTIPLIER_BOUND',
            'SUPPORTED_OPTIMIZERS',
            'SUPPORTED_INTERVAL_OPTIMIZERS',
-           'FLOAT32_EPS']
+           'FLOAT64_EPS']
 
 # Setting this to 0 does work, but makes the inference rather slow
 # (at least for scipy); probably there is a relative xtol computation,
@@ -23,7 +23,7 @@ __all__ = ['LOWER_RATE_MULTIPLIER_BOUND',
 LOWER_RATE_MULTIPLIER_BOUND = 1e-9
 
 # Floating point precision of 32-bit computations
-FLOAT32_EPS = np.finfo(np.float32).eps
+FLOAT64_EPS = np.finfo(np.float64).eps
 
 
 class OptimizerWarning(UserWarning):
@@ -429,12 +429,12 @@ class ScipyObjective(Objective):
         # The underlying tensorflow computation has float32 precision,
         # so we have to adjust the precision options
         if kwargs['method'].upper() == 'TNC':
-            kwargs['options'].setdefault('accuracy', FLOAT32_EPS**0.5)
+            kwargs['options'].setdefault('accuracy', FLOAT64_EPS**0.5)
 
         # Achtung! setdefault will not kick in if user specified 'xtol' in the
         # options.
-        kwargs['options'].setdefault('xtol', FLOAT32_EPS**0.5)
-        kwargs['options'].setdefault('gtol', 1e-2 * FLOAT32_EPS**0.25)
+        kwargs['options'].setdefault('xtol', FLOAT64_EPS**0.5)
+        kwargs['options'].setdefault('gtol', 1e-2 * FLOAT64_EPS**0.25)
 
         if self.use_hessian:
             if (kwargs['method'].lower() in ('newton-cg', 'dogleg')
@@ -541,7 +541,7 @@ class MinuitObjective(Objective):
             precision = kwargs['precision']
             del kwargs['precision']
         else:
-            precision = FLOAT32_EPS
+            precision = FLOAT64_EPS
 
         if self.minuit2:
             # Minuit2 changed the API; Minuit() no longer takes 'option-like'

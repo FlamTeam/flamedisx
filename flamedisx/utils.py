@@ -9,8 +9,8 @@ import tensorflow as tf
 
 lgamma = tf.math.lgamma
 o = tf.newaxis
-FLOAT_TYPE = tf.float32
-INT_TYPE = tf.int32
+FLOAT_TYPE = tf.float64
+INT_TYPE = tf.int64
 
 # Extreme mean and standard deviations give numerical errors
 # in the beta-binomial.

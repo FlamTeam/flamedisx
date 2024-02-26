@@ -33,7 +33,7 @@ class TestStatistic():
         bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
         # Return the test statistic, unconditional fit and conditional fit
-        return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
+        return self.evaluate(bf_unconditional, bf_conditional, signal_source_name, mu_test), bf_unconditional, bf_conditional
 
 
 @export
@@ -52,6 +52,29 @@ class TestStatisticTMuTilde(TestStatistic):
             return 0.
         else:
             return ts
+
+
+@export
+class TestStatisticQMu(TestStatistic):
+    """Evaluate the test statistic of equation 11 in https://arxiv.org/abs/1007.1727.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def evaluate(self, bf_unconditional, bf_conditional, signal_source_name, mu_test):
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        ts = -2. * (ll_conditional - ll_unconditional)
+        if bf_unconditional[f'{signal_source_name}_rate_multiplier'] > mu_test:
+            return 0.
+        elif ts < 0.:
+            return 0.
+        else:
+            return ts
+
+    def p_value_asymptotic(self, ts_values):
+        return (1. - stats.norm.cdf(np.sqrt(ts_values)))
 
 
 @export
@@ -382,26 +405,26 @@ class TSEvaluation():
             simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
                 self.sample_data_constraints(mu_test, signal_source_name, likelihood)
 
-            # S+B toys
+            # # S+B toys
 
-            # Shift the constraint in the likelihood based on the background RMs we drew
-            likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
-            # Set data
-            likelihood.set_data(toy_data_SB)
-            # Create test statistic
-            test_statistic_SB = self.test_statistic(likelihood)
-            # Guesses for fit
-            guess_dict_SB = simulate_dict_SB.copy()
-            for key, value in guess_dict_SB.items():
-                if value < 0.1:
-                    guess_dict_SB[key] = 0.1
-            # Evaluate test statistic
-            ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
-            # Save test statistic, and possibly fits
-            ts_values_SB.append(ts_result_SB[0])
-            if save_fits:
-                unconditional_bfs_SB.append(ts_result_SB[1])
-                conditional_bfs_SB.append(ts_result_SB[2])
+            # # Shift the constraint in the likelihood based on the background RMs we drew
+            # likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
+            # # Set data
+            # likelihood.set_data(toy_data_SB)
+            # # Create test statistic
+            # test_statistic_SB = self.test_statistic(likelihood)
+            # # Guesses for fit
+            # guess_dict_SB = simulate_dict_SB.copy()
+            # for key, value in guess_dict_SB.items():
+            #     if value < 0.1:
+            #         guess_dict_SB[key] = 0.1
+            # # Evaluate test statistic
+            # ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
+            # # Save test statistic, and possibly fits
+            # ts_values_SB.append(ts_result_SB[0])
+            # if save_fits:
+            #     unconditional_bfs_SB.append(ts_result_SB[1])
+            #     conditional_bfs_SB.append(ts_result_SB[2])
 
             # B-only toys
 
@@ -667,3 +690,27 @@ class IntervalCalculator():
             bands[signal_source] = these_bands
 
         return bands
+
+    def get_median_asymptotic(self, test_statistic, conf_level=0.1):
+        """
+        """
+        medians = dict()
+
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            # Get B-only test statistic distribition
+            test_stat_dists_B = self.test_stat_dists_B[signal_source]
+
+            mus = []
+            p_val_curves = []
+            # Loop over signal rate multipliers
+            for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
+                mus.append(mu_test)
+                p_val_curves.append(test_statistic(None).p_value_asymptotic(ts_values))
+
+            p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
+            upper_lims = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
+
+            medians[signal_source] = np.quantile(np.sort(upper_lims), stats.norm.cdf(0.5))
+
+        return medians

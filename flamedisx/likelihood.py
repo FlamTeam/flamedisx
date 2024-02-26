@@ -235,7 +235,7 @@ class LogLikelihood:
         # Add the constraint
         if log_constraint is None:
             def log_constraint(**kwargs):
-                return 0.
+                return tf.constant(0., fd.float_type())
         self.log_constraint = log_constraint
         self.constraint_extra_args = None
 
@@ -521,10 +521,14 @@ class LogLikelihood:
             0.)
         if dsetname == self.dsetnames[0]:
             if constraint_extra_args is None:
-                ll += self.log_constraint(**params_unstacked)
+                ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
+                               self.log_constraint(**params_unstacked),
+                               0.)
             else:
                 kwargs = {**params_unstacked, **constraint_extra_args}
-                ll += self.log_constraint(**kwargs)
+                ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
+                               self.log_constraint(**kwargs),
+                               0.)
 
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]
