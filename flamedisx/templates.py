@@ -141,6 +141,7 @@ class TemplateSource(fd.ColumnSource):
     
 
     def scale_factor(self, POI=1.):
+      print('in scale factor')
       return self.mu_ref * POI
     
     def mu_ref_before_efficiencies(self, **params):

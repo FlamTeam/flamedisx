@@ -517,11 +517,13 @@ class LogLikelihood:
                 continue
     
             filtered_params = self._filter_source_kwargs(kwargs, sname) # gets out params for specific source
-
+            print(sname)
             # can input mu_ref as an optional arg in the template source class 
             # obviously this will need to be adjusted for tensor calc
             if (self.sources[sname].mu_ref is not None): 
-                mu += (self.sources[sname].mu_ref * self.POI_range)
+                print(f'POI_range: {self.POI_range}')
+                print(f'mu_ref: {self.sources[sname].mu_ref}')
+                mu += (self.sources[sname].mu_ref * self.POI_range[1])
             else:
                 mu += (self._get_rate_mult(sname, kwargs)
                        * self.mu_estimators[sname](**filtered_params))
