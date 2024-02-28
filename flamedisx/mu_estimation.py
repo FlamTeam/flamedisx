@@ -96,8 +96,6 @@ class CrossInterpolatedMu(MuEstimator):
                  dtype=fd.float_type())
 
     def __call__(self, **kwargs):
-        kwargs = {param_name: kwargs[param_name] for param_name in self.bounds}
-
         mu = self.base_mu
         for pname, v in kwargs.items():
             mu *= tfp.math.interp_regular_1d_grid(

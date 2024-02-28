@@ -330,7 +330,12 @@ class TSEvaluation():
                         self.sample_data_constraints(0., signal_source, likelihood)
                     toy_data_B_all.append(toy_data_B)
                     constraint_extra_args_B_all.append(constraint_extra_args_B)
-                simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
+
+                if f'{signal_source}_rate_multiplier' in likelihood.param_defaults:
+                    simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
+                else:
+                    simulate_dict_B.pop(self.transform_params[signal_source][0])
+
                 return simulate_dict_B, toy_data_B_all, constraint_extra_args_B_all
 
             these_mus_test = mus_test[signal_source]
@@ -387,7 +392,11 @@ class TSEvaluation():
                 constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
             simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
-            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+
+            if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
+                simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+            else:
+                simulate_dict[self.transform_params[signal_source_name][0]] = mu_test
 
         toy_data = likelihood.simulate(**simulate_dict)
 
@@ -436,7 +445,12 @@ class TSEvaluation():
             try:
                 # Guesses for fit
                 guess_dict_B = self.simulate_dict_B.copy()
-                guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
+
+                if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
+                    guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
+                else:
+                    guess_dict_B[self.transform_params[signal_source_name][0]] = 0.
+
                 for key, value in guess_dict_B.items():
                     if value < 0.1:
                         guess_dict_B[key] = 0.1
@@ -487,7 +501,11 @@ class TSEvaluation():
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
         # Guesses for fit
-        guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
+            guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        else:
+            guess_dict = {self.transform_params[signal_source_name][0]: mu_test}
+
         for background_source in self.background_source_names:
             guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
         for key, value in guess_dict.items():
