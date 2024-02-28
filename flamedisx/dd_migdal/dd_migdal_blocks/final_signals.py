@@ -13,6 +13,9 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
+import sys ########
+
+
 @export
 class MakeS1S2MSU(fd.Block):
     """
@@ -23,7 +26,7 @@ class MakeS1S2MSU(fd.Block):
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
                   (('energy_second',), 'rate_vs_energy'))
 
-    special_model_functions = ('signal_means', 'signal_vars', 'signal_corr')
+    special_model_functions = ('signal_means', 'signal_vars', 'signal_corr', 'signal_skews') # 240213 - AV added skew
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
     # Whether to check acceptances are positive at the observed events.
@@ -293,31 +296,44 @@ class MakeS1S2SS(MakeS1S2MSU):
         s1_mean, s2_mean = self.gimme_numpy('signal_means', energies)
         s1_var, s2_var = self.gimme_numpy('signal_vars', (s1_mean, s2_mean))
         anti_corr = self.gimme_numpy('signal_corr', energies)
-        s1_skew, s2_skew = self.gimme('signal_skews', energies) 
+        s1_skew, s2_skew = self.gimme_numpy('signal_skews', energies) 
+        
+        nn=len(anti_corr)
+        final_mean = np.ones((nn,1,2))
+        final_mean[:,0,0] = s1_mean
+        final_mean[:,0,1] = s2_mean
 
-        skewa = [s1_skew, s2_skew]
-        final_std = [np.sqrt(s1_var),np.sqrt(s2_var)]
-        final_mean = [s1_mean,s2_mean]
+        final_std = np.ones((nn,1,2))
+        final_std[:,0,0] = np.sqrt(s1_var) 
+        final_std[:,0,1] = np.sqrt(s2_var)
+
+        cov=np.ones((len(anti_corr),2,2))
+        cov[:,0,1] = anti_corr
+        cov[:,1,0] = anti_corr
+
+        skewa = np.ones((nn,2,1))
+        skewa[:,0,0] = s1_skew 
+        skewa[:,1,0] = s2_skew
+
         dim=2
 
-        
-        cov = np.array([[1., anti_corr],[anti_corr,1.]])
-        
-        aCa = skewa @ cov @ skewa
+        aCa = skewa.transpose((0, 2, 1)) @ cov @ skewa
         delta = (1. / np.sqrt(1. + aCa)) * cov @ skewa
 
-        cov_star = np.block([[np.ones(1),     delta],
-                                 [delta[:, None], cov]])
+        cov_star = np.ones((nn,3,3))
+        cov_star[:,0,1:] = delta.transpose((0,2,1))[:,0,:]
+        cov_star[:,1:,0] = delta[:,:,0]
+        cov_star[:,1:,1:] = cov
 
-        x = scipy.stats.multivariate_normal(np.zeros(dim+1), cov_star).rvs(size=size)
+        x = np.array([stats.multivariate_normal(np.zeros(dim+1), cov_i).rvs(size=1) for cov_i in cov_star])
         x0, x1 = x[:, 0], x[:, 1:]
         inds = (x0 <= 0)
         x1[inds] = -1 * x1[inds]
 
-        scale = final_std / np.sqrt(1. - 2 * delta**2 / np.pi)
-        loc = final_mean - scale * delta * np.sqrt(2/np.pi)
+        scale = final_std / np.sqrt(1. - 2 * delta.transpose((0,2,1))**2 / np.pi)
+        loc = final_mean - scale * delta.transpose((0,2,1)) * np.sqrt(2/np.pi)
 
-        samples = x1*scale+loc 
+        samples = x1*scale[:,0,:]+loc[:,0,:] 
         
         d['s1'] = samples[:,0]
         d['s2'] = samples[:,1]
@@ -359,26 +375,57 @@ class MakeS1S2SS(MakeS1S2MSU):
         s2 = tf.repeat(s2[:, :, o], tf.shape(s1)[2], axis=2)
  
         
-        # Define a Bivariate Normal PDF: 
-        ## https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Bivariate_case
+        ### 240213 - AV added skew
+        
+        # adjust dimensionality of input tensors
+        skews1 = s1_skew
+        skews2 = s2_skew
+        skewa = tf.concat([skews1, skews2], axis=-1)[:,:,:,o]
+        
+        f_std_s1 = s1_std
+        f_std_s2 = s2_std
+        final_std = tf.concat([f_std_s1, f_std_s2], axis=-1)[:,:,:,o]
+        
+        f_mean_s1 = s1_mean
+        f_mean_s2 = s2_mean
+        final_mean = tf.concat([f_mean_s1, f_mean_s2], axis=-1)[:,:,:,o]
+        
+        cov = tf.repeat(anti_corr[:,:,o], 2, axis=2)  
+        cov = cov - (tf.eye(2)*cov-tf.eye(2)) 
+        
+        # define scale and loc params for shifting skew2d from (0,0)
+        del1 = tf.einsum('...ji,...jk->...ik',skewa,cov)
+        del2 = tf.einsum('...ij,...jk->...ik',del1,skewa)
+        bCa = tf.einsum('...jk,...ji->...ki',cov,skewa) 
+        
+        aCa = 1. + del2
+        delta = (1. / tf.sqrt(aCa)) * bCa
 
+        scale = final_std / tf.sqrt(1. - 2 * delta**2 / pi)
+        loc = final_mean - scale * delta * tf.sqrt(2/pi)
+
+        # multivariate normal
+        # f(x,y) = ...
+        # https://en.wikipedia.org/wiki/Multivariate_normal_distribution (bivariate case)
         denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr) 
-
         exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
-
-        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
-        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
-        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+        exp_term_1 = (s1 - loc[:,:,0]) * (s1 - loc[:,:,0]) / (scale[:,:,0]*scale[:,:,0])
+        exp_term_2 = (s2 - loc[:,:,1]) * (s2 - loc[:,:,1]) / (scale[:,:,1]*scale[:,:,1])
+        exp_term_3 = -2. * anti_corr * (s1 - loc[:,:,0]) * (s2 - loc[:,:,1]) / (scale[:,:,0] * scale[:,:,1])
 
         mvn_pdf = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
-        
+           
+        # 1d norm cdf
         # Phi(x) = (1 + Erf(x/sqrt(2)))/2
-        Erf_arg = (s1_skew * s1) + (s2_skew * s2)
-        Erf = tf.math.erf( Erf_arg / tf.sqrt(2) )
+        Erf_arg = (s1_skew * (s1-loc[:,:,0])/scale[:,:,0]) + (s2_skew * (s2-loc[:,:,1])/scale[:,:,1])
+        Erf = tf.math.erf( Erf_arg / 1.4142 )
+
         norm_cdf = ( 1 + Erf ) / 2
+
+        # skew2d = f(xmod,ymod)*(2/scale)*Phi(xmod)
+        probs = mvn_pdf * norm_cdf * (2 / (scale[:,:,0]*scale[:,:,1]))
         
-        # skew(s1,s2) = mvn_pdf(s1,s2) * 2 * norm_cdf(alpha1*s1 + alpha2*s2)
-        probs = mvn_pdf * 2 * norm_cdf
+        ###
         
 
         # Add detection/selection efficiency

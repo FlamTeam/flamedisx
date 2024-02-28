@@ -73,6 +73,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     
     @staticmethod # 240213 - AV added
     def signal_skews(energies, s1_skew=0,s2_skew=0):
+        
         s1_skew *= tf.ones_like(energies)
         s2_skew *= tf.ones_like(energies)
         
@@ -137,34 +138,63 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                                ptensor=ptensor)
         
         s1_skew, s2_skew = self.gimme('signal_skews', # 240213 - AV added
-                                        bonus_arg=energy_first,
-                                        ptensor=ptensor)
+                                      bonus_arg=energies,
+                                      ptensor=ptensor)
         
         s1_std = tf.sqrt(s1_var)
         s2_std = tf.sqrt(s2_var)
         
 
         ### 240213 - AV added skew
-        # Define a Bivariate Normal PDF: 
-        ## https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Bivariate_case
+        
+        # adjust dimensionality of input tensors
+        skews1 = s1_skew[:,:,:,o]
+        skews2 = s2_skew[:,:,:,o]
+        skewa = tf.concat([skews1, skews2], axis=-1)[:,:,:,:,o]
+        
+        f_std_s1 = s1_std[:,:,:,o]
+        f_std_s2 = s2_std[:,:,:,o]
+        final_std = tf.concat([f_std_s1, f_std_s2], axis=-1)[:,:,:,:,o]
+        
+        f_mean_s1 = s1_mean[:,:,:,o]
+        f_mean_s2 = s2_mean[:,:,:,o]
+        final_mean = tf.concat([f_mean_s1, f_mean_s2], axis=-1)[:,:,:,:,o]
+        
+        cov = tf.repeat(anti_corr[:,:,:,o], 2, axis=3)  
+        cov = tf.repeat(cov[:,:,:,:,o], 2, axis=4)
+        cov = cov - (tf.eye(2)*cov-tf.eye(2)) 
+        
+        # define scale and loc params for shifting skew2d from (0,0)
+        del1 = tf.einsum('...ji,...jk->...ik',skewa,cov)
+        del2 = tf.einsum('...ij,...jk->...ik',del1,skewa)       
+        bCa = tf.einsum('...jk,...ji->...ki',cov,skewa) 
+        
+        aCa = 1. + del2
+        delta = (1. / tf.sqrt(aCa)) * bCa
+        
+        scale = final_std / tf.sqrt(1. - 2 * delta**2 / pi)
+        loc = final_mean - scale * delta * tf.sqrt(2/pi)
 
+        # multivariate normal
+        # f(x,y) = ...
+        # https://en.wikipedia.org/wiki/Multivariate_normal_distribution (bivariate case)
         denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr) 
-
         exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
-
-        exp_term_1 = (s1 - s1_mean) * (s1 - s1_mean) / s1_var
-        exp_term_2 = (s2 - s2_mean) * (s2 - s2_mean) / s2_var
-        exp_term_3 = -2. * anti_corr * (s1 - s1_mean) * (s2 - s2_mean) / (s1_std * s2_std)
+        exp_term_1 = (s1 - loc[:,:,:,0,0]) * (s1 - loc[:,:,:,0,0]) / (scale[:,:,:,0,0]*scale[:,:,:,0,0])
+        exp_term_2 = (s2 - loc[:,:,:,1,0]) * (s2 - loc[:,:,:,1,0]) / (scale[:,:,:,1,0]*scale[:,:,:,1,0])
+        exp_term_3 = -2. * anti_corr * (s1 - loc[:,:,:,0,0]) * (s2 - loc[:,:,:,1,0]) / (scale[:,:,:,0,0] * scale[:,:,:,1,0])
 
         mvn_pdf = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
         
+        # 1d norm cdf
         # Phi(x) = (1 + Erf(x/sqrt(2)))/2
-        Erf_arg = (s1_skew * s1) + (s2_skew * s2)
-        Erf = tf.math.erf( Erf_arg / tf.sqrt(2) )
+        Erf_arg = (s1_skew * (s1-loc[:,:,:,0,0])/scale[:,:,:,0,0]) + (s2_skew * (s2-loc[:,:,:,1,0])/scale[:,:,:,1,0])
+        Erf = tf.math.erf( Erf_arg / 1.4142 )
+
         norm_cdf = ( 1 + Erf ) / 2
-        
-        # skew(s1,s2) = mvn_pdf(s1,s2) * 2 * norm_cdf(alpha1*s1 + alpha2*s2)
-        probs = mvn_pdf * 2 * norm_cdf
+
+        # skew2d = f(xmod,ymod)*(2/scale)*Phi(xmod)
+        probs = mvn_pdf * norm_cdf * (2 / (scale[:,:,:,0,0]*scale[:,:,:,1,0]))
         
         ###
 
@@ -178,7 +208,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
 
         result = s1_diffs[o, :] @ probs
         result = result @ s2_diffs[:, o]
-        result = result[0][0]
+        result = result[0][0].numpy() # 240228 - AV added .numpy()
 
         return result
 
