@@ -20,16 +20,21 @@ class TestStatistic():
     def __init__(self, likelihood):
         self.likelihood = likelihood
 
-    def guess_value_upper_lim(guess_dict, transform_fns, transform_fns_inverse):
+    def guess_value_lower_lim(self, guess_dict, signal_source_name,
+                              transform_params, transform_fns, transform_fns_inverse):
         for key, value in guess_dict.items():
             if key[-16:] == '_rate_multiplier':
                 if value < 0.1:
                     guess_dict[key] = 0.1
-            elif key in transform_fns:
-                if transform_fns_inverse[key](value) < 0.1:
-                    guess_dict[key] = transform_fns[key](0.1)
+            else:
+                assert transform_params[signal_source_name][0] == key, "Logic does not hold"
+                if transform_fns_inverse[signal_source_name](value) < 0.1:
+                    guess_dict[key] = transform_fns[signal_source_name](0.1)
 
-    def __call__(self, mu_test, signal_source_name, guess_dict, transform_params, transform_fns):
+        return guess_dict
+
+    def __call__(self, mu_test, signal_source_name, guess_dict,
+                 transform_params, transform_fns, transform_fns_inverse):
         # To fix the signal RM in the conditional fit
         if f'{signal_source_name}_rate_multiplier' in self.likelihood.param_defaults:
             fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
@@ -41,6 +46,11 @@ class TestStatistic():
             guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
         else:
             guess_dict_nuisance.pop(transform_params[signal_source_name][0])
+
+        guess_dict = self.guess_value_lower_lim(guess_dict, signal_source_name,
+                                                transform_params, transform_fns, transform_fns_inverse)
+        guess_dict_nuisance = self.guess_value_lower_lim(guess_dict_nuisance, signal_source_name,
+                                                         transform_params, transform_fns, transform_fns_inverse)
 
         # Conditional fit
         bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
@@ -182,6 +192,7 @@ class TSEvaluation():
             ignore_rms: ty.Tuple[str] = None,
             transform_params: ty.Dict[str, ty.Tuple[str, ty.Tuple]] = None,
             transform_fns: ty.Dict[str, ty.Callable] = None,
+            transform_fns_inverse: ty.Dict[str, ty.Callable] = None,
             likelihood_class = fd.LogLikelihood,
             ntoys=1000,
             batch_size=10000):
@@ -233,6 +244,9 @@ class TSEvaluation():
         if transform_fns is None:
             transform_fns = dict()
         self.transform_fns = transform_fns
+        if transform_fns_inverse is None:
+            transform_fns_inverse = dict()
+        self.transform_fns_inverse = transform_fns_inverse
 
         self.likelihood_class = likelihood_class
 
@@ -443,11 +457,9 @@ class TSEvaluation():
             test_statistic_SB = self.test_statistic(likelihood)
             # Guesses for fit
             guess_dict_SB = simulate_dict_SB.copy()
-            for key, value in guess_dict_SB.items():
-                if value < 0.1:
-                    guess_dict_SB[key] = 0.1
             # Evaluate test statistic
-            ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB, self.transform_params, self.transform_fns)
+            ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB,
+                                             self.transform_params, self.transform_fns, self.transform_fns_inverse)
             # Save test statistic, and possibly fits
             ts_values_SB.append(ts_result_SB[0])
             if save_fits:
@@ -465,9 +477,6 @@ class TSEvaluation():
                 else:
                     guess_dict_B[self.transform_params[signal_source_name][0]] = self.transform_fns[signal_source_name](0.)
 
-                for key, value in guess_dict_B.items():
-                    if value < 0.1:
-                        guess_dict_B[key] = 0.1
                 toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
                 constraint_extra_args_B = self.constraint_extra_args_B[toy]
             except Exception:
@@ -480,7 +489,8 @@ class TSEvaluation():
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
             # Evaluate test statistic
-            ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B, self.transform_params, self.transform_fns)
+            ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B,
+                                           self.transform_params, self.transform_fns, self.transform_fns_inverse)
             # Save test statistic, and possibly fits
             ts_values_B.append(ts_result_B[0])
             if save_fits:
@@ -522,11 +532,9 @@ class TSEvaluation():
 
         for background_source in self.background_source_names:
             guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
-        for key, value in guess_dict.items():
-            if value < 0.1:
-                guess_dict[key] = 0.1
         # Evaluate test statistic
-        ts_result = test_statistic(mu_test, signal_source_name, guess_dict, self.transform_params, self.transform_fns)
+        ts_result = test_statistic(mu_test, signal_source_name, guess_dict,
+                                   self.transform_params, self.transform_fns, self.transform_fns_inverse)
 
         # Add to the test statistic collection
         observed_test_stats.add_test_stat(mu_test, ts_result[0])
