@@ -145,7 +145,7 @@ class Objective:
 
             # For bounded parameters, use (right_bound - left_bound) as the scale
             #     and the guess as the offset.
-            left, right = self.bounds.get(param_name, (None, None))
+            left, right =(1e-9, None)
             if left is not None and right is not None:
                 scale = right - left
                 offset = guess
