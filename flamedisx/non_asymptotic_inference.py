@@ -28,8 +28,10 @@ class TestStatistic():
                     guess_dict[key] = 0.1
             else:
                 assert transform_params[signal_source_name][0] == key, "Logic does not hold"
-                if transform_fns_inverse[signal_source_name](value) < 0.1:
-                    guess_dict[key] = transform_fns[signal_source_name](0.1)
+                if transform_fns_inverse[signal_source_name](self.likelihood.sources[signal_source_name],
+                                                             value) < 0.1:
+                    guess_dict[key] = transform_fns[signal_source_name](self.likelihood.sources[signal_source_name],
+                                                                        0.1)
 
         return guess_dict
 
@@ -39,7 +41,8 @@ class TestStatistic():
         if f'{signal_source_name}_rate_multiplier' in self.likelihood.param_defaults:
             fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
         else:
-            fix_dict = {transform_params[signal_source_name][0]: transform_fns[signal_source_name](mu_test)}
+            fix_dict = {transform_params[signal_source_name][0]: transform_fns[signal_source_name](self.likelihood.sources[signal_source_name],
+                                                                                                   mu_test)}
 
         guess_dict_nuisance = guess_dict.copy()
         if f'{signal_source_name}_rate_multiplier' in self.likelihood.param_defaults:
@@ -424,7 +427,8 @@ class TSEvaluation():
             if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
                 simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
             else:
-                simulate_dict[self.transform_params[signal_source_name][0]] = self.transform_fns[signal_source_name](mu_test)
+                simulate_dict[self.transform_params[signal_source_name][0]] = self.transform_fns[signal_source_name](likelihood.sources[signal_source_name],
+                                                                                                                     mu_test)
 
         toy_data = likelihood.simulate(**simulate_dict)
 
@@ -475,7 +479,8 @@ class TSEvaluation():
                 if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
                     guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
                 else:
-                    guess_dict_B[self.transform_params[signal_source_name][0]] = self.transform_fns[signal_source_name](0.)
+                    guess_dict_B[self.transform_params[signal_source_name][0]] = self.transform_fns[signal_source_name](likelihood.sources[signal_source_name],
+                                                                                                                        0.)
 
                 toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
                 constraint_extra_args_B = self.constraint_extra_args_B[toy]
@@ -528,7 +533,8 @@ class TSEvaluation():
         if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
             guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
         else:
-            guess_dict = {self.transform_params[signal_source_name][0]: self.transform_fns[signal_source_name](mu_test)}
+            guess_dict = {self.transform_params[signal_source_name][0]: self.transform_fns[signal_source_name](likelihood.sources[signal_source_name],
+                                                                                                               mu_test)}
 
         for background_source in self.background_source_names:
             guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
