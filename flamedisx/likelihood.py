@@ -128,6 +128,7 @@ class LogLikelihood:
         if isinstance(data, pd.DataFrame) or data is None:
             # Only one dataset
             data = {DEFAULT_DSETNAME: data}
+
         if not isinstance(list(sources.values())[0], dict):
             # Sources only specified for one dataset
             assert len(data) == 1, "Specify which sources belong to which dataset"
@@ -272,6 +273,8 @@ class LogLikelihood:
             for s in self.sources.values():
                 s.set_data(None)
                 return
+            
+        print('before batch info line 276')
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=int)
 
