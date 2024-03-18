@@ -85,7 +85,9 @@ class TemplateWrapper:
             self._interpolator = scipy.interpolate.RegularGridInterpolator(
                 points=tuple(bin_centers),
                 values=self._mh_diff_rate.histogram,
-                method='linear')
+                method='linear',
+                fill_value=None,
+                bounds_error=False)
         else:
             self._interpolator = None
 
