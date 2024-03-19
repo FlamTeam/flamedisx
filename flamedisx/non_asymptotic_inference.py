@@ -396,8 +396,6 @@ class TSEvaluation():
             
             simulate_dict[f'{svp}'] = expected_svp
         simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
-        for k, v in simulate_dict.items():
-            print(k, v)
         toy_data = likelihood.simulate(**simulate_dict)
 
         return simulate_dict, toy_data, constraint_extra_args
