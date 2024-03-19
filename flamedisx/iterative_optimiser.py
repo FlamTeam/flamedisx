@@ -25,7 +25,7 @@ class IterativeOptimiser():
                  bounds: ty.Dict[str, ty.Tuple[float]] = None,
                  guess_dict: ty.Dict[str, float] = None,
                  log_constraint = None,
-                 batch_size=5000,
+                 batch_size=5000,  
                  n_iterations=5):
 
         self.batch_size = batch_size

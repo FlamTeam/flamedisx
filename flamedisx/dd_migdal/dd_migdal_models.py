@@ -1,6 +1,7 @@
 from copy import copy
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 import os
 
@@ -20,6 +21,82 @@ o = tf.newaxis
 
 import numba as nb
 
+import matplotlib.pyplot as plt ###
+import matplotlib as mpl
+
+
+###
+# filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam.npz'
+filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240309.npz'
+with np.load(filename) as f:
+    fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
+    
+def interp_nd(x):
+        
+    # print('x',tf.shape(x))
+    # Define x_grid_points for interpolation
+    part1 = tf.cast(tf.experimental.numpy.geomspace(1,4,7), fd.float_type())
+    part2 = tf.cast(tf.experimental.numpy.geomspace(4,80,23), fd.float_type())[1:]
+    keVnr_choices = tf.concat([part1,part2],axis=0)
+    
+    # print(np.shape(keVnr_choices))
+    # print(tf.shape(keVnr_choices))
+
+    Fi_grid = tf.cast([0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                  # Fano ion
+    Fex_grid = tf.cast([0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75], fd.float_type())        # Fano exciton
+    NBamp_grid = tf.cast([0.,0.02,0.04], fd.float_type())   # amplitude for non-binomial NR recombination fluctuations
+    NBloc = tf.cast([0.4,0.45,0.5,0.55], fd.float_type())                       # non-binomial: loc of elecfrac
+    RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.,13.], fd.float_type())              # raw skewness
+
+    x_grid_points = (Fi_grid, Fex_grid, NBamp_grid, NBloc, RawSkew_grid, keVnr_choices)
+
+    #define reference function values --> f(x_grid_points)
+    y_ref = tf.cast(fit_values_allkeVnr_allparam, fd.float_type()), # want shape = (1, ...)
+
+    # nd interpolation of points "x" to determine Edependance of various values
+
+    interp = tfp.math.batch_interp_rectilinear_nd_grid(x=x,
+                                                       x_grid_points=x_grid_points,
+                                                       y_ref=y_ref,
+                                                       axis=1,
+                                                       )[0] # o/p shape (1, len(E), 7)
+                                                            # want shape   (len(E), 7)
+
+    # print('interpo final shape: ',np.shape(interp))
+    # print('interpo final shape: ',tf.shape(interp))
+    return interp 
+    
+def skewnorm_1d(x,x_std,x_mean,x_alpha):
+
+    # define scale and loc params for shifting skew2d from x=0
+    skewa = x_alpha
+    final_std = x_std
+    final_mean = x_mean
+
+    delta = (skewa / tf.sqrt(1. + skewa**2))
+    scale = final_std / tf.sqrt(1. - 2 * delta**2 / pi)
+    loc = final_mean - scale * delta * tf.sqrt(2 / pi)
+
+
+    denominator = tf.sqrt( 2. * pi * x_std * x_std )
+    exp_prefactor = -1. / 2 
+    exp_term_1 = (x - loc) * (x - loc) / (scale*scale)
+
+
+    norm_pdf = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1))
+
+    # Phi(x) = (1 + Erf(x/sqrt(2)))/2
+    Erf_arg = (x_alpha * (x-loc)/scale)
+    Erf = tf.math.erf( Erf_arg / 1.4142 )
+
+    norm_cdf = ( 1 + Erf ) / 2
+
+    # skew1d = norm(x_mod)*(2*std/scale)*normcdf(xmod)
+    probs = norm_pdf * norm_cdf * (2*final_std / scale)
+
+    return probs
+        
+###
 
 @export
 class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
@@ -42,7 +119,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
 
     def mu_before_efficiencies(self, **params):
         return 1.
-
+    
+    #### Old Yield Model
     @staticmethod
     def signal_means(energy, a=13.1895962, b=1.06532331,
                      c_s2_0=3.70318382, c_s2_1=-3.49159718, c_s2_2=0.07861683,
@@ -78,7 +156,40 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         s2_skew *= tf.ones_like(energies)
         
         return s1_skew, s2_skew
-
+    
+    
+    ### New Yield Model # 240305 - AV added
+    ### params --> {alpha, beta, gamma, delta, epsilon, Fi, Fex, NBamp, RawSkew}
+    @staticmethod
+    def yield_params(energies, yalpha=11.0,ybeta=1.1,ygamma=0.0480,ydelta=-0.0533,yepsilon=12.6):
+        
+        Efield = 193.
+        rho = 2.9
+        
+        ThomasImel = ygamma * Efield**ydelta * (rho/2.90)**0.3
+        
+        Qy = 1 / ThomasImel / tf.sqrt( energies + yepsilon) * ( 1 - 1/(1 + (energies/0.3)**2) )
+        Ne_mean = Qy * energies
+        
+        Ly = yalpha * energies**ybeta - Ne_mean
+        Nph_mean = Ly * (1 - 1/(1 + (energies/0.3)**2) )
+        
+        return Nph_mean, Ne_mean
+    
+    @staticmethod
+    def quanta_params(energies, Fi=0.4,Fex=0.4,NBamp=0.0,NBloc=0.0,RawSkew=2.25):
+        
+        Fi *= tf.ones_like(energies)
+        Fex *= tf.ones_like(energies)
+        NBamp *= tf.ones_like(energies)
+        NBloc *= tf.ones_like(energies)
+        RawSkew *= tf.ones_like(energies)
+        
+        return Fi, Fex, NBamp, NBloc, RawSkew
+    
+    
+    ###
+    
     def get_s2(self, s2):
         return s2
 
@@ -89,7 +200,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         s2_acc = tf.where((s2 < s2_min) | (s2 > s2_max),
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
-        s1s2_acc = tf.where((s2 > 200*s1**(0.73)),
+        
+        s1s2_acc = tf.where((s2 > 200*s1**(0.73)), ### turn off for testing  TURN BACK ON!!!!!!!!!!
                             tf.ones_like(s2, dtype=fd.float_type()),
                             tf.zeros_like(s2, dtype=fd.float_type()))
         nr_endpoint = tf.where((s1 > 140) & (s2 > 8e3) & (s2 < 11.5e3),
@@ -97,12 +209,25 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                             tf.ones_like(s2, dtype=fd.float_type()))
 
         return (s1_acc * s2_acc * s1s2_acc * nr_endpoint)
+        # return (s1_acc * s2_acc) # for testing
 
     final_dimensions = ('s1',)
-
+    
     def estimate_mu(self, **params):
         ptensor = self.ptensor_from_kwargs(**params)
-
+        
+        # Quanta Binning
+        Nph_edges = tf.cast(tf.linspace(30,1400,90), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(10,320,95), fd.float_type())
+        Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1])
+        Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1])
+        Nph_diffs = tf.experimental.numpy.diff(Nph_edges)
+        Ne_diffs  = tf.experimental.numpy.diff(Ne_edges)
+        
+        tempX, tempY = tf.meshgrid(Nph,Ne,indexing='ij')
+        NphNe = tf.stack((tempX, tempY),axis=2)
+        
+        # S1S2 binning
         s1_edges = tf.cast(tf.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100), fd.float_type())
         s2_edges = tf.cast(tf.experimental.numpy.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 100), fd.float_type())
         s1 = 0.5 * (s1_edges[1:] + s1_edges[:-1])
@@ -110,107 +235,158 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         s1_diffs = tf.experimental.numpy.diff(s1_edges)
         s2_diffs = tf.experimental.numpy.diff(s2_edges)
 
+        S1_pos = tf.repeat(s1[:,o],len(Nph),axis=1)
+        S2_pos = tf.repeat(s2[:,o],len(Ne),axis=1)
+        
+        S1_mesh, S2_mesh = tf.meshgrid(s1,s2,indexing='ij')
+
+        # Energy binning
         energies = fd.np_to_tf(self.energies_first)
         rates_vs_energy = fd.np_to_tf(self.rates_vs_energy_first)
-
-        s1 = tf.repeat(s1[:, o], tf.shape(s2), axis=1)
-        s1 = tf.repeat(s1[:, :, o], tf.shape(energies), axis=2)
-
-        s2 = tf.repeat(s2[o, :], tf.shape(s1)[0], axis=0)
-        s2 = tf.repeat(s2[:, :, o], tf.shape(energies), axis=2)
-
-        energies = tf.repeat(energies[o, :], tf.shape(s1)[0], axis=0)
-        energies = tf.repeat(energies[:, o, :], tf.shape(s1)[1], axis=1)
-
-        rates_vs_energy = tf.repeat(rates_vs_energy[o, :], tf.shape(s1)[0], axis=0)
-        rates_vs_energy = tf.repeat(rates_vs_energy[:, o, :], tf.shape(s1)[1], axis=1)
-
-        s1_mean, s2_mean = self.gimme('signal_means',
-                                      bonus_arg=energies,
-                                      ptensor=ptensor)
-
-        s1_var, s2_var = self.gimme('signal_vars',
-                                    bonus_arg=(s1_mean, s2_mean),
-                                    ptensor=ptensor)
         
-        anti_corr = self.gimme('signal_corr',
-                               bonus_arg=energies,
-                               ptensor=ptensor)
         
-        s1_skew, s2_skew = self.gimme('signal_skews', # 240213 - AV added
-                                      bonus_arg=energies,
-                                      ptensor=ptensor)
+        # Load params
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energies, 
+                                        ptensor=ptensor)
         
-        s1_std = tf.sqrt(s1_var)
-        s2_std = tf.sqrt(s2_var)
+        Fi, Fex, NBamp, NBloc, RawSkew = self.gimme('quanta_params',
+                                                     bonus_arg=energies, 
+                                                     ptensor=ptensor)
         
+        xcoords_skew2D = tf.stack((Fi, Fex, NBamp, NBloc, RawSkew, energies), axis=-1)
+        skew2D_model_param = interp_nd(x=xcoords_skew2D)
+        
+        Nph_std = tf.sqrt(skew2D_model_param[:,2]**2 / skew2D_model_param[:,0] * Nph_mean)
+        Ne_std = tf.sqrt(skew2D_model_param[:,3]**2 / skew2D_model_param[:,1] * Ne_mean)
+        Nph_skew = skew2D_model_param[:,4]
+        Ne_skew = skew2D_model_param[:,5]    
+        initial_corr = skew2D_model_param[:,6]
+        
+        ### Quanta Production
+        x = NphNe[:,:,0]
+        x = tf.repeat(x[:,:,o],len(energies),axis=2)
 
-        ### 240213 - AV added skew
+        y = NphNe[:,:,1]
+        y = tf.repeat(y[:,:,o],len(energies),axis=2) 
+
+        x_mean = Nph_mean
+        y_mean = Ne_mean
+        x_std = Nph_std
+        y_std = Ne_std
+        anti_corr = initial_corr
+        x_skew = Nph_skew
+        y_skew = Ne_skew
         
         # adjust dimensionality of input tensors
-        skews1 = s1_skew[:,:,:,o]
-        skews2 = s2_skew[:,:,:,o]
-        skewa = tf.concat([skews1, skews2], axis=-1)[:,:,:,:,o]
-        
-        f_std_s1 = s1_std[:,:,:,o]
-        f_std_s2 = s2_std[:,:,:,o]
-        final_std = tf.concat([f_std_s1, f_std_s2], axis=-1)[:,:,:,:,o]
-        
-        f_mean_s1 = s1_mean[:,:,:,o]
-        f_mean_s2 = s2_mean[:,:,:,o]
-        final_mean = tf.concat([f_mean_s1, f_mean_s2], axis=-1)[:,:,:,:,o]
-        
-        cov = tf.repeat(anti_corr[:,:,:,o], 2, axis=3)  
-        cov = tf.repeat(cov[:,:,:,:,o], 2, axis=4)
+        skews1 = x_skew[:,o]
+        skews2 = y_skew[:,o]
+        skewa = tf.concat([skews1, skews2], axis=-1)[:,:,o]
+
+        f_std_x = x_std[:,o]
+        f_std_y = y_std[:,o]
+        final_std = tf.concat([f_std_x, f_std_y], axis=-1)[:,:,o]
+
+        f_mean_x = x_mean[:,o]
+        f_mean_y = y_mean[:,o]
+        final_mean = tf.concat([f_mean_x, f_mean_y], axis=-1)[:,:,o]
+
+        cov = tf.repeat(anti_corr[:,o], 2, axis=1)  
+        cov = tf.repeat(cov[:,:,o], 2, axis=2)
         cov = cov - (tf.eye(2)*cov-tf.eye(2)) 
-        
+
         # define scale and loc params for shifting skew2d from (0,0)
         del1 = tf.einsum('...ji,...jk->...ik',skewa,cov)
         del2 = tf.einsum('...ij,...jk->...ik',del1,skewa)       
         bCa = tf.einsum('...jk,...ji->...ki',cov,skewa) 
-        
+
         aCa = 1. + del2
         delta = (1. / tf.sqrt(aCa)) * bCa
-        
+
         scale = final_std / tf.sqrt(1. - 2 * delta**2 / pi)
         loc = final_mean - scale * delta * tf.sqrt(2/pi)
 
         # multivariate normal
         # f(x,y) = ...
         # https://en.wikipedia.org/wiki/Multivariate_normal_distribution (bivariate case)
-        denominator = 2. * pi * s1_std * s2_std * tf.sqrt(1. - anti_corr * anti_corr) 
+        denominator = 2. * pi * x_std * y_std * tf.sqrt(1. - anti_corr * anti_corr) 
         exp_prefactor = -1. / (2 * (1. - anti_corr * anti_corr))
-        exp_term_1 = (s1 - loc[:,:,:,0,0]) * (s1 - loc[:,:,:,0,0]) / (scale[:,:,:,0,0]*scale[:,:,:,0,0])
-        exp_term_2 = (s2 - loc[:,:,:,1,0]) * (s2 - loc[:,:,:,1,0]) / (scale[:,:,:,1,0]*scale[:,:,:,1,0])
-        exp_term_3 = -2. * anti_corr * (s1 - loc[:,:,:,0,0]) * (s2 - loc[:,:,:,1,0]) / (scale[:,:,:,0,0] * scale[:,:,:,1,0])
+        exp_term_1 = (x - loc[:,0,0]) * (x - loc[:,0,0]) / (scale[:,0,0]*scale[:,0,0])
+        exp_term_2 = (y - loc[:,1,0]) * (y - loc[:,1,0]) / (scale[:,1,0]*scale[:,1,0])
+        exp_term_3 = -2. * anti_corr * (x - loc[:,0,0]) * (y - loc[:,1,0]) / (scale[:,0,0] * scale[:,1,0])
 
         mvn_pdf = 1. / denominator * tf.exp(exp_prefactor * (exp_term_1 + exp_term_2 + exp_term_3))
-        
+
         # 1d norm cdf
         # Phi(x) = (1 + Erf(x/sqrt(2)))/2
-        Erf_arg = (s1_skew * (s1-loc[:,:,:,0,0])/scale[:,:,:,0,0]) + (s2_skew * (s2-loc[:,:,:,1,0])/scale[:,:,:,1,0])
+        Erf_arg = (x_skew * (x-loc[:,0,0])/scale[:,0,0]) + (y_skew * (y-loc[:,1,0])/scale[:,1,0])
         Erf = tf.math.erf( Erf_arg / 1.4142 )
 
         norm_cdf = ( 1 + Erf ) / 2
 
-        # skew2d = f(xmod,ymod)*(2/scale)*Phi(xmod)
-        probs = mvn_pdf * norm_cdf * (2 / (scale[:,:,:,0,0]*scale[:,:,:,1,0]))
-        
-        ###
-
-        acceptance = self.gimme('s1s2_acceptance',
-                                bonus_arg=(s1, s2),
-                                special_call=True)
-        probs *= acceptance
+        # skew2d = f(xmod,ymod)*Phi(xmod)*(2/scale)
+        probs = mvn_pdf * norm_cdf * (2 / (scale[:,0,0]*scale[:,1,0])) * (final_std[:,0,0]*final_std[:,1,0])
+    
         probs *= rates_vs_energy
-
         probs = tf.reduce_sum(probs, axis=2)
+        
+        NphNe_pdf = probs*Nph_diffs[0]*Ne_diffs[0]
+        
+        
+        ### S1,S2 Yield
+        g1 = 0.1131
+        g2 = 47.35
 
-        result = s1_diffs[o, :] @ probs
-        result = result @ s2_diffs[:, o]
-        result = result[0][0].numpy() # 240228 - AV added .numpy()
+        S1_mean = Nph*g1     
+        S1_fano = 1.12145985 * Nph**(-0.00629895)
+        S1_std = tf.sqrt(S1_mean*S1_fano)
+        S1_skew = 4.61849047 * Nph**(-0.23931848)
 
-        return result
+        S2_mean = Ne*g2
+        S2_fano = 21.3
+        S2_std = tf.sqrt(S2_mean*S2_fano)
+        S2_skew = -2.37542105 *  Ne** (-0.26152676)
+
+
+        S1_pdf = skewnorm_1d(x=S1_pos,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew)
+        S1_pdf = tf.repeat(S1_pdf[:,o,:],len(s2),1)
+        S1_pdf = tf.repeat(S1_pdf[:,:,:,o],len(Ne),3)
+
+        S2_pdf = skewnorm_1d(x=S2_pos,x_mean=S2_mean,x_std=S2_std,x_alpha=S2_skew)
+        S2_pdf = tf.repeat(S2_pdf[o,:,:],len(s1),0)
+        S2_pdf = tf.repeat(S2_pdf[:,:,o,:],len(Nph),2)
+
+        S1S2_pdf = S1_pdf * S2_pdf * NphNe_pdf
+
+        # sum over all Nph, Ne
+        S1S2_pdf = tf.reduce_sum(S1S2_pdf,axis=3)
+        S1S2_pdf = tf.reduce_sum(S1S2_pdf,axis=2)
+        
+        
+        # account for S1,S2 space fiducial ROI acceptance
+        acceptance = self.gimme('s1s2_acceptance',
+                                bonus_arg=(S1_mesh, S2_mesh),
+                                special_call=True)
+        S1S2_pdf *= acceptance
+        
+        # plt.pcolormesh(s1,s2,tf.transpose(S1S2_pdf).numpy(),cmap='jet',norm=mpl.colors.LogNorm(vmin=1e-9))
+        # plt.xlabel('S1 [phd]')
+        # plt.ylabel('S2 [phd]')
+        # plt.xscale('log')
+        # plt.yscale('log')
+        # plt.xlim(s1_edges[0],s1_edges[-1])
+        # plt.ylim(s2_edges[0],s2_edges[-1])
+        
+        # rescale by the S1,S2 bin width
+        mu_est = s1_diffs[o, :] @ S1S2_pdf
+        mu_est = mu_est @ s2_diffs[:, o]
+        mu_est = mu_est[0][0]
+        
+        return mu_est
+
+        
+        
+
 
 @export
 class NRNRSource(NRSource):

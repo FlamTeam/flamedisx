@@ -52,13 +52,13 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
         spectrum *= self.source.mu_before_efficiencies()
 
-        spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate',
+        spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate', ### turn off to test s1s2 diff rates alone! TODO
                                          data_tensor=data_tensor,
                                          ptensor=ptensor)[:, o],
                               tf.shape(self.energies_first),
                               axis=1)
 
-        spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',
+        spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',  ### turn off to test s1s2 diff rates alone! TODO
                                          data_tensor=data_tensor,
                                          ptensor=ptensor)[:, o],
                               tf.shape(self.energies_first),

@@ -361,6 +361,7 @@ class BlockModelSource(fd.Source):
         already_stepped = ()  # Avoid double-multiplying to account for stepping
 
         for b in self.model_blocks:
+            # print('block: ',b)
             b_dims = b.dimensions
             # These are the the dimensions we will do variable stepping over
             scaling_dims = b.dimensions + tuple([bonus_dimension[0] for
