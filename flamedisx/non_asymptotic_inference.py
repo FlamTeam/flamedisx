@@ -339,7 +339,7 @@ class TSEvaluation():
         if observed_data is not None:
             return observed_test_stats_collection
         else:
-            return test_stat_dists_SB_collection, test_stat_dists_B_collection
+            return test_stat_dists_SB_collection, testx_stat_dists_B_collection
 
     def sample_data_constraints(self, mu_test, signal_source_name, likelihood):
         """Internal function to sample the toy data and constraint central values
@@ -372,8 +372,32 @@ class TSEvaluation():
                 constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
             simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
-            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+        
+        for svp in self.shape_varying_params.keys():
+            if self.observed_test_stats is not None:
+                try:
+                    conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits
+                    expected_svp = \
+                        conditional_bfs_observed[mu_test][f'{svp}']
+                except Exception:
+                    raise RuntimeError("Could not find observed conditional best fits")
+            # Case where we use the prior expected counts as constraint centers and simualted values
+            else:
+                expected_svp = self.common_defaults[svp]
+                
+            if svp in self.gaussian_constraint_widths:
+                draw = stats.norm.rvs(loc=expected_svp,
+                                      scale=self.gaussian_constraint_widths[svp])
+                constraint_extra_args[f'{svp}'] = tf.cast(draw, fd.float_type())
 
+            elif svp in self.sample_other_constraints:
+                draw = self.sample_other_constraints[svp](expected_svp)
+                constraint_extra_args[f'{svp}'] = tf.cast(draw, fd.float_type())
+            
+            simulate_dict[f'{svp}'] = expected_svp
+        simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+        for k, v in simulate_dict.items():
+            print(k, v)
         toy_data = likelihood.simulate(**simulate_dict)
 
         return simulate_dict, toy_data, constraint_extra_args
