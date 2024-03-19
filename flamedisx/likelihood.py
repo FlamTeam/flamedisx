@@ -128,7 +128,6 @@ class LogLikelihood:
         if isinstance(data, pd.DataFrame) or data is None:
             # Only one dataset
             data = {DEFAULT_DSETNAME: data}
-
         if not isinstance(list(sources.values())[0], dict):
             # Sources only specified for one dataset
             assert len(data) == 1, "Specify which sources belong to which dataset"
@@ -272,31 +271,16 @@ class LogLikelihood:
                               UserWarning)
             for s in self.sources.values():
                 s.set_data(None)
-                return   
-
-        self.dsetnames = ['SR1','SR3']
-    
-        self.sources_in_dset = dict()
-        self.sources_in_dset['SR1'] = []
-        self.sources_in_dset['SR3'] = []
-        for source in self.sources:
-            spl = source.split('_')
-            component_name = spl[-1]
-            if component_name == 'SR1':
-                self.dset_for_source[source] = 'SR1'
-                self.sources_in_dset['SR1'].append(source)
-            elif component_name == 'SR3':
-                self.dset_for_source[source] = 'SR3'
-                self.sources_in_dset['SR3'].append(source)
+                return
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=int)
 
         for sname, source in self.sources.items():
             dname = self.dset_for_source[sname]
-            if dname not in data.keys():
+            if dname not in data:
                 warnings.warn(f"Dataset {dname} not provided in set_data")
                 continue
-   
+
             # Copy ensures annotations don't clobber
             source.set_data(deepcopy(data[dname]))
 
@@ -308,13 +292,12 @@ class LogLikelihood:
         # Choose sensible default rate multiplier guesses:
         #  (1) Assume each free source produces just 1 event
         for sname in self.sources:
-            if self.dset_for_source[sname] not in data.keys():
+            if self.dset_for_source[sname] not in data:
                 # This dataset is not being updated, skip
                 continue
-            
             rmname = sname + '_rate_multiplier'
             if rmname in self.param_names:
-                n_expected = self.mu(source_name=sname,dataset_name=self.dset_for_source[sname]).numpy()
+                n_expected = self.mu(source_name=sname).numpy()
                 assert n_expected >= 0
                 self.param_defaults[rmname] = (
                     self.param_defaults[rmname] / n_expected)
