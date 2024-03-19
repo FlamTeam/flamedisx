@@ -164,6 +164,8 @@ class TSEvaluation():
             sample_other_constraints: ty.Dict[str, ty.Callable] = None,
             rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
             log_constraint_fn: ty.Callable = None,
+            shape_varying_params: ty.Dict[str, ty.Tuple[float, float, float]] = None,
+            common_defaults: ty.Dict[str, float] = None,
             ntoys=1000,
             batch_size=10000):
 
@@ -190,6 +192,15 @@ class TSEvaluation():
         else:
             self.log_constraint_fn = log_constraint_fn
 
+        if shape_varying_params is None:
+            self.shape_varying_params = dict()
+        else:
+            self.shape_varying_params = shape_varying_params
+        if common_defaults is None:
+            self.common_defaults = dict()
+        else:
+            self.common_defaults = common_defaults
+            
         self.ntoys = ntoys
         self.batch_size = batch_size
 
@@ -278,7 +289,9 @@ class TSEvaluation():
                                           arguments=arguments,
                                           progress=False,
                                           batch_size=self.batch_size,
-                                          free_rates=tuple([sname for sname in sources.keys()]))
+                                          free_rates=tuple([sname for sname in sources.keys()]),
+                                          defaults=self.common_defaults,
+                                          **self.shape_varying_params)
 
             rm_bounds = dict()
             if signal_source in self.rm_bounds.keys():
