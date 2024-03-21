@@ -197,6 +197,8 @@ class TSEvaluation():
             transform_fns: ty.Dict[str, ty.Callable] = None,
             transform_fns_inverse: ty.Dict[str, ty.Callable] = None,
             likelihood_class = fd.LogLikelihood,
+            common_params: ty.Dict[str, ty.Tuple[float, float, float]] = None,
+            common_defaults: ty.Dict[str, float] = None,
             ntoys=1000,
             batch_size=10000):
 
@@ -222,7 +224,17 @@ class TSEvaluation():
             self.log_constraint_fn = log_constraint_fn
         else:
             self.log_constraint_fn = log_constraint_fn
-
+            
+        if common_params is None:
+            self.common_params = dict()
+        else:
+            self.common_params = common_params
+        
+        if common_defaults is None:
+            self.common_defaults = dict()
+        else:
+            self.common_defaults = common_defaults
+        
         self.ntoys = ntoys
         self.batch_size = batch_size
 
