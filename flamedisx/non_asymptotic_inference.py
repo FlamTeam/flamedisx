@@ -351,12 +351,16 @@ class TSEvaluation():
             for source in sources:
                 if source in self.transform_params:
                     kwargs[self.transform_params[source][0]] = self.transform_params[source][1]
+            
+            for param in self.common_params.keys():
+                kwargs[param] = self.common_params[source]
 
             likelihood = self.likelihood_class(sources=sources,
                                                arguments=arguments,
                                                progress=False,
                                                batch_size=self.batch_size,
                                                free_rates=free_rates,
+                                               defaults=self.common_defaults,
                                                **kwargs)
 
             rm_bounds = dict()
