@@ -421,21 +421,28 @@ class TSEvaluation():
         following a frequentist procedure. Method taken depends on whether conditional
         best fits were passed.
         """
+        if self.observed_test_stats is not None:
+            try:
+                conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits[mu_test]
+                have_bestfit_params = True
+                kwargs = {k:v for k, v in conditional_bfs_observed.items() if k in common_params.keys()}
+            except Exception:
+                raise RuntimeError("Could not find observed conditional best fits")
+        else:
+            have_bestfit_params = False
+            kwargs = self.common_defaults
         simulate_dict = dict()
         constraint_extra_args = dict()
+        
         for background_source in self.background_source_names:
-            # Case where we use the conditional best fits as constraint centers and simulated values
-            if self.observed_test_stats is not None:
-                try:
-                    conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits
-                    expected_background_counts = \
-                        conditional_bfs_observed[mu_test][f'{background_source}_rate_multiplier']
-                except Exception:
-                    raise RuntimeError("Could not find observed conditional best fits")
-            # Case where we use the prior expected counts as constraint centers and simualted values
+            if f'{background_source}_rate_multiplier' in likelihood.param_defaults:
+                if have_bestfit_params:
+                    expected_background_counts = conditional_bfs_observed[f'{background_source}_rate_multiplier']
+                else:
+                    expected_background_counts = self.expected_background_counts[background_source]
             else:
-                expected_background_counts = self.expected_background_counts[background_source]
-
+                simulate_dict[self.transform_params[background_source][0]] = self.transform_fns[background_source](background_source, likelihood.sources, **kwargs)
+                continue
             # Sample constraint centers
             if background_source in self.gaussian_constraint_widths:
                 draw = stats.norm.rvs(loc=expected_background_counts,
@@ -445,14 +452,30 @@ class TSEvaluation():
             elif background_source in self.sample_other_constraints:
                 draw = self.sample_other_constraints[background_source](expected_background_counts)
                 constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
-
+                
             simulate_dict[f'{background_source}_rate_multiplier'] = expected_background_counts
-
-            if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
-                simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+            
+        for cp in self.common_params.keys():
+            if have_bestfit_params:
+                expected_cp = conditional_bfs_observed[mu_test][f'{cp}']
             else:
-                simulate_dict[self.transform_params[signal_source_name][0]] = self.transform_fns[signal_source_name](signal_source_name, likelihood.sources,
-                                                                                                                     mu_test)
+                expected_cp = self.common_defaults[cp]          
+
+            if cp in self.gaussian_constraint_widths:
+                draw = stats.norm.rvs(loc=expected_cp,
+                                      scale=self.gaussian_constraint_widths[cp])
+                constraint_extra_args[f'{cp}'] = tf.cast(draw, fd.float_type())
+
+            elif cp in self.sample_other_constraints:
+                draw = self.sample_other_constraints[cp](expected_cp)
+                constraint_extra_args[f'{cp}'] = tf.cast(draw, fd.float_type())
+
+            simulate_dict[f'{svp}'] = expected_cp
+
+        if f'{signal_source_name}_rate_multiplier' in likelihood.param_defaults:
+            simulate_dict[f'{signal_source_name}_rate_multiplier'] = mu_test
+        else:
+            simulate_dict[self.transform_params[signal_source_name][0]] = self.transform_fns[signal_source_name](signal_source_name, likelihood.sources, mu_test)
 
         toy_data = likelihood.simulate(**simulate_dict)
 
