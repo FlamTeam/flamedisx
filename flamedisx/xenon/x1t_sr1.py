@@ -189,10 +189,10 @@ class SR1Source:
     path_cut_accept_s2 = ('cut_acceptance/XENON1T/S2AcceptanceSR1_v7_Median.json',)
 
     # Pax reconstruction bias maps
-    path_reconstruction_bias_s1 = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_median.json',)
-    path_reconstruction_smear_s1 = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_std.json',)
-    path_reconstruction_bias_s2 = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_median.json',)
-    path_reconstruction_smear_s2 = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_std.json',)
+    path_reconstruction_bias_s1 = ('nt_maps/reconstruction_bias/s1_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s1 = ('nt_maps/reconstruction_bias/s1_reconstruction_bias_std.json',)
+    path_reconstruction_bias_s2 = ('nt_maps/reconstruction_bias/s2_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s2 = ('nt_maps/reconstruction_bias/s2_reconstruction_bias_std.json',)
 
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
     path_reconstruction_efficiencies_s1 = (
