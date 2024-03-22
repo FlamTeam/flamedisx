@@ -375,11 +375,11 @@ class SR1Source:
         # Add cS1 and cS2 following XENON conventions.
         # Skip this if s1/s2 are not known, since we're simulating
         # TODO: This is a kludge...
-        if 's1_raw' in d.columns:
-            d['cs1'] = d['s1_raw'] / d['s1_relative_ly']
-        if 's2_raw' in d.columns:
+        if 's1' in d.columns:
+            d['cs1'] = d['s1'] / d['s1_relative_ly']
+        if 's2' in d.columns:
             d['cs2'] = (
-                d['s2_raw']
+                d['s2']
                 / d['s2_relative_ly']
                 * np.exp(d['drift_time'] / d['elife']))
     
@@ -424,24 +424,24 @@ class SR1Source:
             self.domain_def_ph,
             s1_reconstruction_efficiency_pivot)
 
-    def s1_raw_acceptance(self,
-                      s1_raw,
+    def s1_acceptance(self,
+                      s1,
                       cs1,
                       # Only used here, DEFAULT_.. would be super verbose
                       cs1_min=3.,
                       cs1_max=70.):
         acceptance = tf.where((cs1 > cs1_min) & (cs1 < cs1_max),
-                              tf.ones_like(s1_raw, dtype=fd.float_type()),
-                              tf.zeros_like(s1_raw, dtype=fd.float_type()))
+                              tf.ones_like(s1, dtype=fd.float_type()),
+                              tf.zeros_like(s1, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= interpolate_tf(s1_raw,
+        acceptance *= interpolate_tf(s1,
                                      self.cut_accept_map_s1[0],
                                      self.cut_accept_domain_s1)
         return acceptance
 
-    def s2_raw_acceptance(self,
-                      s2_raw,
+    def s2_acceptance(self,
+                      s2,
                       cs2,
                       s2_min=200.,
                       # Needed for future sources i.e. wall
@@ -450,12 +450,12 @@ class SR1Source:
         cs2b = cs2*(1-self.s2_area_fraction_top)
         
         acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max) 
-                                                & (s2_raw > s2_min),
-                              tf.ones_like(s2_raw, dtype=fd.float_type()),
-                              tf.zeros_like(s2_raw, dtype=fd.float_type()))
+                                                & (s2 > s2_min),
+                              tf.ones_like(s2, dtype=fd.float_type()),
+                              tf.zeros_like(s2, dtype=fd.float_type()))
 
         # multiplying by combined cut acceptance
-        acceptance *= interpolate_tf(s2_raw,
+        acceptance *= interpolate_tf(s2,
                                      self.cut_accept_map_s2[0],
                                      self.cut_accept_domain_s2)
         return acceptance
