@@ -95,18 +95,9 @@ class ReconstructSignals(fd.Block):
         result = tfp.distributions.Normal(
             loc=mu, scale=smear).prob(s_observed)
 
-        tf.print(self.raw_signal_name, s_raw)
-        tf.print(self.signal_name, s_observed)
-        tf.print('bias: ', bias)
-        tf.print('smear: ', smear)
-        tf.print('mu: ', mu)
-        tf.print('prob before eff: ', result)
-
         # Add detection/selection efficiency
         result *= self.gimme(self.signal_name + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        tf.print('prob after eff: ', result)
-        tf.print('****')
 
         return result
 
@@ -158,7 +149,6 @@ class ReconstructS1(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        tf.print('loading s1 smear simulate with ', this_load_s1)
         return tf.zeros_like(s1_raw, dtype=fd.float_type())+this_load_s1
 
     # Getting from s1 -> s1_raw
@@ -176,7 +166,6 @@ class ReconstructS1(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        tf.print('loading s1 smear annotate with ', this_load_s1)
         return tf.zeros_like(s1, dtype=fd.float_type())+this_load_s1
 
     def _compute(self, data_tensor, ptensor,
@@ -227,7 +216,6 @@ class ReconstructS2(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        tf.print('loadng s2 smear simulate with', this_load_s2)
         return tf.zeros_like(s2_raw, dtype=fd.float_type())+this_load_s2
 
     # Getting from s2 -> s2_raw
@@ -245,7 +233,6 @@ class ReconstructS2(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        tf.print('loading s2 smear annotate with', this_load_s2)
         return tf.zeros_like(s2, dtype=fd.float_type())+this_load_s2
 
     def _compute(self, data_tensor, ptensor,
