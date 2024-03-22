@@ -95,8 +95,7 @@ class MakeS1(MakeFinalSignals):
     special_model_functions = ()
     model_functions = (
         'photoelectron_gain_mean',
-        'photoelectron_gain_std',)
-        + special_model_functions)
+        'photoelectron_gain_std',) + special_model_functions
 
     max_dim_size = {'photoelectrons_detected': 120}
 
