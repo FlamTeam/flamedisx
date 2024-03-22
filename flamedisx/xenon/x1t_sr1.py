@@ -265,15 +265,16 @@ class SR1Source:
     def reconstruction_bias_s1(self, s1_raw):
         # This function should return bias = reconstructed_area/raw_area
         # Joran's map returns (reconstructed_area/raw_area - 1)
-        itp_bias = interpolate_tf(s1_raw,
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
                 self.recon_bias_s1_tf[0],
                 self.domain_def_bias_s1)
 
-        #return tf.ones_like(s1_raw, dtype=fd.float_type())
         return itp_bias + tf.ones_like(s1_raw, dtype=fd.float_type())
 
     def reconstruction_smear_s1(self, s1_raw):
-        itp_smear = interpolate_tf(s1_raw,
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
                 self.recon_smear_s1_tf[0],
                 self.domain_def_smear_s1)
 
@@ -284,15 +285,16 @@ class SR1Source:
     def reconstruction_bias_s2(self, s2_raw):
         # This function should return bias = reconstructed_area/raw_area
         # Joran's map returns (reconstructed_area/raw_area - 1)
-        itp_bias = interpolate_tf(s2_raw,
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
                 self.recon_bias_s2_tf[0],
                 self.domain_def_bias_s2)
 
-        #return tf.ones_like(s2_raw, dtype=fd.float_type())
         return itp_bias + tf.ones_like(s2_raw, dtype=fd.float_type())
 
     def reconstruction_smear_s2(self, s2_raw):
-        itp_smear = interpolate_tf(s2_raw,
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
                 self.recon_smear_s2_tf[0],
                 self.domain_def_smear_s2)
         

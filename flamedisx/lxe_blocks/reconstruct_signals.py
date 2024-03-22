@@ -139,6 +139,7 @@ class ReconstructS1(ReconstructSignals):
     def reconstruction_bias_s1(self, s1_raw):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
+        s1_raw is a float64, output is fd.float_type() which is a float32
         """
         return tf.ones_like(s1_raw, dtype=fd.float_type())
 
