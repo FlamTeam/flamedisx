@@ -113,8 +113,8 @@ def calculate_reconstruction_efficiency(sig, fmap, domain_def, pivot_pt):
         lambda: interpolate_tf(sig_tf, fmap[2], domain_def) - bias_median)
     return bias_median + pivot_pt * bias_diff
 
-## 
-# Utility for the spatial template construction 
+##
+# Utility for the spatial template construction
 ##
 def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
                                          exp_const=1.36 ):
@@ -122,7 +122,7 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
   :param n: number of samples in the template
   :param max_r: maximum radius for the exponential r template
   :param exp_const: exponential constant for the exponential function in r
-  :return: multihist.Histdd 3D normalised histogram in the format needed 
+  :return: multihist.Histdd 3D normalised histogram in the format needed
            for the spatial_hist method of fd.SpatialRateERSource
   """
   assert max_r < 50, "max_r should be < 50cm."
@@ -141,7 +141,7 @@ def construct_exponential_r_spatial_hist(n = 2e6, max_r = 42.8387,
                 (zr < -158.173 + 0.0456094 * rr * rr)):
       rr = max_r - stats.expon.rvs(loc = 0, scale = exp_const, size = 1)
       zr = np.random.uniform(-94., -8.)
-    r[i] = rr 
+    r[i] = rr
     z[i] = zr
   hist, edges = np.histogramdd([r,theta_arr,z],bins=(r_edges, theta_edges,
                                                  z_edges))
@@ -160,8 +160,14 @@ class SR1Source:
                         'path_cut_accept_s2',
                         'path_s1_rly',
                         'path_s2_rly',
-                        'path_reconstruction_bias_mean_s1',
-                        'path_reconstruction_bias_mean_s2',
+                        'path_reconstruction_bias_s1_simulate',
+                        'path_reconstruction_smear_s1_simulate',
+                        'path_reconstruction_bias_s2_simulate',
+                        'path_reconstruction_smear_s2_simulate',
+                        'path_reconstruction_bias_s1_annotate',
+                        'path_reconstruction_smear_s1_annotate',
+                        'path_reconstruction_bias_s2_annotate',
+                        'path_reconstruction_smear_s2_annotate',
                         'path_reconstruction_efficiencies_s1',
                         'variable_elife',
                         'default_elife',
@@ -171,6 +177,11 @@ class SR1Source:
                         'path_drift_field',
                         'path_drift_field_distortion',
                         'path_drift_field_distortion_correction',
+                        'default_drift_velocity',
+                        'variable_drift_velocity',
+                        'path_drift_velocity',
+                        'variable_se_gain',
+                        'path_se_gain_map',
                         )
 
     s2_area_fraction_top = DEFAULT_AREA_FRACTION_TOP
@@ -187,12 +198,15 @@ class SR1Source:
     path_cut_accept_s2 = ('cut_acceptance/XENON1T/S2AcceptanceSR1_v7_Median.json',)
 
     # Pax reconstruction bias maps
-    path_reconstruction_bias_mean_s1 = (
-        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanLowers_SR1_v2.json',
-        'reconstruction_bias/XENON1T/ReconstructionS1BiasMeanUppers_SR1_v2.json')
-    path_reconstruction_bias_mean_s2 = (
-        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanLowers_SR1_v2.json',
-        'reconstruction_bias/XENON1T/ReconstructionS2BiasMeanUppers_SR1_v2.json')
+    path_reconstruction_bias_s1_simulate = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s1_simulate = ('nt_maps/reconstruction_bias/s1_simulate_reconstruction_bias_std.json',)
+    path_reconstruction_bias_s2_simulate = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s2_simulate = ('nt_maps/reconstruction_bias/s2_simulate_reconstruction_bias_std.json',)
+
+    path_reconstruction_bias_s1_annotate = ('nt_maps/reconstruction_bias/s1_annotate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s1_annotate = ('nt_maps/reconstruction_bias/s1_annotate_reconstruction_bias_std.json',)
+    path_reconstruction_bias_s2_annotate = ('nt_maps/reconstruction_bias/s2_annotate_reconstruction_bias_median.json',)
+    path_reconstruction_smear_s2_annotate = ('nt_maps/reconstruction_bias/s2_annotate_reconstruction_bias_std.json',)
 
     # Pax reconstruction efficiency maps (do not reorder: Lowers, Medians, Uppers)
     path_reconstruction_efficiencies_s1 = (
@@ -202,17 +216,28 @@ class SR1Source:
 
     # Elife maps
     variable_elife = True
-    path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
+    path_electron_lifetimes = ('nt_maps/nt_sr0_elife_v5.json',)
 
     # Comsol map
     variable_drift_field = False
     path_drift_field = 'nt_maps/fieldmap_2D_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
 
     # Field distortion map
-    path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+    path_drift_field_distortion = 'nt_maps/init_to_final_position_mapping_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p_QPTFE_0d5n_0d4p.json'
 
     # FDC map
-    path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyt_MLP_v0.2_B2d75n_C2d75n_G0d3p_A4d9p_T0d9n_PMTs1d3n_FSR0d65p.json'
+    path_drift_field_distortion_correction = 'nt_maps/XnT_3D_FDC_xyz_24_Jun_2022_MC.json'
+
+    # Drift velocity map
+    default_drift_velocity = DEFAULT_DRIFT_VELOCITY
+    variable_drift_velocity= True
+    path_drift_velocity='nt_maps/XnT_drift_velocity_map_r_z.json'
+
+    # SE gain map
+    variable_se_gain= True
+    path_se_gain_map='nt_maps/XENONnT_se_xy_map_v1_mlp.json'
+
+
 
     def set_defaults(self, *args, **kwargs):
         super().set_defaults(*args, **kwargs)
@@ -220,6 +245,11 @@ class SR1Source:
         # Yield maps
         self.s1_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s1_rly))
         self.s2_map = fd.InterpolatingMap(fd.get_nt_file(self.path_s2_rly))
+
+        # SE gain map
+        se_gain_map=fd.get_nt_file(self.path_se_gain_map)
+        se_gain_map['map']=se_gain_map['map']/np.mean(se_gain_map['map']) #fractional variation from mean se_gain is taken
+        self.se_gain_map = fd.InterpolatingMap(se_gain_map)
 
         # Loading combined cut acceptances
         self.cut_accept_map_s1, self.cut_accept_domain_s1 = \
@@ -232,10 +262,29 @@ class SR1Source:
             read_maps_tf(self.path_reconstruction_efficiencies_s1, is_bbf=True)
 
         # Loading reconstruction bias map
-        self.recon_map_s1_tf, self.domain_def_s1 = \
-            read_maps_tf(self.path_reconstruction_bias_mean_s1, is_bbf=True)
-        self.recon_map_s2_tf, self.domain_def_s2 = \
-            read_maps_tf(self.path_reconstruction_bias_mean_s2, is_bbf=True)
+        # Forward for _simulate, _compute
+        # S1
+        self.recon_bias_s1_simulate_tf, self.domain_def_bias_s1_simulate = \
+            read_maps_tf(self.path_reconstruction_bias_s1_simulate, is_bbf=False)
+        self.recon_smear_s1_simulate_tf, self.domain_def_smear_s1_simulate = \
+            read_maps_tf(self.path_reconstruction_smear_s1_simulate, is_bbf=False)
+        # S2
+        self.recon_bias_s2_simulate_tf, self.domain_def_bias_s2_simulate = \
+            read_maps_tf(self.path_reconstruction_bias_s2_simulate, is_bbf=False)
+        self.recon_smear_s2_simulate_tf, self.domain_def_smear_s2_simulate = \
+            read_maps_tf(self.path_reconstruction_smear_s2_simulate, is_bbf=False)
+
+        # Backwards for _annotate
+        # S1
+        self.recon_bias_s1_annotate_tf, self.domain_def_bias_s1_annotate = \
+            read_maps_tf(self.path_reconstruction_bias_s1_annotate, is_bbf=False)
+        self.recon_smear_s1_annotate_tf, self.domain_def_smear_s1_annotate = \
+            read_maps_tf(self.path_reconstruction_smear_s1_annotate, is_bbf=False)
+        # S2
+        self.recon_bias_s2_annotate_tf, self.domain_def_bias_s2_annotate = \
+            read_maps_tf(self.path_reconstruction_bias_s2_annotate, is_bbf=False)
+        self.recon_smear_s2_annotate_tf, self.domain_def_smear_s2_annotate = \
+            read_maps_tf(self.path_reconstruction_smear_s2_annotate, is_bbf=False)
 
         # Loading electron lifetime map
         self.elife_tf, self.domain_def_elife = \
@@ -244,9 +293,12 @@ class SR1Source:
         # Field maps
         self.field_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field))
 
+        # Drift velocity map
+        self.drift_velocity_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_velocity))
+
         # Field distortion maps
         # cheap hack
-        aa = fd.get_nt_file(self.path_drift_field_distortion) 
+        aa = fd.get_nt_file(self.path_drift_field_distortion)
         aa['map'] = aa['r_distortion_map']
         self.drift_field_distortion_map = fd.InterpolatingMap(aa, method='RectBivariateSpline')
         del aa
@@ -254,26 +306,83 @@ class SR1Source:
         # FDC maps
         self.fdc_map = fd.InterpolatingMap(fd.get_nt_file(self.path_drift_field_distortion_correction))
 
+    # Forward simulation
+    # S1
+    def reconstruction_bias_s1_simulate(self, s1_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s1_simulate_tf[0],
+                self.domain_def_bias_s1_simulate)
 
-    def reconstruction_bias_s1(self,
-                               s1,
-                               s1_reconstruction_bias_pivot=\
-                                   DEFAULT_S1_RECONSTRUCTION_BIAS_PIVOT):
-        return calculate_reconstruction_bias(
-            s1,
-            self.recon_map_s1_tf,
-            self.domain_def_s1,
-            pivot_pt=s1_reconstruction_bias_pivot)
+        return itp_bias + tf.ones_like(s1_raw, dtype=fd.float_type())
 
-    def reconstruction_bias_s2(self,
-                               s2,
-                               s2_reconstruction_bias_pivot=\
-                                   DEFAULT_S2_RECONSTRUCTION_BIAS_PIVOT):
-        return calculate_reconstruction_bias(
-            s2,
-            self.recon_map_s2_tf,
-            self.domain_def_s2,
-            pivot_pt=s2_reconstruction_bias_pivot)
+    def reconstruction_smear_s1_simulate(self, s1_raw):
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s1_simulate_tf[0],
+                self.domain_def_smear_s1_simulate)
+
+        return itp_smear+1e-45
+
+    # S2
+    def reconstruction_bias_s2_simulate(self, s2_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s2_simulate_tf[0],
+                self.domain_def_bias_s2_simulate)
+
+        return itp_bias + tf.ones_like(s2_raw, dtype=fd.float_type())
+
+    def reconstruction_smear_s2_simulate(self, s2_raw):
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s2_simulate_tf[0],
+                self.domain_def_smear_s2_simulate)
+
+        return itp_smear+1e-45
+
+    # Backwards for annotate
+    # S1
+    def reconstruction_bias_s1_annotate(self, s1_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s1_annotate_tf[0],
+                self.domain_def_bias_s1_annotate)
+
+        return itp_bias + tf.ones_like(s1_raw, dtype=fd.float_type())
+
+    def reconstruction_smear_s1_annotate(self, s1_raw):
+        sig_tf = tf.convert_to_tensor(s1_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s1_annotate_tf[0],
+                self.domain_def_smear_s1_annotate)
+
+        return itp_smear+1e-45
+
+    # S2
+    def reconstruction_bias_s2_annotate(self, s2_raw):
+        # This function should return bias = reconstructed_area/raw_area
+        # Joran's map returns (reconstructed_area/raw_area - 1)
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_bias = interpolate_tf(sig_tf,
+                self.recon_bias_s2_annotate_tf[0],
+                self.domain_def_bias_s2_annotate)
+
+        return itp_bias + tf.ones_like(s2_raw, dtype=fd.float_type())
+
+    def reconstruction_smear_s2_annotate(self, s2_raw):
+        sig_tf = tf.convert_to_tensor(s2_raw, dtype=fd.float_type())
+        itp_smear = interpolate_tf(sig_tf,
+                self.recon_smear_s2_annotate_tf[0],
+                self.domain_def_smear_s2_annotate)
+
+        return itp_smear+1e-45
 
     def random_truth(self, n_events, fix_truth=None, **params):
         d = super().random_truth(n_events, fix_truth=fix_truth, **params)
@@ -281,16 +390,16 @@ class SR1Source:
         # Add extra needed columns
         # x, y, z are the true positions of the event
         #
-        # x_observed, y_observed are the reconstructed positions with 
-        # field distortion and with posrec smearing but without 
+        # x_observed, y_observed are the reconstructed positions with
+        # field distortion and with posrec smearing but without
         # field distortion correction
         #
         # x_fdc, y_fdc, z_fdc are the fdc-corrected positions
-        
+
         # going from true position to position distorted by field
         d['r_observed'] = self.drift_field_distortion_map(
             np.transpose([d['r'].values,
-                          d['z'].values])) 
+                          d['z'].values]))
         d['x_observed'] = d['r_observed'] * np.cos(d['theta'])
         d['y_observed'] = d['r_observed'] * np.sin(d['theta'])
 
@@ -298,15 +407,28 @@ class SR1Source:
         d['z_observed'] = d['z']
 
         # Adding some smear according to posrec resolution
-        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=0.4) # 4 mm resolution)
-        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=0.4) # 4 mm resolution)
-        
+        d['x_observed'] = np.random.normal(d['x_observed'].values, scale=2) # 2 cm resolution
+        d['y_observed'] = np.random.normal(d['y_observed'].values, scale=2) # 4 cm resolution
+
+        # add effective drift velocity depending on (r,z) position
+        # correct drift time using velocity depending on (r,z) position
+        # z observed is evaluated using default drift velocity as done in data processing
+        if self.variable_drift_velocity:
+            d['drift_velocity'] = self.drift_velocity_map(
+                np.transpose([d['r'].values,
+                              d['z'].values]))
+            d['drift_time'] = -d['z']/d['drift_velocity']
+            d['z_observed'] = -self.default_drift_velocity*d['drift_time']
+        else:
+            d['drift_velocity'] = self.default_drift_velocity
+            d['z_observed'] = d['z']
+
         # applying fdc
         delta_r = self.fdc_map(
             np.transpose([d['x_observed'].values,
                           d['y_observed'].values,
                           d['z_observed'].values,]))
-                              
+
         # apply radial correction
         with np.errstate(invalid='ignore', divide='ignore'):
             d['r_fdc'] = d['r_observed'] + delta_r
@@ -315,7 +437,7 @@ class SR1Source:
         d['x_fdc'] = d['x_observed'] * scale
         d['y_fdc'] = d['y_observed'] * scale
         d['z_fdc'] = d['z_observed']
-        
+
         return d
 
     def add_extra_columns(self, d):
@@ -327,6 +449,13 @@ class SR1Source:
             np.transpose([d['x_fdc'].values,
                           d['y_fdc'].values,
                           d['z_fdc'].values]))
+
+        if self.variable_se_gain:
+            d['se_gain_relative']=self.se_gain_map(np.transpose([d['x_observed'].values,
+                                                                 d['y_observed'].values]))
+        else:
+            d['se_gain_relative']=1
+
 
         # Not too good. patchy. event_time should be int since event_time in actual
         # data is int64 in ns. But need this to be float32 to interpolate.
@@ -355,7 +484,7 @@ class SR1Source:
                 d['s2']
                 / d['s2_relative_ly']
                 * np.exp(d['drift_time'] / d['elife']))
-    
+
     @staticmethod
     def electron_detection_eff(drift_time,
                                elife,
@@ -365,9 +494,11 @@ class SR1Source:
 
     @staticmethod
     def electron_gain_mean(s2_relative_ly,
+                           se_gain_relative,
                            *,
                            single_electron_gain=DEFAULT_SINGLE_ELECTRON_GAIN):
-        return single_electron_gain * s2_relative_ly
+
+        return single_electron_gain*s2_relative_ly*se_gain_relative
 
     @staticmethod
     def electron_gain_std(s2_relative_ly,
@@ -375,6 +506,9 @@ class SR1Source:
                           single_electron_width=DEFAULT_SINGLE_ELECTRON_WIDTH):
         # 0 * light yield is to fix the shape
         return single_electron_width + 0. * s2_relative_ly
+
+
+
 
     @staticmethod
     def double_pe_fraction(z, *, dpe=DEFAULT_P_DPE):
@@ -421,8 +555,8 @@ class SR1Source:
                       cs2b_min=50.1,
                       cs2b_max=7940.):
         cs2b = cs2*(1-self.s2_area_fraction_top)
-        
-        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max) 
+
+        acceptance = tf.where((cs2b > cs2b_min) & (cs2b < cs2b_max)
                                                 & (s2 > s2_min),
                               tf.ones_like(s2, dtype=fd.float_type()),
                               tf.zeros_like(s2, dtype=fd.float_type()))
@@ -488,7 +622,7 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
         Penning quenching is accounted in the photon detection efficiency.
         """
-        
+
         # in _compute, n_events = batch_size
         # drift_field is originally a (n_events) tensor, nq a (n_events, n_nq) tensor
         # Insert empty axis in drift_field for broadcasting for tf to broadcast over nq dimension
@@ -513,21 +647,21 @@ class SR1NRSource(SR1Source, fd.NRSource):
 
 @export
 class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
-      
-      # Should set FV here 
-      #fv_radius = R 
+
+      # Should set FV here
+      #fv_radius = R
       #fv_high = z_max
       #fv_low = z_min
-      
+
       # Should set the spatial histogram here
       #spatial_hist = normalised_Histdd_wall_spatial_hist
-      
-      # TODO: The parameters here will need to be polished. 
+
+      # TODO: The parameters here will need to be polished.
       # They are fitted parameters and give a reasonable result.
       @staticmethod
-      def p_electron(nq, *, w_er_pel_a = -123. , w_er_pel_b = -47.7, 
+      def p_electron(nq, *, w_er_pel_a = -123. , w_er_pel_b = -47.7,
                     w_er_pel_c = 68., w_er_pel_e0 = 9.95):
-      
+
           """Fraction of ER quanta that become electrons
           Simplified form from Jelle's thesis
           """
@@ -547,9 +681,9 @@ class SR1WallSource(fd.SpatialRateERSource, SR1ERSource):
                                  *,
                                  w_extraction_eff=0.0169):
           return w_extraction_eff * tf.exp(-drift_time / elife)
-          
+
       @staticmethod
-      def p_electron_fluctuation(nq, w_q2 = 0.0237, w_q3_nq = 123.): 
+      def p_electron_fluctuation(nq, w_q2 = 0.0237, w_q3_nq = 123.):
         return tf.clip_by_value(
             w_q2 * (tf.constant(1., dtype=fd.float_type()) - \
             tf.exp(-nq / w_q3_nq)),

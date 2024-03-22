@@ -13,8 +13,10 @@ class ERSource(fd.BlockModelSource):
         fd.DetectPhotons,
         fd.MakeS1Photoelectrons,
         fd.MakeS1,
+        fd.ReconstructS1,
         fd.DetectElectrons,
-        fd.MakeS2)
+        fd.MakeS2,
+        fd.ReconstructS2)
 
     @staticmethod
     def p_electron(nq, *, er_pel_a=15, er_pel_b=-27.7, er_pel_c=32.5,
@@ -45,8 +47,10 @@ class NRSource(fd.BlockModelSource):
         fd.DetectPhotons,
         fd.MakeS1Photoelectrons,
         fd.MakeS1,
+        fd.ReconstructS1,
         fd.DetectElectrons,
-        fd.MakeS2)
+        fd.MakeS2,
+        fd.ReconstructS2)
 
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ()
