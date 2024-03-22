@@ -34,12 +34,12 @@ class ReconstructSignals(fd.Block):
     signal_name: str
 
     def _simulate(self, d):
-        bias = self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name,
+        bias = self.gimme_numpy('reconstruction_bias_' + self.signal_name,
                      bonus_arg=d[self.raw_signal_name].values)
         mu = d[self.raw_signal_name] * bias
 
         # loading this with 1e-15 to be symmetric with _compute
-        relative_smear = self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name,
+        relative_smear = self.gimme_numpy('reconstruction_smear_' + self.signal_name,
                      bonus_arg=d[self.raw_signal_name].values)
         #smear = np.clip(d[self.raw_signal_name] * relative_smear, 1e-15, None)
         smear = np.clip(relative_smear, 1e-15, None)
@@ -56,9 +56,9 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        bias = self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name,
+        bias = self.gimme_numpy('reconstruction_bias_' + self.signal_name,
                      bonus_arg=d[self.raw_signal_name].values)
-        smear = self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name,
+        smear = self.gimme_numpy('reconstruction_smear_' + self.signal_name,
                      bonus_arg=d[self.raw_signal_name].values)
         mle = d[self.raw_signal_name + '_mle'] = \
             (d[self.signal_name] / bias).clip(0, None)
@@ -80,14 +80,14 @@ class ReconstructSignals(fd.Block):
                  s_observed,
                  data_tensor, ptensor):
         # bias = reconstructed_area/raw_area
-        bias = self.gimme('reconstruction_bias_simulate_' + self.signal_name,
+        bias = self.gimme('reconstruction_bias_' + self.signal_name,
                           data_tensor=data_tensor,
                           bonus_arg=s_raw,
                           ptensor=ptensor)
         mu = s_raw * bias
 
         # add offset to std to avoid NaNs from norm.pdf if std = 0
-        relative_smear = self.gimme('reconstruction_smear_simulate_' + self.signal_name,
+        relative_smear = self.gimme('reconstruction_smear_' + self.signal_name,
                            data_tensor=data_tensor,
                            bonus_arg=s_raw,
                            ptensor=ptensor) + 1e-15
@@ -122,12 +122,10 @@ class ReconstructS1(ReconstructSignals):
 
     dimensions = ('s1_raw', 's1')
     special_model_functions = (
-        'reconstruction_bias_simulate_s1',
-        'reconstruction_smear_simulate_s1',)
+        'reconstruction_bias_s1',
+        'reconstruction_smear_s1',)
     model_functions = (
         's1_acceptance',
-        'reconstruction_bias_annotate_s1',
-        'reconstruction_smear_annotate_s1',
         ) + special_model_functions
 
     max_dim_size = {'s1_raw': 120}
@@ -138,13 +136,13 @@ class ReconstructS1(ReconstructSignals):
                         tf.ones_like(s1, dtype=fd.float_type()))
 
     # Getting from s1_raw -> s1
-    def reconstruction_bias_simulate_s1(self, s1_raw):
+    def reconstruction_bias_s1(self, s1_raw):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
         return tf.ones_like(s1_raw, dtype=fd.float_type())
 
-    def reconstruction_smear_simulate_s1(self, s1_raw):
+    def reconstruction_smear_s1(self, s1_raw):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
@@ -153,23 +151,6 @@ class ReconstructS1(ReconstructSignals):
         multiple places.
         """
         return tf.zeros_like(s1_raw, dtype=fd.float_type())+this_load_s1
-
-    # Getting from s1 -> s1_raw
-    def reconstruction_bias_annotate_s1(self, s1):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-        """
-        return tf.ones_like(s1, dtype=fd.float_type())
-
-    def reconstruction_smear_annotate_s1(self, s1):
-        """ Dummy method for pax s2 reconstruction bias spread. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-        
-        Simulating dirac delta. Loading of this number done in main _compute
-        function. Keeping this number as zero here to avoid loading done in
-        multiple places.
-        """
-        return tf.zeros_like(s1, dtype=fd.float_type())+this_load_s1
 
     def _compute(self, data_tensor, ptensor,
                  s1_raw, s1):
@@ -187,13 +168,11 @@ class ReconstructS2(ReconstructSignals):
 
     dimensions = ('s2_raw', 's2')
     special_model_functions = (
-        'reconstruction_bias_simulate_s2',
-        'reconstruction_smear_simulate_s2',
+        'reconstruction_bias_s2',
+        'reconstruction_smear_s2',
  )
     model_functions = (
         ('s2_acceptance',
-        'reconstruction_bias_annotate_s2',
-        'reconstruction_smear_annotate_s2',
         )
         + special_model_functions)
 
@@ -205,13 +184,13 @@ class ReconstructS2(ReconstructSignals):
                         tf.ones_like(s2, dtype=fd.float_type()))
 
     # Getting from s2_raw -> s2
-    def reconstruction_bias_simulate_s2(self, s2_raw):
+    def reconstruction_bias_s2(self, s2_raw):
         """ Dummy method for pax s2 reconstruction bias mean. Overwrite
         it in source specific class. See x1t_sr1.py for example.
         """
         return tf.ones_like(s2_raw, dtype=fd.float_type())
 
-    def reconstruction_smear_simulate_s2(self, s2_raw):
+    def reconstruction_smear_s2(self, s2_raw):
         """ Dummy method for pax s2 reconstruction bias spread. Overwrite
         it in source specific class. See x1t_sr1.py for example.
 
@@ -220,23 +199,6 @@ class ReconstructS2(ReconstructSignals):
         multiple places.
         """
         return tf.zeros_like(s2_raw, dtype=fd.float_type())+this_load_s2
-
-    # Getting from s2 -> s2_raw
-    def reconstruction_bias_annotate_s2(self, s2):
-        """ Dummy method for pax s2 reconstruction bias mean. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-        """
-        return tf.ones_like(s2, dtype=fd.float_type())
-
-    def reconstruction_smear_annotate_s2(self, s2):
-        """ Dummy method for pax s2 reconstruction bias spread. Overwrite
-        it in source specific class. See x1t_sr1.py for example.
-
-        Simulating dirac delta. Loading of this number done in main _compute
-        function. Keeping this number as zero here to avoid loading done in
-        multiple places.
-        """
-        return tf.zeros_like(s2, dtype=fd.float_type())+this_load_s2
 
     def _compute(self, data_tensor, ptensor,
                  s2_raw, s2):
