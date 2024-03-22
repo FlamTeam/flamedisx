@@ -51,10 +51,6 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        # should really be rading reconstruction bias and smear at the raw
-        # values but raw values are not available at this point so read from
-        # reconstructed values instead. does not matter as long as you open
-        # large enough
         bias = self.gimme_numpy(f'reconstruction_bias_{self.signal_name}_annotate',
                                 bonus_arg=d[self.signal_name].values)
         smear = self.gimme_numpy(f'reconstruction_smear_{self.signal_name}_annotate',

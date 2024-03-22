@@ -68,12 +68,6 @@ class MakeFinalSignals(fd.Block):
         result = tfp.distributions.Normal(
             loc=mean, scale=std + 1e-10
         ).prob(s_observed)
-
-        ''' Think can also remove this chunk
-        # Add detection/selection efficiency
-        result *= self.gimme(SIGNAL_NAMES[self.quanta_name] + '_acceptance',
-                             data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
-        '''
         return result
 
 
