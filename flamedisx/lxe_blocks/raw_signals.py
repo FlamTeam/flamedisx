@@ -46,7 +46,7 @@ class MakeFinalSignals(fd.Block):
         s = self.gimme_numpy(self.quanta_name + '_gain_std')
 
         mle = d[self.quanta_name + 's_detected_mle'] = \
-            (d[self.signal_name] / m).clip(0, None)
+            (d[self.signal_name + '_mle'] / m).clip(0, None)
         scale = mle**0.5 * s / m
 
         for bound, sign, intify in (('min', -1, np.floor),
