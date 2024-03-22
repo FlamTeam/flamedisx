@@ -16,7 +16,7 @@ SIGNAL_NAMES = dict(photoelectron='s1_raw', electron='s2_raw')
 class MakeFinalSignals(fd.Block):
     """Common code for MakeS1 and MakeS2"""
 
-    model_attributes = () # leave it explicitly empty
+    model_attributes = ()  # leave it explicitly empty
 
     # Prevent pycharm warnings:
     source: fd.Source
@@ -32,14 +32,6 @@ class MakeFinalSignals(fd.Block):
                  * self.gimme_numpy(self.quanta_name + '_gain_mean')),
             scale=(d[self.quanta_name + 's_detected']**0.5
                    * self.gimme_numpy(self.quanta_name + '_gain_std')))
-
-        ''' # think can remove this chunk
-        # Call add_extra_columns now, since s1 and s2 are known and derived
-        # observables from it (cs1, cs2) might be used in the acceptance.
-        # TODO: This is a bit of a kludge
-        self.source.add_extra_columns(d)
-        d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
-        '''
 
     def _annotate(self, d):
         m = self.gimme_numpy(self.quanta_name + '_gain_mean')
