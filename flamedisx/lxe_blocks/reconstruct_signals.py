@@ -12,10 +12,8 @@ o = tf.newaxis
 
 import pdb as pdb
 
-# for 1 event, 0.02 not enough but 0.03 enough
-# for 2 events, 0.03 not enough but 0.05 enough
-this_load_s1 = 0. #0.02
-this_load_s2 = 0. #0.02
+this_load_s1 = 0.001 
+this_load_s2 = 0.001
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
@@ -46,6 +44,7 @@ class ReconstructSignals(fd.Block):
         #smear = np.clip(d[self.raw_signal_name] * relative_smear, 1e-15, None)
         smear = np.clip(relative_smear, 1e-15, None)
         # TODO: why some raw signals <=0?
+        # checked 1e7 events and didn't see any raw_signals<=0..
 
         d[self.signal_name] = stats.norm.rvs(
             loc=mu,
