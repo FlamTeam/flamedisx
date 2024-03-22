@@ -14,12 +14,13 @@ import pdb as pdb
 
 # for 1 event, 0.02 not enough but 0.03 enough
 # for 2 events, 0.03 not enough but 0.05 enough
-this_load_s1 = 0.02
-this_load_s2 = 0.02
+this_load_s1 = 0. #0.02
+this_load_s2 = 0. #0.02
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
     model_attributes = ('check_acceptances',)
+    non_integer_dimensions = ('s1_raw', 's2_raw',)
 
     # Whether to check acceptances are positive at the observed events.
     # This is recommended, but you'll have to turn it off if your
@@ -42,7 +43,8 @@ class ReconstructSignals(fd.Block):
         # loading this with 1e-15 to be symmetric with _compute
         relative_smear = self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name,
                      bonus_arg=d[self.raw_signal_name].values)
-        smear = np.clip(d[self.raw_signal_name] * relative_smear, 1e-15, None)
+        #smear = np.clip(d[self.raw_signal_name] * relative_smear, 1e-15, None)
+        smear = np.clip(relative_smear, 1e-15, None)
         # TODO: why some raw signals <=0?
 
         d[self.signal_name] = stats.norm.rvs(
@@ -55,8 +57,10 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        bias = self.gimme_numpy('reconstruction_bias_annotate_' + self.signal_name)
-        smear = self.gimme_numpy('reconstruction_smear_annotate_' + self.signal_name)
+        bias = self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name,
+                     bonus_arg=d[self.raw_signal_name].values)
+        smear = self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name,
+                     bonus_arg=d[self.raw_signal_name].values)
         mle = d[self.raw_signal_name + '_mle'] = \
             (d[self.signal_name] / bias).clip(0, None)
 
@@ -88,7 +92,7 @@ class ReconstructSignals(fd.Block):
                            data_tensor=data_tensor,
                            bonus_arg=s_raw,
                            ptensor=ptensor) + 1e-15
-        smear = tf.clip_by_value(s_raw * relative_smear,
+        smear = tf.clip_by_value(relative_smear,
                                  clip_value_min=1e-15,
                                  clip_value_max=tf.float32.max)
 
