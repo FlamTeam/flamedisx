@@ -32,7 +32,7 @@ class ERSource(fd.BlockModelSource):
             + er_pel_c)
         return fd.safe_p(qy * 13.7e-3)
 
-    final_dimensions = ('s1', 's2')
+    final_dimensions = ('s1_raw', 's2_raw')
     no_step_dimensions = ()
 
 
@@ -48,7 +48,7 @@ class NRSource(fd.BlockModelSource):
         fd.DetectElectrons,
         fd.MakeS2)
 
-    final_dimensions = ('s1', 's2')
+    final_dimensions = ('s1_raw', 's2_raw')
     no_step_dimensions = ()
 
     # Use a larger default energy range, since most energy is lost
