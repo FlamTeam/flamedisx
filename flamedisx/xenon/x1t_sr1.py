@@ -326,15 +326,13 @@ class SR1Source:
                 self.recon_bias_compute_s1_tf[0],
                 self.domain_def_bias_compute_s1)
 
-        #return tf.ones_like(s1, dtype=fd.float_type())
-        return itp_bias + tf.ones_like(s1, dtype=fd.float_type())
+        #return itp_bias + tf.ones_like(s1, dtype=fd.float_type())
+        return tf.ones_like(s1, dtype=fd.float_type())
 
     def reconstruction_smear_compute_s1(self, s1):
         itp_smear = interpolate_tf(s1,
                 self.recon_smear_compute_s1_tf[0],
                 self.domain_def_smear_compute_s1)
-
-        tf.print('why')
 
         #return tf.zeros_like(s1, dtype=fd.float_type())+1e-45
         return itp_smear+1e-45
@@ -347,14 +345,15 @@ class SR1Source:
                 self.recon_bias_compute_s2_tf[0],
                 self.domain_def_bias_compute_s2)
 
-        #return tf.ones_like(s2, dtype=fd.float_type())
-        return itp_bias + tf.ones_like(s2, dtype=fd.float_type())
+        #return itp_bias + tf.ones_like(s2, dtype=fd.float_type())
+        return tf.ones_like(s2, dtype=fd.float_type())
 
     def reconstruction_smear_compute_s2(self, s2):
         itp_smear = interpolate_tf(s2,
                 self.recon_smear_compute_s2_tf[0],
                 self.domain_def_smear_compute_s2)
 
+        tf.print('try')
         #return tf.zeros_like(s2, dtype=fd.float_type())+1e-45
         return itp_smear+1e-45
 
