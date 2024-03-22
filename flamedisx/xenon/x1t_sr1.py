@@ -214,7 +214,7 @@ class SR1Source:
 
     # Elife maps
     variable_elife = True
-    path_electron_lifetimes = ('1t_maps/electron_lifetimes_sr1.json',)
+    path_electron_lifetimes = ('nt_maps/nt_sr0_elife_v5.json',)
 
     # Comsol map
     variable_drift_field = False
