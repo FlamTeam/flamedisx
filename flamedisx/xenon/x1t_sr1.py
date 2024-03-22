@@ -353,7 +353,6 @@ class SR1Source:
                 self.recon_smear_compute_s2_tf[0],
                 self.domain_def_smear_compute_s2)
 
-        tf.print('try')
         #return tf.zeros_like(s2, dtype=fd.float_type())+1e-45
         return itp_smear+1e-45
 
