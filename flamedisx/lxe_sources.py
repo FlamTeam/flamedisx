@@ -52,7 +52,7 @@ class NRSource(fd.BlockModelSource):
         fd.MakeS2,
         fd.ReconstructS2)
 
-    final_dimensions = ('s1_raw', 's2_raw')
+    final_dimensions = ('s1', 's2')
     no_step_dimensions = ()
 
     # Use a larger default energy range, since most energy is lost
