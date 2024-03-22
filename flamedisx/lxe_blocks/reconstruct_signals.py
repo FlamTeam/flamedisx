@@ -71,9 +71,8 @@ class ReconstructSignals(fd.Block):
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
 
-            print('hi with special local 3 sigmas')
             d[self.raw_signal_name + '_' + bound] = (
-                mle + sign * 3. * scale
+                mle + sign * 2. * scale
             ).clip(0, None)
 
     def _compute(self,
@@ -201,7 +200,7 @@ class ReconstructS2(ReconstructSignals):
         ('s2_acceptance',)
         + special_model_functions)
 
-    max_dim_size = {'s2_raw': 360}
+    max_dim_size = {'s2_raw': 240}
     s2_smear_load = 3e-3
 
     def s2_acceptance(self, s2, s2_min=2, s2_max=6000):
