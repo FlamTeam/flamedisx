@@ -397,7 +397,7 @@ class SR1Source:
             self.domain_def_ph,
             s1_reconstruction_efficiency_pivot)
 
-    def s1_acceptance(self,
+    def s1_raw_acceptance(self,
                       s1_raw,
                       cs1,
                       # Only used here, DEFAULT_.. would be super verbose
@@ -413,7 +413,7 @@ class SR1Source:
                                      self.cut_accept_domain_s1)
         return acceptance
 
-    def s2_acceptance(self,
+    def s2_raw_acceptance(self,
                       s2_raw,
                       cs2,
                       s2_min=200.,
