@@ -10,9 +10,6 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 
-SIGNAL_NAMES = dict(photoelectron='s1', electron='s2')
-
-
 import pdb as pdb
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
@@ -45,11 +42,9 @@ class ReconstructSignals(fd.Block):
         d['p_accepted'] *= self.gimme_numpy(self.signal_name + '_acceptance')
 
     def _annotate(self, d):
-        m = self.gimme_numpy(self.raw_signal_name + '_gain_mean')
-        pdb.set_trace()
-
-        mle = d[self.raw_signal_name + 's_detected_mle'] = \
-            (d[self.signal_name] / m).clip(0, None)
+        bias = self.gimme_numpy('reconstruction_bias_simulate_' + self.signal_name)
+        mle = d[self.raw_signal_name + '_mle'] = \
+            (d[self.signal_name] * bias).clip(0, None)
 
         # The amount that you could have been smeared by from the raw signals
         scale = self.gimme_numpy('reconstruction_smear_simulate_' + self.signal_name)
@@ -80,7 +75,7 @@ class ReconstructSignals(fd.Block):
             loc=(s_observed/bias), scale=smear).prob(s_observed)
 
         # Add detection/selection efficiency
-        result *= self.gimme(SIGNAL_NAMES[self.signal_name] + '_acceptance',
+        result *= self.gimme(self.signal_name + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
         return result
 

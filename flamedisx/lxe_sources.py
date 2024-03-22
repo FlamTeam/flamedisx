@@ -34,7 +34,7 @@ class ERSource(fd.BlockModelSource):
             + er_pel_c)
         return fd.safe_p(qy * 13.7e-3)
 
-    final_dimensions = ('s1_raw', 's2_raw')
+    final_dimensions = ('s1', 's2')
     no_step_dimensions = ()
 
 
