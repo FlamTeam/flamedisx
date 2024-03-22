@@ -11,6 +11,11 @@ o = tf.newaxis
 
 
 import pdb as pdb
+
+# for 1 event, 0.02 not enough but 0.03 enough
+# for 2 events, 0.03 not enough but 0.05 enough
+this_load_s1 = 0.05
+this_load_s2 = 0.05
 class ReconstructSignals(fd.Block):
     """Common code for ReconstructS1 and ReconstructS2"""
 
@@ -96,6 +101,7 @@ class ReconstructSignals(fd.Block):
         result *= self.gimme(self.signal_name + '_acceptance',
                              data_tensor=data_tensor, ptensor=ptensor)[:, o, o]
         tf.print('prob after eff: ', result)
+        tf.print('****')
 
         return result
 
@@ -147,7 +153,8 @@ class ReconstructS1(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        return tf.zeros_like(s1_raw, dtype=fd.float_type())
+        tf.print('loading s1 smear simulate with ', this_load_s1)
+        return tf.zeros_like(s1_raw, dtype=fd.float_type())+this_load_s1
 
     # Getting from s1 -> s1_raw
     def reconstruction_bias_annotate_s1(self, s1):
@@ -164,7 +171,8 @@ class ReconstructS1(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        return tf.zeros_like(s1, dtype=fd.float_type())
+        tf.print('loading s1 smear annotate with ', this_load_s1)
+        return tf.zeros_like(s1, dtype=fd.float_type())+this_load_s1
 
     def _compute(self, data_tensor, ptensor,
                  s1_raw, s1):
@@ -214,7 +222,8 @@ class ReconstructS2(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        return tf.zeros_like(s2_raw, dtype=fd.float_type())
+        tf.print('loadng s2 smear simulate with', this_load_s2)
+        return tf.zeros_like(s2_raw, dtype=fd.float_type())+this_load_s2
 
     # Getting from s2 -> s2_raw
     def reconstruction_bias_annotate_s2(self, s2):
@@ -231,7 +240,8 @@ class ReconstructS2(ReconstructSignals):
         function. Keeping this number as zero here to avoid loading done in
         multiple places.
         """
-        return tf.ones_like(s2, dtype=fd.float_type())
+        tf.print('loading s2 smear annotate with', this_load_s2)
+        return tf.zeros_like(s2, dtype=fd.float_type())+this_load_s2
 
     def _compute(self, data_tensor, ptensor,
                  s2_raw, s2):
