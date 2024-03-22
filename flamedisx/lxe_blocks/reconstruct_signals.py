@@ -37,10 +37,9 @@ class ReconstructSignals(fd.Block):
         mu = d[self.raw_signal_name] * bias
 
         # clipping this to (1e-15, float32max) to be symmetric with _compute
-        relative_smear = self.gimme_numpy('reconstruction_smear_' + self.signal_name,
+        smear = self.gimme_numpy('reconstruction_smear_' + self.signal_name,
                      bonus_arg=d[self.raw_signal_name].values)
-        #smear = np.clip(d[self.raw_signal_name] * relative_smear, 1e-15, None)
-        smear = np.clip(relative_smear, 1e-15, tf.float32.max)
+        smear = np.clip(smear, 1e-15, tf.float32.max)
         # TODO: why some raw signals <=0?
         # checked 1e7 events and didn't see any raw_signals<=0..
 
@@ -68,14 +67,17 @@ class ReconstructSignals(fd.Block):
         # The amount that you could have been smeared by from the raw signals
         scale = mle**0.5 * smear/bias
 
-        for bound, sign, intify in (('min', -1, np.floor),
-                                    ('max', +1, np.ceil)):
+        for bound, sign in (('min', -1),
+                            ('max', +1)):
             # For detected quanta the MLE is quite accurate
             # (since fluctuations are tiny)
             # so let's just use the relative error on the MLE)
-            d[self.raw_signal_name + '_' + bound] = intify(
-                mle + sign * self.source.max_sigma * scale
-            ).clip(0, None).astype(np.int)
+
+            #print(f'hi with default sigma {self.source.max_sigma}')
+            print(f'hi with special local 3 sigmas')
+            d[self.raw_signal_name + '_' + bound] = (
+                mle + sign * 3. * scale
+            ).clip(0, None)
 
     def _compute(self,
                  s_raw,
