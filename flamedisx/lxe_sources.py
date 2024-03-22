@@ -47,8 +47,10 @@ class NRSource(fd.BlockModelSource):
         fd.DetectPhotons,
         fd.MakeS1Photoelectrons,
         fd.MakeS1,
+        fd.ReconstructS1,
         fd.DetectElectrons,
-        fd.MakeS2)
+        fd.MakeS2,
+        fd.ReconstructS2)
 
     final_dimensions = ('s1_raw', 's2_raw')
     no_step_dimensions = ()
