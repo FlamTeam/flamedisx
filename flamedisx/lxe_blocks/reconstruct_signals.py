@@ -36,11 +36,11 @@ class ReconstructSignals(fd.Block):
                      bonus_arg=d[self.raw_signal_name].values)
         mu = d[self.raw_signal_name] * bias
 
-        # loading this with 1e-15 to be symmetric with _compute
+        # clipping this to (1e-15, float32max) to be symmetric with _compute
         relative_smear = self.gimme_numpy('reconstruction_smear_' + self.signal_name,
                      bonus_arg=d[self.raw_signal_name].values)
         #smear = np.clip(d[self.raw_signal_name] * relative_smear, 1e-15, None)
-        smear = np.clip(relative_smear, 1e-15, None)
+        smear = np.clip(relative_smear, 1e-15, tf.float32.max)
         # TODO: why some raw signals <=0?
         # checked 1e7 events and didn't see any raw_signals<=0..
 
@@ -138,7 +138,6 @@ class ReconstructS1(ReconstructSignals):
         it in source specific class. See x1t_sr1.py for example.
         s1_raw is a float64, output is fd.float_type() which is a float32
         """
-
         return tf.ones_like(s1_raw, dtype=fd.float_type())
 
     def reconstruction_smear_s1(self, s1_raw):
@@ -150,7 +149,6 @@ class ReconstructS1(ReconstructSignals):
         this dirac delta out by a small loading term of 0.001. A larger s1_raw
         max_dim_size would need a smaller loading term.
         """
-
         return tf.zeros_like(s1_raw, dtype=fd.float_type())+0.001
 
     def _compute(self, data_tensor, ptensor,
@@ -171,7 +169,7 @@ class ReconstructS2(ReconstructSignals):
     special_model_functions = (
         'reconstruction_bias_s2',
         'reconstruction_smear_s2',
- )
+        )
     model_functions = (
         ('s2_acceptance',
         )
@@ -200,7 +198,6 @@ class ReconstructS2(ReconstructSignals):
         this dirac delta out by a small loading term of 0.001. A larger s2_raw
         max_dim_size would need a smaller loading term.
         """
-
         return tf.zeros_like(s2_raw, dtype=fd.float_type())+0.001
 
     def _compute(self, data_tensor, ptensor,
