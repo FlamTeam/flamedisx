@@ -505,7 +505,7 @@ class SR1Source:
                            *,
                            single_electron_gain=DEFAULT_SINGLE_ELECTRON_GAIN):
                 
-        return single_electron_gain*s2_relative_ly*se_gain_relative + 0.*electrons_detected
+        return single_electron_gain*s2_relative_ly*se_gain_relative 
     
     @staticmethod
     def electron_gain_std(s2_relative_ly,

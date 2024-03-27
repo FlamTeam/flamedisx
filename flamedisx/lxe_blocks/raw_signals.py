@@ -69,7 +69,7 @@ class MakeFinalSignals(fd.Block):
             mean_per_q = self.gimme(self.quanta_name + '_gain_mean',
                                bonus_arg=quanta_detected,
                                data_tensor=data_tensor,
-                               ptensor=ptensor)
+                               ptensor=ptensor)[:, o, o]
         std_per_q = self.gimme(self.quanta_name + '_gain_std',
                                data_tensor=data_tensor,
                                ptensor=ptensor)[:, o, o]
