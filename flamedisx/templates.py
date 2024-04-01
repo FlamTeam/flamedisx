@@ -2,8 +2,10 @@ import random
 import string
 
 from multihist import Histdd
+from multihist import Hist1d
 import pandas as pd
 from scipy.interpolate import interp2d
+from scipy.interpolate import interp1d
 
 import numpy as np
 from scipy import stats
@@ -223,5 +225,214 @@ class TemplateProductSource(fd.ColumnSource):
             sim_colums.append(pd.DataFrame(dict(zip(
                 final_dims, mh.get_random(n_events).T))))
         df = pd.concat(sim_colums, axis=1)
+
+        return df
+
+    
+@export
+class CorrelatedTemplateProductSource(fd.ColumnSource):
+    """
+    """
+
+    def __init__(
+            self,
+            templates=None,
+            axis_names=None,
+            *args,
+            **kwargs):
+        assert(len(templates) == len(axis_names))
+        ## Make sure all the templates are 2D
+        for t in templates:
+            assert len(np.shape(t.histogram)) == 2, 'Correlated products currently only supported for 2D templates.'
+            
+        ## Make sure all the templates add new information; e.g. if template[0] has axes (a,b) and 
+        ## template[1] has axes (b,c), template[2] better not have axes (a,c). 
+        self.final_dimensions_list = []
+        self.final_dimensions = []
+        for axs in axis_names:
+            ax1, ax2 = axs
+            if ax1 in self.final_dimensions and ax2 in self.final_dimensions:
+                raise RuntimeError(f'No unique information added to model from template with axes ({ax1}, {ax2})')
+            self.final_dimensions_list.append(axs)
+            if ax1 not in self.final_dimensions and ax2 not in self.final_dimensions:
+                self.final_dimensions.append(axs)
+            elif ax1 not in self.final_dimensions:
+                self.final_dimensions.append((ax1,))
+            else:
+                self.final_dimensions.append((ax2,))
+        self.final_dimensions = sum(self.final_dimensions,())
+        self.interp_2d_list = []
+        self.interp_1d_list = []
+        self.sample_1d_list = []
+        
+        ## Create a list of lists containing the names of shared axes between the set of input templates
+        self.shared_dimensions_matrix = []
+        for ans in axis_names:
+            shared_axes = []
+            for ans2 in axis_names:
+                if ans == ans2:
+                    ## If comparing the axes of a template with itself, label it as 1
+                    shared_axes.append(1)
+                else:
+                    ## Else get all the axis names in common between two templates
+                    ax = [a for a in ans if a in ans2]
+                    try:
+                        ## By earlier assertion, we assume there will be at most 1 shared axis between two templates
+                        shared_axes.append(ax[0])
+                    except:
+                        ## If there are no shared axes, we'll get an index error. In that case label as 0
+                        shared_axes.append(0)
+                    
+            self.shared_dimensions_matrix.append(shared_axes)
+        
+        self.mh_list = []
+
+        # Get templates, bin_edges, and axis_names
+        for n, template, axis in enumerate(zip(templates, axis_names)):
+            this_template, these_bin_edges = template.histogram, template.bin_edges
+            assert len(np.shape(this_template)) == len(axis)
+            mh = Histdd.from_histogram(this_template, bin_edges=these_bin_edges, axis_names=axis)
+            self.mh_list.append(mh)
+            
+            ## The first template will always be kept as a 2D template. For subsequent templates
+            ## in the list, we'll check if they share an axis with any templates preceeding it.
+            shared_axes = self.shared_dimensions_matrix[n]
+            no_shared_axes = True
+            for ax in shared_axes:
+                if ax == 1:
+                    ## Breaking here ensures we only look at the previous templates in the list relative to this one
+                    break
+                if ax == 0:
+                    ## Continue if there's no shared axis between this template and a given previous one
+                    continue
+                ## If we get here, there must be a shared axis between this template and a previous one. We will
+                ## generate a list of 1D interpolators, which we can reference later as a PDF for a conditional 
+                ## probability. E.g. we get (S1, S2) from P(S1, S2) and then we get R from P(R | S2).
+                no_shared_axes = False
+                shared_axis_name = ax
+                break
+            
+            if no_shared_axes:
+                centers_dim_1 = 0.5 * (these_bin_edges[0][1:] + these_bin_edges[0][:-1])
+                centers_dim_2 = 0.5 * (these_bin_edges[1][1:] + these_bin_edges[1][:-1])
+                self.interp_2d_list.append(interp2d(centers_dim_1, centers_dim_2, np.transpose(this_template)))
+                self.interp_1d_list.append(None)
+                self.sample_1d_list.append(None)
+            else:
+                interpolaters = dict()
+                samplers = dict()
+                if shared_axis_name == axis[0]
+                    other_axis_name = axis[1]
+                else:
+                    other_axis_name = axis[0]
+                axis_index = mh.get_axis_number(shared_axis_name)
+                other_axis_index = mh.get_axis_number(other_axis_name)
+                
+                centres = []
+                centres.append(0.5 * (these_bin_edges[0][1:] + these_bin_edges[0][:-1]))
+                centres.append(0.5 * (these_bin_edges[1][1:] + these_bin_edges[1][:-1]))
+                
+                for i, c in centres[axis_index]:
+                    temp_slice = mh.slice(start=c,stop=c,axis=axis_index)
+                    temp_slice_proj = temp_slice.projection(other_axis_name)
+                    temp_slice_proj = temp_slice_proj/temp_slice_proj.n
+                    temp_slice_proj = temp_slice_proj/temp_slice_proj.bin_volumes()
+                    interpolaters[c] = interp1d(centres[other_axis_index], temp_slice_proj.histogram.T[0])
+                    samplers[c] = temp_slice_proj
+                self.interp_2d_list.append(None)
+                self.interp_1d_list.append(interpolaters)
+                self.sample_1d_list.append(samplers)
+            #self.final_dimensions_list.append(axis)
+        #self.final_dimensions = sum(self.final_dimensions_list, ())
+
+        self.mu = fd.np_to_tf(1.)
+
+        # Generate a random column name to use to store the diff rates
+        # of observed events
+        self.column = (
+            'template_diff_rate_'
+            + ''.join(random.choices(string.ascii_lowercase, k=8)))
+
+        super().__init__(*args, **kwargs)
+    
+    def sample_conditional_pdf(self, sample_dict, condition):
+        arr = np.array(list(interp1d_dict.keys()))
+        if hasattr(condition,'__iter__'):
+            indexes = [np.argwhere(c >= arr)[0][0] for c in condition]
+            keys = [arr[i] for i in indexes]
+            return [sample_dict[k].get_random(1)[0] k in keys]
+        else:
+            index = np.argwhere(condition[0] >= arr)[0][0]
+            key = arr[index]
+            return sample_dict[key].get_random(1)[0]
+    
+    def conditional_probability(self, interp1d_dict, vals):
+        arr = np.array(list(interp1d_dict.keys()))
+        if hasattr(vals[0],'__iter__'):
+            indexes = [np.argwhere(v >= arr)[0][0] for v in vals[0]]
+            keys = [arr[i] for i in indexes]
+            return [interp1d_dict[k](v) k, v in zip(keys, vals[1])]
+        else:
+            index = np.argwhere(vals[0] >= arr)[0][0]
+            key = arr[index]
+            return interp1d_dict[key](vals[1])
+            
+        
+    def _annotate(self):
+        """Add columns needed in inference to self.data
+        """
+        self.data[self.column] = np.ones_like(len(self.data))
+        for final_dims, interp_2d, interp_1d, mh in zip(self.final_dimensions_list, self.interp_2d_list, self.interp_1d_list, self.mh_list):
+            if interp_2d is not None:
+                self.data[self.column] *= np.array([interp_2d(r[self.data.columns.get_loc(final_dims[0])],
+                                                            r[self.data.columns.get_loc(final_dims[1])])[0]
+                                                    for r in self.data.itertuples(index=False)])
+            elif interp_1d is not None:
+                col0 = self.data[final_dims[0]].to_numpy()
+                col1 = self.data[final_dims[1]].to_numpy()
+                vals = np.array((col0,col1))
+                self.data[self.column] *= np.array(self.conditional_probability(interp_1d, vals))
+            else:
+                self.data[self.column] *= mh.lookup(*[self.data[x] for x in final_dims])
+
+        if (self.decay_constant_ns is not None) and ('event_time' in self.final_dimensions):
+            pdf = np.exp(-(self.data['event_time'].values - self.t_start.value) / self.decay_constant_ns)
+            normalisation = 1. / (self.decay_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.decay_constant_ns)))
+            uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+            self.data[self.column] *= normalisation * pdf / uniform_pdf
+
+    def simulate(self, n_events, fix_truth=None, full_annotate=False,
+                 keep_padding=False, **params):
+        """Simulate n events.
+        """
+        if fix_truth:
+            raise NotImplementedError("TemplateSource does not yet support fix_truth")
+        assert isinstance(n_events, (int, float)), \
+            f"n_events must be an int or float, not {type(n_events)}"
+
+        sim_events_dict = dict()
+        for i, final_dims, mh, samp1d in enumerate(zip(self.final_dimensions_list, self.mh_list, self.sample_1d_list)):
+            if samp1d is None:
+                df_data = mh.get_random(n_events).T
+                sim_events_dict[final_dims[0]] = df_data[0]
+                sim_events_dict[final_dims[1]] = df_data[1]
+            else:
+                shared_dims = self.shared_dimensions_matrix[i]
+                for d in shared_dims:
+                    if d == 1:
+                        break
+                    if final_dims[0] == d:
+                        conditional_dim = final_dims[0]
+                        simulated_dim = final_dims[1]
+                    if final_dims[1] == d:
+                        conditional_dim = final_dims[1]
+                        simulated_dim = final_dims[0]
+                try:
+                    conditions = np.array(sim_events_dict[conditional_dim].values())
+                except:
+                    raise RuntimeError(f'Accessing {conditional_dim} data when it has not been simulated yet.')
+                sim_events_dict[simulated_dim] = np.array(self.sample_conditional_pdf(samp1d, conditions))
+
+        df = pd.DataFrame(sim_events_dict)
 
         return df
