@@ -255,12 +255,13 @@ class CorrelatedTemplateProductSource(fd.ColumnSource):
                 raise RuntimeError(f'No unique information added to model from template with axes ({ax1}, {ax2})')
             self.final_dimensions_list.append(axs)
             if ax1 not in self.final_dimensions and ax2 not in self.final_dimensions:
-                self.final_dimensions.append(axs)
+                self.final_dimensions.append(ax1)
+                self.final_dimensions.append(ax2)
             elif ax1 not in self.final_dimensions:
-                self.final_dimensions.append((ax1,))
+                self.final_dimensions.append(ax1)
             else:
-                self.final_dimensions.append((ax2,))
-        self.final_dimensions = sum(self.final_dimensions,())
+                self.final_dimensions.append(ax2)
+        #self.final_dimensions = sum(self.final_dimensions,())
         self.interp_2d_list = []
         self.interp_1d_list = []
         self.sample_1d_list = []
@@ -288,7 +289,7 @@ class CorrelatedTemplateProductSource(fd.ColumnSource):
         self.mh_list = []
 
         # Get templates, bin_edges, and axis_names
-        for n, template, axis in enumerate(zip(templates, axis_names)):
+        for n, (template, axis) in enumerate(zip(templates, axis_names)):
             this_template, these_bin_edges = template.histogram, template.bin_edges
             assert len(np.shape(this_template)) == len(axis)
             mh = Histdd.from_histogram(this_template, bin_edges=these_bin_edges, axis_names=axis)
@@ -321,7 +322,7 @@ class CorrelatedTemplateProductSource(fd.ColumnSource):
             else:
                 interpolaters = dict()
                 samplers = dict()
-                if shared_axis_name == axis[0]
+                if shared_axis_name == axis[0]:
                     other_axis_name = axis[1]
                 else:
                     other_axis_name = axis[0]
@@ -332,12 +333,12 @@ class CorrelatedTemplateProductSource(fd.ColumnSource):
                 centres.append(0.5 * (these_bin_edges[0][1:] + these_bin_edges[0][:-1]))
                 centres.append(0.5 * (these_bin_edges[1][1:] + these_bin_edges[1][:-1]))
                 
-                for i, c in centres[axis_index]:
+                for i, c in enumerate(centres[axis_index]):
                     temp_slice = mh.slice(start=c,stop=c,axis=axis_index)
                     temp_slice_proj = temp_slice.projection(other_axis_name)
                     temp_slice_proj = temp_slice_proj/temp_slice_proj.n
                     temp_slice_proj = temp_slice_proj/temp_slice_proj.bin_volumes()
-                    interpolaters[c] = interp1d(centres[other_axis_index], temp_slice_proj.histogram.T[0])
+                    interpolaters[c] = interp1d(centres[other_axis_index], temp_slice_proj.histogram.T)
                     samplers[c] = temp_slice_proj
                 self.interp_2d_list.append(None)
                 self.interp_1d_list.append(interpolaters)
@@ -356,24 +357,30 @@ class CorrelatedTemplateProductSource(fd.ColumnSource):
         super().__init__(*args, **kwargs)
     
     def sample_conditional_pdf(self, sample_dict, condition):
-        arr = np.array(list(interp1d_dict.keys()))
+        arr = np.array(list(sample_dict.keys()))
         if hasattr(condition,'__iter__'):
-            indexes = [np.argwhere(c >= arr)[0][0] for c in condition]
+            np.put(condition,np.argwhere(condition > np.max(arr)), np.max(arr))
+            indexes = [np.argwhere(c <= arr)[0][0] for c in condition]
             keys = [arr[i] for i in indexes]
-            return [sample_dict[k].get_random(1)[0] k in keys]
+            return [sample_dict[k].get_random(1)[0] for k in keys]
         else:
-            index = np.argwhere(condition[0] >= arr)[0][0]
+            if condition > np.max(arr):
+                condition = np.max(arr)
+            index = np.argwhere(condition[0] <= arr)[0][0]
             key = arr[index]
             return sample_dict[key].get_random(1)[0]
     
     def conditional_probability(self, interp1d_dict, vals):
         arr = np.array(list(interp1d_dict.keys()))
         if hasattr(vals[0],'__iter__'):
-            indexes = [np.argwhere(v >= arr)[0][0] for v in vals[0]]
+            np.put(vals[0],np.argwhere(vals[0] > np.max(arr)), np.max(arr))
+            indexes = [np.argwhere(v <= arr)[0][0] for v in vals[0]]
             keys = [arr[i] for i in indexes]
-            return [interp1d_dict[k](v) k, v in zip(keys, vals[1])]
+            return [interp1d_dict[k](v) for k, v in zip(keys, vals[1])]
         else:
-            index = np.argwhere(vals[0] >= arr)[0][0]
+            if vals[0] > np.max(arr):
+                vals[0] = np.max(arr)
+            index = np.argwhere(vals[0] <= arr)[0][0]
             key = arr[index]
             return interp1d_dict[key](vals[1])
             
@@ -411,7 +418,7 @@ class CorrelatedTemplateProductSource(fd.ColumnSource):
             f"n_events must be an int or float, not {type(n_events)}"
 
         sim_events_dict = dict()
-        for i, final_dims, mh, samp1d in enumerate(zip(self.final_dimensions_list, self.mh_list, self.sample_1d_list)):
+        for i, (final_dims, mh, samp1d) in enumerate(zip(self.final_dimensions_list, self.mh_list, self.sample_1d_list)):
             if samp1d is None:
                 df_data = mh.get_random(n_events).T
                 sim_events_dict[final_dims[0]] = df_data[0]
@@ -427,8 +434,9 @@ class CorrelatedTemplateProductSource(fd.ColumnSource):
                     if final_dims[1] == d:
                         conditional_dim = final_dims[1]
                         simulated_dim = final_dims[0]
+                
                 try:
-                    conditions = np.array(sim_events_dict[conditional_dim].values())
+                    conditions = np.array(sim_events_dict[conditional_dim])
                 except:
                     raise RuntimeError(f'Accessing {conditional_dim} data when it has not been simulated yet.')
                 sim_events_dict[simulated_dim] = np.array(self.sample_conditional_pdf(samp1d, conditions))
