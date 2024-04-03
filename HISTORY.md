@@ -1,3 +1,15 @@
+2.1.0 / 2024-04-03
+------------------
+- Mu estimation options, including grid interpolation (#222, #242, #285)
+- Template sources and morphing (#241, #317, #318)
+- NEST sources: update to NEST 2.3.0 (#249), add beta/gamma models (#252)
+- Default sources: Reconstruction bias/smearing (#273)
+- Non-integer dimensions (#258)
+- Non-asymptotic inference (#269, #345)
+- Reservoir source that caches rates (#247)
+- Fixes and cleanups (#231, #270, #284, #327, #329)
+- Tested on tensorflow 2.6.1 / numpy 1.26.4
+
 2.0.0 / 2022-05-20
 ------------------
 - FlameNEST models fully implemented (https://arxiv.org/abs/2204.13621)
