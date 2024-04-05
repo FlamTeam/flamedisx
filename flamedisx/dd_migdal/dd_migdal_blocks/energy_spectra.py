@@ -37,7 +37,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     #: Dummy energy spectrum of 1s. Override for SS
-    rates_vs_energy_first = tf.ones(65, dtype=fd.float_type())
+    rates_vs_energy_first = tf.ones(65, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
 
     def get_r_dt_diff_rate(self, r_dt_diff_rate):
         return r_dt_diff_rate
@@ -124,7 +124,7 @@ class EnergySpectrumFirstMSU3(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type())
+    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
 
 
 @export
@@ -140,7 +140,7 @@ class EnergySpectrumFirstMigdal(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04712855e-02, 9.54992586e+01, 100))
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(100, dtype=fd.float_type())
+    rates_vs_energy_first = tf.ones(100, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
 
 
 @export
@@ -148,7 +148,7 @@ class EnergySpectrumFirstMigdalMSU(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(0.11167041, 17.90984679, 24))
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type())
+    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
 
 
 @export
@@ -156,7 +156,7 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(99, dtype=fd.float_type())
+    rates_vs_energy_first = tf.ones(99, dtype=fd.float_type()) / sum(np.ones_like(energies_first))
 
     r_dt_dist = np.load(os.path.join(
         os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
