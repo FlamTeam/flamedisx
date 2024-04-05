@@ -353,7 +353,7 @@ class TSEvaluation():
                     kwargs[self.transform_params[source][0]] = self.transform_params[source][1]
             
             for param in self.common_params.keys():
-                kwargs[param] = self.common_params[source]
+                kwargs[param] = self.common_params[param]
 
             likelihood = self.likelihood_class(sources=sources,
                                                arguments=arguments,
