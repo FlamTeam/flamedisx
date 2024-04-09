@@ -340,7 +340,8 @@ class LogLikelihood:
                 np.concatenate([[0], stop_idx[:-1]]),
                 stop_idx])
 
-    def simulate(self, fix_truth=None, **params):
+    def simulate(self, fix_truth=None, alter_source_mus=False,
+                 **params):
         """Simulate events from sources.
         """
         params = self.prepare_params(params, free_all_rates=True)
@@ -352,6 +353,8 @@ class LogLikelihood:
             rm = self._get_rate_mult(sname, params)
             mu = rm * s.mu_before_efficiencies(
                 **self._filter_source_kwargs(params, sname))
+            if alter_source_mus:
+                mu *= self.mu_estimators[sname](**self._filter_source_kwargs(params, sname))
             # Simulate this many events from source
             n_to_sim = np.random.poisson(mu)
             if n_to_sim == 0:
