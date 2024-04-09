@@ -135,9 +135,6 @@ class TSEvaluation():
         - signal_source_names: tuple of names for signal sources (e.g. WIMPs of different
             masses)
         - background_source_names: tuple of names for background sources
-        - sources: dictionary {sourcename: class} of all signal and background source classes
-        - arguments: dictionary {sourcename: {kwarg1: value, ...}, ...}, for
-            passing keyword arguments to source constructors
         - expected_background_counts: dictionary of expected counts for background sources
         - gaussian_constraint_widths: dictionary giving the constraint width for all sources
             using Gaussian constraints for their rate nuisance parameters
@@ -145,31 +142,19 @@ class TSEvaluation():
             in the toys for any sources using non-Gaussian constraints for their rate nuisance
             parameters. Argument to the function will be either the prior expected counts,
             or the number of counts at the conditional MLE, depending on the mode
-        - rm_bounds: dictionary {sourcename: (lower, upper)} to set fit bounds on the rate multipliers
-        - log_constraint_fn: logarithm of the constraint function used in the likelihood. Any arguments
-            which aren't fit parameters, such as those determining constraint means for toys, will need
-            passing via the set_constraint_extra_args() function
+        - likelihood: BLAH
         - ntoys: number of toys that will be run to get test statistic distributions
-        - batch_size: batch size that will be used for the RM fits
     """
     def __init__(
             self,
             test_statistic: TestStatistic.__class__,
             signal_source_names: ty.Tuple[str],
             background_source_names: ty.Tuple[str],
-            sources: ty.Dict[str, fd.Source.__class__],
-            arguments: ty.Dict[str, ty.Dict[str, ty.Union[int, float]]] = None,
             expected_background_counts: ty.Dict[str, float] = None,
             gaussian_constraint_widths: ty.Dict[str, float] = None,
             sample_other_constraints: ty.Dict[str, ty.Callable] = None,
-            rm_bounds: ty.Dict[str, ty.Tuple[float, float]] = None,
-            log_constraint_fn: ty.Callable = None,
-            ntoys=1000,
-            batch_size=10000):
-
-        for key in sources.keys():
-            if key not in arguments.keys():
-                arguments[key] = dict()
+            likelihood=None,
+            ntoys=1000):
 
         if gaussian_constraint_widths is None:
             gaussian_constraint_widths = dict()
@@ -177,34 +162,17 @@ class TSEvaluation():
         if sample_other_constraints is None:
             sample_other_constraints = dict()
 
-        if rm_bounds is None:
-            rm_bounds = dict()
-        else:
-            for bounds in rm_bounds.values():
-                assert bounds[0] >= 0., 'Currently do not support negative rate multipliers'
-
-        if log_constraint_fn is None:
-            def log_constraint_fn(**kwargs):
-                return 0.
-            self.log_constraint_fn = log_constraint_fn
-        else:
-            self.log_constraint_fn = log_constraint_fn
-
         self.ntoys = ntoys
-        self.batch_size = batch_size
 
+        self.likelihood = likelihood
         self.test_statistic = test_statistic
 
         self.signal_source_names = signal_source_names
         self.background_source_names = background_source_names
 
-        self.sources = sources
-        self.arguments = arguments
-
         self.expected_background_counts = expected_background_counts
         self.gaussian_constraint_widths = gaussian_constraint_widths
         self.sample_other_constraints = sample_other_constraints
-        self.rm_bounds = rm_bounds
 
     def run_routine(self, mus_test=None, save_fits=False,
                     observed_data=None,
@@ -266,33 +234,8 @@ class TSEvaluation():
             test_stat_dists_SB = TestStatisticDistributions()
             test_stat_dists_B = TestStatisticDistributions()
 
-            sources = dict()
-            arguments = dict()
-            for background_source in self.background_source_names:
-                sources[background_source] = self.sources[background_source]
-                arguments[background_source] = self.arguments[background_source]
-            sources[signal_source] = self.sources[signal_source]
-            arguments[signal_source] = self.arguments[signal_source]
-
-            # Create likelihood of TemplateSources
-            likelihood = fd.LogLikelihood(sources=sources,
-                                          arguments=arguments,
-                                          progress=False,
-                                          batch_size=self.batch_size,
-                                          free_rates=tuple([sname for sname in sources.keys()]))
-
-            rm_bounds = dict()
-            if signal_source in self.rm_bounds.keys():
-                rm_bounds[signal_source] = self.rm_bounds[signal_source]
-            for background_source in self.background_source_names:
-                if background_source in self.rm_bounds.keys():
-                    rm_bounds[background_source] = self.rm_bounds[background_source]
-
-            # Pass rate multiplier bounds to likelihood
-            likelihood.set_rate_multiplier_bounds(**rm_bounds)
-
-            # Pass constraint function to likelihood
-            likelihood.set_log_constraint(self.log_constraint_fn)
+            # Get likelihood
+            likelihood = self.likelihood
 
             # Where we want to generate B-only toys
             if generate_B_toys:
