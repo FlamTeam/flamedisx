@@ -4,6 +4,8 @@ from scipy import stats
 from tqdm.auto import tqdm
 import typing as ty
 
+from copy import deepcopy
+
 import tensorflow as tf
 
 export, __all__ = fd.exporter()
@@ -235,7 +237,18 @@ class TSEvaluation():
             test_stat_dists_B = TestStatisticDistributions()
 
             # Get likelihood
-            likelihood = self.likelihood
+            likelihood = deepcopy(self.likelihood)
+
+            assert hasattr(likelihood, 'likelihoods'), 'Logic only currently works for combined likelihood'
+            for ll in likelihood.likelihoods.values():
+                sources_remove = []
+                params_remove = []
+                for sname in ll.sources:
+                    if (sname != signal_source) and (sname not in self.background_source_names):
+                        sources_remove.append(sname)
+                        params_remove.append(f'{sname}_rate_multiplier')
+            likelihood.rebuild(sources_remove=sources_remove,
+                               params_remove=params_remove)
 
             # Where we want to generate B-only toys
             if generate_B_toys:
@@ -407,18 +420,17 @@ class TSEvaluation():
         likelihood.set_constraint_extra_args(**constraint_extra_args)
 
         # Set data
-        try:
+        if hasattr(likelihood, 'likelihoods'):
             for key in likelihood.likelihoods.keys():
                 observed_data_ll = observed_data[observed_data['component'] == key]
                 likelihood.set_data(observed_data_ll, key)
-        
-        except:
+        else:
             likelihood.set_data(observed_data)
 
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
         # Guesses for fit
-        guess_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
+        guess_dict = {f'{signal_source_name}_rate_multiplier': 0.1}
         for background_source in self.background_source_names:
             guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
         for key, value in guess_dict.items():
