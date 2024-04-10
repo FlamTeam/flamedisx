@@ -28,9 +28,9 @@ class TestStatistic():
         guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
 
         # Conditional fit
-        bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
+        bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True, use_hessian=False)
         # Uncnditional fit
-        bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
+        bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True, use_hessian=False)
 
         # Return the test statistic, unconditional fit and conditional fit
         return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
@@ -407,7 +407,14 @@ class TSEvaluation():
         likelihood.set_constraint_extra_args(**constraint_extra_args)
 
         # Set data
-        likelihood.set_data(observed_data)
+        try:
+            for key in likelihood.likelihoods.keys():
+                observed_data_ll = observed_data[observed_data['component'] == key]
+                likelihood.set_data(observed_data_ll, key)
+        
+        except:
+            likelihood.set_data(observed_data)
+
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
         # Guesses for fit
