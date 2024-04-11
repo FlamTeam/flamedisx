@@ -346,7 +346,11 @@ class TSEvaluation():
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
             # Set data
-            likelihood.set_data(toy_data_SB)
+            if hasattr(likelihood, 'likelihoods'):
+                for component, data in toy_data_SB.items():
+                    likelihood.set_data(data, component)
+            else:
+                likelihood.set_data(toy_data_SB)
             # Create test statistic
             test_statistic_SB = self.test_statistic(likelihood)
             # Guesses for fit
@@ -382,7 +386,11 @@ class TSEvaluation():
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args_B)
             # Set data
-            likelihood.set_data(toy_data_B)
+            if hasattr(likelihood, 'likelihoods'):
+                for component, data in toy_data_B.items():
+                    likelihood.set_data(data, component)
+            else:
+                likelihood.set_data(toy_data_B)
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
             # Evaluate test statistic
@@ -421,9 +429,8 @@ class TSEvaluation():
 
         # Set data
         if hasattr(likelihood, 'likelihoods'):
-            for key in likelihood.likelihoods.keys():
-                observed_data_ll = observed_data[observed_data['component'] == key]
-                likelihood.set_data(observed_data_ll, key)
+            for component, data in observed_data.items():
+                likelihood.set_data(data, component)
         else:
             likelihood.set_data(observed_data)
 
