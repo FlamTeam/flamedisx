@@ -26,6 +26,7 @@ import matplotlib as mpl
 
 
 ### interpolation grids for NR
+# filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam.npz'
 filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240309.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
@@ -43,14 +44,10 @@ def interp_nd(x):
     y (output): [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
     """
         
-    # print('x',tf.shape(x))
     # Define x_grid_points for interpolation
     part1 = tf.cast(tf.experimental.numpy.geomspace(1,4,7), fd.float_type())
     part2 = tf.cast(tf.experimental.numpy.geomspace(4,80,23), fd.float_type())[1:]
     keVnr_choices = tf.concat([part1,part2],axis=0)
-    
-    # print(np.shape(keVnr_choices))
-    # print(tf.shape(keVnr_choices))
 
     Fi_grid = tf.cast([0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                  # Fano ion
     Fex_grid = tf.cast([0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75], fd.float_type())        # Fano exciton
@@ -71,9 +68,6 @@ def interp_nd(x):
                                                        axis=1,
                                                        )[0] # o/p shape (1, len(E), 7)
                                                             # want shape   (len(E), 7)
-
-    # print('interpo final shape: ',np.shape(interp))
-    # print('interpo final shape: ',tf.shape(interp))
     return interp 
   
 def interp_nd_ER(x):
@@ -162,45 +156,6 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def mu_before_efficiencies(self, **params):
         return 1.
     
-    '''
-    #### Old Yield Model
-    @staticmethod
-    def signal_means(energy, a=13.1895962, b=1.06532331,
-                     c_s2_0=3.70318382, c_s2_1=-3.49159718, c_s2_2=0.07861683,
-                     g1=0.1131, g2=47.35,
-                     s1_mean_multiplier=1., s2_mean_multiplier=1.):
-        P = c_s2_0 + c_s2_1 * (fd.tf_log10(energy) - 1.6) + c_s2_2 * pow((fd.tf_log10(energy) - 1.6), 2)
-        s2_mean = s2_mean_multiplier * P * energy * g2
-
-        s1_mean = s1_mean_multiplier * (a * energy**b - s2_mean / g2) * g1
-        s1_mean = tf.where(s1_mean < 0.01, 0.01 * tf.ones_like(s1_mean, dtype=fd.float_type()), s1_mean)
-
-        return s1_mean, s2_mean
-
-    @staticmethod
-    def signal_vars(*args, d_s1=1.20307136, d_s2=38.27449296):
-        s1_mean = args[0]
-        s2_mean = args[1]
-
-        s1_var = d_s1 * s1_mean
-
-        s2_var = d_s2 * s2_mean
-
-        return s1_var, s2_var
-
-    @staticmethod
-    def signal_corr(energies, anti_corr=-0.20949764):
-        return anti_corr * tf.ones_like(energies)
-    
-    @staticmethod # 240213 - AV added
-    def signal_skews(energies, s1_skew=0,s2_skew=0):
-        
-        s1_skew *= tf.ones_like(energies)
-        s2_skew *= tf.ones_like(energies)
-        
-        return s1_skew, s2_skew
-    '''
-    
     ### New Yield Model # 240305 - AV added # 240326 - JB replace gamma delta to thomas-imel
     ### params --> {alpha, beta, Thomas-Imel, epsilon, Fi, Fex, NBamp, RawSkew}
     @staticmethod
@@ -234,7 +189,6 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         
         return Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
     
-    
     ###
     
     def get_s2(self, s2):
@@ -248,7 +202,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
         
-        s1s2_acc = tf.where((s2 > 200*s1**(0.73)), ### turn off for testing  TURN BACK ON!!!!!!!!!!
+        s1s2_acc = tf.where((s2 > 200*s1**(0.73)),
                             tf.ones_like(s2, dtype=fd.float_type()),
                             tf.zeros_like(s2, dtype=fd.float_type()))
         nr_endpoint = tf.where((s1 > 140) & (s2 > 8e3) & (s2 < 11.5e3),
@@ -256,12 +210,12 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                             tf.ones_like(s2, dtype=fd.float_type()))
 
         return (s1_acc * s2_acc * s1s2_acc * nr_endpoint)
-        # return (s1_acc * s2_acc) # for testing
+        # return (s1_acc * s2_acc) # FOR TESTING ONLY
 
     final_dimensions = ('s1',)
     
     @staticmethod
-    def pdf_for_nphne(x, y, x_mean, y_mean, x_std, y_std, x_skew, y_skew, anti_corr, spectrum):      
+    def pdf_for_nphne(x, y, x_mean, y_mean, x_std, y_std, x_skew, y_skew, anti_corr):      
         # define scale and loc params for shifting skew2d from (0,0)
         # parameters are defined in a form of matrix multiplication
         # bCa = [[1,corr],[corr,1]] @[[skew1],[skew2]] 
@@ -301,10 +255,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
 
         # skew2d = f(xmod,ymod)*Phi(xmod)*(2/scale)
         NphNe_pdf = mvn_pdf * norm_cdf * (2 / (scale1*scale2)) * (x_std*y_std) #shape (Nph,Ne,energies)
-        
-        NphNe_pdf *= spectrum #shape (Nph,Ne,energies)
-        NphNe_pdf = tf.reduce_sum(NphNe_pdf, axis=tf.range(2,tf.rank(NphNe_pdf))) #shape (Nph,Ne)
-                
+                        
         return NphNe_pdf
         
     @staticmethod
@@ -326,7 +277,6 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         S2_std = tf.sqrt(S2_mean*S2_fano)           # shape (Ne)
         S2_skew = -2.37542105 *  Ne** (-0.26152676) # shape (Ne)
 
-
         S1_pdf = skewnorm_1d(x=S1_pos,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew) #shape (s1,Nph)
         S1_pdf = tf.repeat(S1_pdf[:,o,:],len(s2),1) #shape (s1,s2,Nph)
         S1_pdf = tf.repeat(S1_pdf[:,:,:,o],len(Ne),3) #shape (s1,s2,Nph,Ne)
@@ -342,45 +292,14 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         
         return S1S2_pdf
 
-    def pdf_for_nphne_pre_populate(self, NphNe, **params):
-        old_defaults = copy(self.defaults)
-        self.set_defaults(**params)        
-        ptensor = self.ptensor_from_kwargs(**params)
-        
-        # Energy binning
-        energies = fd.np_to_tf(self.energies_first)
-              
-        ### Quanta Production
-        x = NphNe[:,:,0] #shape (Nph,Ne)
-        x = tf.repeat(x[:,:,o],len(energies),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
-
-        y = NphNe[:,:,1] #shape (Nph,Ne)
-        y = tf.repeat(y[:,:,o],len(energies),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
-        
-        # Load params
-        Nph_mean, Ne_mean = self.gimme('yield_params',
-                                        bonus_arg=energies, 
-                                        ptensor=ptensor) #shape (energies)
-        
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
-                                                                         bonus_arg=energies, 
-                                                                         ptensor=ptensor) #shape (energies)
-                
-        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
-        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
-        
-        spectrum = fd.np_to_tf(self.rates_vs_energy_first)
-        # tf.print('estimate mu: sum rates_vs_energy_first',tf.reduce_sum(self.rates_vs_energy_first))
-        
-        self.defaults = old_defaults
-        
-        return x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum
-      
     def estimate_mu(self, **params):
         
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # shape (Nph+1) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type()) # shape (Ne+1)
+        Nph_bw = 5.0
+        Ne_bw = 2.0  
+        Nph_edges = tf.cast(tf.range(0,2500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
+        Ne_edges = tf.cast(tf.range(0,500,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1]) # shape (Nph)
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1]) # shape (Ne) 
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges) # shape (Nph)
@@ -397,14 +316,44 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         s2_diffs = tf.experimental.numpy.diff(s2_edges) #shape (s2)
 
         S1_mesh, S2_mesh = tf.meshgrid(s1,s2,indexing='ij') #shape (s1,s2)
-
-        x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum = self.pdf_for_nphne_pre_populate(NphNe,**params)
         
-        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum)
+        # Energy binning
+        energies = fd.np_to_tf(self.energies_first)
+        spectrum = fd.np_to_tf(self.rates_vs_energy_first)
+        
+        ### Quanta Production
+        x = NphNe[:,:,0] #shape (Nph,Ne)
+        x = tf.repeat(x[:,:,o],len(energies),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
 
+        y = NphNe[:,:,1] #shape (Nph,Ne)
+        y = tf.repeat(y[:,:,o],len(energies),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
+        
+        # Load params
+        ptensor = self.ptensor_from_kwargs(**params)
+        
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energies, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energies, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
+        
+        # Generate NphNe pdfs
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
+
+        NphNe_pdf *= spectrum #shape (Nph,Ne,energies)
+        NphNe_pdf = tf.reduce_sum(NphNe_pdf, axis=tf.range(2,tf.rank(NphNe_pdf))) #shape (Nph,Ne)
+        
         NphNe_probs = NphNe_pdf*Nph_diffs[0]*Ne_diffs[0] #shape (Nph,Ne), Nph and Ne grids must be linspace!
-        # NphNe_probs = NphNe_probs/tf.reduce_sum(NphNe_probs) # 240408 AV added to normalize Nph,Ne pdf to 1
-        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_probs))
+        
+        # avoid Nph=0 and Ne=0 for the S1, S2 calculation
+        NphNe_probs = NphNe_probs[1:,1:]
+        Nph = Nph[1:]
+        Ne = Ne[1:]
                 
         S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_probs)
         
@@ -414,36 +363,6 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                                 special_call=True)
         S1S2_pdf *= acceptance
         
-        '''
-        #*******test plot*******#
-        plt.pcolormesh(Nph,Ne,tf.transpose(NphNe_pdf).numpy(),cmap='jet')
-        plt.xlabel('Nph')
-        plt.ylabel('Ne')
-        plt.xlim(Nph_edges[0],Ne_edges[-1])
-        plt.ylim(Nph_edges[0],Ne_edges[-1])
-        plt.colorbar()
-        plt.show()
-        
-        plt.pcolormesh(Nph,Ne,tf.transpose(NphNe_probs).numpy(),cmap='jet')
-        plt.xlabel('Nph')
-        plt.ylabel('Ne')
-        plt.xlim(Nph_edges[0],Ne_edges[-1])
-        plt.ylim(Nph_edges[0],Ne_edges[-1])
-        plt.colorbar()
-        plt.show()
-        
-        plt.pcolormesh(s1,s2,tf.transpose(S1S2_pdf*tf.reshape(s1_diffs,[-1,1])*s2_diffs).numpy(),cmap='jet')
-        plt.xlabel('S1 [phd]')
-        plt.ylabel('S2 [phd]')
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.xlim(s1_edges[0],s1_edges[-1])
-        plt.ylim(s2_edges[0],s2_edges[-1])
-        plt.colorbar()
-        plt.show()
-        '''
-        
-        
         # rescale by the S1,S2 bin width
         mu_est = s1_diffs[o, :] @ S1S2_pdf
         mu_est = mu_est @ s2_diffs[:, o]
@@ -451,7 +370,6 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         
         return mu_est
 
-        
 
 @export
 class NRNRSource(NRSource):
@@ -475,75 +393,104 @@ class NRNRSource(NRSource):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
     
-    def pdf_for_nphne_pre_populate(self, NphNe, **params):
-        old_defaults = copy(self.defaults)
-        self.set_defaults(**params)        
-        ptensor = self.ptensor_from_kwargs(**params)
-        
+
+    def fftConvolve_nphnePDFs(self, NphNe, Nph_bw, Ne_bw, **params):
         # Energy binning
         energy_first = fd.np_to_tf(self.energies_first)    # shape: {E1_bins}
         energy_second = fd.np_to_tf(self.energies_second)  # shape: {E2_bins}
-              
-        ### Quanta Production
-        x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
-        x = tf.repeat(x[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        x = tf.repeat(x[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
-
-        y = NphNe[:,:,1] # Ne counts --> final shape: {Nph, Ne}
-        y = tf.repeat(y[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        y = tf.repeat(y[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
-        
-        ###########  # First vertex
-        # Load params
-        Nph_1_mean, Ne_1_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_first, 
-                                            ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
-        
-        Nph_1_fano, Ne_1_fano, Nph_1_skew, Ne_1_skew, initial_1_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_first, 
-                                                                                   ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
-                
-        Nph_1_var = Nph_1_fano * Nph_1_mean #shape (E1_bins)
-        Ne_1_var = Ne_1_fano * Ne_1_mean #shape (E1_bins)
-        
-        ###########  # Second vertex
-        # Load params
-        Nph_2_mean, Ne_2_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_second, 
-                                            ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_2_fano, Ne_2_fano, Nph_2_skew, Ne_2_skew, initial_2_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_second, 
-                                                                                   ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-                
-        Nph_2_var = Nph_2_fano * Nph_2_mean #shape (E2_bins)
-        Ne_2_var = Ne_2_fano * Ne_2_mean #shape (E2_bins)
-        
-        # compute Skew2D for double scatters
-        # sum the mean and variances of both scatters
-        Nph_mean = tf.reshape(Nph_1_mean,[-1,1]) + tf.reshape(Nph_2_mean,[1,-1]) # shape: {E1_bins,E2_bins}
-        Nph_std = tf.sqrt(tf.reshape(Nph_1_var,[-1,1]) + tf.reshape(Nph_2_var,[1,-1])) # shape: {E1_bins,E2_bins}
-        Ne_mean = tf.reshape(Ne_1_mean,[-1,1]) + tf.reshape(Ne_2_mean,[1,-1]) # shape: {E1_bins,E2_bins}
-        Ne_std = tf.sqrt(tf.reshape(Ne_1_var,[-1,1]) + tf.reshape(Ne_2_var,[1,-1])) # shape: {E1_bins,E2_bins}
-        
-        # take the average skew and correlation weighted by two scatters
-        # this is only an approximation
-        Nph_skew = (tf.reshape(Nph_1_skew*Nph_1_mean,[-1,1]) 
-                  + tf.reshape(Nph_2_skew*Nph_2_mean,[1,-1]))/(Nph_mean) # shape: {E1_bins,E2_bins}
-        Ne_skew = (tf.reshape(Ne_1_skew*Ne_1_mean,[-1,1]) 
-                 + tf.reshape(Ne_2_skew*Ne_2_mean,[1,-1]))/(Ne_mean) # shape: {E1_bins,E2_bins}
-        totE = tf.reshape(energy_first,[-1,1]) + tf.reshape(energy_second,[1,-1]) # shape: {E1_bins,E2_bins}
-        initial_corr = (tf.reshape(initial_1_corr*energy_first,[-1,1]) 
-                      + tf.reshape(initial_2_corr*energy_second,[1,-1]))/(totE) # shape: {E1_bins,E2_bins}
-        
         spectrum = fd.np_to_tf(self.rates_vs_energy)
         
-        # tf.print('estimate mu: sum rates_vs_energy',tf.reduce_sum(self.rates_vs_energy))
+        ### Quanta Production
+        x = NphNe[:,:,0] #shape (Nph,Ne)
+        x = tf.repeat(x[:,:,o],len(energy_first),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
+
+        y = NphNe[:,:,1] #shape (Nph,Ne)
+        y = tf.repeat(y[:,:,o],len(energy_first),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
         
+        # Load params
+        # note, pdf is calculated once because energy bins for the first and the second vertices are the same
+        ptensor = self.ptensor_from_kwargs(**params)
         
-        self.defaults = old_defaults
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_first, 
+                                        ptensor=ptensor) #shape (energies)
         
-        return x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_first, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
+        
+        # Nph-Ne pdf
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
+
+        probs = NphNe_pdf*Nph_bw*Ne_bw #shape (Nph,Ne, energy), Nph and Ne grids must be linspace!
+        probs *= 1/tf.reduce_sum(probs,axis=[0,1]) # normalize the probability for each recoil energy
+
+        # FFT convolution 
+        NphNe_all_prob_1_tp = tf.transpose(probs, perm=[2,0,1], conjugate=False) 
+        NphNe_all_prob_1_tp_fft2d =  tf.signal.fft2d(tf.cast(NphNe_all_prob_1_tp,tf.complex64))
+
+        NphNe_all_prob_1_tp_fft2d_repeat = tf.repeat(NphNe_all_prob_1_tp_fft2d[:,o,:,:],tf.shape(energy_second)[0],axis=1) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_all_prob_2_tp_fft2d_repeat = tf.repeat(NphNe_all_prob_1_tp_fft2d[o,:,:,:],tf.shape(energy_first)[0],axis=0) # final shape: {E1_bins, E2_bins, Nph, Ne} 
+        NphNe_all_prob_12 = tf.math.real(tf.signal.ifft2d(NphNe_all_prob_1_tp_fft2d_repeat*NphNe_all_prob_2_tp_fft2d_repeat)) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_prob = tf.einsum('ijkl,ij->kl',NphNe_all_prob_12,spectrum) 
+        
+        return NphNe_prob
+      
+    @staticmethod
+    def NphNeBinning():
+        Nph_bw = 14.0
+        Ne_bw = 4.0
+        Nph_edges = tf.cast(tf.range(0,3500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
+        Ne_edges = tf.cast(tf.range(0,600,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+        return Nph_bw, Ne_bw, Nph_edges, Ne_edges
+        
+    
+    def estimate_mu(self, **params):
+        # Quanta Binning
+        Nph_bw, Ne_bw, Nph_edges, Ne_edges = self.NphNeBinning()
+
+        Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1]) # shape (Nph)
+        Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1]) # shape (Ne) 
+        Nph_diffs = tf.experimental.numpy.diff(Nph_edges) # shape (Nph)
+        Ne_diffs  = tf.experimental.numpy.diff(Ne_edges) # shape (Ne)
+        tempX, tempY = tf.meshgrid(Nph,Ne,indexing='ij') #shape (Nph,Ne)
+        NphNe = tf.stack((tempX, tempY),axis=2) #shape (Nph,Ne,2)
+        
+        # S1S2 binning
+        s1_edges = tf.cast(tf.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100), fd.float_type()) #shape (s1+1)
+        s2_edges = tf.cast(tf.experimental.numpy.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 101), fd.float_type()) #shape (s2+1)
+        s1 = 0.5 * (s1_edges[1:] + s1_edges[:-1]) #shape (s1)
+        s2 = 0.5 * (s2_edges[1:] + s2_edges[:-1]) #shape (s2)
+        s1_diffs = tf.experimental.numpy.diff(s1_edges) #shape (s1)
+        s2_diffs = tf.experimental.numpy.diff(s2_edges) #shape (s2)
+
+        S1_mesh, S2_mesh = tf.meshgrid(s1,s2,indexing='ij') #shape (s1,s2)
+
+        NphNe_probs = self.fftConvolve_nphnePDFs(NphNe, Nph_bw, Ne_bw, **params)
+        
+        # avoid Nph=0 and Ne=0 for the S1, S2 calculation
+        NphNe_probs = NphNe_probs[1:,1:]
+        Nph = Nph[1:]
+        Ne = Ne[1:]
+                
+        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_probs)
+        
+        # account for S1,S2 space fiducial ROI acceptance
+        acceptance = self.gimme('s1s2_acceptance',
+                                bonus_arg=(S1_mesh, S2_mesh),
+                                special_call=True)
+        S1S2_pdf *= acceptance
+        
+        # rescale by the S1,S2 bin width
+        mu_est = s1_diffs[o, :] @ S1S2_pdf
+        mu_est = mu_est @ s2_diffs[:, o]
+        mu_est = mu_est[0][0]
+        
+        return mu_est      
+
     
 
 @export
@@ -555,92 +502,68 @@ class NRNRNRSource(NRNRSource):
 
     no_step_dimensions = ('energy_others')
 
-    def pdf_for_nphne_pre_populate(self, NphNe, **params):
-        old_defaults = copy(self.defaults)
-        self.set_defaults(**params)        
-        ptensor = self.ptensor_from_kwargs(**params)
-        
+    def fftConvolve_nphnePDFs(self, NphNe, Nph_bw, Ne_bw, **params):
         # Energy binning
         energy_first = fd.np_to_tf(self.energies_first)    # shape: {E1_bins}
         energy_second = fd.np_to_tf(self.energies_others)  # shape: {E2_bins}
         energy_third = fd.np_to_tf(self.energies_others)  # shape: {E3_bins}
-              
-        ### Quanta Production
-        x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
-        x = tf.repeat(x[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        x = tf.repeat(x[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
-        x = tf.repeat(x[:,:,:,:,o],tf.shape(energy_third)[0],axis=4) # final shape: {Nph, Ne, E1_bins, E2_bins, E3_bins}
-
-        y = NphNe[:,:,1] # Ne counts --> final shape: {Nph, Ne}
-        y = tf.repeat(y[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        y = tf.repeat(y[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
-        y = tf.repeat(y[:,:,:,:,o],tf.shape(energy_third)[0],axis=4) # final shape: {Nph, Ne, E1_bins, E2_bins, E3_bins}
-        
-        ###########  # First vertex
-        # Load params
-        Nph_1_mean, Ne_1_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_first, 
-                                            ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
-        
-        Nph_1_fano, Ne_1_fano, Nph_1_skew, Ne_1_skew, initial_1_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_first, 
-                                                                                   ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
-                
-        Nph_1_var = Nph_1_fano * Nph_1_mean #shape (E1_bins)
-        Ne_1_var = Ne_1_fano * Ne_1_mean #shape (E1_bins)
-        
-        ###########  # Second vertex
-        # Load params
-        Nph_2_mean, Ne_2_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_second, 
-                                            ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_2_fano, Ne_2_fano, Nph_2_skew, Ne_2_skew, initial_2_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_second, 
-                                                                                   ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-                
-        Nph_2_var = Nph_2_fano * Nph_2_mean #shape (E2_bins)
-        Ne_2_var = Ne_2_fano * Ne_2_mean #shape (E2_bins)
-        
-        ###########  # Third vertex
-        # Load params
-        Nph_3_mean, Ne_3_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_third, 
-                                            ptensor=ptensor) # shape: {E3_bins} (matches bonus_arg)
-        
-        Nph_3_fano, Ne_3_fano, Nph_3_skew, Ne_3_skew, initial_3_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_third, 
-                                                                                   ptensor=ptensor) # shape: {E3_bins} (matches bonus_arg)
-                
-        Nph_3_var = Nph_3_fano * Nph_3_mean #shape (E3_bins)
-        Ne_3_var = Ne_3_fano * Ne_3_mean #shape (E3_bins)
-        
-        # compute Skew2D for triple scatters
-        # sum the mean and variances of both scatters
-        Nph_mean = tf.reshape(Nph_1_mean,[-1,1,1]) + tf.reshape(Nph_2_mean,[1,-1,1]) + tf.reshape(Nph_3_mean,[1,1,-1]) # shape: {E1_bins,E2_bins,E3_bins}
-        Nph_std = tf.sqrt(tf.reshape(Nph_1_var,[-1,1,1]) + tf.reshape(Nph_2_var,[1,-1,1]) + tf.reshape(Nph_3_var,[1,1,-1])) # shape: {E1_bins,E2_bins,E3_bins}
-        Ne_mean = tf.reshape(Ne_1_mean,[-1,1,1]) + tf.reshape(Ne_2_mean,[1,-1,1]) + tf.reshape(Ne_3_mean,[1,1,-1]) # shape: {E1_bins,E2_bins,E3_bins}
-        Ne_std = tf.sqrt(tf.reshape(Ne_1_var,[-1,1,1]) + tf.reshape(Ne_2_var,[1,-1,1]) + tf.reshape(Ne_3_var,[1,1,-1])) # shape: {E1_bins,E2_bins,E3_bins}
-        
-        # take the average skew and correlation weighted by two scatters
-        # this is only an approximation
-        Nph_skew = (tf.reshape(Nph_1_skew*Nph_1_mean,[-1,1,1]) 
-                  + tf.reshape(Nph_2_skew*Nph_2_mean,[1,-1,1]) 
-                  + tf.reshape(Nph_3_skew*Nph_3_mean,[1,1,-1]))/(Nph_mean) # shape: {E1_bins,E2_bins,E3_bins}
-        Ne_skew = (tf.reshape(Ne_1_skew*Ne_1_mean,[-1,1,1]) 
-                 + tf.reshape(Ne_2_skew*Ne_2_mean,[1,-1,1]) 
-                 + tf.reshape(Ne_3_skew*Ne_3_mean,[1,1,-1]))/(Ne_mean) # shape: {E1_bins,E2_bins,E3_bins}
-        totE = tf.reshape(energy_first,[-1,1,1]) + tf.reshape(energy_second,[1,-1,1]) + tf.reshape(energy_third,[1,1,-1]) # shape: {E1_bins,E2_bins,E3_bins}
-        initial_corr = (tf.reshape(initial_1_corr*energy_first,[-1,1,1]) 
-                      + tf.reshape(initial_2_corr*energy_second,[1,-1,1]) 
-                      + tf.reshape(initial_3_corr*energy_third,[1,1,-1]))/(totE) # shape: {E1_bins,E2_bins,E3_bins}
-        
         spectrum = fd.np_to_tf(self.rates_vs_energy)
-
-        self.defaults = old_defaults
         
-        return x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum
+        ### Quanta Production
+        x = NphNe[:,:,0] #shape (Nph,Ne)
+        x = tf.repeat(x[:,:,o],len(energy_first),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
 
+        y = NphNe[:,:,1] #shape (Nph,Ne)
+        y = tf.repeat(y[:,:,o],len(energy_first),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
+        
+        # Load params
+        # note, pdf is calculated once because energy bins for all three vertices are the same
+        ptensor = self.ptensor_from_kwargs(**params)
+        
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_first, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_first, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
+        
+        # Nph-Ne pdf
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
+
+        probs = NphNe_pdf*Nph_bw*Ne_bw #shape (Nph,Ne, energy), Nph and Ne grids must be linspace!
+        probs *= 1/tf.reduce_sum(probs,axis=[0,1]) # normalize the probability for each recoil energy
+
+        # FFT convolution 
+        NphNe_all_pdf_1_tp = tf.transpose(probs, perm=[2,0,1], conjugate=False)  #shape (energy,Nph,Ne)
+        NphNe_all_pdf_1_tp_fft2d =  tf.signal.fft2d(tf.cast(NphNe_all_pdf_1_tp,tf.complex64))
+        
+        NphNe_all_pdf_1_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_1_tp_fft2d[:,o,:,:],tf.shape(energy_second)[0],axis=1) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_all_pdf_1_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_1_tp_fft2d_repeat[:,:,o,:,:],tf.shape(energy_third)[0],axis=2) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}        
+        
+        NphNe_all_pdf_2_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_1_tp_fft2d[o,:,:,:],tf.shape(energy_first)[0],axis=0) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_all_pdf_2_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_2_tp_fft2d_repeat[:,:,o,:,:],tf.shape(energy_third)[0],axis=2) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}     
+        
+        NphNe_all_pdf_3_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_1_tp_fft2d[o,:,:,:],tf.shape(energy_second)[0],axis=0) # final shape: {E2_bins, E3_bins, Nph, Ne}
+        NphNe_all_pdf_3_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_3_tp_fft2d_repeat[o,:,:,:,:],tf.shape(energy_first)[0],axis=0) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}     
+        
+        NphNe_all_pdf_123 = tf.math.real(tf.signal.ifft2d(NphNe_all_pdf_1_tp_fft2d_repeat*NphNe_all_pdf_2_tp_fft2d_repeat*NphNe_all_pdf_3_tp_fft2d_repeat)) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}
+        
+        NphNe_prob = tf.einsum('ijklm,ijk->lm',NphNe_all_pdf_123,spectrum) # shape (Nph, Ne)
+        
+        return NphNe_prob
+
+    @staticmethod
+    def NphNeBinning():
+        Nph_bw = 25.0
+        Ne_bw = 5.0
+        Nph_edges = tf.cast(tf.range(0,5000,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
+        Ne_edges = tf.cast(tf.range(0,800,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+        return Nph_bw, Ne_bw, Nph_edges, Ne_edges      
+      
 
 @export
 class Migdal2Source(NRNRSource):
@@ -666,47 +589,12 @@ class Migdal2Source(NRNRSource):
         energies_first = self.model_blocks[0].energies_first
         energies_first = tf.where(energies_first > 49., 49. * tf.ones_like(energies_first), energies_first)
 
-        
-        # ####-------test--------####
-        # print('np.shape(energies_first)',np.shape(energies_first))
-        
-        # if hasattr(self.model_blocks[1], 'energies_second'):
-        #     energies_first = tf.repeat(energies_first[:, o], tf.shape(self.model_blocks[1].energies_second), axis=1)
-            
-        # ####-------test--------####
-        # print('np.shape(energies_first)',np.shape(energies_first))
-
-        # old parameters - 240328 JB
-        # self.s1_mean_ER_tf, self.s2_mean_ER_tf = self.signal_means_ER(energies_first)
-        # self.s1_var_ER_tf, self.s2_var_ER_tf, self.s1s2_cov_ER_tf = self.signal_vars_ER(energies_first)
-        # new parameters - 240328 JB
         self.Nph_mean_ER_tf, self.Ne_mean_ER_tf, Nph_fano, Ne_fano, self.Nph_skew_ER_tf, self.Ne_skew_ER_tf, self.initial_corr_ER_tf = self.quanta_params_ER(energies_first) 
         self.Nph_std_ER_tf = tf.sqrt(Nph_fano * self.Nph_mean_ER_tf)
         self.Ne_std_ER_tf = tf.sqrt(Ne_fano * self.Ne_mean_ER_tf)
         
-        # ####-------test--------####
-        # print('np.shape(self.initial_corr_ER_tf)',np.shape(self.initial_corr_ER_tf))        
-
         super().__init__(*args, **kwargs)
 
-    '''
-    def signal_means_ER(self, energy):
-        energy_cap = np.where(energy <= 49., energy, 49.)
-        s1_mean = tf.cast(self.s1_mean_ER(energy_cap), fd.float_type())
-        s2_mean = tf.cast(self.s2_mean_ER(energy_cap), fd.float_type())
-
-        return s1_mean, s2_mean
-
-    def signal_vars_ER(self, energy):
-        energy_cap = np.where(energy <= 49., energy, 49.)
-        s1_var = tf.cast(self.s1_var_ER(energy_cap), fd.float_type())
-        s2_var = tf.cast(self.s2_var_ER(energy_cap), fd.float_type())
-        s1s2_corr = tf.cast(np.nan_to_num(self.s1s2_corr_ER(energy_cap)), fd.float_type())
-        s1s2_cov = s1s2_corr * tf.sqrt(s1_var * s2_var)
-
-        return s1_var, s2_var, s1s2_cov
-    '''
-    
     def quanta_params_ER(self, energy):
         """
         assume energy is rank 1
@@ -725,69 +613,77 @@ class Migdal2Source(NRNRSource):
         
         return Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
 
-    def pdf_for_nphne_pre_populate(self, NphNe, **params):
-        old_defaults = copy(self.defaults)
-        self.set_defaults(**params)        
-        ptensor = self.ptensor_from_kwargs(**params)
-        
+    def fftConvolve_nphnePDFs(self, NphNe, Nph_bw, Ne_bw, **params):
         # Energy binning
-        energy_first = fd.np_to_tf(self.energies_first) # shape: {E1_bins}
+        energy_first = fd.np_to_tf(self.energies_first)    # shape: {E1_bins}
         energy_second = fd.np_to_tf(self.energies_second)  # shape: {E2_bins}
-              
-        ### Quanta Production
-        x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
-        x = tf.repeat(x[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        x = tf.repeat(x[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
-
-        y = NphNe[:,:,1] # Ne counts --> final shape: {Nph, Ne}
-        y = tf.repeat(y[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        y = tf.repeat(y[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
+        spectrum = fd.np_to_tf(self.rates_vs_energy)
         
+        # Nph-Ne pdf
         ###########  # First vertex
+        ### Quanta Production
+        x = NphNe[:,:,0] #shape (Nph,Ne)
+        x = tf.repeat(x[:,:,o],len(energy_first),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
+
+        y = NphNe[:,:,1] #shape (Nph,Ne)
+        y = tf.repeat(y[:,:,o],len(energy_first),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
+        
         # Load params
-        Nph_1_mean, Ne_1_mean, Nph_1_fano, Ne_1_fano, Nph_1_skew, Ne_1_skew, initial_1_corr = self.gimme('quanta_params_ER',
+        ptensor = self.ptensor_from_kwargs(**params)
+              
+        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params_ER',
                                                                                    bonus_arg=energy_first, 
                                                                                    ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
                 
-        Nph_1_var = Nph_1_fano * Nph_1_mean #shape (E1_bins)
-        Ne_1_var = Ne_1_fano * Ne_1_mean #shape (E1_bins)
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E1_bins)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E1_bins)
+        
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
+
+        probs_1 = NphNe_pdf*Nph_bw*Ne_bw #shape (Nph,Ne, energy), Nph and Ne grids must be linspace!
+        probs_1 *= 1/tf.reduce_sum(probs_1,axis=[0,1]) # normalize the probability for each recoil energy
         
         ###########  # Second vertex
-        # Load params
-        Nph_2_mean, Ne_2_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_second, 
-                                            ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_2_fano, Ne_2_fano, Nph_2_skew, Ne_2_skew, initial_2_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_second, 
-                                                                                   ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-                
-        Nph_2_var = Nph_2_fano * Nph_2_mean #shape (E2_bins)
-        Ne_2_var = Ne_2_fano * Ne_2_mean #shape (E2_bins)
-        
-        # compute Skew2D for double scatters
-        # sum the mean and variances of both scatters
-        Nph_mean = tf.reshape(Nph_1_mean,[-1,1]) + tf.reshape(Nph_2_mean,[1,-1]) # shape: {E1_bins,E2_bins}
-        Nph_std = tf.sqrt(tf.reshape(Nph_1_var,[-1,1]) + tf.reshape(Nph_2_var,[1,-1])) # shape: {E1_bins,E2_bins}
-        Ne_mean = tf.reshape(Ne_1_mean,[-1,1]) + tf.reshape(Ne_2_mean,[1,-1]) # shape: {E1_bins,E2_bins}
-        Ne_std = tf.sqrt(tf.reshape(Ne_1_var,[-1,1]) + tf.reshape(Ne_2_var,[1,-1])) # shape: {E1_bins,E2_bins}
-        
-        # take the average skew and correlation weighted by two scatters
-        # this is only an approximation
-        Nph_skew = (tf.reshape(Nph_1_skew*Nph_1_mean,[-1,1]) 
-                  + tf.reshape(Nph_2_skew*Nph_2_mean,[1,-1]))/(Nph_mean) # shape: {E1_bins,E2_bins}
-        Ne_skew = (tf.reshape(Ne_1_skew*Ne_1_mean,[-1,1]) 
-                 + tf.reshape(Ne_2_skew*Ne_2_mean,[1,-1]))/(Ne_mean) # shape: {E1_bins,E2_bins}
-        totE = tf.reshape(energy_first,[-1,1]) + tf.reshape(energy_second,[1,-1]) # shape: {E1_bins,E2_bins}
-        initial_corr = (tf.reshape(initial_1_corr*energy_first,[-1,1]) 
-                      + tf.reshape(initial_2_corr*energy_second,[1,-1]))/(totE) # shape: {E1_bins,E2_bins}
-        
-        spectrum = fd.np_to_tf(self.rates_vs_energy)
-        
-        self.defaults = old_defaults
-        
-        return x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum      
+        ### Quanta Production
+        x = NphNe[:,:,0] #shape (Nph,Ne)
+        x = tf.repeat(x[:,:,o],len(energy_second),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
 
+        y = NphNe[:,:,1] #shape (Nph,Ne)
+        y = tf.repeat(y[:,:,o],len(energy_second),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
+        
+        # Load params
+        # note, pdf is calculated once because energy bins for all three vertices are the same
+        ptensor = self.ptensor_from_kwargs(**params)
+        
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_second, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_second, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
+        
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
+
+        probs_2 = NphNe_pdf*Nph_bw*Ne_bw #shape (Nph,Ne, energy), Nph and Ne grids must be linspace!
+        probs_2 *= 1/tf.reduce_sum(probs_2,axis=[0,1]) # normalize the probability for each recoil energy        
+
+        # FFT convolution 
+        NphNe_all_pdf_1_tp = tf.transpose(probs_1, perm=[2,0,1], conjugate=False) 
+        NphNe_all_pdf_2_tp = tf.transpose(probs_2, perm=[2,0,1], conjugate=False) 
+        
+        NphNe_all_pdf_1_tp_fft2d = tf.signal.fft2d(tf.cast(NphNe_all_pdf_1_tp,tf.complex64))
+        NphNe_all_pdf_2_tp_fft2d = tf.signal.fft2d(tf.cast(NphNe_all_pdf_2_tp,tf.complex64))
+        
+        NphNe_all_pdf_1_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_1_tp_fft2d[:,o,:,:],tf.shape(energy_second)[0],axis=1) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_all_pdf_2_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_2_tp_fft2d[o,:,:,:],tf.shape(energy_first)[0],axis=0) # final shape: {E1_bins, E2_bins, Nph, Ne} 
+        NphNe_all_pdf_12 = tf.math.real(tf.signal.ifft2d(NphNe_all_pdf_1_tp_fft2d_repeat*NphNe_all_pdf_2_tp_fft2d_repeat)) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_prob = tf.einsum('ijkl,ij->kl',NphNe_all_pdf_12,spectrum)
+        
+        return NphNe_prob    
 
 @export
 class Migdal3Source(Migdal2Source):
@@ -827,88 +723,96 @@ class MigdalMSUSource(Migdal2Source):
     S2Width_diff_rate = mh_S2Width
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
-    def pdf_for_nphne_pre_populate(self, NphNe, **params):
-        old_defaults = copy(self.defaults)
-        self.set_defaults(**params)        
-        ptensor = self.ptensor_from_kwargs(**params)
-        
+    def fftConvolve_nphnePDFs(self, NphNe, Nph_bw, Ne_bw, **params):
         # Energy binning
         energy_first = fd.np_to_tf(self.energies_first)    # shape: {E1_bins}
         energy_second = fd.np_to_tf(self.energies_others)  # shape: {E2_bins}
         energy_third = fd.np_to_tf(self.energies_others)  # shape: {E3_bins}
-              
-        ### Quanta Production
-        x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
-        x = tf.repeat(x[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        x = tf.repeat(x[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
-        x = tf.repeat(x[:,:,:,:,o],tf.shape(energy_third)[0],axis=4) # final shape: {Nph, Ne, E1_bins, E2_bins, E3_bins}
-
-        y = NphNe[:,:,1] # Ne counts --> final shape: {Nph, Ne}
-        y = tf.repeat(y[:,:,o],tf.shape(energy_first)[0],axis=2) # final shape: {Nph, Ne, E1_bins}
-        y = tf.repeat(y[:,:,:,o],tf.shape(energy_second)[0],axis=3) # final shape: {Nph, Ne, E1_bins, E2_bins}
-        y = tf.repeat(y[:,:,:,:,o],tf.shape(energy_third)[0],axis=4) # final shape: {Nph, Ne, E1_bins, E2_bins, E3_bins}
+        spectrum = fd.np_to_tf(self.rates_vs_energy)
         
+        # Nph-Ne pdf
         ###########  # First vertex
+        ### Quanta Production
+        x = NphNe[:,:,0] #shape (Nph,Ne)
+        x = tf.repeat(x[:,:,o],len(energy_first),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
+
+        y = NphNe[:,:,1] #shape (Nph,Ne)
+        y = tf.repeat(y[:,:,o],len(energy_first),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
+        
         # Load params
-        Nph_1_mean, Ne_1_mean, Nph_1_fano, Ne_1_fano, Nph_1_skew, Ne_1_skew, initial_1_corr = self.gimme('quanta_params_ER',
+        ptensor = self.ptensor_from_kwargs(**params)
+              
+        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params_ER',
                                                                                    bonus_arg=energy_first, 
                                                                                    ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
                 
-        Nph_1_var = Nph_1_fano * Nph_1_mean #shape (E1_bins)
-        Ne_1_var = Ne_1_fano * Ne_1_mean #shape (E1_bins)
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E1_bins)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E1_bins)
         
-        ###########  # Second vertex
-        # Load params
-        Nph_2_mean, Ne_2_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_second, 
-                                            ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_2_fano, Ne_2_fano, Nph_2_skew, Ne_2_skew, initial_2_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_second, 
-                                                                                   ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-                
-        Nph_2_var = Nph_2_fano * Nph_2_mean #shape (E2_bins)
-        Ne_2_var = Ne_2_fano * Ne_2_mean #shape (E2_bins)
-        
-        ###########  # Third vertex
-        # Load params
-        Nph_3_mean, Ne_3_mean = self.gimme('yield_params',
-                                            bonus_arg=energy_third, 
-                                            ptensor=ptensor) # shape: {E3_bins} (matches bonus_arg)
-        
-        Nph_3_fano, Ne_3_fano, Nph_3_skew, Ne_3_skew, initial_3_corr = self.gimme('quanta_params',
-                                                                                   bonus_arg=energy_third, 
-                                                                                   ptensor=ptensor) # shape: {E3_bins} (matches bonus_arg)
-                
-        Nph_3_var = Nph_3_fano * Nph_3_mean #shape (E3_bins)
-        Ne_3_var = Ne_3_fano * Ne_3_mean #shape (E3_bins)
-        
-        # compute Skew2D for double scatters
-        # sum the mean and variances of both scatters
-        Nph_mean = tf.reshape(Nph_1_mean,[-1,1,1]) + tf.reshape(Nph_2_mean,[1,-1,1]) + tf.reshape(Nph_3_mean,[1,1,-1]) # shape: {E1_bins,E2_bins,E3_bins}
-        Nph_std = tf.sqrt(tf.reshape(Nph_1_var,[-1,1,1]) + tf.reshape(Nph_2_var,[1,-1,1]) + tf.reshape(Nph_3_var,[1,1,-1])) # shape: {E1_bins,E2_bins,E3_bins}
-        Ne_mean = tf.reshape(Ne_1_mean,[-1,1,1]) + tf.reshape(Ne_2_mean,[1,-1,1]) + tf.reshape(Ne_3_mean,[1,1,-1]) # shape: {E1_bins,E2_bins,E3_bins}
-        Ne_std = tf.sqrt(tf.reshape(Ne_1_var,[-1,1,1]) + tf.reshape(Ne_2_var,[1,-1,1]) + tf.reshape(Ne_3_var,[1,1,-1])) # shape: {E1_bins,E2_bins,E3_bins}
-        
-        # take the average skew and correlation weighted by two scatters
-        # this is only an approximation
-        Nph_skew = (tf.reshape(Nph_1_skew*Nph_1_mean,[-1,1,1]) 
-                  + tf.reshape(Nph_2_skew*Nph_2_mean,[1,-1,1]) 
-                  + tf.reshape(Nph_3_skew*Nph_3_mean,[1,1,-1]))/(Nph_mean) # shape: {E1_bins,E2_bins,E3_bins}
-        Ne_skew = (tf.reshape(Ne_1_skew*Ne_1_mean,[-1,1,1]) 
-                 + tf.reshape(Ne_2_skew*Ne_2_mean,[1,-1,1]) 
-                 + tf.reshape(Ne_3_skew*Ne_3_mean,[1,1,-1]))/(Ne_mean) # shape: {E1_bins,E2_bins,E3_bins}
-        totE = tf.reshape(energy_first,[-1,1,1]) + tf.reshape(energy_second,[1,-1,1]) + tf.reshape(energy_third,[1,1,-1]) # shape: {E1_bins,E2_bins,E3_bins}
-        initial_corr = (tf.reshape(initial_1_corr*energy_first,[-1,1,1]) 
-                      + tf.reshape(initial_2_corr*energy_second,[1,-1,1]) 
-                      + tf.reshape(initial_3_corr*energy_third,[1,1,-1]))/(totE) # shape: {E1_bins,E2_bins,E3_bins}
-        
-        spectrum = fd.np_to_tf(self.rates_vs_energy)
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
 
-        self.defaults = old_defaults
+        probs_1 = NphNe_pdf*Nph_bw*Ne_bw #shape (Nph,Ne, energy), Nph and Ne grids must be linspace!
+        probs_1 *= 1/tf.reduce_sum(probs_1,axis=[0,1]) # normalize the probability for each recoil energy
         
-        return x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum
+        ###########  # second vertex
+        # note, third pdf is not calculated because energy bins for the second and third vertices are the same
+        ### Quanta Production
+        x = NphNe[:,:,0] #shape (Nph,Ne)
+        x = tf.repeat(x[:,:,o],len(energy_second),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
 
+        y = NphNe[:,:,1] #shape (Nph,Ne)
+        y = tf.repeat(y[:,:,o],len(energy_second),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
+        
+        # Load params
+        # note, pdf is calculated once because energy bins for all three vertices are the same
+        ptensor = self.ptensor_from_kwargs(**params)
+        
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_second, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_second, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
+        
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
+
+        probs_2 = NphNe_pdf*Nph_bw*Ne_bw #shape (Nph,Ne, energy), Nph and Ne grids must be linspace!
+        probs_2 *= 1/tf.reduce_sum(probs_2,axis=[0,1]) # normalize the probability for each recoil energy
+        
+        # FFT convolution 
+        NphNe_all_pdf_1_tp = tf.transpose(probs_1, perm=[2,0,1], conjugate=False) 
+        NphNe_all_pdf_2_tp = tf.transpose(probs_2, perm=[2,0,1], conjugate=False) 
+        
+        NphNe_all_pdf_1_tp_fft2d =  tf.signal.fft2d(tf.cast(NphNe_all_pdf_1_tp,tf.complex64))
+        NphNe_all_pdf_2_tp_fft2d =  tf.signal.fft2d(tf.cast(NphNe_all_pdf_2_tp,tf.complex64))
+        
+        
+        NphNe_all_pdf_1_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_1_tp_fft2d[:,o,:,:],tf.shape(energy_second)[0],axis=1) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_all_pdf_1_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_1_tp_fft2d_repeat[:,:,o,:,:],tf.shape(energy_third)[0],axis=2) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}        
+        
+        NphNe_all_pdf_2_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_2_tp_fft2d[o,:,:,:],tf.shape(energy_first)[0],axis=0) # final shape: {E1_bins, E2_bins, Nph, Ne}
+        NphNe_all_pdf_2_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_2_tp_fft2d_repeat[:,:,o,:,:],tf.shape(energy_third)[0],axis=2) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}     
+        
+        NphNe_all_pdf_3_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_2_tp_fft2d[o,:,:,:],tf.shape(energy_second)[0],axis=0) # final shape: {E2_bins, E3_bins, Nph, Ne}
+        NphNe_all_pdf_3_tp_fft2d_repeat = tf.repeat(NphNe_all_pdf_3_tp_fft2d_repeat[o,:,:,:,:],tf.shape(energy_first)[0],axis=0) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}     
+        
+        NphNe_all_pdf_123 = tf.math.real(tf.signal.ifft2d(NphNe_all_pdf_1_tp_fft2d_repeat*NphNe_all_pdf_2_tp_fft2d_repeat*NphNe_all_pdf_3_tp_fft2d_repeat)) # final shape: {E1_bins, E2_bins, E3_bins, Nph, Ne}
+        
+        NphNe_prob = tf.einsum('ijklm,ijk->lm',NphNe_all_pdf_123,spectrum)
+        
+        return NphNe_prob    
+      
+    @staticmethod
+    def NphNeBinning():
+        Nph_bw = 30.0
+        Ne_bw = 7.0
+        Nph_edges = tf.cast(tf.range(0,5000,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
+        Ne_edges = tf.cast(tf.range(0,800,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+        return Nph_bw, Ne_bw, Nph_edges, Ne_edges         
 
 @export
 class IECSSource(Migdal2Source):
@@ -936,15 +840,36 @@ class ERSource(Migdal2Source):
     model_blocks = (
         fd_dd_migdal.EnergySpectrumFirstER,
         fd_dd_migdal.MakeS1S2ER)
-    
-    def pdf_for_nphne_pre_populate(self, NphNe, **params):
-        old_defaults = copy(self.defaults)
-        self.set_defaults(**params)        
-        ptensor = self.ptensor_from_kwargs(**params)
+
+    def estimate_mu(self, **params):
+        
+        # Quanta Binning
+        Nph_bw = 10.0
+        Ne_bw = 4.0
+        Nph_edges = tf.cast(tf.range(0,2500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
+        Ne_edges = tf.cast(tf.range(0,700,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+
+        Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1]) # shape (Nph)
+        Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1]) # shape (Ne) 
+        Nph_diffs = tf.experimental.numpy.diff(Nph_edges) # shape (Nph)
+        Ne_diffs  = tf.experimental.numpy.diff(Ne_edges) # shape (Ne)
+        tempX, tempY = tf.meshgrid(Nph,Ne,indexing='ij') #shape (Nph,Ne)
+        NphNe = tf.stack((tempX, tempY),axis=2) #shape (Nph,Ne,2)
+        
+        # S1S2 binning
+        s1_edges = tf.cast(tf.linspace(self.defaults['s1_min'], self.defaults['s1_max'], 100), fd.float_type()) #shape (s1+1)
+        s2_edges = tf.cast(tf.experimental.numpy.geomspace(self.defaults['s2_min'], self.defaults['s2_max'], 101), fd.float_type()) #shape (s2+1)
+        s1 = 0.5 * (s1_edges[1:] + s1_edges[:-1]) #shape (s1)
+        s2 = 0.5 * (s2_edges[1:] + s2_edges[:-1]) #shape (s2)
+        s1_diffs = tf.experimental.numpy.diff(s1_edges) #shape (s1)
+        s2_diffs = tf.experimental.numpy.diff(s2_edges) #shape (s2)
+
+        S1_mesh, S2_mesh = tf.meshgrid(s1,s2,indexing='ij') #shape (s1,s2)
         
         # Energy binning
         energies = fd.np_to_tf(self.energies_first)
-              
+        spectrum = fd.np_to_tf(self.rates_vs_energy_first)
+        
         ### Quanta Production
         x = NphNe[:,:,0] #shape (Nph,Ne)
         x = tf.repeat(x[:,:,o],len(energies),axis=2) #shape (Nph,Ne,energies), grid of Nph center points
@@ -953,15 +878,40 @@ class ERSource(Migdal2Source):
         y = tf.repeat(y[:,:,o],len(energies),axis=2)  #shape (Nph,Ne,energies), grid of Ne center points
         
         # Load params
+        ptensor = self.ptensor_from_kwargs(**params)
+              
         Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params_ER',
                                                                                    bonus_arg=energies, 
                                                                                    ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
                 
-        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
-        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E1_bins)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E1_bins)
+                
+        # NphNe PDF
+        NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
+
+        NphNe_pdf *= spectrum #shape (Nph,Ne,energies)
+        NphNe_pdf = tf.reduce_sum(NphNe_pdf, axis=tf.range(2,tf.rank(NphNe_pdf))) #shape (Nph,Ne)
         
-        spectrum = fd.np_to_tf(self.rates_vs_energy_first)
+        NphNe_probs = NphNe_pdf*Nph_diffs[0]*Ne_diffs[0] #shape (Nph,Ne), Nph and Ne grids must be linspace!
+                
+        # avoid Nph=0 and Ne=0 for the S1, S2 calculation
+        NphNe_probs = NphNe_probs[1:,1:]
+        Nph = Nph[1:]
+        Ne = Ne[1:]
+          
+        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_probs)
         
-        self.defaults = old_defaults
+        # account for S1,S2 space fiducial ROI acceptance
+        acceptance = self.gimme('s1s2_acceptance',
+                                bonus_arg=(S1_mesh, S2_mesh),
+                                special_call=True)
+        S1S2_pdf *= acceptance
         
-        return x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum
+        # rescale by the S1,S2 bin width
+        mu_est = s1_diffs[o, :] @ S1S2_pdf
+        mu_est = mu_est @ s2_diffs[:, o]
+        mu_est = mu_est[0][0]
+        
+        return mu_est    
+    
