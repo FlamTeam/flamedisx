@@ -278,8 +278,8 @@ class MakeS1S2MSU(fd.Block):
       
         
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(30,2000,150), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(10,800,155), fd.float_type())
+        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type())
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1])
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1])
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges)
@@ -416,6 +416,8 @@ class MakeS1S2MSU(fd.Block):
         probs = tf.reduce_sum(probs, axis=2) # final shape: {Nph,Ne}
         
         NphNe_pdf = probs*Nph_diffs[0]*Ne_diffs[0] #  final shape: {Nph,Ne}
+        # NphNe_pdf = NphNe_pdf/tf.reduce_sum(NphNe_pdf) # 240408 AV added to normalize Nph,Ne pdf to 1
+        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_pdf))
         
         # tf.print('sum NphNe_pdf',tf.reduce_sum(NphNe_pdf))
 
@@ -592,8 +594,8 @@ class MakeS1S2MSU3(MakeS1S2MSU):
                  energy_first, rate_vs_energy_first,
                  energy_others, rate_vs_energy):
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(30,2000,150), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(10,800,155), fd.float_type())
+        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type())
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1])
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1])
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges)
@@ -762,8 +764,9 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         probs = tf.reduce_sum(probs, axis=2) # final shape: {Nph,Ne}
         
         NphNe_pdf = probs*Nph_diffs[0]*Ne_diffs[0] #  final shape: {Nph,Ne}
+        # NphNe_pdf = NphNe_pdf/tf.reduce_sum(NphNe_pdf) # 240408 AV added to normalize Nph,Ne pdf to 1
+        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_pdf))
         
-        # tf.print('sum NphNe_pdf',tf.reduce_sum(NphNe_pdf))
 
         ### S1,S2 Yield
         g1 = 0.1131
@@ -903,8 +906,8 @@ class MakeS1S2SS(MakeS1S2MSU):
         # self.pdf_for_nphne(1,2,3)      
       
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(30,2000,150), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(10,800,155), fd.float_type())
+        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type())
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1])
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1])
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges)
@@ -981,10 +984,8 @@ class MakeS1S2SS(MakeS1S2MSU):
         probs = tf.reduce_sum(probs, axis=2) # final shape: {Nph,Ne}
         
         NphNe_pdf = probs*Nph_diffs[0]*Ne_diffs[0] #  final shape: {Nph,Ne}
-        
-        # tf.print('NphNe_pdf.sum',tf.reduce_sum(NphNe_pdf))
-        # tf.print('sum rate_vs_energy',tf.reduce_sum(rate_vs_energy_first))
-        
+        # NphNe_pdf = NphNe_pdf/tf.reduce_sum(NphNe_pdf) # 240408 AV added to normalize Nph,Ne pdf to 1
+        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_pdf))
         
         ### S1,S2 Yield
         g1 = 0.1131
@@ -1143,8 +1144,8 @@ class MakeS1S2Migdal(MakeS1S2MSU):
                  energy_first, rate_vs_energy_first,
                  energy_second, rate_vs_energy):
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(30,2000,150), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(10,800,155), fd.float_type())
+        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type())
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1])
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1])
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges)
@@ -1276,8 +1277,8 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         probs = tf.reduce_sum(probs, axis=2) # final shape: {Nph,Ne}
         
         NphNe_pdf = probs*Nph_diffs[0]*Ne_diffs[0] #  final shape: {Nph,Ne}
-        
-        # tf.print('sum NphNe_pdf',tf.reduce_sum(NphNe_pdf))
+        # NphNe_pdf = NphNe_pdf/tf.reduce_sum(NphNe_pdf) # 240408 AV added to normalize Nph,Ne pdf to 1
+        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_pdf))
 
         ### S1,S2 Yield
         g1 = 0.1131
@@ -1443,8 +1444,8 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
                  energy_first, rate_vs_energy_first,
                  energy_others, rate_vs_energy):
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(30,2000,150), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(10,800,155), fd.float_type())
+        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type())
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1])
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1])
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges)
@@ -1624,8 +1625,8 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         probs = tf.reduce_sum(probs, axis=2) # final shape: {Nph,Ne}
         
         NphNe_pdf = probs*Nph_diffs[0]*Ne_diffs[0] #  final shape: {Nph,Ne}
-        
-        # tf.print('sum NphNe_pdf',tf.reduce_sum(NphNe_pdf))
+        # NphNe_pdf = NphNe_pdf/tf.reduce_sum(NphNe_pdf) # 240408 AV added to normalize Nph,Ne pdf to 1
+        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_pdf))
 
         ### S1,S2 Yield
         g1 = 0.1131
@@ -1786,8 +1787,8 @@ class MakeS1S2ER(MakeS1S2SS):
                  energy_first, rate_vs_energy_first):
 
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(30,2000,150), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(10,800,155), fd.float_type())
+        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type())
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1])
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1])
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges)
@@ -1866,7 +1867,8 @@ class MakeS1S2ER(MakeS1S2SS):
         probs = tf.reduce_sum(probs, axis=2) # final shape: {Nph,Ne}
         
         NphNe_pdf = probs*Nph_diffs[0]*Ne_diffs[0] #  final shape: {Nph,Ne}
-        # tf.print('NphNe_pdf.sum',tf.reduce_sum(NphNe_pdf))
+        # NphNe_pdf = NphNe_pdf/tf.reduce_sum(NphNe_pdf) # 240408 AV added to normalize Nph,Ne pdf to 1
+        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_pdf))
         
         
         ### S1,S2 Yield

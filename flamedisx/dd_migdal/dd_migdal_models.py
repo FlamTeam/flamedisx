@@ -26,7 +26,6 @@ import matplotlib as mpl
 
 
 ### interpolation grids for NR
-# filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam.npz'
 filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240309.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
@@ -380,8 +379,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def estimate_mu(self, **params):
         
         # Quanta Binning
-        Nph_edges = tf.cast(tf.linspace(30,2000,150), fd.float_type()) # shape (Nph+1) # to save computation time, I only did a rough integration over Nph and Ne
-        Ne_edges = tf.cast(tf.linspace(10,800,155), fd.float_type()) # shape (Ne+1)
+        Nph_edges = tf.cast(tf.linspace(0,2500,250), fd.float_type()) # shape (Nph+1) # to save computation time, I only did a rough integration over Nph and Ne
+        Ne_edges = tf.cast(tf.linspace(0,800,200), fd.float_type()) # shape (Ne+1)
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1]) # shape (Nph)
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1]) # shape (Ne) 
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges) # shape (Nph)
@@ -404,6 +403,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr, spectrum)
 
         NphNe_probs = NphNe_pdf*Nph_diffs[0]*Ne_diffs[0] #shape (Nph,Ne), Nph and Ne grids must be linspace!
+        # NphNe_probs = NphNe_probs/tf.reduce_sum(NphNe_probs) # 240408 AV added to normalize Nph,Ne pdf to 1
+        # tf.print('NphNe_probs sum:', tf.reduce_sum(NphNe_probs))
                 
         S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_probs)
         
