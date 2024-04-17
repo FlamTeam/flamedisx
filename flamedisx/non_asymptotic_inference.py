@@ -22,7 +22,8 @@ class TestStatistic():
     def __init__(self, likelihood):
         self.likelihood = likelihood
 
-    def __call__(self, mu_test, signal_source_name, guess_dict):
+    def __call__(self, mu_test, signal_source_name, guess_dict,
+                 asymptotic=False):
         # To fix the signal RM in the conditional fit
         fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
 
@@ -35,7 +36,11 @@ class TestStatistic():
         bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
         # Return the test statistic, unconditional fit and conditional fit
-        return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
+        if not asymptotic:
+            return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
+        else:
+            return self.evaluate_asymptotic_pval(bf_unconditional, bf_conditional,
+                                                 mu_test), bf_unconditional, bf_conditional
 
 
 @export
@@ -54,6 +59,23 @@ class TestStatisticTMuTilde(TestStatistic):
             return 0.
         else:
             return ts
+
+    def evaluate_asymptotic_pval(self, bf_unconditional, bf_conditional, mu_test):
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        ts = -2. * (ll_conditional - ll_unconditional)
+
+        cov = 2. * self.likelihood.inverse_hessian(bf_unconditional)
+        sigma_mu = np.sqrt(cov[0][0])
+
+        if ts < (mu_test**2 / sigma_mu**2):
+            F = 2. * stats.norm.cdf(np.sqrt(ts)) - 1.
+        else:
+            F = stats.norm.cdf(np.sqrt(ts)) + stats.norm.cdf((ts + (mu_test**2 / sigma_mu**2)) / (2. * mu_test / sigma_mu)) - 1.
+
+        pval = 1. - F
+        return pval
 
 
 @export
@@ -182,7 +204,8 @@ class TSEvaluation():
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
-                    discovery=False):
+                    discovery=False,
+                    asymptotic=False):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -268,7 +291,8 @@ class TSEvaluation():
                 # Case where we want observed test statistics
                 if observed_data is not None:
                     self.get_observed_test_stat(observed_test_stats, observed_data,
-                                                mu_test, signal_source, likelihood, save_fits=save_fits)
+                                                mu_test, signal_source, likelihood, save_fits=save_fits,
+                                                asymptotic=asymptotic)
                 # Case where we want test statistic distributions
                 else:
                     self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
@@ -416,7 +440,8 @@ class TSEvaluation():
             test_stat_dists_B.add_conditional_best_fit(mu_test, conditional_bfs_B)
 
     def get_observed_test_stat(self, observed_test_stats, observed_data,
-                               mu_test, signal_source_name, likelihood, save_fits=False):
+                               mu_test, signal_source_name, likelihood, save_fits=False,
+                               asymptotic=False):
         """Internal function to evaluate observed test statistic.
         """
         # The constraints are centered on the expected values
@@ -444,7 +469,8 @@ class TSEvaluation():
             if value < 0.1:
                 guess_dict[key] = 0.1
         # Evaluate test statistic
-        ts_result = test_statistic(mu_test, signal_source_name, guess_dict)
+        ts_result = test_statistic(mu_test, signal_source_name, guess_dict,
+                                   asymptotic=asymptotic)
 
         # Add to the test statistic collection
         observed_test_stats.add_test_stat(mu_test, ts_result[0])
@@ -505,7 +531,7 @@ class IntervalCalculator():
         else:
             return (crit_val - x_left) * gradient + y_left
 
-    def get_p_vals(self, conf_level, use_CLs=False):
+    def get_p_vals(self, conf_level, use_CLs=False, asymptotic=False):
         """Internal function to get p-value curves.
         """
         p_sb_collection = dict()
@@ -513,6 +539,10 @@ class IntervalCalculator():
         p_b_collection = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
+            if asymptotic:
+                p_sb_collection[signal_source] = self.observed_test_stats[signal_source]
+                continue
+
             # Get test statistic distribitions and observed test statistics
             test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
             test_stat_dists_B = self.test_stat_dists_B[signal_source]
@@ -529,13 +559,17 @@ class IntervalCalculator():
                 powers = test_stat_dists_B.get_p_vals(crit_vals)
                 powers_collection[signal_source] = powers
 
+        if asymptotic:
+            return p_sb_collection
+
         if use_CLs:
             return p_sb_collection, p_b_collection
         else:
             return p_sb_collection, powers_collection
 
     def get_interval(self, conf_level=0.1, pcl_level=0.16,
-                     use_CLs=False):
+                     use_CLs=False,
+                     asymptotic=False):
         """Get frequentist confidence interval.
 
         Arguments:
@@ -547,26 +581,33 @@ class IntervalCalculator():
                 (https://inspirehep.net/literature/599622), and the final return value
                 will be the p-value curves under H1
         """
-        if use_CLs:
-            p_sb, p_b = self.get_p_vals(conf_level, use_CLs=True)
+        if not asymptotic:
+            if use_CLs:
+                p_sb, p_b = self.get_p_vals(conf_level, use_CLs=True)
+            else:
+                p_sb, powers = self.get_p_vals(conf_level, use_CLs=False)
         else:
-            p_sb, powers = self.get_p_vals(conf_level, use_CLs=False)
+            p_sb = self.get_p_vals(conf_level, use_CLs=True, asymptotic=True)
 
         lower_lim_all = dict()
         upper_lim_all = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
-            these_p_sb = p_sb[signal_source]
+            if not asymptotic:
+                these_p_sb = p_sb[signal_source]
+            else:
+                these_p_sb = p_sb[signal_source].test_stats
             mus = np.array(list(these_p_sb.keys()))
             p_vals = np.array(list(these_p_sb.values()))
 
-            if use_CLs:
-                these_p_b = p_b[signal_source]
-                p_vals_b = np.array(list(these_p_b.values()))
-                p_vals = p_vals / (1. - p_vals_b + 1e-10)
-            else:
-                these_powers = powers[signal_source]
-                pws = np.array(list(these_powers.values()))
+            if not asymptotic:
+                if use_CLs:
+                    these_p_b = p_b[signal_source]
+                    p_vals_b = np.array(list(these_p_b.values()))
+                    p_vals = p_vals / (1. - p_vals_b + 1e-10)
+                else:
+                    these_powers = powers[signal_source]
+                    pws = np.array(list(these_powers.values()))
 
             # Find points where the p-value curve cross the critical value, decreasing
             upper_lims = np.argwhere(np.diff(np.sign(p_vals - np.ones_like(p_vals) * conf_level)) < 0.).flatten()
@@ -586,7 +627,7 @@ class IntervalCalculator():
             upper_lim = self.interp_helper(mus, p_vals, upper_lims, conf_level,
                                            rising_edge=False, inverse=True)
 
-            if use_CLs is False:
+            if use_CLs is False and not asymptotic:
                 M0 = self.interp_helper(mus, pws, upper_lims, upper_lim,
                                         rising_edge=False, inverse=False)
                 if M0 < pcl_level:
@@ -599,6 +640,8 @@ class IntervalCalculator():
             lower_lim_all[signal_source] = lower_lim
             upper_lim_all[signal_source] = upper_lim
 
+        if asymptotic:
+            return lower_lim_all, upper_lim_all
         if use_CLs is False:
             return lower_lim_all, upper_lim_all, p_sb, powers
         else:
