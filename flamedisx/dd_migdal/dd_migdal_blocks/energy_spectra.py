@@ -11,6 +11,9 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
+# KE_Spectrum='' # Gauss+Box method
+KE_Spectrum='_CR_100keVnr_min' # Casey's DD Exact
+# KE_Spectrum='_Mono' # Monoenergetic 2450s
 
 @export
 class EnergySpectrumFirstMSU(fd.FirstBlock):
@@ -49,7 +52,7 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
         spectrum = tf.repeat(fd.np_to_tf(self.rates_vs_energy_first)[o, :],
                              self.source.batch_size,
                              axis=0)
-
+        
         spectrum *= self.source.mu_before_efficiencies()
 
         spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate', ### turn off to test s1s2 diff rates alone! TODO
@@ -129,9 +132,11 @@ class EnergySpectrumFirstMSU3(EnergySpectrumFirstMSU):
 
 @export
 class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
+    SS_Spectrum_filename = '../migdal_database/SS_spectrum'+KE_Spectrum+'.pkl'
+    # SS_Spectrum_filename = '../migdal_database/SS_spectrum_CR_100keVnr_min.pkl'
     #: Energy spectrum for SS case
     rates_vs_energy_first = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/SS_spectrum.pkl'), 'rb'))
+        os.path.dirname(__file__), SS_Spectrum_filename), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy_first), 1.)
 
 
@@ -203,8 +208,10 @@ class EnergySpectrumSecondMSU(fd.Block):
     energies_second = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     #: Joint energy spectrum for MSU scatters. Override for other double scatters
+    MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum'+KE_Spectrum+'.pkl'
+    # MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/MSU_spectrum.pkl'), 'rb'))
+        os.path.dirname(__file__), MSU2_Spectrum_filename), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
     def __init__(self, *args, **kwargs):
@@ -265,8 +272,10 @@ class EnergySpectrumOthersMSU3(fd.Block):
     #: Energies from the scatters
     energies_others = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
     #: Joint energy spectrum for MSU3 scatters. Override for other triple scatters
+    MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum'+KE_Spectrum+'.pkl'
+    # MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/MSU3_spectrum.pkl'), 'rb'))
+        os.path.dirname(__file__), MSU3_Spectrum_filename), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
     def __init__(self, *args, **kwargs):
@@ -331,8 +340,10 @@ class EnergySpectrumSecondMigdal2(EnergySpectrumSecondMSU):
     energies_second = tf.cast(tf.linspace(0.75, 98.25, 66),
                             dtype=fd.float_type())
     #: Joint energy spectrum for Migdal2 scatters
+    Mig2_Spectrum_filename = '../migdal_database/migdal_2_spectrum'+KE_Spectrum+'.pkl'
+    # Mig2_Spectrum_filename = '../migdal_database/migdal_2_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/migdal_2_spectrum.pkl'), 'rb'))
+        os.path.dirname(__file__), Mig2_Spectrum_filename), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
@@ -342,8 +353,10 @@ class EnergySpectrumSecondMigdal3(EnergySpectrumSecondMSU):
     energies_second = tf.cast(tf.linspace(0.75, 98.25, 66),
                             dtype=fd.float_type())
     #: Joint energy spectrum for Migdal3 scatters
+    Mig3_Spectrum_filename = '../migdal_database/migdal_3_spectrum'+KE_Spectrum+'.pkl'
+    # Mig3_Spectrum_filename = '../migdal_database/migdal_3_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/migdal_3_spectrum.pkl'), 'rb'))
+        os.path.dirname(__file__), Mig3_Spectrum_filename), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 
@@ -364,9 +377,11 @@ class EnergySpectrumOthersMigdalMSU(EnergySpectrumOthersMSU3):
     energies_others = tf.cast(tf.linspace(2.5, 80.5, 27),
                             dtype=fd.float_type())
     energies_second = energies_others
-    #: Joint energy spectrum for Migdal2 scatters
+    #: Joint energy spectrum for MigdalMSU scatters
+    MigMSU_Spectrum_filename = '../migdal_database/migdal_MSU_spectrum'+KE_Spectrum+'.pkl'
+    # MigMSU_Spectrum_filename = '../migdal_database/migdal_MSU_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/migdal_MSU_spectrum.pkl'), 'rb'))
+        os.path.dirname(__file__), MigMSU_Spectrum_filename), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
 
 

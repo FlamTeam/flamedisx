@@ -12,11 +12,22 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-
 import sys ########
 
+
+###################################################################################################
+
+#DRM Parameters #  240419 - AV added to make DRM changes easier
+S2_fano_all = 10.0 
+### S1,S2 Yield
+g1 = 0.1131
+g2 = 47.35
+
+###################################################################################################
+
+
+
 ### interpolation grids for NR
-# filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam.npz'
 filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240309.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
@@ -233,10 +244,6 @@ class MakeS1S2MSU(fd.Block):
         
         Nph = Nph1 + Nph2
         Ne = Ne1 + Ne2
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -244,7 +251,7 @@ class MakeS1S2MSU(fd.Block):
         S1_skew = (4.61849047 * Nph**(-0.23931848))
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
         S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
@@ -389,10 +396,6 @@ class MakeS1S2MSU(fd.Block):
         
         s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor) # shape: {batch_size}
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
-           
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
                     
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -400,7 +403,7 @@ class MakeS1S2MSU(fd.Block):
         S1_skew = 4.61849047 * Nph**(-0.23931848)
 
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
         S2_skew = -2.37542105 *  Ne** (-0.26152676)
 
@@ -568,10 +571,6 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         
         Nph = Nph1 + Nph2 + Nph3
         Ne = Ne1 + Ne2 + Ne3
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -579,7 +578,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         S1_skew = (4.61849047 * Nph**(-0.23931848))
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
         S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
@@ -652,7 +651,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         rate_vs_energy_third = fd.np_to_tf(rate_vs_energy)[0,:,:,:]      # inital shape: {batch_size, E1_bins, E2_bins, E3_bins} --> final shape: {E1_bins, E2_bins, E3_bins}   
         
         rate_vs_energy = fd.np_to_tf(rate_vs_energy)[0,:,:,:]      # inital shape: {batch_size, E1_bins, E2_bins, E3_bins} --> final shape: {E1_bins, E2_bins, E3_bins}   
-        
+
         # Load params
         # for MSU2, use Nph_mean to represent both Nph_1_mean and Nph_2_mean
         Nph_mean, Ne_mean = self.gimme('yield_params',
@@ -738,10 +737,6 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         
         s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor) # shape: {batch_size}
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
-            
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
                     
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -749,7 +744,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         S1_skew = 4.61849047 * Nph**(-0.23931848)
 
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
         S2_skew = -2.37542105 *  Ne** (-0.26152676)
 
@@ -822,10 +817,6 @@ class MakeS1S2SS(MakeS1S2MSU):
         
         Nph[Nph<=0]=0.1
         Ne[Ne<=0]=0.1
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -833,7 +824,7 @@ class MakeS1S2SS(MakeS1S2MSU):
         S1_skew = (4.61849047 * Nph**(-0.23931848))
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
         S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
@@ -879,8 +870,8 @@ class MakeS1S2SS(MakeS1S2MSU):
                  energy_first, rate_vs_energy_first):
 
         # Quanta Binning
-        Nph_bw = 5.0
-        Ne_bw = 2.0  #I would like to reduce the Nph, Ne bin width for SS for a few reasons: We have lots of SS events, they are our dominant background. Having a better precision improves convergence speed, and it will not cost computation speed because it has only 1 vertex (dimension is low).
+        Nph_bw = 10.0
+        Ne_bw = 4.0  #I would like to reduce the Nph, Ne bin width for SS for a few reasons: We have lots of SS events, they are our dominant background. Having a better precision improves convergence speed, and it will not cost computation speed because it has only 1 vertex (dimension is low).
         
         Nph_edges = tf.cast(tf.range(0,2500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
         Ne_edges = tf.cast(tf.range(0,500,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
@@ -896,7 +887,9 @@ class MakeS1S2SS(MakeS1S2MSU):
         # Energy binning
         energy_first = fd.np_to_tf(energy_first)[0,:,0]               # inital shape: {batch_size, E_bins, None} --> final shape: {E_bins} 
         rate_vs_energy_first = fd.np_to_tf(rate_vs_energy_first)[0,:] # inital shape: {batch_size, E_bins} --> final shape: {E_bins}
-
+        rate_vs_energy_first = rate_vs_energy_first/tf.reduce_sum(rate_vs_energy_first) # 240416 AV added to ensure ER/NR SS is normalized probably
+        
+        
         # Load params
         Nph_mean, Ne_mean = self.gimme('yield_params',
                                         bonus_arg=energy_first, 
@@ -964,10 +957,6 @@ class MakeS1S2SS(MakeS1S2MSU):
         
         s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor) # shape: {batch_size}
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}     
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -975,7 +964,7 @@ class MakeS1S2SS(MakeS1S2MSU):
         S1_skew = 4.61849047 * Nph**(-0.23931848)
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
         S2_skew = -2.37542105 *  Ne** (-0.26152676)
         
@@ -1094,17 +1083,13 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         Nph = Nph1 + Nph2
         Ne = Ne1 + Ne2
         
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
-
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
         S1_skew = (4.61849047 * Nph**(-0.23931848))
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
         S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
@@ -1171,7 +1156,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         rate_vs_energy_second = fd.np_to_tf(rate_vs_energy)[0,:,:]      # inital shape: {batch_size, E1_bins, E2_bins} --> final shape: {E1_bins, E2_bins}   
 
         rate_vs_energy = fd.np_to_tf(rate_vs_energy)[0,:,:]      # inital shape: {batch_size, E1_bins, E2_bins} --> final shape: {E1_bins, E2_bins}   
-              
+        
         ###########  # First vertex
         # Load params
         Nph_mean = self.source.Nph_mean_ER_tf
@@ -1301,10 +1286,6 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         
         s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor) # shape: {batch_size}
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
-            
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
                     
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -1312,7 +1293,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         S1_skew = 4.61849047 * Nph**(-0.23931848)
 
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
         S2_skew = -2.37542105 *  Ne** (-0.26152676)
 
@@ -1470,10 +1451,6 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         
         Nph = Nph1 + Nph2 + Nph3
         Ne = Ne1 + Ne2 + Ne3
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -1481,7 +1458,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         S1_skew = (4.61849047 * Nph**(-0.23931848))
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
         S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
@@ -1554,7 +1531,8 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         rate_vs_energy_third = fd.np_to_tf(rate_vs_energy)[0,:,:,:]      # inital shape: {batch_size, E1_bins, E2_bins, E3_bins} --> final shape: {E1_bins, E2_bins, E3_bins}   
         
         rate_vs_energy = fd.np_to_tf(rate_vs_energy)[0,:,:,:]      # inital shape: {batch_size, E1_bins, E2_bins, E3_bins} --> final shape: {E1_bins, E2_bins, E3_bins}   
-
+        
+        
         ###########  # First vertex
         # Load params
         Nph_mean = self.source.Nph_mean_ER_tf
@@ -1755,10 +1733,6 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         
         s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor) # shape: {batch_size}
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
-            
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
                     
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -1766,7 +1740,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         S1_skew = 4.61849047 * Nph**(-0.23931848)
 
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
         S2_skew = -2.37542105 *  Ne** (-0.26152676)
 
@@ -1839,10 +1813,6 @@ class MakeS1S2ER(MakeS1S2SS):
         
         Nph[Nph<=0]=0.1
         Ne[Ne<=0]=0.1
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -1850,7 +1820,7 @@ class MakeS1S2ER(MakeS1S2SS):
         S1_skew = (4.61849047 * Nph**(-0.23931848))
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
         S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
@@ -1911,6 +1881,8 @@ class MakeS1S2ER(MakeS1S2SS):
         # Energy binning
         energy_first = fd.np_to_tf(energy_first)[0,:,0]               # inital shape: {batch_size, E_bins, None} --> final shape: {E_bins} 
         rate_vs_energy_first = fd.np_to_tf(rate_vs_energy_first)[0,:] # inital shape: {batch_size, E_bins} --> final shape: {E_bins}
+        rate_vs_energy_first = rate_vs_energy_first/tf.reduce_sum(rate_vs_energy_first) # 240416 AV added to ensure ER/NR SS is normalized probably
+        
 
         # Load params
         Nph_mean = self.source.Nph_mean_ER_tf
@@ -1975,10 +1947,6 @@ class MakeS1S2ER(MakeS1S2SS):
         
         s2 = self.gimme('get_s2', data_tensor=data_tensor, ptensor=ptensor) # shape: {batch_size}
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}     
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
@@ -1986,7 +1954,7 @@ class MakeS1S2ER(MakeS1S2SS):
         S1_skew = 4.61849047 * Nph**(-0.23931848)
 
         S2_mean = Ne*g2
-        S2_fano = 21.3
+        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
         S2_skew = -2.37542105 *  Ne** (-0.26152676)
         

@@ -24,9 +24,21 @@ import numba as nb
 import matplotlib.pyplot as plt ###
 import matplotlib as mpl
 
+###################################################################################################
+#DRM Parameters #  240419 - AV added to make DRM changes easier
+S2_fano_all = 10.0 #1.77 # 21.3 
+
+### S1,S2 Yield
+g1 = 0.1131
+g2 = 47.35
+
+#Data Acceptance cut params # 240419 - AV added to make it easier to set cuts below NR band
+BCUT=200 #160
+MCUT=0.73 #0.77
+
+###################################################################################################
 
 ### interpolation grids for NR
-# filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam.npz'
 filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240309.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
@@ -49,9 +61,9 @@ def interp_nd(x):
     part2 = tf.cast(tf.experimental.numpy.geomspace(4,80,23), fd.float_type())[1:]
     keVnr_choices = tf.concat([part1,part2],axis=0)
 
-    Fi_grid = tf.cast([0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                  # Fano ion
-    Fex_grid = tf.cast([0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75], fd.float_type())        # Fano exciton
-    NBamp_grid = tf.cast([0.,0.02,0.04], fd.float_type())   # amplitude for non-binomial NR recombination fluctuations
+    Fi_grid = tf.cast([0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())             # Fano ion
+    Fex_grid = tf.cast([0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75], fd.float_type())   # Fano exciton
+    NBamp_grid = tf.cast([0.,0.02,0.04], fd.float_type())                       # amplitude for non-binomial NR recombination fluctuations
     NBloc = tf.cast([0.4,0.45,0.5,0.55], fd.float_type())                       # non-binomial: loc of elecfrac
     RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.,13.], fd.float_type())              # raw skewness
 
@@ -150,7 +162,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     mh_S2Width = mh_S2Width / mh_S2Width.n
     mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
 
-    S2Width_diff_rate = mh_S2Width
+    S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
     def mu_before_efficiencies(self, **params):
@@ -161,11 +173,41 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     @staticmethod
     def yield_params(energies, yalpha=11.0, ybeta=1.1, ythomas=0.0467, yepsilon=12.6):
         
-        Qy = 1 / ythomas / tf.sqrt( energies + yepsilon) * ( 1 - 1/(1 + (energies/0.3)**2) )
+        ############# NEST paper (v1) https://arxiv.org/pdf/2211.10726.pdf
+        pp = 0.5
+        zeta = 0.3
+        eta = 2
+        # gamma = 0.0480 ==> ythomas
+        delta = -0.0533
+        rho = 2.9
+        rho_0 = 2.9
+        nu = 0.3
+        theta = 0.3
+        ll = 2
+        ##############
+        
+        
+        # ############# SR3 DD Tuning (https://docs.google.com/presentation/d/14IoMsX77OtQJOeZb3nEV6cmtomqN0Y5DRY0rqt0XQOU/edit#slide=id.g29ac68d8356_0_3)
+        # pp = 0.511
+        # zeta = 0.33
+        # eta = 2.18
+        # # gamma = 0.0480 ==> ythomas
+        # delta = -0.0533
+        # rho = 2.9
+        # rho_0 = 2.9
+        # nu = 0.3
+        # theta = 0.313
+        # ll = 2.62
+        # ##############
+        
+        TI = ythomas*193**delta * (rho/rho_0)**nu
+        # TI = ythomas
+        
+        Qy = 1 / TI /  (energies + yepsilon)**pp * ( 1 - 1/(1 + (energies/zeta)**eta) )
         Ne_mean = Qy * energies
         
         Ly = yalpha * energies**ybeta - Ne_mean
-        Nph_mean = Ly * (1 - 1/(1 + (energies/0.3)**2) )
+        Nph_mean = Ly * (1 - 1/(1 + (energies/theta)**ll) )
         
         return Nph_mean, Ne_mean
     
@@ -182,10 +224,13 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         skew2D_model_param = interp_nd(x=xcoords_skew2D) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
         
         Nph_fano = skew2D_model_param[:,2]**2 / skew2D_model_param[:,0] #shape (energies)
-        Ne_fano  = skew2D_model_param[:,3]**2 / skew2D_model_param[:,1] #shape (energies)
+        Ne_fano  = skew2D_model_param[:,3]**2 / skew2D_model_param[:,1] #shape (energies) # Ne fano = 0.001 FOR TESTING
         Nph_skew = skew2D_model_param[:,4]     #shape (energies)
         Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
         initial_corr = skew2D_model_param[:,6] #shape (energies)
+        
+        tf.print('Nph_fano',Nph_fano)
+        tf.print('Ne_fano',Ne_fano)
         
         return Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
     
@@ -202,7 +247,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                           tf.zeros_like(s2, dtype=fd.float_type()),
                           tf.ones_like(s2, dtype=fd.float_type()))
         
-        s1s2_acc = tf.where((s2 > 200*s1**(0.73)),
+        s1s2_acc = tf.where((s2 > BCUT*s1**(MCUT)),
                             tf.ones_like(s2, dtype=fd.float_type()),
                             tf.zeros_like(s2, dtype=fd.float_type()))
         nr_endpoint = tf.where((s1 > 140) & (s2 > 8e3) & (s2 < 11.5e3),
@@ -262,10 +307,6 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_pdf):
         S1_pos = tf.repeat(s1[:,o],len(Nph),axis=1) #shape (s1,Nph)
         S2_pos = tf.repeat(s2[:,o],len(Ne),axis=1) #shape (s2,Ne)
-        
-        ### S1,S2 Yield
-        g1 = 0.1131
-        g2 = 47.35
 
         S1_mean = Nph*g1                          # shape (Nph)
         S1_fano = 1.12145985 * Nph**(-0.00629895) # shape (Nph)
@@ -273,7 +314,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         S1_skew = 4.61849047 * Nph**(-0.23931848) # shape (Nph)
 
         S2_mean = Ne*g2                             # shape (Ne)
-        S2_fano = 21.3                              # shape (Ne)
+        S2_fano = S2_fano_all #1.77 # 21.3          # shape (Ne) #0.001
         S2_std = tf.sqrt(S2_mean*S2_fano)           # shape (Ne)
         S2_skew = -2.37542105 *  Ne** (-0.26152676) # shape (Ne)
 
@@ -295,8 +336,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def estimate_mu(self, **params):
         
         # Quanta Binning
-        Nph_bw = 5.0
-        Ne_bw = 2.0  
+        Nph_bw = 10.0
+        Ne_bw = 4.0  
         Nph_edges = tf.cast(tf.range(0,2500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
         Ne_edges = tf.cast(tf.range(0,500,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
 
@@ -390,7 +431,7 @@ class NRNRSource(NRSource):
     mh_S2Width = mh_S2Width / mh_S2Width.n
     mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
 
-    S2Width_diff_rate = mh_S2Width
+    S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
     
 
@@ -582,7 +623,7 @@ class Migdal2Source(NRNRSource):
     mh_S2Width = mh_S2Width / mh_S2Width.n
     mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
 
-    S2Width_diff_rate = mh_S2Width
+    S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
     def __init__(self, *args, **kwargs):
@@ -720,7 +761,7 @@ class MigdalMSUSource(Migdal2Source):
     mh_S2Width = mh_S2Width / mh_S2Width.n
     mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
 
-    S2Width_diff_rate = mh_S2Width
+    S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
     def fftConvolve_nphnePDFs(self, NphNe, Nph_bw, Ne_bw, **params):
@@ -831,7 +872,7 @@ class IECSSource(Migdal2Source):
     mh_S2Width = mh_S2Width / mh_S2Width.n
     mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
 
-    S2Width_diff_rate = mh_S2Width
+    S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
 
 
