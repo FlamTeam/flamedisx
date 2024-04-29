@@ -26,11 +26,7 @@ import matplotlib as mpl
 
 ###################################################################################################
 #DRM Parameters #  240419 - AV added to make DRM changes easier
-S2_fano_all = 10.0 #1.77 # 21.3 
-
-### S1,S2 Yield
-g1 = 0.1131
-g2 = 47.35
+S2_fano_all = 10.0 
 
 #Data Acceptance cut params # 240419 - AV added to make it easier to set cuts below NR band
 BCUT=200 #160
@@ -200,8 +196,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         # ll = 2.62
         # ##############
         
-        TI = ythomas*193**delta * (rho/rho_0)**nu
-        # TI = ythomas
+        # TI = ythomas*193**delta * (rho/rho_0)**nu
+        TI = ythomas
         
         Qy = 1 / TI /  (energies + yepsilon)**pp * ( 1 - 1/(1 + (energies/zeta)**eta) )
         Ne_mean = Qy * energies
@@ -229,10 +225,15 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
         initial_corr = skew2D_model_param[:,6] #shape (energies)
         
-        tf.print('Nph_fano',Nph_fano)
-        tf.print('Ne_fano',Ne_fano)
+        # tf.print('Nph_fano',Nph_fano)
+        # tf.print('Ne_fano',Ne_fano)
         
         return Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
+    
+    @staticmethod
+    def detector_params(energies,g1=0.1131,g2=47.35): # AV Added 240426
+        ### S1,S2 Yield
+        return g1, g2
     
     ###
     
@@ -304,14 +305,14 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         return NphNe_pdf
         
     @staticmethod
-    def pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_pdf):
+    def pdf_for_s1s2_from_nphne(s1,s2,g1,g2,Nph,Ne,NphNe_pdf):
         S1_pos = tf.repeat(s1[:,o],len(Nph),axis=1) #shape (s1,Nph)
         S2_pos = tf.repeat(s2[:,o],len(Ne),axis=1) #shape (s2,Ne)
 
-        S1_mean = Nph*g1                          # shape (Nph)
-        S1_fano = 1.12145985 * Nph**(-0.00629895) # shape (Nph)
-        S1_std = tf.sqrt(S1_mean*S1_fano)         # shape (Nph)
-        S1_skew = 4.61849047 * Nph**(-0.23931848) # shape (Nph)
+        S1_mean = Nph*g1                           # shape (Nph)
+        S1_fano = 1.12145985 * Nph**(-0.00629895)  # shape (Nph)
+        S1_std = tf.sqrt(S1_mean*S1_fano)          # shape (Nph)
+        S1_skew = 4.61849047 * Nph**(-0.23931848)  # shape (Nph)
 
         S2_mean = Ne*g2                             # shape (Ne)
         S2_fano = S2_fano_all #1.77 # 21.3          # shape (Ne) #0.001
@@ -336,7 +337,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def estimate_mu(self, **params):
         
         # Quanta Binning
-        Nph_bw = 10.0
+        Nph_bw = 20. # 240426 AV increased from 10.0
         Ne_bw = 4.0  
         Nph_edges = tf.cast(tf.range(0,2500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
         Ne_edges = tf.cast(tf.range(0,500,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
@@ -379,6 +380,10 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
                                                                          bonus_arg=energies, 
                                                                          ptensor=ptensor) #shape (energies)
+        
+        g1, g2 = self.gimme('detector_params',
+                             bonus_arg=1,
+                             ptensor=ptensor) #shape (integer)
                 
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
@@ -396,7 +401,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         Nph = Nph[1:]
         Ne = Ne[1:]
                 
-        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_probs)
+        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,g1,g2,Nph,Ne,NphNe_probs)
         
         # account for S1,S2 space fiducial ROI acceptance
         acceptance = self.gimme('s1s2_acceptance',
@@ -459,6 +464,7 @@ class NRNRSource(NRSource):
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
                                                                          bonus_arg=energy_first, 
                                                                          ptensor=ptensor) #shape (energies)
+        
                 
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
@@ -509,6 +515,11 @@ class NRNRSource(NRSource):
         s2_diffs = tf.experimental.numpy.diff(s2_edges) #shape (s2)
 
         S1_mesh, S2_mesh = tf.meshgrid(s1,s2,indexing='ij') #shape (s1,s2)
+        
+        ptensor = self.ptensor_from_kwargs(**params)
+        g1, g2 = self.gimme('detector_params',
+                             bonus_arg=1,
+                             ptensor=ptensor) #shape (integer)
 
         NphNe_probs = self.fftConvolve_nphnePDFs(NphNe, Nph_bw, Ne_bw, **params)
         
@@ -516,8 +527,8 @@ class NRNRSource(NRSource):
         NphNe_probs = NphNe_probs[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
-                
-        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_probs)
+        
+        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,g1,g2,Nph,Ne,NphNe_probs)
         
         # account for S1,S2 space fiducial ROI acceptance
         acceptance = self.gimme('s1s2_acceptance',
@@ -940,8 +951,12 @@ class ERSource(Migdal2Source):
         NphNe_probs = NphNe_probs[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
+        
+        g1, g2 = self.gimme('detector_params',
+                             bonus_arg=1,
+                             ptensor=ptensor) #shape (integer)
           
-        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,Nph,Ne,NphNe_probs)
+        S1S2_pdf = self.pdf_for_s1s2_from_nphne(s1,s2,g1,g2,Nph,Ne,NphNe_probs)
         
         # account for S1,S2 space fiducial ROI acceptance
         acceptance = self.gimme('s1s2_acceptance',

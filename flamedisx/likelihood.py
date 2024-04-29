@@ -296,6 +296,7 @@ class LogLikelihood:
         for dname, _data in data.items():
             n_observed = len(_data)
             n_expected = self.mu(dataset_name=dname).numpy()
+            
             assert n_expected > 0
             if n_observed <= n_expected:
                 continue

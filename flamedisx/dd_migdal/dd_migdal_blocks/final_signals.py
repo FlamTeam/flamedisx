@@ -19,9 +19,6 @@ import sys ########
 
 #DRM Parameters #  240419 - AV added to make DRM changes easier
 S2_fano_all = 10.0 
-### S1,S2 Yield
-g1 = 0.1131
-g2 = 47.35
 
 ###################################################################################################
 
@@ -146,7 +143,7 @@ class MakeS1S2MSU(fd.Block):
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
                   (('energy_second',), 'rate_vs_energy'))
 
-    special_model_functions = ('yield_params','quanta_params')
+    special_model_functions = ('yield_params','quanta_params','detector_params')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
     # Whether to check acceptances are positive at the observed events.
@@ -168,6 +165,7 @@ class MakeS1S2MSU(fd.Block):
         # Load params
         Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -331,6 +329,8 @@ class MakeS1S2MSU(fd.Block):
                                                      bonus_arg=energy_first, 
                                                      data_tensor=data_tensor,
                                                      ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
+         
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
 
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
@@ -456,6 +456,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         # Load params
         Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean)  
@@ -663,6 +664,9 @@ class MakeS1S2MSU3(MakeS1S2MSU):
                                                      bonus_arg=energy_first, 
                                                      data_tensor=data_tensor,
                                                      ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
+        # tf.print('g1',g1)
+        # tf.print('g2',g2)
 
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
@@ -783,6 +787,7 @@ class MakeS1S2SS(MakeS1S2MSU):
         # Load params
         Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies) # shape: {E_bins} (matches bonus_arg)
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies) # shape: {E_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -870,7 +875,7 @@ class MakeS1S2SS(MakeS1S2MSU):
                  energy_first, rate_vs_energy_first):
 
         # Quanta Binning
-        Nph_bw = 10.0
+        Nph_bw = 20. # 240426 AV increased from 10.0
         Ne_bw = 4.0  #I would like to reduce the Nph, Ne bin width for SS for a few reasons: We have lots of SS events, they are our dominant background. Having a better precision improves convergence speed, and it will not cost computation speed because it has only 1 vertex (dimension is low).
         
         Nph_edges = tf.cast(tf.range(0,2500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
@@ -900,6 +905,7 @@ class MakeS1S2SS(MakeS1S2MSU):
                                                      bonus_arg=energy_first, 
                                                      data_tensor=data_tensor,
                                                      ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
 
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
@@ -995,7 +1001,7 @@ class MakeS1S2SS(MakeS1S2MSU):
 class MakeS1S2Migdal(MakeS1S2MSU):
     """
     """
-    special_model_functions = ('yield_params','quanta_params',
+    special_model_functions = ('yield_params','quanta_params','detector_params',
                                'quanta_params_ER')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
@@ -1005,6 +1011,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         
         # Load params
         Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies_first) # shape: {E1_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -1166,6 +1173,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         Nph_skew = self.source.Nph_skew_ER_tf
         Ne_skew = self.source.Ne_skew_ER_tf
         initial_corr = self.source.initial_corr_ER_tf
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         ### Quanta Production
         x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
@@ -1217,7 +1225,8 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params', 
                                                               bonus_arg=energy_second, 
                                                               data_tensor=data_tensor,
-                                                              ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
+                                                              ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg) 
+        
         
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E2_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E2_bins)   
@@ -1324,7 +1333,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
 class MakeS1S2MigdalMSU(MakeS1S2MSU3):
     """
     """
-    special_model_functions = ('yield_params','quanta_params',
+    special_model_functions = ('yield_params','quanta_params','detector_params',
                                'quanta_params_ER')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
@@ -1336,6 +1345,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         ##### First Vertex
         # Load params
         Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies_first) # shape: {E1_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -1594,6 +1604,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
                                                               bonus_arg=energy_second, 
                                                               data_tensor=data_tensor,
                                                               ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E2_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E2_bins)   
@@ -1771,7 +1782,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
 class MakeS1S2ER(MakeS1S2SS):
     """
     """
-    special_model_functions = ('quanta_params_ER',)
+    special_model_functions = ('quanta_params_ER', 'detector_params')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
     def _simulate(self, d):
@@ -1779,6 +1790,7 @@ class MakeS1S2ER(MakeS1S2SS):
         
         # Load params
         Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies) # shape: {E_bins} (matches bonus_arg)
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -1892,6 +1904,7 @@ class MakeS1S2ER(MakeS1S2SS):
         Nph_skew = self.source.Nph_skew_ER_tf
         Ne_skew = self.source.Ne_skew_ER_tf
         initial_corr = self.source.initial_corr_ER_tf
+        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         ### Quanta Production
         x = NphNe[:,:,0]

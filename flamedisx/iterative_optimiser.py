@@ -78,7 +78,8 @@ class IterativeOptimiser():
         self.n_iterations = n_iterations
 
     def bestfit(self,
-                fix_dict: ty.Dict[str, float] = None):
+                fix_dict: ty.Dict[str, float] = None,
+                verbose=0):
         self.likelihood.set_data(self.data)
 
         if fix_dict is None:
@@ -91,7 +92,9 @@ class IterativeOptimiser():
 
         bf = self.likelihood.bestfit(guess=guess_dict_cond,
                                      fix=fix_dict)
-        print(bf)
+        print('Iteration 1: ',bf)
+        if verbose:
+                print('Iteration 1 Likelihood: ',self.likelihood(**bf))
 
         for i in range(self.n_iterations - 1):
             shape_params = dict()
@@ -118,6 +121,9 @@ class IterativeOptimiser():
 
             bf = self.likelihood.bestfit(guess=guess_dict_cond,
                                          fix=fix_dict)
-            print(bf)
+            print('Iteration %i: '%(i+1),bf)
+            if verbose:
+                print('Iteration %i Likelihood: '%(i+1),self.likelihood(**bf))
+            
 
         return bf
