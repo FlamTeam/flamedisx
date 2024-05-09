@@ -689,28 +689,24 @@ class IntervalCalculator():
 
         return bands
 
-    def get_bands_discovery(self, quantiles=[0, 1, -1]):
+    def get_disco_sig(self):
         """
         """
-        bands = dict()
+        disco_sigs = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
-            # Get test statistic distribitions
-            test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
-            test_stat_dists_B = self.test_stat_dists_B[signal_source]
+            # Get observed (mu = 0) test statistic and B (m = 0) test statistic distribition
+            try:
+                observed_test_stat = self.observed_test_stats[signal_source].test_stats[0.]
+                test_stat_dist_B = self.test_stat_dists_B[signal_source].ts_dists[0.]
+            except Exception:
+                raise RuntimeError("Error: did you scan over mu = 0?")
 
-            assert len(test_stat_dists_SB.ts_dists.keys()) == 1, 'Currently only support a single signal strength'
+            p_val = (100. - stats.percentileofscore(test_stat_dist_B,
+                                                    observed_test_stat,
+                                                    kind='weak')) / 100.
+            disco_sig = stats.norm.ppf(1. - p_val)
+            disco_sigs[signal_source] = disco_sig
 
-            these_p_vals = (100. - stats.percentileofscore(list(test_stat_dists_B.ts_dists.values())[0],
-                                                           list(test_stat_dists_SB.ts_dists.values())[0],
-                                                           kind='weak')) / 100.
-            these_p_vals = these_p_vals[these_p_vals > 0.]
-            these_disco_sigs = stats.norm.ppf(1. - these_p_vals)
-
-            these_bands = dict()
-            for quantile in quantiles:
-                these_bands[quantile] = np.quantile(np.sort(these_disco_sigs), stats.norm.cdf(quantile))
-            bands[signal_source] = these_bands
-
-        return bands
+        return disco_sigs
