@@ -12,7 +12,8 @@ export, __all__ = fd.exporter()
 o = tf.newaxis
 
 # KE_Spectrum='' # Gauss+Box method
-KE_Spectrum='_CR_100keVnr_min' # Casey's DD Exact
+# KE_Spectrum='_CR_100keVnr_min' # Casey's DD Exact
+KE_Spectrum='_CR_conduitCut_100keVnr_min' # Casey's DD Exact with conduit cut applied
 # KE_Spectrum='_Mono' # Monoenergetic 2450s
 
 @export
@@ -388,6 +389,11 @@ class EnergySpectrumOthersMigdalMSU(EnergySpectrumOthersMSU3):
 @export
 class EnergySpectrumSecondIE_CS(EnergySpectrumSecondMSU):
     #: Joint energy spectrum for IE + CS scatters
+    if KE_Spectrum=='_Mono':
+        KE_Spectrum_IE = ''
+    else:
+        KE_Spectrum_IE = str(KE_Spectrum)
     rates_vs_energy = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum.pkl'), 'rb'))
+        # os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum.pkl'), 'rb'))
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum'+KE_Spectrum_IE+'.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)

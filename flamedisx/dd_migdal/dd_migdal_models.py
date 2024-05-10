@@ -27,15 +27,16 @@ import matplotlib as mpl
 ###################################################################################################
 #DRM Parameters #  240419 - AV added to make DRM changes easier
 S2_fano_all = 10.0 
+S1_skew_all = None#20 # use None for NEST values
 
 #Data Acceptance cut params # 240419 - AV added to make it easier to set cuts below NR band
-BCUT=200 #160
-MCUT=0.73 #0.77
+BCUT=160 #200 #
+MCUT=0.77 #0.73#
 
 ###################################################################################################
 
 ### interpolation grids for NR
-filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240309.npz'
+filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240508.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
     
@@ -57,11 +58,11 @@ def interp_nd(x):
     part2 = tf.cast(tf.experimental.numpy.geomspace(4,80,23), fd.float_type())[1:]
     keVnr_choices = tf.concat([part1,part2],axis=0)
 
-    Fi_grid = tf.cast([0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())             # Fano ion
-    Fex_grid = tf.cast([0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75], fd.float_type())   # Fano exciton
-    NBamp_grid = tf.cast([0.,0.02,0.04], fd.float_type())                       # amplitude for non-binomial NR recombination fluctuations
-    NBloc = tf.cast([0.4,0.45,0.5,0.55], fd.float_type())                       # non-binomial: loc of elecfrac
-    RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.,13.], fd.float_type())              # raw skewness
+    Fi_grid = tf.cast([0.2,0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                                                    # Fano ion
+    Fex_grid = tf.cast([0.1,0.15,0.2,0.25,0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75,2.0,2.25,2.5,3.0,3.5,4.0], fd.float_type())   # Fano exciton
+    NBamp_grid = tf.cast([0.,0.02,0.04,0.06,0.08,0.10,0.12], fd.float_type())                                              # amplitude for non-binomial NR recombination fluctuations
+    NBloc = tf.cast([0.4,0.45,0.5,0.55,0.6], fd.float_type())                                                              # non-binomial: loc of elecfrac
+    RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.], fd.float_type())                                                             # raw skewness
 
     x_grid_points = (Fi_grid, Fex_grid, NBamp_grid, NBloc, RawSkew_grid, keVnr_choices)
 
@@ -225,8 +226,17 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
         initial_corr = skew2D_model_param[:,6] #shape (energies)
         
+#         Ne_skew *= (100/Ne_skew)
+#         Nph_skew *= (-100/Nph_skew)
+#         initial_corr *= (0.91/initial_corr)
+        
+#         tf.print('Ne_skew',tf.math.reduce_max(Ne_skew),tf.math.reduce_min(Ne_skew),tf.math.reduce_mean(Ne_skew) )
+#         tf.print('Nph_skew',tf.math.reduce_max(Nph_skew),tf.math.reduce_min(Nph_skew),tf.math.reduce_mean(Nph_skew) )
+#         tf.print('initial_corr',tf.math.reduce_max(initial_corr),tf.math.reduce_min(initial_corr),tf.math.reduce_mean(initial_corr) )
         # tf.print('Nph_fano',Nph_fano)
         # tf.print('Ne_fano',Ne_fano)
+        # tf.print('Ne_skew',Ne_skew)
+        # tf.print('Nph_skew',Nph_skew)
         
         return Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
     
@@ -240,7 +250,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def get_s2(self, s2):
         return s2
 
-    def s1s2_acceptance(self, s1, s2, s1_min=5, s1_max=200, s2_min=400, s2_max=2e4): # 231208 AV adjusted s1_min from 20 --> 5 phd
+    def s1s2_acceptance(self, s1, s2, s1_min=5, s1_max=200, s2_min=400, s2_max=2e4): # 231208 AV adjusted s1_min from 20 --> 5 phd, s2_max-->2e4
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
                           tf.ones_like(s1, dtype=fd.float_type()))
@@ -255,8 +265,9 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                             tf.zeros_like(s2, dtype=fd.float_type()),
                             tf.ones_like(s2, dtype=fd.float_type()))
 
-        return (s1_acc * s2_acc * s1s2_acc * nr_endpoint)
+        # return (s1_acc * s2_acc * s1s2_acc * nr_endpoint) #includes mouth cut
         # return (s1_acc * s2_acc) # FOR TESTING ONLY
+        return (s1_acc * s2_acc * s1s2_acc) # CURRENT as of 240429
 
     final_dimensions = ('s1',)
     
@@ -312,7 +323,10 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         S1_mean = Nph*g1                           # shape (Nph)
         S1_fano = 1.12145985 * Nph**(-0.00629895)  # shape (Nph)
         S1_std = tf.sqrt(S1_mean*S1_fano)          # shape (Nph)
-        S1_skew = 4.61849047 * Nph**(-0.23931848)  # shape (Nph)
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2                             # shape (Ne)
         S2_fano = S2_fano_all #1.77 # 21.3          # shape (Ne) #0.001
@@ -490,8 +504,8 @@ class NRNRSource(NRSource):
     def NphNeBinning():
         Nph_bw = 14.0
         Ne_bw = 4.0
-        Nph_edges = tf.cast(tf.range(0,3500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
-        Ne_edges = tf.cast(tf.range(0,600,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+        Nph_edges = tf.cast(tf.range(0,4500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1) 
+        Ne_edges = tf.cast(tf.range(0,600,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)      
         return Nph_bw, Ne_bw, Nph_edges, Ne_edges
         
     
@@ -735,7 +749,15 @@ class Migdal2Source(NRNRSource):
         NphNe_all_pdf_12 = tf.math.real(tf.signal.ifft2d(NphNe_all_pdf_1_tp_fft2d_repeat*NphNe_all_pdf_2_tp_fft2d_repeat)) # final shape: {E1_bins, E2_bins, Nph, Ne}
         NphNe_prob = tf.einsum('ijkl,ij->kl',NphNe_all_pdf_12,spectrum)
         
-        return NphNe_prob    
+        return NphNe_prob
+    
+    @staticmethod # 240507 AV added to account for cyclic behavior 
+    def NphNeBinning():
+        Nph_bw = 30.0
+        Ne_bw = 10.0
+        Nph_edges = tf.cast(tf.range(0,5000,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
+        Ne_edges = tf.cast(tf.range(0,1500,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+        return Nph_bw, Ne_bw, Nph_edges, Ne_edges 
 
 @export
 class Migdal3Source(Migdal2Source):

@@ -19,13 +19,13 @@ import sys ########
 
 #DRM Parameters #  240419 - AV added to make DRM changes easier
 S2_fano_all = 10.0 
-
+S1_skew_all = None#20 # 240507 AV added for testing, currently unused
 ###################################################################################################
 
 
 
 ### interpolation grids for NR
-filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240309.npz'
+filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240508.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
     
@@ -48,12 +48,12 @@ def interp_nd(x):
     part2 = tf.cast(tf.experimental.numpy.geomspace(4,80,23), fd.float_type())[1:]
     keVnr_choices = tf.concat([part1,part2],axis=0)
 
-    Fi_grid = tf.cast([0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())             # Fano ion
-    Fex_grid = tf.cast([0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75], fd.float_type())   # Fano exciton
-    NBamp_grid = tf.cast([0.,0.02,0.04], fd.float_type())                       # amplitude for non-binomial NR recombination fluctuations
-    NBloc = tf.cast([0.4,0.45,0.5,0.55], fd.float_type())                       # non-binomial: loc of elecfrac
-    RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.,13.], fd.float_type())              # raw skewness
-
+    Fi_grid = tf.cast([0.2,0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                                                    # Fano ion
+    Fex_grid = tf.cast([0.1,0.15,0.2,0.25,0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75,2.0,2.25,2.5,3.0,3.5,4.0], fd.float_type())   # Fano exciton
+    NBamp_grid = tf.cast([0.,0.02,0.04,0.06,0.08,0.10,0.12], fd.float_type())                                              # amplitude for non-binomial NR recombination fluctuations
+    NBloc = tf.cast([0.4,0.45,0.5,0.55,0.6], fd.float_type())                                                              # non-binomial: loc of elecfrac
+    RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.], fd.float_type())                                                             # raw skewness
+    
     x_grid_points = (Fi_grid, Fex_grid, NBamp_grid, NBloc, RawSkew_grid, keVnr_choices)
 
     #define reference function values --> f(x_grid_points)
@@ -246,7 +246,10 @@ class MakeS1S2MSU(fd.Block):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        S1_skew = (4.61849047 * Nph**(-0.23931848))
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
@@ -400,7 +403,10 @@ class MakeS1S2MSU(fd.Block):
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        S1_skew = 4.61849047 * Nph**(-0.23931848)
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2 # shape: {Ne}
         S2_fano = S2_fano_all
@@ -576,7 +582,10 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        S1_skew = (4.61849047 * Nph**(-0.23931848))
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
@@ -745,7 +754,10 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        S1_skew = 4.61849047 * Nph**(-0.23931848)
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2 # shape: {Ne}
         S2_fano = S2_fano_all
@@ -826,7 +838,10 @@ class MakeS1S2SS(MakeS1S2MSU):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        S1_skew = (4.61849047 * Nph**(-0.23931848))
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
@@ -967,7 +982,10 @@ class MakeS1S2SS(MakeS1S2MSU):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        S1_skew = 4.61849047 * Nph**(-0.23931848)
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
@@ -1093,7 +1111,10 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        S1_skew = (4.61849047 * Nph**(-0.23931848))
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
@@ -1143,10 +1164,10 @@ class MakeS1S2Migdal(MakeS1S2MSU):
                  energy_second, rate_vs_energy):
         
         # Quanta Binning
-        Nph_bw = 14.0
-        Ne_bw = 4.0
-        Nph_edges = tf.cast(tf.range(0,3500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
-        Ne_edges = tf.cast(tf.range(0,600,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+        Nph_bw = 30.0 #  240507 AV changed from 14
+        Ne_bw = 10.0   #  240507 AV changed from 4
+        Nph_edges = tf.cast(tf.range(0,5000,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1) # 240507 AV changed from 3500
+        Ne_edges = tf.cast(tf.range(0,1500,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)     # 240507 AV changed from 600
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1]) # shape (Nph)
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1]) # shape (Ne) 
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges) # shape (Nph)
@@ -1299,7 +1320,10 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        S1_skew = 4.61849047 * Nph**(-0.23931848)
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2 # shape: {Ne}
         S2_fano = S2_fano_all
@@ -1465,7 +1489,10 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        S1_skew = (4.61849047 * Nph**(-0.23931848))
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
@@ -1748,7 +1775,10 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         S1_mean = Nph*g1 # shape: {Nph}
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        S1_skew = 4.61849047 * Nph**(-0.23931848)
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2 # shape: {Ne}
         S2_fano = S2_fano_all
@@ -1829,7 +1859,10 @@ class MakeS1S2ER(MakeS1S2SS):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        S1_skew = (4.61849047 * Nph**(-0.23931848))
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
@@ -1964,7 +1997,10 @@ class MakeS1S2ER(MakeS1S2SS):
         S1_mean = Nph*g1     
         S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        S1_skew = 4.61849047 * Nph**(-0.23931848)
+        if S1_skew_all is None:
+            S1_skew = (4.61849047 * Nph**(-0.23931848))#
+        else:
+            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
         S2_fano = S2_fano_all
