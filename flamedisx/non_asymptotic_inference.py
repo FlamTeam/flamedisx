@@ -204,7 +204,6 @@ class TSEvaluation():
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
-                    discovery=False,
                     asymptotic=False):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
@@ -251,12 +250,14 @@ class TSEvaluation():
 
         observed_test_stats_collection = dict()
         test_stat_dists_SB_collection = dict()
+        test_stat_dists_SB_disco_collection = dict()
         test_stat_dists_B_collection = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             observed_test_stats = ObservedTestStatistics()
             test_stat_dists_SB = TestStatisticDistributions()
+            test_stat_dists_SB_disco = TestStatisticDistributions()
             test_stat_dists_B = TestStatisticDistributions()
 
             # Get likelihood
@@ -296,19 +297,22 @@ class TSEvaluation():
                 # Case where we want test statistic distributions
                 else:
                     self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
+                                                 test_stat_dists_SB_disco,
                                                  mu_test, signal_source, likelihood,
-                                                 save_fits=save_fits, discovery=discovery)
+                                                 save_fits=save_fits)
 
             if observed_data is not None:
                 observed_test_stats_collection[signal_source] = observed_test_stats
             else:
                 test_stat_dists_SB_collection[signal_source] = test_stat_dists_SB
+                test_stat_dists_SB_disco_collection[signal_source] = test_stat_dists_SB_disco
                 test_stat_dists_B_collection[signal_source] = test_stat_dists_B
 
         if observed_data is not None:
             return observed_test_stats_collection
         else:
-            return test_stat_dists_SB_collection, test_stat_dists_B_collection
+            return test_stat_dists_SB_collection, test_stat_dists_SB_disco_collection, \
+                test_stat_dists_B_collection
 
     def sample_data_constraints(self, mu_test, signal_source_name, likelihood):
         """Internal function to sample the toy data and constraint central values
@@ -348,11 +352,13 @@ class TSEvaluation():
         return simulate_dict, toy_data, constraint_extra_args
 
     def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
+                                test_stat_dists_SB_disco,
                                 mu_test, signal_source_name, likelihood,
-                                save_fits=False, discovery=False):
+                                save_fits=False):
         """Internal function to get test statistic distribution.
         """
         ts_values_SB = []
+        ts_values_SB_disco = []
         ts_values_B = []
         if save_fits:
             unconditional_bfs_SB = []
@@ -382,13 +388,12 @@ class TSEvaluation():
             for key, value in guess_dict_SB.items():
                 if value < 0.1:
                     guess_dict_SB[key] = 0.1
-            # Evaluate test statistic
-            if discovery:
-                ts_result_SB = test_statistic_SB(0., signal_source_name, guess_dict_SB)
-            else:
-                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
-            # Save test statistic, and possibly fits
+            # Evaluate test statistics
+            ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
+            ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
+            # Save test statistics, and possibly fits
             ts_values_SB.append(ts_result_SB[0])
+            ts_values_SB_disco.append(ts_result_SB_disco[0])
             if save_fits:
                 unconditional_bfs_SB.append(ts_result_SB[1])
                 conditional_bfs_SB.append(ts_result_SB[2])
@@ -418,10 +423,7 @@ class TSEvaluation():
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
             # Evaluate test statistic
-            if discovery:
-                ts_result_B = test_statistic_B(0., signal_source_name, guess_dict_B)
-            else:
-                ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
+            ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
             # Save test statistic, and possibly fits
             ts_values_B.append(ts_result_B[0])
             if save_fits:
@@ -430,6 +432,7 @@ class TSEvaluation():
 
         # Add to the test statistic distributions
         test_stat_dists_SB.add_ts_dist(mu_test, ts_values_SB)
+        test_stat_dists_SB_disco.add_ts_dist(mu_test, ts_values_SB_disco)
         test_stat_dists_B.add_ts_dist(mu_test, ts_values_B)
 
         # Possibly save the fits
