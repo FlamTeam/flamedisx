@@ -98,7 +98,9 @@ class TemplateWrapper:
 
         if self._interpolator:
             # transpose since RegularGridInterpolator expects (n_points, n_dims)
-            return self._interpolator(data.T)
+            interp_diff_rates = self._interpolator(data.T)
+            lookup_diff_rates = self._mh_diff_rate.lookup(*data)
+            return np.where(interp_diff_rates <= 0., lookup_diff_rates, interp_diff_rates)
         else:
             return self._mh_diff_rate.lookup(*data)
 
