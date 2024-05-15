@@ -17,9 +17,6 @@ import sys ########
 
 ###################################################################################################
 
-#DRM Parameters #  240419 - AV added to make DRM changes easier
-S2_fano_all = 10.0 
-S1_skew_all = None#20 # 240507 AV added for testing, currently unused
 ###################################################################################################
 
 
@@ -165,7 +162,6 @@ class MakeS1S2MSU(fd.Block):
         # Load params
         Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -200,6 +196,8 @@ class MakeS1S2MSU(fd.Block):
         
         Nph1[Nph1<=0]=0.1
         Ne1[Ne1<=0]=0.1
+        
+        
         
         ##### Second Vertex
         # Load params        
@@ -242,19 +240,16 @@ class MakeS1S2MSU(fd.Block):
         
         Nph = Nph1 + Nph2
         Ne = Ne1 + Ne2
+        NphNe_stack = tf.ragged.stack([Nph.astype('float32'),Ne.astype('float32')])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme_numpy('detector_params',NphNe_stack) # shape: {Nph} 
+
 
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
-        S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
         S1_delta = (S1_skew / np.sqrt(1 + S1_skew**2))
         S1_scale = (S1_std / np.sqrt(1. - 2 * S1_delta**2 / np.pi))
@@ -333,7 +328,6 @@ class MakeS1S2MSU(fd.Block):
                                                      data_tensor=data_tensor,
                                                      ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
          
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
 
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
@@ -393,6 +387,11 @@ class MakeS1S2MSU(fd.Block):
         NphNe_pdf = NphNe_pdf[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
+        NphNe_stack = tf.ragged.stack([Nph,Ne])
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme('detector_params',
+                                                                  bonus_arg=NphNe_stack,
+                                                                  data_tensor=data_tensor,
+                                                                  ptensor=ptensor) # shape: {integer} 
         
         s1 = s1[:,0,0]  # initial shape: {batch_size, E1_bins, None} --> final shape: {batch_size}
         s1 = tf.repeat(s1[:,o],len(Nph),axis=1) # shape: {batch_size, Nph}
@@ -401,18 +400,10 @@ class MakeS1S2MSU(fd.Block):
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
                     
         S1_mean = Nph*g1 # shape: {Nph}
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
-        S2_skew = -2.37542105 *  Ne** (-0.26152676)
-
              
         S1_pdf = skewnorm_1d(x=s1,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew)
         S1_pdf = tf.repeat(S1_pdf[:,:,o],len(Ne),2) # final shape: {batch_size, Nph, Ne}
@@ -462,7 +453,6 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         # Load params
         Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean)  
@@ -578,19 +568,15 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         
         Nph = Nph1 + Nph2 + Nph3
         Ne = Ne1 + Ne2 + Ne3
+        NphNe_stack = tf.ragged.stack([Nph.astype('float32'),Ne.astype('float32')])
 
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme_numpy('detector_params',NphNe_stack) # shape: {integer} 
+        
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
-
+        
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
-        S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
         S1_delta = (S1_skew / np.sqrt(1 + S1_skew**2))
         S1_scale = (S1_std / np.sqrt(1. - 2 * S1_delta**2 / np.pi))
@@ -673,7 +659,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
                                                      bonus_arg=energy_first, 
                                                      data_tensor=data_tensor,
                                                      ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
+        
         # tf.print('g1',g1)
         # tf.print('g2',g2)
 
@@ -744,6 +730,12 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         NphNe_pdf = NphNe_pdf[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
+        NphNe_stack = tf.ragged.stack([Nph,Ne])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme('detector_params',
+                                                                  bonus_arg=NphNe_stack,
+                                                                  data_tensor=data_tensor,
+                                                                  ptensor=ptensor) # shape: {integer}  # shape: {integer} 
         
         s1 = s1[:,0,0]  # initial shape: {batch_size, E1_bins, None} --> final shape: {batch_size}
         s1 = tf.repeat(s1[:,o],len(Nph),axis=1) # shape: {batch_size, Nph}
@@ -752,17 +744,10 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
                     
         S1_mean = Nph*g1 # shape: {Nph}
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
-        S2_skew = -2.37542105 *  Ne** (-0.26152676)
 
         S1_pdf = skewnorm_1d(x=s1,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew)
         S1_pdf = tf.repeat(S1_pdf[:,:,o],len(Ne),2) # final shape: {batch_size, Nph, Ne}
@@ -799,7 +784,6 @@ class MakeS1S2SS(MakeS1S2MSU):
         # Load params
         Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies) # shape: {E_bins} (matches bonus_arg)
         Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies) # shape: {E_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -834,20 +818,17 @@ class MakeS1S2SS(MakeS1S2MSU):
         
         Nph[Nph<=0]=0.1
         Ne[Ne<=0]=0.1
+        NphNe_stack = tf.ragged.stack([Nph.astype('float32'),Ne.astype('float32')])
+
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme_numpy('detector_params',NphNe_stack) # shape: {integer} 
+        
 
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
-        S2_skew = (-2.37542105 *  Ne** (-0.26152676))
-        
+
         S1_delta = (S1_skew / np.sqrt(1 + S1_skew**2))
         S1_scale = (S1_std / np.sqrt(1. - 2 * S1_delta**2 / np.pi))
         S1_loc = (S1_mean - S1_scale * S1_delta * np.sqrt(2/np.pi))
@@ -920,7 +901,6 @@ class MakeS1S2SS(MakeS1S2MSU):
                                                      bonus_arg=energy_first, 
                                                      data_tensor=data_tensor,
                                                      ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
 
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
@@ -972,6 +952,12 @@ class MakeS1S2SS(MakeS1S2MSU):
         NphNe_pdf = NphNe_pdf[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
+        NphNe_stack = tf.ragged.stack([Nph,Ne])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme('detector_params',
+                                                                  bonus_arg=NphNe_stack,
+                                                                  data_tensor=data_tensor,
+                                                                  ptensor=ptensor) # shape: {integer} 
         
         s1 = s1[:,0,0]  # initial shape: {batch_size, E1_bins, None} --> final shape: {batch_size}
         s1 = tf.repeat(s1[:,o],len(Nph),axis=1) # shape: {batch_size, Nph}
@@ -980,17 +966,10 @@ class MakeS1S2SS(MakeS1S2MSU):
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}     
 
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
-        S2_skew = -2.37542105 *  Ne** (-0.26152676)
         
         S1_pdf = skewnorm_1d(x=s1,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew)
         S1_pdf = tf.repeat(S1_pdf[:,:,o],len(Ne),2) # final shape: {batch_size, Nph, Ne}
@@ -1029,7 +1008,6 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         
         # Load params
         Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -1107,19 +1085,16 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         
         Nph = Nph1 + Nph2
         Ne = Ne1 + Ne2
+        NphNe_stack = tf.ragged.stack([Nph.astype('float32'),Ne.astype('float32')])
+   
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme_numpy('detector_params',NphNe_stack) # shape: {integer} 
+
         
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
-        S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
         S1_delta = (S1_skew / np.sqrt(1 + S1_skew**2))
         S1_scale = (S1_std / np.sqrt(1. - 2 * S1_delta**2 / np.pi))
@@ -1194,7 +1169,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         Nph_skew = self.source.Nph_skew_ER_tf
         Ne_skew = self.source.Ne_skew_ER_tf
         initial_corr = self.source.initial_corr_ER_tf
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
+        
         
         ### Quanta Production
         x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
@@ -1247,6 +1222,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
                                                               bonus_arg=energy_second, 
                                                               data_tensor=data_tensor,
                                                               ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg) 
+        
         
         
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E2_bins)
@@ -1310,6 +1286,12 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         NphNe_pdf = NphNe_pdf[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
+        NphNe_stack = tf.ragged.stack([Nph,Ne])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme('detector_params',
+                                                                  bonus_arg=NphNe_stack,
+                                                                  data_tensor=data_tensor,
+                                                                  ptensor=ptensor) # shape: {integer} 
         
         s1 = s1[:,0,0]  # initial shape: {batch_size, E1_bins, None} --> final shape: {batch_size}
         s1 = tf.repeat(s1[:,o],len(Nph),axis=1) # shape: {batch_size, Nph}
@@ -1318,17 +1300,10 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
                     
         S1_mean = Nph*g1 # shape: {Nph}
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
-
+        
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
-        S2_skew = -2.37542105 *  Ne** (-0.26152676)
 
         S1_pdf = skewnorm_1d(x=s1,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew)
         S1_pdf = tf.repeat(S1_pdf[:,:,o],len(Ne),2) # final shape: {batch_size, Nph, Ne}
@@ -1369,7 +1344,6 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         ##### First Vertex
         # Load params
         Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -1485,19 +1459,16 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         
         Nph = Nph1 + Nph2 + Nph3
         Ne = Ne1 + Ne2 + Ne3
+        NphNe_stack = tf.ragged.stack([Nph.astype('float32'),Ne.astype('float32')])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme_numpy('detector_params',NphNe_stack) # shape: {integer} 
+        
 
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
-        S2_skew = (-2.37542105 *  Ne** (-0.26152676))
         
         S1_delta = (S1_skew / np.sqrt(1 + S1_skew**2))
         S1_scale = (S1_std / np.sqrt(1. - 2 * S1_delta**2 / np.pi))
@@ -1631,7 +1602,6 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
                                                               bonus_arg=energy_second, 
                                                               data_tensor=data_tensor,
                                                               ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E2_bins)
         Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E2_bins)   
@@ -1765,6 +1735,12 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         NphNe_pdf = NphNe_pdf[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
+        NphNe_stack = tf.ragged.stack([Nph,Ne])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme('detector_params',
+                                                                  bonus_arg=NphNe_stack,
+                                                                  data_tensor=data_tensor,
+                                                                  ptensor=ptensor) # shape: {integer} 
         
         s1 = s1[:,0,0]  # initial shape: {batch_size, E1_bins, None} --> final shape: {batch_size}
         s1 = tf.repeat(s1[:,o],len(Nph),axis=1) # shape: {batch_size, Nph}
@@ -1773,17 +1749,10 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}        
                     
         S1_mean = Nph*g1 # shape: {Nph}
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2 # shape: {Ne}
-        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
-        S2_skew = -2.37542105 *  Ne** (-0.26152676)
 
         S1_pdf = skewnorm_1d(x=s1,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew)
         S1_pdf = tf.repeat(S1_pdf[:,:,o],len(Ne),2) # final shape: {batch_size, Nph, Ne}
@@ -1820,7 +1789,6 @@ class MakeS1S2ER(MakeS1S2SS):
         
         # Load params
         Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies) # shape: {E_bins} (matches bonus_arg)
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -1855,20 +1823,17 @@ class MakeS1S2ER(MakeS1S2SS):
         
         Nph[Nph<=0]=0.1
         Ne[Ne<=0]=0.1
+        NphNe_stack = tf.ragged.stack([Nph.astype('float32'),Ne.astype('float32')])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme_numpy('detector_params',NphNe_stack) # shape: {integer} 
+        
 
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = np.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = np.sqrt(S2_mean*S2_fano)
-        S2_skew = (-2.37542105 *  Ne** (-0.26152676))
-        
+
         S1_delta = (S1_skew / np.sqrt(1 + S1_skew**2))
         S1_scale = (S1_std / np.sqrt(1. - 2 * S1_delta**2 / np.pi))
         S1_loc = (S1_mean - S1_scale * S1_delta * np.sqrt(2/np.pi))
@@ -1937,7 +1902,7 @@ class MakeS1S2ER(MakeS1S2SS):
         Nph_skew = self.source.Nph_skew_ER_tf
         Ne_skew = self.source.Ne_skew_ER_tf
         initial_corr = self.source.initial_corr_ER_tf
-        g1, g2 = self.gimme_numpy('detector_params',1) # shape: {integer} 
+        
         
         ### Quanta Production
         x = NphNe[:,:,0]
@@ -1987,6 +1952,12 @@ class MakeS1S2ER(MakeS1S2SS):
         NphNe_pdf = NphNe_pdf[1:,1:]
         Nph = Nph[1:]
         Ne = Ne[1:]
+        NphNe_stack = tf.ragged.stack([Nph,Ne])
+        
+        g1, g2, S1_fano, S2_fano, S1_skew, S2_skew = self.gimme('detector_params',
+                                                                  bonus_arg=NphNe_stack,
+                                                                  data_tensor=data_tensor,
+                                                                  ptensor=ptensor) # shape: {integer} 
         
         s1 = s1[:,0,0]  # initial shape: {batch_size, E1_bins, None} --> final shape: {batch_size}
         s1 = tf.repeat(s1[:,o],len(Nph),axis=1) # shape: {batch_size, Nph}
@@ -1995,17 +1966,10 @@ class MakeS1S2ER(MakeS1S2SS):
         s2 = tf.repeat(s2[:,o],len(Ne),axis=1) # shape: {batch_size, Ne}     
 
         S1_mean = Nph*g1     
-        S1_fano = 1.12145985 * Nph**(-0.00629895)
         S1_std = tf.sqrt(S1_mean*S1_fano)
-        if S1_skew_all is None:
-            S1_skew = (4.61849047 * Nph**(-0.23931848))#
-        else:
-            S1_skew = S1_skew_all * (Nph/Nph)
 
         S2_mean = Ne*g2
-        S2_fano = S2_fano_all
         S2_std = tf.sqrt(S2_mean*S2_fano)
-        S2_skew = -2.37542105 *  Ne** (-0.26152676)
         
         S1_pdf = skewnorm_1d(x=s1,x_mean=S1_mean,x_std=S1_std,x_alpha=S1_skew)
         S1_pdf = tf.repeat(S1_pdf[:,:,o],len(Ne),2) # final shape: {batch_size, Nph, Ne}
