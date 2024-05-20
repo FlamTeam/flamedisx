@@ -507,12 +507,14 @@ class IntervalCalculator():
             signal_source_names: ty.Tuple[str],
             observed_test_stats: ObservedTestStatistics,
             test_stat_dists_SB: TestStatisticDistributions,
-            test_stat_dists_B: TestStatisticDistributions):
+            test_stat_dists_B: TestStatisticDistributions,
+            test_stat_dists_SB_disco: TestStatisticDistributions=None):
 
         self.signal_source_names = signal_source_names
         self.observed_test_stats = observed_test_stats
         self.test_stat_dists_SB = test_stat_dists_SB
         self.test_stat_dists_B = test_stat_dists_B
+        self.test_stat_dists_SB_disco = test_stat_dists_SB_disco
 
     @staticmethod
     def interp_helper(x, y, crossing_points, crit_val,
@@ -655,6 +657,11 @@ class IntervalCalculator():
         return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
                                   rising_edge=False, inverse=True)
 
+    def critical_disco_value(self, disco_pot_curve, mus, discovery_sigma):
+        crossing_point = np.argwhere(np.diff(np.sign(disco_pot_curve - np.ones_like(disco_pot_curve) * discovery_sigma)) > 0.).flatten()
+        return self.interp_helper(mus, disco_pot_curve, crossing_point, discovery_sigma,
+                                  rising_edge=True, inverse=True)
+
     def get_bands(self, conf_level=0.1, quantiles=[0, 1, -1, 2, -2],
                   use_CLs=False):
         """
@@ -680,7 +687,7 @@ class IntervalCalculator():
                                                              kind='weak') / 100.
                     these_p_vals = these_p_vals / (1. - these_p_vals_b + 1e-10)
                 mus.append(mu_test)
-                p_val_curves.append(these_p_vals)
+                p_val_curves.append(these_p_vals[:2130])
 
             p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
             upper_lims_bands = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
@@ -713,3 +720,30 @@ class IntervalCalculator():
             disco_sigs[signal_source] = disco_sig
 
         return disco_sigs
+
+    def get_median_disco_asymptotic(self, sigma_level=3):
+        """
+        """
+        medians = dict()
+
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            # Get test statistic distribitions
+            test_stat_dists_SB_disco = self.test_stat_dists_SB_disco[signal_source]
+
+            mus = []
+            disco_sig_curves = []
+            # Loop over signal rate multipliers
+            for mu_test, ts_values in test_stat_dists_SB_disco.ts_dists.items():
+                these_disco_sigs = np.sqrt(ts_values)
+
+                mus.append(mu_test)
+                disco_sig_curves.append(these_disco_sigs[:2130])
+
+            disco_sig_curves = np.stack(disco_sig_curves, axis=0)
+            median_disco_sigs = [np.median(disco_sigs) for disco_sigs in disco_sig_curves]
+
+            median_crossing_point = self.critical_disco_value(median_disco_sigs, mus, 3)
+            medians[signal_source] = median_crossing_point
+
+        return medians
