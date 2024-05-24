@@ -465,12 +465,12 @@ class TSEvaluation():
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
         # Guesses for fit
-        guess_dict = {f'{signal_source_name}_rate_multiplier': 0.1}
+        guess_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(0.1, fd.float_type())}
         for background_source in self.background_source_names:
-            guess_dict[f'{background_source}_rate_multiplier'] = self.expected_background_counts[background_source]
+            guess_dict[f'{background_source}_rate_multiplier'] = tf.cast(self.expected_background_counts[background_source], fd.float_type())
         for key, value in guess_dict.items():
             if value < 0.1:
-                guess_dict[key] = 0.1
+                guess_dict[key] = tf.cast(0.1, fd.float_type())
         # Evaluate test statistic
         ts_result = test_statistic(mu_test, signal_source_name, guess_dict,
                                    asymptotic=asymptotic)
