@@ -379,6 +379,7 @@ class LogLikelihood:
         assert 'second_order' not in kwargs, 'Roep gewoon log_likelihood aan'
         return self.log_likelihood(second_order=False, **kwargs)[0]
 
+    @tf.function
     def log_likelihood(self, second_order=False,
                        omit_grads=tuple(), **kwargs):
         params = self.prepare_params(kwargs)
@@ -414,14 +415,14 @@ class LogLikelihood:
                     empty_batch=empty_batch,
                     constraint_extra_args=self.constraint_extra_args,
                     **params)
-                ll += results[0].numpy().astype(np.float64)
+                ll += results[0]
 
                 if self.param_names:
                     if results[1] is None:
                         raise ValueError("TensorFlow returned None as gradient!")
-                    llgrad += results[1].numpy().astype(np.float64)
+                    llgrad += results[1]
                     if second_order:
-                        llgrad2 += results[2].numpy().astype(np.float64)
+                        llgrad2 += results[2]
 
         if second_order:
             return ll, llgrad, llgrad2
@@ -434,11 +435,6 @@ class LogLikelihood:
         return -2 * ll, -2 * grad, hess
 
     def prepare_params(self, kwargs, free_all_rates=False):
-        for k in kwargs:
-            if k not in self.param_defaults:
-                if k.endswith('_rate_multiplier') and free_all_rates:
-                    continue
-                raise ValueError(f"Unknown parameter {k}")
         return {**self.param_defaults, **fd.values_to_constants(kwargs)}
 
     def _get_rate_mult(self, sname, kwargs):
@@ -488,7 +484,6 @@ class LogLikelihood:
                    * self.mu_estimators[sname](**filtered_params))
         return mu
 
-    @tf.function
     def _log_likelihood(self,
                         i_batch, dsetname, data_tensor, batch_info,
                         omit_grads=tuple(), second_order=False,
