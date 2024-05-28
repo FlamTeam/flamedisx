@@ -103,7 +103,6 @@ class TemplateWrapper:
             interp_diff_rates = self._interpolator(data.T)
             lookup_diff_rates = self._mh_diff_rate.lookup(*data)
             return np.where(interp_diff_rates <= 0., lookup_diff_rates, interp_diff_rates)
-
         else:
             return self._mh_diff_rate.lookup(*data)
 
@@ -232,7 +231,6 @@ class MultiTemplateSource(fd.Source):
         #
         # When evaluated at the exact location of a template, the result has 1
         # in the corresponding template's position, and zeros elsewhere.
-
         _template_weights = scipy.interpolate.interp1d(
             x=np.asarray([list(params.values())[0] for params, _ in params_and_templates]),
             y=np.eye(n_templates))
@@ -265,21 +263,13 @@ class MultiTemplateSource(fd.Source):
         # ... this column will hold an array, with one entry per template
         self.array_columns = ((self.column, n_templates),)
 
-        # This source has parameters but no model functions, so we can't do the
-        # usual Source.scan_model_functions.
-        self.f_dims = dict()
-        self.f_params = dict()
-        self.defaults = {k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}
-
         # This is needed in tensorflow, so convert it now
         self._grid_coordinates = tuple([fd.np_to_tf(np.asarray(g)) for g in _grid_coordinates])
         self._grid_weights = fd.np_to_tf(_grid_weights)
 
         super().__init__(*args, **kwargs)
 
-    def scan_model_functions(self):
-        # Don't do anything here, already set defaults etc. in __init__ above
-        pass
+        self.defaults = {**self.defaults,**{k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}}
 
     def extra_needed_columns(self):
         return super().extra_needed_columns() + [self.column]
