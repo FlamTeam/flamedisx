@@ -205,6 +205,7 @@ class MultiTemplateSource(fd.Source):
             axis_names=None,
             events_per_bin=False,
             interpolate=False,
+            _skip_tf_init=False,
             *args,
             **kwargs):
 
@@ -270,6 +271,9 @@ class MultiTemplateSource(fd.Source):
         super().__init__(*args, **kwargs)
 
         self.defaults = {**self.defaults,**{k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}}
+        self.parameter_index = fd.index_lookup_dict(self.defaults.keys())
+        if not _skip_tf_init:
+            self.trace_differential_rate()
 
     def extra_needed_columns(self):
         return super().extra_needed_columns() + [self.column]
