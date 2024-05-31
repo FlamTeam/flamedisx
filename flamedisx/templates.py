@@ -201,6 +201,7 @@ class MultiTemplateSource(fd.Source):
     def __init__(
             self,
             params_and_templates: ty.Tuple[ty.Dict[str, float], ty.Any],
+            params_and_normalisations:ty.Tuple[ty.Dict[str, float], float],
             bin_edges=None,
             axis_names=None,
             events_per_bin=False,
@@ -214,7 +215,7 @@ class MultiTemplateSource(fd.Source):
                 template, bin_edges, axis_names, events_per_bin, interpolate)
             for _, template in params_and_templates]
 
-        # We assume that mu does not change as we interpolate
+        # We will include mu variation separately
         self.mu = self._templates[0].mu
 
         # Grab parameter names. Promote first set of values to defaults.
@@ -248,7 +249,6 @@ class MultiTemplateSource(fd.Source):
                                   for params, _ in params_and_templates)))
             for param in defaults])
         _full_grid_coordinates = np.meshgrid(*_grid_coordinates, indexing='ij')
-        n_grid_points = np.prod([len(x) for x in _grid_coordinates])
 
         # Evaluate our irregular-grid scipy-interpolator on the grid.
         # This gives an array of shape (n_templates, ngrid_dim0, ngrid_dim1, ...)
@@ -267,6 +267,15 @@ class MultiTemplateSource(fd.Source):
         # This is needed in tensorflow, so convert it now
         self._grid_coordinates = tuple([fd.np_to_tf(np.asarray(g)) for g in _grid_coordinates])
         self._grid_weights = fd.np_to_tf(_grid_weights)
+
+        param_vals = np.asarray([list(params.values())[0] for params, _ in params_and_templates])
+        self.pmin = tf.constant(min(param_vals), fd.float_type())
+        self.pmax = tf.constant(max(param_vals), fd.float_type())
+
+        normalisations = np.array([norm for _, norm in params_and_normalisations])
+        self.normalisations = tf.convert_to_tensor(normalisations / normalisations[0],
+                                                   fd.float_type())
+
 
         super().__init__(*args, **kwargs)
 
@@ -291,7 +300,14 @@ class MultiTemplateSource(fd.Source):
         return self.mu
 
     def estimate_mu(self, n_trials=None, **params):
-        return self.mu
+        norm = tfp.math.batch_interp_regular_1d_grid(
+                    x=params[self.param_name],
+                    x_ref_min=self.pmin,
+                    x_ref_max=self.pmax,
+                    y_ref=self.normalisations,
+                    )
+
+        return tf.reshape(norm, shape=[]) * self.mu
 
     def _differential_rate(self, data_tensor, ptensor):
         # Compute template weights at this parameter point
@@ -310,10 +326,17 @@ class MultiTemplateSource(fd.Source):
         # (n_events, n_templates) tensor
         template_diffrates = self._fetch(self.column, data_tensor)
 
+        norm = tfp.math.batch_interp_regular_1d_grid(
+                x=ptensor[None, :],
+                x_ref_min=self.pmin,
+                x_ref_max=self.pmax,
+                y_ref=self.normalisations,
+                )
+
         # Compute weighted average of diff rates
         # (n_events,) tensor
         return tf.reduce_sum(
-            template_diffrates * template_weights[None, :],
+            norm * template_diffrates * template_weights[None, :],
             axis=1)
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
