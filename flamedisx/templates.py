@@ -9,6 +9,8 @@ import scipy.interpolate
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from flamedisx.tfbspline import bspline
+
 import flamedisx as fd
 
 from copy import deepcopy
@@ -271,11 +273,17 @@ class MultiTemplateSource(fd.Source):
         param_vals = np.asarray([list(params.values())[0] for params, _ in params_and_templates])
         self.pmin = tf.constant(min(param_vals), fd.float_type())
         self.pmax = tf.constant(max(param_vals), fd.float_type())
+        self.pvals = tf.convert_to_tensor(param_vals, fd.float_type())
 
         normalisations = np.array([norm for _, norm in params_and_normalisations])
         self.normalisations = tf.convert_to_tensor(normalisations / normalisations[0],
                                                    fd.float_type())
 
+        # Assume equi-spacing!
+        self.dstep=self.pvals[1]-self.pvals[0]
+        # Need to pad domain.. four might be excessive
+        self.pvals=list(np.arange(self.pvals[0]-4*(self.dstep),self.pvals[-1]+5*(self.dstep),self.dstep))
+        self.array_columns = ((self.column, n_templates+8),)
 
         super().__init__(*args, **kwargs)
 
@@ -290,11 +298,50 @@ class MultiTemplateSource(fd.Source):
     def _annotate(self):
         """Add columns needed in inference to self.data
         """
-        # Get array of differential rates for each template.
-        # Outer list() is to placate pandas, which does not like array columns..
+        #construct tensor of knots
+        #requires a tensor of elements
+        #data is stored as [[d_evt1^h1,d_evt1^h2..],[d_evt2^h1,d_evt2^h2..]]
+        # so just need to construct and x-values object and let data column handle y-values
+        #with some padding for the domain!
+        Nk=len(self.pvals)
+        knot_range=self.pvals[-1]-self.pvals[0]
+        linear_shift=2*self.dstep/knot_range
+        start=min(self.pvals)
+        end=max(self.pvals)
+        self.original_range=tf.constant(end-start,dtype=fd.float_type())
+        self.max_pos=tf.constant(Nk- 2,dtype=fd.float_type())
+
+        self.start=tf.constant(start,dtype=fd.float_type())
+        self.linear_shift=tf.constant(linear_shift,dtype=fd.float_type())
+        self.linear_shift_shift=tf.constant(knot_range/2,dtype=fd.float_type())
+
         self.data[self.column] = list(np.asarray([
             template.differential_rates_numpy(self.data)
             for template in self._templates]).T)
+
+        linear_interp_padded_diff_rates=[]
+        for diff_rate_per_hist in self.data[self.column]:
+
+            if np.sum(diff_rate_per_hist[:2])>0:
+                left_edge=scipy.interpolate.interp1d(
+                    self.pvals[4:6],diff_rate_per_hist[:2],
+                    kind='linear',fill_value="extrapolate",
+                    bounds_error=False)(self.pvals[:4])
+            else:
+                left_edge=list(np.repeat(diff_rate_per_hist[0],4))
+
+            if np.sum(diff_rate_per_hist[-2:])>0:
+                right_edge=scipy.interpolate.interp1d(
+                    self.pvals[-6:-4],diff_rate_per_hist[-2:],
+                    kind='linear',fill_value="extrapolate",
+                    bounds_error=False)(self.pvals[-4:])
+            else:
+                right_edge=list(np.repeat(diff_rate_per_hist[-1],4))
+
+            linear_interp_padded_diff_rates.append(np.concatenate([left_edge,diff_rate_per_hist,right_edge]))
+
+        self.data[self.column]=linear_interp_padded_diff_rates
+        self.tensor_xvals=tf.convert_to_tensor([self.pvals for d in self.data[self.column]],dtype=fd.float_type())
 
     def mu_before_efficiencies(self, **params):
         return self.mu
@@ -309,23 +356,19 @@ class MultiTemplateSource(fd.Source):
 
         return tf.reshape(norm, shape=[]) * self.mu
 
+    def bspline_interpolate_per_bin(self, param,knots):
+        def interp(knots_for_event):
+            #second order non-cyclical b-spline with varying knots
+            #returns [x,y] so ignore x
+            #hackiest shit ever
+            return tf.reduce_sum(bspline.interpolate(knots_for_event,
+                                                     self.max_pos*(param-self.start)/self.original_range+self.linear_shift*(param -self.linear_shift_shift), 2, False) \
+                                * tf.constant([0,1],dtype=fd.float_type()))
+        #vectorized map over all events
+        y=tf.vectorized_map(interp,elems=knots)
+        return y
+
     def _differential_rate(self, data_tensor, ptensor):
-        # Compute template weights at this parameter point
-        # (n_templates,) tensor
-        # (The axis order is weird here. It seems to work...)
-        template_weights = tfp.math.batch_interp_regular_1d_grid(
-            x=ptensor[None, :],
-            x_ref_min=self._grid_coordinates[0][0],
-            x_ref_max=self._grid_coordinates[0][-1],
-            y_ref=self._grid_weights,
-        )[:, 0]
-        # Ensure template weights sum to one.
-        template_weights /= tf.reduce_sum(template_weights)
-
-        # Fetch precomputed diff rates for each template.
-        # (n_events, n_templates) tensor
-        template_diffrates = self._fetch(self.column, data_tensor)
-
         norm = tfp.math.batch_interp_regular_1d_grid(
                 x=ptensor[None, :],
                 x_ref_min=self.pmin,
@@ -333,11 +376,11 @@ class MultiTemplateSource(fd.Source):
                 y_ref=self.normalisations,
                 )
 
-        # Compute weighted average of diff rates
-        # (n_events,) tensor
-        return tf.reduce_sum(
-            norm * template_diffrates * template_weights[None, :],
-            axis=1)
+        knots_per_event=tf.convert_to_tensor([self.tensor_xvals,self._fetch(self.column, data_tensor)],dtype=fd.float_type())
+        bspline_diff_rates=self.bspline_interpolate_per_bin(ptensor[None, :], tf.transpose(knots_per_event,perm=[1,0,2]))
+        dr=tf.squeeze(norm)*bspline_diff_rates
+
+        return dr
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
