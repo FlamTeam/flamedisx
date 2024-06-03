@@ -687,7 +687,7 @@ class IntervalCalculator():
                                                              kind='weak') / 100.
                     these_p_vals = these_p_vals / (1. - these_p_vals_b + 1e-10)
                 mus.append(mu_test)
-                p_val_curves.append(these_p_vals[:2130])
+                p_val_curves.append(these_p_vals)
 
             p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
             upper_lims_bands = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
@@ -738,7 +738,7 @@ class IntervalCalculator():
                 these_disco_sigs = np.sqrt(ts_values)
 
                 mus.append(mu_test)
-                disco_sig_curves.append(these_disco_sigs[:2130])
+                disco_sig_curves.append(these_disco_sigs)
 
             disco_sig_curves = np.stack(disco_sig_curves, axis=0)
             median_disco_sigs = [np.median(disco_sigs) for disco_sigs in disco_sig_curves]
