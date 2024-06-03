@@ -341,7 +341,7 @@ class MultiTemplateSource(fd.Source):
             linear_interp_padded_diff_rates.append(np.concatenate([left_edge,diff_rate_per_hist,right_edge]))
 
         self.data[self.column]=linear_interp_padded_diff_rates
-        self.tensor_xvals=tf.convert_to_tensor([self.pvals for d in self.data[self.column]],dtype=fd.float_type())
+        self.tensor_xvals=tf.convert_to_tensor([self.pvals for _ in range(self.batch_size)],dtype=fd.float_type())
 
     def mu_before_efficiencies(self, **params):
         return self.mu
