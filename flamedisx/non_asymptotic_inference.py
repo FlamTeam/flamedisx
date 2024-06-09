@@ -727,6 +727,7 @@ class IntervalCalculator():
                                                     observed_test_stat,
                                                     kind='weak')) / 100.
             disco_sig = stats.norm.ppf(1. - p_val)
+            disco_sig = np.where(disco_sig > 0., disco_sig, 0.)
             disco_sigs[signal_source] = disco_sig
 
         return disco_sigs
