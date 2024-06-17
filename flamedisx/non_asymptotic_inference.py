@@ -347,17 +347,19 @@ class TSEvaluation():
             simulate_dict[f'{background_source}_rate_multiplier'] = tf.cast(expected_background_counts, fd.float_type())
             simulate_dict[f'{signal_source_name}_rate_multiplier'] = tf.cast(mu_test, fd.float_type())
 
-        conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits[mu_test]
-        non_rate_params_added = []
-        for pname, fitval in conditional_bfs_observed.items():
-            if (pname not in simulate_dict) and (pname in likelihood.param_defaults):
-                simulate_dict[pname] = fitval
-                non_rate_params_added.append(pname)
+        if self.observed_test_stats is not None:
+            conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits[mu_test]
+            non_rate_params_added = []
+            for pname, fitval in conditional_bfs_observed.items():
+                if (pname not in simulate_dict) and (pname in likelihood.param_defaults):
+                    simulate_dict[pname] = fitval
+                    non_rate_params_added.append(pname)
 
         toy_data = likelihood.simulate(**simulate_dict)
 
-        for pname in non_rate_params_added:
-            simulate_dict.pop(pname)
+        if self.observed_test_stats is not None:
+            for pname in non_rate_params_added:
+                simulate_dict.pop(pname)
 
         return simulate_dict, toy_data, constraint_extra_args
 
