@@ -665,9 +665,12 @@ class IntervalCalculator():
             return lower_lim_all, upper_lim_all, p_sb, p_b
 
     def upper_lims_bands(self, pval_curve, mus, conf_level):
-        upper_lims = np.argwhere(np.diff(np.sign(pval_curve - np.ones_like(pval_curve) * conf_level)) < 0.).flatten()
-        return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
-                                  rising_edge=False, inverse=True)
+        try:
+            upper_lims = np.argwhere(np.diff(np.sign(pval_curve - np.ones_like(pval_curve) * conf_level)) < 0.).flatten()
+            return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
+                                    rising_edge=False, inverse=True)
+        except Exception:
+            return 0.
 
     def critical_disco_value(self, disco_pot_curve, mus, discovery_sigma):
         crossing_point = np.argwhere(np.diff(np.sign(disco_pot_curve - np.ones_like(disco_pot_curve) * discovery_sigma)) > 0.).flatten()
@@ -703,6 +706,10 @@ class IntervalCalculator():
 
             p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
             upper_lims_bands = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
+
+            if len(upper_lims_bands[upper_lims_bands == 0.]) > 0.:
+                print(f'Found {len(upper_lims_bands[upper_lims_bands == 0.])} failed toy for {signal_source}; removing...')
+                upper_lims_bands = upper_lims_bands[upper_lims_bands > 0.]
 
             these_bands = dict()
             for quantile in quantiles:
