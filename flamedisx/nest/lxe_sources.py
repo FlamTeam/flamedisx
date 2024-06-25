@@ -1,15 +1,19 @@
-import tensorflow as tf
-
-import configparser
 import os
 
+import configparser
+import math as m
+import numpy as np
 import pickle as pkl
 import pandas as pd
+import tensorflow as tf
+
+
 
 import flamedisx as fd
 from .. import nest as fd_nest
+import multihist as mh
+from wimprates import rate_wimp_std
 
-import math as m
 pi = tf.constant(m.pi)
 
 export, __all__ = fd.exporter()
@@ -592,9 +596,44 @@ class nestWIMPSource(nestNRSource):
 
         super().__init__(*args, **kwargs)
 
-    def get_energy_hist(self, wimp_mass):
-        _energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
-        return _energy_hist
+    def get_energy_hist(self, wimp_mass=50, min_E=1e-2, max_E=40, sigma=1, n_bins_energy=800, n_bins_time=25, modulation=False):
+        """
+        Function to generate or obtain the energy histogram for a given WIMP mass
+
+        Parameters
+        ----------
+        wimp_mass : float
+            Mass of the WIMP in GeV/c^2
+        min_E : float
+            Minimum energy of the histogram in keV
+        max_E : float   
+            Maximum energy of the histogram in keV
+        sigma : float
+            Cross-section of the WIMP in pb
+        n_bins_energy : int
+            Number of bins for the energy histogram
+        n_bins_time : int
+            Number of bins for the time histogram
+        modulation : bool
+            Flag to enable/disable modulation
+        """
+
+        energies = np.linspace(min_E, max_E, n_bins_energy)
+        times = np.arange(1, 26)
+
+        if modulation:
+            modulation_scaling = 0.5 * (1 + np.cos(2 * np.pi * times / n_bins_time))  # placeholder for actual calculation
+        else
+            modulation_scaling = 1 / n_bins_time
+
+        rates = rate_wimp_std(energies, wimp_mass, sigma)
+        RATES = np.array([
+            modulation_scaling * rates for i in range(n_bins_time)
+        ])
+    
+        hist = mh.Histdd.from_histogram(RATES, [times, energies])
+
+        return hist
     
 
 @export
