@@ -578,7 +578,7 @@ class nestWIMPSource(nestNRSource):
     # WIMP energy spectrum
     # Implement using WIMPRATE -> produce 2D energy spectrum energy vs time (366)
     # Produce over a number of energies. 
-    # 
+    
     print('Lorenzo Succeeded')
     
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
@@ -603,7 +603,14 @@ class nestWIMPSource(nestNRSource):
         _energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
         return _energy_hist
     
+    def relative_modulation(vsun, vearth):
+        relative_velocity = vsun - vearth*np.cos(2*np.pi*(np.arange(0, 25)/25))
+        mean = np.mean(relative_velocity)
+        relative_velocity -= mean
+        relative_velocity /= mean
+        relative_velocity += 1
 
+        return relative_velocity
 @export
 class nestSolarAxionSource(nestERSource):
     def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
