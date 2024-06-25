@@ -580,7 +580,7 @@ class nestWIMPSource(nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
+        self.energy_hist = self.get_energy_hist(wimp_mass)
         scale = fid_mass * livetime
         self.energy_hist *= scale
 
@@ -592,6 +592,10 @@ class nestWIMPSource(nestNRSource):
 
         super().__init__(*args, **kwargs)
 
+    def get_energy_hist(self, wimp_mass):
+        _energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
+        return _energy_hist
+    
 
 @export
 class nestSolarAxionSource(nestERSource):
