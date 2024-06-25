@@ -574,6 +574,13 @@ class nestTemporalRateOscillationNRSource(nestNRSource):
 
 @export
 class nestWIMPSource(nestNRSource):
+    
+    # WIMP energy spectrum
+    # Implement using WIMPRATE -> produce 2D energy spectrum energy vs time (366)
+    # Produce over a number of energies. 
+    # 
+    print('Lorenzo Succeeded')
+    
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
 
     def __init__(self, *args, wimp_mass=40, fid_mass=1., livetime=1., **kwargs):
