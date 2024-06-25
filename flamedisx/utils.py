@@ -294,3 +294,25 @@ def filter_kwargs(func, kwargs):
         # if func accepts wildcard kwargs, return all
         return kwargs
     return {k: v for k, v in kwargs.items() if k in params}
+
+
+@export
+def relative_modulation(n_bins=25, v_sun=220, v_earth=30):
+    """
+    Calculate the modulation due to the Earth's orbit around the Sun 
+    WARNING: currently it only works if the total bins span 1 year
+
+    Parameters:
+    vsun : float
+        Speed of the Sun in km/s
+    vearth : float
+        Speed of the Earth in km/s
+    """
+
+    relative_velocity = v_sun - v_earth*np.cos(2*np.pi*(np.arange(0, n_bins)/n_bins))
+    mean = np.mean(relative_velocity)
+    relative_velocity -= mean
+    relative_velocity /= mean
+    relative_velocity += 1
+
+    return relative_velocity

@@ -603,7 +603,8 @@ class nestWIMPSource(nestNRSource):
 
         super().__init__(*args, **kwargs)
 
-    def get_energy_hist(self, wimp_mass=50, min_E=1e-2, max_E=40, sigma=1, n_bins_energy=800, n_bins_time=25, modulation=False):
+    @staticmethod
+    def get_energy_hist(wimp_mass=50, min_E=1e-2, max_E=40, sigma=1, n_bins_energy=800, n_bins_time=25, modulation=False):
         """
         Function to generate or obtain the energy histogram for a given WIMP mass
 
@@ -620,36 +621,30 @@ class nestWIMPSource(nestNRSource):
         n_bins_energy : int
             Number of bins for the energy histogram
         n_bins_time : int
-            Number of bins for the time histogram
+            Number of bins for the time histogram. 
+            To total timespan to bin is currently hardcoded to 1 year
         modulation : bool
             Flag to enable/disable modulation
         """
 
-        energies = np.linspace(min_E, max_E, n_bins_energy)
-        times = np.arange(1, 26)
+        energy_bin_edges = np.linspace(min_E, max_E, n_bins_energy + 1)
+        energy_values = 0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1])
+        time_bin_edges = np.arange(0, n_bins_time + 1)
 
         if modulation:
-            modulation_scaling = 0.5 * (1 + np.cos(2 * np.pi * times / n_bins_time))  # placeholder for actual calculation
-        else
-            modulation_scaling = 1 / n_bins_time
+            modulation_scaling = fd.relative_modulation(n_bins_time) / n_bins_time
+        else:
+            modulation_scaling = np.repeat(1 / n_bins_time, n_bins_time)
 
-        rates = rate_wimp_std(energies, wimp_mass, sigma)
+        rates = rate_wimp_std(energy_values, wimp_mass, sigma)
         RATES = np.array([
-            modulation_scaling * rates for i in range(n_bins_time)
+            modulation_scaling[i] * rates for i in range(n_bins_time)
         ])
     
-        hist = mh.Histdd.from_histogram(RATES, [times, energies])
+        hist = mh.Histdd.from_histogram(RATES, [time_bin_edges, energy_bin_edges])
 
         return hist
     
-    def relative_modulation(vsun, vearth):
-        relative_velocity = vsun - vearth*np.cos(2*np.pi*(np.arange(0, 25)/25))
-        mean = np.mean(relative_velocity)
-        relative_velocity -= mean
-        relative_velocity /= mean
-        relative_velocity += 1
-
-        return relative_velocity
 @export
 class nestSolarAxionSource(nestERSource):
     def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
