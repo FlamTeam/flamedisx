@@ -583,8 +583,6 @@ class nestWIMPSource(nestNRSource):
     # Implement using WIMPRATE -> produce 2D energy spectrum energy vs time (366)
     # Produce over a number of energies. 
     
-    print('Lorenzo Succeeded')
-    
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
 
     def __init__(self, *args, wimp_mass=40, fid_mass=1., livetime=1., **kwargs):
@@ -604,7 +602,7 @@ class nestWIMPSource(nestNRSource):
         super().__init__(*args, **kwargs)
 
     @staticmethod
-    def get_energy_hist(wimp_mass=50, min_E=1e-2, max_E=40, sigma=1, n_bins_energy=800, n_bins_time=25, modulation=False):
+    def get_energy_hist(wimp_mass=50., min_E=1e-2, max_E=40., sigma=1., n_bins_energy=800, n_bins_time=25, modulation=False):
         """
         Function to generate or obtain the energy histogram for a given WIMP mass
 
