@@ -2,7 +2,7 @@ numpy==1.23.5
 scipy==1.9.3
 pandas==1.5.2
 multihist==0.6.5
-wimprates==0.4.1
+wimprates==0.5.0
 tqdm==4.64.1
 tensorflow==2.11.0
 tensorflow_probability==0.19.0
