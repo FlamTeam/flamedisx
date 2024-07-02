@@ -121,9 +121,9 @@ class IterativeOptimiser():
 
             bf = self.likelihood.bestfit(guess=guess_dict_cond,
                                          fix=fix_dict)
-            print('Iteration %i: '%(i+1),bf)
+            print('Iteration %i: '%(i+2),bf)
             if verbose:
-                print('Iteration %i Likelihood: '%(i+1),self.likelihood(**bf))
+                print('Iteration %i Likelihood: '%(i+2),self.likelihood(**bf))
             
 
         return bf

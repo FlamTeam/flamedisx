@@ -13,8 +13,26 @@ o = tf.newaxis
 
 # KE_Spectrum='' # Gauss+Box method
 # KE_Spectrum='_CR_100keVnr_min' # Casey's DD Exact
-KE_Spectrum='_CR_conduitCut_100keVnr_min' # Casey's DD Exact with conduit cut applied
+# KE_Spectrum='_CR_conduitCut_100keVnr_min' # Casey's DD Exact with conduit cut applied
 # KE_Spectrum='_Mono' # Monoenergetic 2450s
+# KE_Spectrum='_J4NDL_Mono' # Monoenergetic 2450s with J4NDL rescaling
+# KE_Spectrum='_J4NDL_CR_conduitCut_100keVnr_min' # Casey's DD Exact
+
+#AbundanceTests https://docs.google.com/spreadsheets/d/17IsdiT9ZeBqYlGMyCHETPMagqxxuouwbTvt3vqgJ2yU/edit#gid=949580901
+# KE_Spectrum='_G4_test1' 
+# KE_Spectrum='_G4_test2' 
+# KE_Spectrum='_G4_test3' 
+# KE_Spectrum='_G4_test4' 
+# KE_Spectrum='_G4_test4_CR'
+# KE_Spectrum='_G4_test5' 
+
+# KE_Spectrum='_G4_mono_BRUTEFORCE'
+# KE_Spectrum='_G4_mono_BRUTEFORCE_v2'  # MonoKE * (Data/MonoKE_sim)
+# KE_Spectrum='_G4_mono_BRUTEFORCE_v3' # CR100 * (Data/CR100_sim)
+# KE_Spectrum='_G4_mono_BRUTEFORCE_v4' # MonoKE * BFv2 * (Data/BFv2_sim)
+KE_Spectrum='_G4_mono_BRUTEFORCE_v5' # MonoKE * BFv2 * BFv4 * (Data/BFv4_sim)
+
+print('Using KE Spectrum: %s'%KE_Spectrum)
 
 @export
 class EnergySpectrumFirstMSU(fd.FirstBlock):
