@@ -608,6 +608,7 @@ class IntervalCalculator():
 
         lower_lim_all = dict()
         upper_lim_all = dict()
+        upper_lim_all_raw = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             if not asymptotic:
@@ -643,6 +644,7 @@ class IntervalCalculator():
             # Take the highest decreasing crossing point, and interpolate to get an upper limit
             upper_lim = self.interp_helper(mus, p_vals, upper_lims, conf_level,
                                            rising_edge=False, inverse=True)
+            upper_lim_raw = upper_lim
 
             if use_CLs is False and not asymptotic:
                 M0 = self.interp_helper(mus, pws, upper_lims, upper_lim,
@@ -656,11 +658,12 @@ class IntervalCalculator():
 
             lower_lim_all[signal_source] = lower_lim
             upper_lim_all[signal_source] = upper_lim
+            upper_lim_all_raw[signal_source] = upper_lim_raw
 
         if asymptotic:
             return lower_lim_all, upper_lim_all
         if use_CLs is False:
-            return lower_lim_all, upper_lim_all, p_sb, powers
+            return lower_lim_all, upper_lim_all, upper_lim_all_raw, p_sb, powers
         else:
             return lower_lim_all, upper_lim_all, p_sb, p_b
 
