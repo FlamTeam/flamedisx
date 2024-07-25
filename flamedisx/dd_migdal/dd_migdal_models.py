@@ -27,13 +27,25 @@ import matplotlib as mpl
 ###################################################################################################
 
 #Data Acceptance cut params # 240419 - AV added to make it easier to set cuts below NR band
-BCUT=160 #200 #
-MCUT=0.77 #0.73#
+# ### S1 > 5 phd
+BCUT=160 
+MCUT=0.77
+## S1 > 20 phd
+# BCUT=200 #
+# MCUT=0.73#
+
+S1_MIN=5
+S1_MAX=200
+S2_MIN=400
+S2_MAX=2e4
+
+print('BCUT: %1.1f, MCUT: %1.2f'%(BCUT,MCUT))
+print('S1 MIN: %i, S1 MAX: %i, S2 MIN: %i, S2 MAX: %i'%(S1_MIN,S1_MAX,S2_MIN,S2_MAX))
 
 ###################################################################################################
 
 ### interpolation grids for NR
-filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240621.npz'
+filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240705.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
     
@@ -55,11 +67,11 @@ def interp_nd(x):
     part2 = tf.cast(tf.experimental.numpy.geomspace(4,80,23), fd.float_type())[1:]
     keVnr_choices = tf.concat([part1,part2],axis=0)
 
-    Fi_grid = tf.cast([0.2,0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                                                    # Fano ion
-    Fex_grid = tf.cast([0.1,0.15,0.2,0.25,0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75,2.0,2.25,2.5,3.0,3.5,4.0,8.0,12.0,16.0,20.0], fd.float_type())   # Fano exciton
-    NBamp_grid = tf.cast([0.,0.02,0.04,0.06,0.08,0.10,0.12], fd.float_type())                                              # amplitude for non-binomial NR recombination fluctuations
+    Fi_grid = tf.cast([0.05,0.1,0.15,0.2,0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                                                    # Fano ion
+    Fex_grid = tf.cast([0.55,0.75,1.,1.5,2.0,2.5,3.0,3.5,4.0,6.0,8.0,12.0,16.0], fd.float_type())   # Fano exciton
+    NBamp_grid = tf.cast([0.,0.02,0.04,0.06,0.08], fd.float_type())                                              # amplitude for non-binomial NR recombination fluctuations
     NBloc = tf.cast([0.4,0.45,0.5,0.55,0.6], fd.float_type())                                                              # non-binomial: loc of elecfrac
-    RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.], fd.float_type())                                                             # raw skewness
+    RawSkew_grid = tf.cast([-8.,-5.,-3.,-1.5,0.,1.5,3.,5.,8.], fd.float_type())                                                             # raw skewness
 
     x_grid_points = (Fi_grid, Fex_grid, NBamp_grid, NBloc, RawSkew_grid, keVnr_choices)
 
@@ -107,6 +119,11 @@ def interp_nd_ER(x):
                                                             # want shape   (len(E), 7)
 
     return interp 
+
+def log10(x):
+    numerator = tf.math.log(x)
+    denominator = tf.math.log(tf.constant(10, dtype=numerator.dtype))
+    return numerator / denominator
     
 def skewnorm_1d(x,x_std,x_mean,x_alpha):
 
@@ -196,10 +213,43 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         # TI = ythomas*193**delta * (rho/rho_0)**nu
         TI = ythomas
         
-        ymod_keVstart = 58.06 # keV
-        ymod_changeat74keV = 11.82 # 
-        Qy = 1 / TI /  (energies + yepsilon)**yp * ( 1 - 1/(1 + (energies/zeta)**eta) ) - ymod_changeat74keV/100.*tf.math.maximum(0.,tf.math.log(energies)-tf.math.log(ymod_keVstart))/(tf.math.log(74.)-tf.math.log(ymod_keVstart)) 
-
+        #Standard Qy - no modifications
+        # Qy = 1 / TI /  (energies + yepsilon)**yp  # standard
+        
+        # Standard with Qy mod
+        # ymod_keVstart = 58.06 #58.41#  keV
+        # ymod_changeat74keV = 11.82 # 12.94#
+        # Qy = 1 / TI /  (energies + yepsilon)**yp * ( 1 - 1/(1 + (energies/zeta)**eta) ) - ymod_changeat74keV/100.*tf.math.maximum(0.,tf.math.log(energies)-tf.math.log(ymod_keVstart))/(tf.math.log(74.)-tf.math.log(ymod_keVstart)) 
+        
+        
+        ### Standard with p mod 
+        ### https://docs.google.com/presentation/d/1qOjAONrVtlh2mSRRs1Mu54y3XqRHbCTSILAIaLGjHMc/edit#slide=id.g2e9db68db01_0_57        
+        yp *= tf.ones_like(energies, dtype=fd.float_type())
+        ### pmod with kink
+        # pmod_keVstart = 59.249
+        # pmod_changeat74keV = 0.010
+        # p = yp+pmod_changeat74keV*tf.math.maximum(0.,log10(energies)-log10(pmod_keVstart))/(log10(74.)-log10(pmod_keVstart))
+        ####  pmod with fermi f
+        # pmod_fermichange =  0.011
+        # pmod_fermimu = 66.324
+        # pmod_fermiwidth =  2.421
+        # pmod_fermichange =  0.01132
+        # pmod_fermimu = 67.02
+        # pmod_fermiwidth =  2.702
+        pmod_fermichange =  0.0123955796
+        pmod_fermimu = 67.5233566
+        pmod_fermiwidth = 3.0894864
+        
+        
+        
+        
+        
+        p = yp+pmod_fermichange*1/(tf.math.exp((pmod_fermimu-energies)/pmod_fermiwidth)+1)
+        
+        Qy = 1 / TI /  (energies + yepsilon)**p * ( 1 - 1/(1 + (energies/zeta)**eta) )
+        
+    
+        ########
         Ne_mean = Qy * energies
         
         Ly = yalpha * energies**ybeta - Ne_mean
@@ -210,29 +260,29 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     @staticmethod
     def quanta_params(energies, Fi=0.4,Fex=0.4,NBamp=0.0,NBloc=0.0,RawSkew=2.25):
         
-        # NEST Interpolator
-#         Fi *= tf.ones_like(energies)
-#         Fex *= tf.ones_like(energies)
-#         NBamp *= tf.ones_like(energies)
-#         NBloc *= tf.ones_like(energies)
-#         RawSkew *= tf.ones_like(energies)
+        ### NEST Interpolator
+        Fi *= tf.ones_like(energies, dtype=fd.float_type())
+        Fex *= tf.ones_like(energies, dtype=fd.float_type())
+        NBamp *= tf.ones_like(energies, dtype=fd.float_type())
+        NBloc *= tf.ones_like(energies, dtype=fd.float_type())
+        RawSkew *= tf.ones_like(energies, dtype=fd.float_type())
         
-#         xcoords_skew2D = tf.stack((Fi, Fex, NBamp, NBloc, RawSkew, energies), axis=-1)
-#         skew2D_model_param = interp_nd(x=xcoords_skew2D) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
+        xcoords_skew2D = tf.stack((Fi, Fex, NBamp, NBloc, RawSkew, energies), axis=-1)
+        skew2D_model_param = interp_nd(x=xcoords_skew2D) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
         
-#         Nph_fano = skew2D_model_param[:,2]**2 / skew2D_model_param[:,0] #shape (energies)
-#         Ne_fano  = skew2D_model_param[:,3]**2 / skew2D_model_param[:,1] #shape (energies) # Ne fano = 0.001 FOR TESTING
-#         Nph_skew = skew2D_model_param[:,4]     #shape (energies)
-#         Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
-#         initial_corr = skew2D_model_param[:,6] #shape (energies)
+        Nph_fano = skew2D_model_param[:,2]**2 / skew2D_model_param[:,0] #shape (energies)
+        Ne_fano  = skew2D_model_param[:,3]**2 / skew2D_model_param[:,1] #shape (energies) # Ne fano = 0.001 FOR TESTING
+        Nph_skew = skew2D_model_param[:,4]     #shape (energies)
+        Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
+        initial_corr = skew2D_model_param[:,6] #shape (energies)
         ### End
         
-        # 240613 testing
-        Nph_fano = Fex*tf.ones_like(energies)
-        Ne_fano = Fi*tf.ones_like(energies)
-        Nph_skew = RawSkew*tf.ones_like(energies)
-        Ne_skew = NBamp*tf.ones_like(energies)
-        initial_corr = NBloc*tf.ones_like(energies)
+        ### 240613 testing
+        # Nph_fano = Fex*tf.ones_like(energies, dtype=fd.float_type())
+        # Ne_fano = Fi*tf.ones_like(energies, dtype=fd.float_type())
+        # Nph_skew = RawSkew*tf.ones_like(energies, dtype=fd.float_type())
+        # Ne_skew = NBamp*tf.ones_like(energies, dtype=fd.float_type())
+        # initial_corr = NBloc*tf.ones_like(energies, dtype=fd.float_type())
         ### End 
         
         return Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
@@ -242,29 +292,46 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         
         # AV Added g1,g2 240426 
         
-        ### S1,S2 Yield # AV added 240511
+        ### Standard S1,S2 fano and skew
+        S1_fano = S1_fano * NphNe[0]**(-0.00629895)
+        # S2_fano = S2_fano * NphNe[1]**(-0.01)
+        S2_fano = S2_fano * tf.ones_like(NphNe[1], dtype=fd.float_type())
         
+        S1_skew = S1_skew*NphNe[0]**(-0.24) # based on (4.61849047 * Nph**(-0.23931848))
+        S2_skew = S2_skew*NphNe[1]**(-0.26) # based on (-2.37542105 *  Ne**(-0.26152676))
+         
+        
+        ### S1,S2 Yield # AV added 240511
         # sig_sphe = 0.2
         # sig_dphe = 0.29
         # S1_fano = (S1_fano + sig_sphe**2 + sig_dphe**2)
-        # S1_fano *= tf.ones_like(NphNe[0])
-        
+        # S1_fano *= tf.ones_like(NphNe[0], dtype=fd.float_type())
         
         # mu_se = 55.6
         # sig_se = 9.9
         # Eee = 0.8
         # S2_fano = (Eee/g2)*(S2_fano*mu_se**2 + sig_se**2)
-        # S2_fano *= tf.ones_like(NphNe[1])
+        # S2_fano *= tf.ones_like(NphNe[1], dtype=fd.float_type())
         
-        ## AV added linear S1_fano,S2_fano 240628
+        ### AV added linear S1_fano,S2_fano 240628
+        # S1_fano *= tf.ones_like(NphNe[0], dtype=fd.float_type())
+        # S1_fano = tf.clip_by_value(S1_fano*NphNe[0]/100., clip_value_min=0.05, clip_value_max=10.)
+        # S2_fano *= tf.ones_like(NphNe[1], dtype=fd.float_type())
+        # S2_fano = tf.clip_by_value(S2_fano*(100/NphNe[1]), clip_value_min=30, clip_value_max=5000.)
+        # tf.print('Nph',NphNe[0][:100])
+        # tf.print('S1_fano',S1_fano[:100])
+        # tf.print('Ne',NphNe[1][:100])
+        # tf.print('S2_fano',S2_fano[:100])
         
-        S1_fano = tf.clip_by_value(S1_fano*NphNe[0]/100., clip_value_min=0.05, clip_value_max=10.)
-        S2_fano = tf.clip_by_value(S2_fano*(100/NphNe[1]), clip_value_min=30, clip_value_max=5000.)
-        tf.print('S1_fano',S1_fano)
-        tf.print('S2_fano',S2_fano)
-        
-        S1_skew = S1_skew*NphNe[0]**(-0.24) # based on (4.61849047 * Nph**(-0.23931848))
-        S2_skew = S2_skew*NphNe[1]**(-0.26) # based on (-2.37542105 *  Ne**(-0.26152676))
+
+        ### AV Added Fit for S1,S2 fano slope. 240709
+        # S1_fano_NphDependance = S1_skew
+        # S2_fano_NeDependance = S2_skew
+        # S1_fano = S1_fano * NphNe[0]**(S1_fano_NphDependance)
+        # S2_fano = S2_fano * NphNe[1]**(S2_fano_NeDependance)
+          
+        # S1_skew = 4.61849047*NphNe[0]**(-0.24) # based on (4.61849047 * Nph**(-0.23931848))
+        # S2_skew = -2.37542105*NphNe[1]**(-0.26) # based on (-2.37542105 *  Ne**(-0.26152676))
         
         
         return g1, g2, S1_fano, S2_fano, S1_skew, S2_skew
@@ -274,7 +341,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def get_s2(self, s2):
         return s2
 
-    def s1s2_acceptance(self, s1, s2, s1_min=5, s1_max=200, s2_min=400, s2_max=2e4): # 231208 AV adjusted s1_min from 20 --> 5 phd, s2_max-->2e4
+    def s1s2_acceptance(self, s1, s2, s1_min=S1_MIN, s1_max=S1_MAX, s2_min=S2_MIN, s2_max=S2_MAX): # 231208 AV adjusted s1_min from 20 --> 5 phd, s2_max-->2e4
         s1_acc = tf.where((s1 < s1_min) | (s1 > s1_max),
                           tf.zeros_like(s1, dtype=fd.float_type()),
                           tf.ones_like(s1, dtype=fd.float_type()))
@@ -368,8 +435,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def estimate_mu(self, **params):
         
         # Quanta Binning
-        Nph_bw = 20. # 240426 AV increased from 10.0
-        Ne_bw = 4.0  
+        Nph_bw = 20.0 # 240426 AV increased from 10.0
+        Ne_bw = 4.0 
         Nph_edges = tf.cast(tf.range(0,2500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
         Ne_edges = tf.cast(tf.range(0,500,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
 
@@ -524,7 +591,7 @@ class NRNRSource(NRSource):
         Nph_bw = 14.0
         Ne_bw = 4.0
         Nph_edges = tf.cast(tf.range(0,4500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1) 
-        Ne_edges = tf.cast(tf.range(0,600,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)      
+        Ne_edges = tf.cast(tf.range(0,800,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)      
         return Nph_bw, Ne_bw, Nph_edges, Ne_edges
         
     
@@ -672,7 +739,7 @@ class Migdal2Source(NRNRSource):
 
     def __init__(self, *args, **kwargs):
         energies_first = self.model_blocks[0].energies_first
-        energies_first = tf.where(energies_first > 49., 49. * tf.ones_like(energies_first), energies_first)
+        energies_first = tf.where(energies_first > 49., 49. * tf.ones_like(energies_first, dtype=fd.float_type()), energies_first)
 
         self.Nph_mean_ER_tf, self.Ne_mean_ER_tf, Nph_fano, Ne_fano, self.Nph_skew_ER_tf, self.Ne_skew_ER_tf, self.initial_corr_ER_tf = self.quanta_params_ER(energies_first) 
         self.Nph_std_ER_tf = tf.sqrt(Nph_fano * self.Nph_mean_ER_tf)
@@ -684,7 +751,7 @@ class Migdal2Source(NRNRSource):
         """
         assume energy is rank 1
         """
-        energy_cap = tf.where(energy <= 49., energy, 49. * tf.ones_like(energy))
+        energy_cap = tf.where(energy <= 49., energy, 49. * tf.ones_like(energy, dtype=fd.float_type()))
         energy_cap = tf.reshape(energy_cap, (-1,1))
         skew2D_model_param = interp_nd_ER(x=energy_cap) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
         

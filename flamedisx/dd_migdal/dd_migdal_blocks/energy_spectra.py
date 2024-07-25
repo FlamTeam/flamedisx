@@ -30,7 +30,14 @@ o = tf.newaxis
 # KE_Spectrum='_G4_mono_BRUTEFORCE_v2'  # MonoKE * (Data/MonoKE_sim)
 # KE_Spectrum='_G4_mono_BRUTEFORCE_v3' # CR100 * (Data/CR100_sim)
 # KE_Spectrum='_G4_mono_BRUTEFORCE_v4' # MonoKE * BFv2 * (Data/BFv2_sim)
-KE_Spectrum='_G4_mono_BRUTEFORCE_v5' # MonoKE * BFv2 * BFv4 * (Data/BFv4_sim)
+# KE_Spectrum='_G4_mono_BRUTEFORCE_v5' # MonoKE * BFv2 * BFv4 * (Data/BFv4_sim)
+
+# KE_Spectrum='_G4_CR_Chen240702' # Chen's adjustment of CR w/ Qmod https://docs.google.com/presentation/d/1qOjAONrVtlh2mSRRs1Mu54y3XqRHbCTSILAIaLGjHMc/edit#slide=id.g2e976ee5630_0_72
+# KE_Spectrum='_G4_CR_Chen_pmod_240702' #Chen's adjustment w/ pmod
+# KE_Spectrum='_G4_CR_Chen_pmod_240710_8th' # Chen's adjustment w/ fermi pmod
+# KE_Spectrum='_G4_CR_Chen_pmod_20240715_12th_spline' # Chen's adjustment w/ fermi pmod - low energy correction
+# KE_Spectrum='_G4_CR_Chen_pmod_20240715_15th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim
+KE_Spectrum='_G4_CR_Chen_pmod_20240718_19th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim (best fit as of 240718)
 
 print('Using KE Spectrum: %s'%KE_Spectrum)
 
@@ -56,10 +63,11 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
     r_dt_events_per_bin = mh_r_dt * mh_r_dt.bin_volumes()
 
     #: Energies from the first scatter
-    energies_first = tf.cast(tf.linspace(1.75, 97.95, 65),
-                            dtype=fd.float_type())
+    energies_first = tf.cast(tf.linspace(1.75, 97.95, 65), dtype=fd.float_type()) # Standard
+    # energies_first = tf.cast(tf.linspace(0.0, 150.0, 100),dtype=fd.float_type()) # increased range for testing
+    
     #: Dummy energy spectrum of 1s. Override for SS
-    rates_vs_energy_first = tf.ones(65, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
+    rates_vs_energy_first = tf.ones(65, dtype=fd.float_type()) / sum(tf.ones(65, dtype=fd.float_type())) # 240405 AV: added /sum --> integrate to 1
 
     def get_r_dt_diff_rate(self, r_dt_diff_rate):
         return r_dt_diff_rate
@@ -74,17 +82,17 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
         
         spectrum *= self.source.mu_before_efficiencies()
 
-        spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate', ### turn off to test s1s2 diff rates alone! TODO
-                                         data_tensor=data_tensor,
-                                         ptensor=ptensor)[:, o],
-                              tf.shape(self.energies_first),
-                              axis=1)
+#         spectrum *= tf.repeat(self.gimme('get_r_dt_diff_rate', ### turn off to test s1s2 diff rates alone! TODO
+#                                          data_tensor=data_tensor,
+#                                          ptensor=ptensor)[:, o],
+#                               tf.shape(self.energies_first),
+#                               axis=1)
 
-        spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',  ### turn off to test s1s2 diff rates alone! TODO
-                                         data_tensor=data_tensor,
-                                         ptensor=ptensor)[:, o],
-                              tf.shape(self.energies_first),
-                              axis=1)
+#         spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',  ### turn off to test s1s2 diff rates alone! TODO
+#                                          data_tensor=data_tensor,
+#                                          ptensor=ptensor)[:, o],
+#                               tf.shape(self.energies_first),
+#                               axis=1)
 
         return spectrum
 
@@ -146,7 +154,7 @@ class EnergySpectrumFirstMSU3(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
+    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type()) / sum(tf.ones_like(energies_first,dtype=fd.float_type())) # 240405 AV: added /sum --> integrate to 1
 
 
 @export
@@ -154,8 +162,11 @@ class EnergySpectrumFirstSS(EnergySpectrumFirstMSU):
     SS_Spectrum_filename = '../migdal_database/SS_spectrum'+KE_Spectrum+'.pkl'
     # SS_Spectrum_filename = '../migdal_database/SS_spectrum_CR_100keVnr_min.pkl'
     #: Energy spectrum for SS case
-    rates_vs_energy_first = pkl.load(open(os.path.join(
-        os.path.dirname(__file__), SS_Spectrum_filename), 'rb'))
+    rates_vs_energy_first = pkl.load(open(os.path.join(os.path.dirname(__file__), SS_Spectrum_filename), 'rb'))
+    
+    # ### Flat NR band instead
+    # rates_vs_energy_first = tf.ones(100, dtype=fd.float_type()) / sum( tf.ones(100, dtype=fd.float_type()))  # 240711 testing flat NR spectrum
+    
     assert np.isclose(np.sum(rates_vs_energy_first), 1.)
 
 
@@ -164,7 +175,7 @@ class EnergySpectrumFirstMigdal(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04712855e-02, 9.54992586e+01, 100))
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(100, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
+    rates_vs_energy_first = tf.ones(100, dtype=fd.float_type()) / sum( tf.ones_like(energies_first,dtype=fd.float_type())) # 240405 AV: added /sum --> integrate to 1
 
 
 @export
@@ -172,7 +183,7 @@ class EnergySpectrumFirstMigdalMSU(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(0.11167041, 17.90984679, 24))
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type()) / sum(np.ones_like(energies_first)) # 240405 AV: added /sum --> integrate to 1
+    rates_vs_energy_first = tf.ones(24, dtype=fd.float_type()) / sum(tf.ones_like(energies_first,dtype=fd.float_type())) # 240405 AV: added /sum --> integrate to 1
 
 
 @export
@@ -180,7 +191,7 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     #: Energies from the first scatter
     energies_first = fd.np_to_tf(np.geomspace(1.04126487e-02, 2.88111130e+01, 99))
     #: Dummy energy spectrum of 1s
-    rates_vs_energy_first = tf.ones(99, dtype=fd.float_type()) / sum(np.ones_like(energies_first))
+    rates_vs_energy_first = tf.ones(99, dtype=fd.float_type()) / sum(tf.ones_like(energies_first,dtype=fd.float_type()))
 
     r_dt_dist = np.load(os.path.join(
         os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
@@ -201,7 +212,7 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
 class EnergySpectrumFirstER(EnergySpectrumFirstMSU):
     #: Flat ER energy spectrum
     energies_first = tf.cast(tf.linspace(0.01, 35., 100), fd.float_type())
-    rates_vs_energy_first = tf.ones_like(energies_first, fd.float_type()) / sum(np.ones_like(energies_first))
+    rates_vs_energy_first = tf.ones_like(energies_first, fd.float_type()) / sum(tf.ones_like(energies_first,dtype=fd.float_type()))
 
     r_dt_dist = np.load(os.path.join(
         os.path.dirname(__file__), '../migdal_database/ER_spatial_template.npz'))

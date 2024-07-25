@@ -22,7 +22,7 @@ import sys ########
 
 
 ### interpolation grids for NR
-filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240621.npz'
+filename = '/global/cfs/cdirs/lz/users/cding/studyNEST_skew2D_notebooks/fit_values_allkeVnr_allparam_20240705.npz'
 with np.load(filename) as f:
     fit_values_allkeVnr_allparam = f['fit_values_allkeVnr_allparam']
     
@@ -45,11 +45,11 @@ def interp_nd(x):
     part2 = tf.cast(tf.experimental.numpy.geomspace(4,80,23), fd.float_type())[1:]
     keVnr_choices = tf.concat([part1,part2],axis=0)
 
-    Fi_grid = tf.cast([0.2,0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                                                    # Fano ion
-    Fex_grid = tf.cast([0.1,0.15,0.2,0.25,0.3,0.4,0.55,0.75,1.,1.25,1.5,1.75,2.0,2.25,2.5,3.0,3.5,4.0,8.0,12.0,16.0,20.0], fd.float_type())   # Fano exciton
-    NBamp_grid = tf.cast([0.,0.02,0.04,0.06,0.08,0.10,0.12], fd.float_type())                                              # amplitude for non-binomial NR recombination fluctuations
+    Fi_grid = tf.cast([0.05,0.1,0.15,0.2,0.25,0.3,0.4,0.55,0.75,1.], fd.float_type())                                                    # Fano ion
+    Fex_grid = tf.cast([0.55,0.75,1.,1.5,2.0,2.5,3.0,3.5,4.0,6.0,8.0,12.0,16.0], fd.float_type())   # Fano exciton
+    NBamp_grid = tf.cast([0.,0.02,0.04,0.06,0.08], fd.float_type())                                              # amplitude for non-binomial NR recombination fluctuations
     NBloc = tf.cast([0.4,0.45,0.5,0.55,0.6], fd.float_type())                                                              # non-binomial: loc of elecfrac
-    RawSkew_grid = tf.cast([0.,1.5,3.,5.,8.], fd.float_type())                                                             # raw skewness
+    RawSkew_grid = tf.cast([-8.,-5.,-3.,-1.5,0.,1.5,3.,5.,8.], fd.float_type())                                                                 # raw skewness
     
     x_grid_points = (Fi_grid, Fex_grid, NBamp_grid, NBloc, RawSkew_grid, keVnr_choices)
 
@@ -297,8 +297,8 @@ class MakeS1S2MSU(fd.Block):
         # Quanta Binning
         Nph_bw = 14.0
         Ne_bw = 4.0
-        Nph_edges = tf.cast(tf.range(0,3500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
-        Ne_edges = tf.cast(tf.range(0,600,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
+        Nph_edges = tf.cast(tf.range(0,4500,Nph_bw)-Nph_bw/2., fd.float_type()) # shape (Nph+1)
+        Ne_edges = tf.cast(tf.range(0,800,Ne_bw)-Ne_bw/2., fd.float_type()) # shape (Ne+1)
         Nph = 0.5 * (Nph_edges[1:] + Nph_edges[:-1]) # shape (Nph)
         Ne  = 0.5 * (Ne_edges[1:] + Ne_edges[:-1]) # shape (Ne) 
         Nph_diffs = tf.experimental.numpy.diff(Nph_edges) # shape (Nph)
