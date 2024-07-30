@@ -140,7 +140,7 @@ class MakeS1S2MSU(fd.Block):
     depends_on = ((('energy_first',), 'rate_vs_energy_first'),
                   (('energy_second',), 'rate_vs_energy'))
 
-    special_model_functions = ('yield_params','quanta_params','detector_params')
+    special_model_functions = ('yield_and_quanta_params','detector_params')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
     # Whether to check acceptances are positive at the observed events.
@@ -160,11 +160,7 @@ class MakeS1S2MSU(fd.Block):
         
         ##### First Vertex
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean) 
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_first) # shape: {E1_bins} (matches bonus_arg)
         
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -201,11 +197,7 @@ class MakeS1S2MSU(fd.Block):
         
         ##### Second Vertex
         # Load params        
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean)   
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_second) # shape: {E2_bins} (matches bonus_arg)
         
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -318,19 +310,10 @@ class MakeS1S2MSU(fd.Block):
         
         # Load params
         # for MSU2, use Nph_mean to represent both Nph_1_mean and Nph_2_mean
-        Nph_mean, Ne_mean = self.gimme('yield_params',
-                                        bonus_arg=energy_first, 
-                                        data_tensor=data_tensor,
-                                        ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-        
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
-                                                     bonus_arg=energy_first, 
-                                                     data_tensor=data_tensor,
-                                                     ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-         
-
-        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
-        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
+                                                                                         bonus_arg=energy_first, 
+                                                                                         data_tensor=data_tensor,
+                                                                                         ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
         
         ### Quanta Production
         x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
@@ -451,11 +434,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         
         ##### First vertex
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_first) # shape: {E1_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean)  
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_first) # shape: {E1_bins} (matches bonus_arg)
 
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -490,11 +469,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         
         ##### Second vertex
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean)   
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_second) # shape: {E2_bins} (matches bonus_arg)
 
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -529,11 +504,7 @@ class MakeS1S2MSU3(MakeS1S2MSU):
         
         ##### Third vertex
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_third) # shape: {E3_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_third) # shape: {E3_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean)         
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_third) # shape: {E3_bins} (matches bonus_arg)       
 
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -650,21 +621,10 @@ class MakeS1S2MSU3(MakeS1S2MSU):
 
         # Load params
         # for MSU2, use Nph_mean to represent both Nph_1_mean and Nph_2_mean
-        Nph_mean, Ne_mean = self.gimme('yield_params',
-                                        bonus_arg=energy_first, 
-                                        data_tensor=data_tensor,
-                                        ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-        
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
-                                                     bonus_arg=energy_first, 
-                                                     data_tensor=data_tensor,
-                                                     ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-        
-        # tf.print('g1',g1)
-        # tf.print('g2',g2)
-
-        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
-        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
+                                                                                         bonus_arg=energy_first, 
+                                                                                         data_tensor=data_tensor,
+                                                                                         ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
         
         ### Quanta Production
         x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
@@ -782,11 +742,7 @@ class MakeS1S2SS(MakeS1S2MSU):
         energies = d['energy_first'].values
         
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies) # shape: {E_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies) # shape: {E_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean) 
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies) # shape: {E_bins} (matches bonus_arg) 
 
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -892,18 +848,10 @@ class MakeS1S2SS(MakeS1S2MSU):
         
         
         # Load params
-        Nph_mean, Ne_mean = self.gimme('yield_params',
-                                        bonus_arg=energy_first, 
-                                        data_tensor=data_tensor,
-                                        ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-        
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
-                                                     bonus_arg=energy_first, 
-                                                     data_tensor=data_tensor,
-                                                     ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)
-
-        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E_bins)
-        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E_bins)     
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
+                                                                                         bonus_arg=energy_first, 
+                                                                                         data_tensor=data_tensor,
+                                                                                         ptensor=ptensor) # shape: {E_bins} (matches bonus_arg)   
         
         ### Quanta Production
         x = NphNe[:,:,0]
@@ -998,7 +946,7 @@ class MakeS1S2SS(MakeS1S2MSU):
 class MakeS1S2Migdal(MakeS1S2MSU):
     """
     """
-    special_model_functions = ('yield_params','quanta_params','detector_params',
+    special_model_functions = ('yield_and_quanta_params','detector_params',
                                'quanta_params_ER')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
@@ -1046,11 +994,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         
         ##### Second Vertex
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean)  
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_second) # shape: {E2_bins} (matches bonus_arg )
         
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -1214,19 +1158,11 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         probs_1 *= 1/tf.reduce_sum(probs_1,axis=[0,1]) # normalize the probability for each recoil energy        
         
         ###########  # Second vertex
-        Nph_mean, Ne_mean = self.gimme('yield_params', 
-                                           bonus_arg=energy_second, 
-                                           data_tensor=data_tensor,
-                                           ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params', 
-                                                              bonus_arg=energy_second, 
-                                                              data_tensor=data_tensor,
-                                                              ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg) 
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
+                                                                                         bonus_arg=energy_second, 
+                                                                                         data_tensor=data_tensor,
+                                                                                         ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
         
-        
-        
-        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E2_bins)
-        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E2_bins)   
         
         ### Quanta Production
         x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
@@ -1332,7 +1268,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
 class MakeS1S2MigdalMSU(MakeS1S2MSU3):
     """
     """
-    special_model_functions = ('yield_params','quanta_params','detector_params',
+    special_model_functions = ('yield_and_quanta_params','detector_params',
                                'quanta_params_ER')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
@@ -1381,11 +1317,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         
         ##### Second Vertex
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_second) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean)  
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_second) # shape: {E2_bins} (matches bonus_arg ) 
         
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -1420,11 +1352,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         
         ##### Third Vertex
         # Load params
-        Nph_mean, Ne_mean = self.gimme_numpy('yield_params', energies_third) # shape: {E3_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params', energies_third) # shape: {E3_bins} (matches bonus_arg)
-        
-        Nph_std = np.sqrt(Nph_fano * Nph_mean)
-        Ne_std = np.sqrt(Ne_fano * Ne_mean)   
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('yield_and_quanta_params',energies_third) # shape: {E3_bins} (matches bonus_arg)
         
         bCa1 = Nph_skew + initial_corr * Ne_skew
         bCa2 = initial_corr * Nph_skew + Ne_skew
@@ -1594,17 +1522,10 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         probs_1 *= 1/tf.reduce_sum(probs_1,axis=[0,1]) # normalize the probability for each recoil energy        
 
         ###########  # Second vertex
-        Nph_mean, Ne_mean = self.gimme('yield_params', 
-                                           bonus_arg=energy_second, 
-                                           data_tensor=data_tensor,
-                                           ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params', 
-                                                              bonus_arg=energy_second, 
-                                                              data_tensor=data_tensor,
-                                                              ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
-        
-        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E2_bins)
-        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E2_bins)   
+        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
+                                                                                         bonus_arg=energy_second, 
+                                                                                         data_tensor=data_tensor,
+                                                                                         ptensor=ptensor) # shape: {E2_bins} (matches bonus_arg)
         
         ### Quanta Production
         x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}
@@ -1650,17 +1571,10 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         
         if 0: # Do not calculate the thrid vetex because it is same with the second.
             ###########  # Third vertex
-            Nph_mean, Ne_mean = self.gimme('yield_params', 
-                                               bonus_arg=energy_third, 
-                                               data_tensor=data_tensor,
-                                               ptensor=ptensor) # shape: {E3_bins} (matches bonus_arg)
-            Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params', 
-                                                                  bonus_arg=energy_third, 
-                                                                  data_tensor=data_tensor,
-                                                                  ptensor=ptensor) # shape: {E3_bins} (matches bonus_arg)
-
-            Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (E3_bins)
-            Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (E3_bins)   
+            Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
+                                                                                         bonus_arg=energy_third, 
+                                                                                         data_tensor=data_tensor,
+                                                                                         ptensor=ptensor) # shape: {E3_bins} (matches bonus_arg) 
 
             ### Quanta Production
             x = NphNe[:,:,0] # Nph counts --> final shape: {Nph, Ne}

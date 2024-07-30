@@ -39,19 +39,11 @@ S1_MAX=200
 S2_MIN=400
 S2_MAX=2e4
 
-USE_NEST_INTERPOLATOR=False
-
-pmod_fermichange =  0.00962442
-pmod_fermimu = 67.8454
-pmod_fermiwidth = 2.42731
-TI_multiplier = 0.576
+USE_NEST_INTERPOLATOR=True
 
 print('BCUT: %1.1f, MCUT: %1.2f'%(BCUT,MCUT))
 print('S1 MIN: %i, S1 MAX: %i, S2 MIN: %i, S2 MAX: %i'%(S1_MIN,S1_MAX,S2_MIN,S2_MAX))
 print('Using NEST Interpolator: ',USE_NEST_INTERPOLATOR)
-
-print('pmod_fermichange: %1.3f, pmod_fermimu: %1.3f, pmod_fermiwidth: %1.3f'%(pmod_fermichange,pmod_fermimu,pmod_fermiwidth))
-print('TI_multiplier: %1.3f'%TI_multiplier)
 
 ###################################################################################################
 
@@ -190,6 +182,115 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
     def mu_before_efficiencies(self, **params):
         return 1.
     
+    ### New Yield Model # 240305 - AV added # 240326 - JB replace gamma delta to thomas-imel
+    ### params --> {alpha, beta, Thomas-Imel, epsilon, Fi, Fex, NBamp, RawSkew}
+    @staticmethod
+    def yield_params(energies, yalpha=11.0, ybeta=1.1, ythomas=0.0467, yepsilon=12.6, yp=0.5):
+        
+        ############# NEST paper (v1) https://arxiv.org/pdf/2211.10726.pdf
+        zeta = 0.3
+        eta = 2
+        # gamma = 0.0480 ==> ythomas
+        delta = -0.0533
+        rho = 2.9
+        rho_0 = 2.9
+        nu = 0.3
+        theta = 0.3
+        ll = 2
+        ##############
+        
+        
+        # ############# SR3 DD Tuning (https://docs.google.com/presentation/d/14IoMsX77OtQJOeZb3nEV6cmtomqN0Y5DRY0rqt0XQOU/edit#slide=id.g29ac68d8356_0_3)
+        # pp = 0.511 ==> yp
+        # zeta = 0.33
+        # eta = 2.18
+        # # gamma = 0.0480 ==> ythomas
+        # delta = -0.0533
+        # rho = 2.9
+        # rho_0 = 2.9
+        # nu = 0.3
+        # theta = 0.313
+        # ll = 2.62
+        # ##############
+        
+        # TI = ythomas*193**delta * (rho/rho_0)**nu
+        TI = ythomas
+        
+        #Standard Qy - no modifications
+        # Qy = 1 / TI /  (energies + yepsilon)**yp  # standard
+        
+        # Standard with Qy mod
+        # ymod_keVstart = 58.06 #58.41#  keV
+        # ymod_changeat74keV = 11.82 # 12.94#
+        # Qy = 1 / TI /  (energies + yepsilon)**yp * ( 1 - 1/(1 + (energies/zeta)**eta) ) - ymod_changeat74keV/100.*tf.math.maximum(0.,tf.math.log(energies)-tf.math.log(ymod_keVstart))/(tf.math.log(74.)-tf.math.log(ymod_keVstart)) 
+        
+        
+        ### Standard with p mod 
+        ### https://docs.google.com/presentation/d/1qOjAONrVtlh2mSRRs1Mu54y3XqRHbCTSILAIaLGjHMc/edit#slide=id.g2e9db68db01_0_57        
+        yp *= tf.ones_like(energies, dtype=fd.float_type())
+        ### pmod with kink
+        # pmod_keVstart = 59.249
+        # pmod_changeat74keV = 0.010
+        # p = yp+pmod_changeat74keV*tf.math.maximum(0.,log10(energies)-log10(pmod_keVstart))/(log10(74.)-log10(pmod_keVstart))
+        ####  pmod with fermi f
+        # pmod_fermichange =  0.011
+        # pmod_fermimu = 66.324
+        # pmod_fermiwidth =  2.421
+        # pmod_fermichange =  0.01132
+        # pmod_fermimu = 67.02
+        # pmod_fermiwidth =  2.702
+        pmod_fermichange =  0.0123955796
+        pmod_fermimu = 67.5233566
+        pmod_fermiwidth = 3.0894864
+        
+        
+        p = yp+pmod_fermichange*1/(tf.math.exp((pmod_fermimu-energies)/pmod_fermiwidth)+1)
+        
+        Qy = 1 / TI /  (energies + yepsilon)**p * ( 1 - 1/(1 + (energies/zeta)**eta) )
+        
+    
+        ########
+        Ne_mean = Qy * energies
+        
+        Ly = yalpha * energies**ybeta - Ne_mean
+        Nph_mean = Ly * (1 - 1/(1 + (energies/theta)**ll) )
+
+        
+        return Nph_mean, Ne_mean
+    
+    @staticmethod
+    def quanta_params(energies, Fi=0.4,Fex=0.4,NBamp=0.0,NBloc=0.0,RawSkew=2.25):
+        
+        ### NEST Interpolator
+        if 1:
+            Fi *= tf.ones_like(energies, dtype=fd.float_type())
+            Fex *= tf.ones_like(energies, dtype=fd.float_type())
+            NBamp *= tf.ones_like(energies, dtype=fd.float_type())
+            NBloc *= tf.ones_like(energies, dtype=fd.float_type())
+            RawSkew *= tf.ones_like(energies, dtype=fd.float_type())
+
+            xcoords_skew2D = tf.stack((Fi, Fex, NBamp, NBloc, RawSkew, energies), axis=-1)
+            skew2D_model_param = interp_nd(x=xcoords_skew2D) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
+
+            Nph_fano = skew2D_model_param[:,2]**2 / skew2D_model_param[:,0] #shape (energies)
+            Ne_fano  = skew2D_model_param[:,3]**2 / skew2D_model_param[:,1] #shape (energies) # Ne fano = 0.001 FOR TESTING
+            Nph_skew = skew2D_model_param[:,4]     #shape (energies)
+            Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
+            initial_corr = skew2D_model_param[:,6] #shape (energies)
+            ### End
+        
+        
+        ### 240613 testing
+        if 0:
+            Nph_fano = Fex*tf.ones_like(energies, dtype=fd.float_type())
+            Ne_fano = Fi*tf.ones_like(energies, dtype=fd.float_type())
+            Nph_skew = RawSkew*tf.ones_like(energies, dtype=fd.float_type())
+            Ne_skew = NBamp*tf.ones_like(energies, dtype=fd.float_type())
+            initial_corr = NBloc*tf.ones_like(energies, dtype=fd.float_type())
+            ### End
+        
+        return Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
+    
     
     
     @staticmethod  ### New Yield Model # 240305 - AV added # 240326 - JB replace gamma delta to thomas-imel
@@ -203,6 +304,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         ############# NEST paper (v1) https://arxiv.org/pdf/2211.10726.pdf
         zeta = 0.3
         eta = 2
+        # gamma = 0.0480 ==> ythomas
         delta = -0.0533
         rho = 2.9
         rho_0 = 2.9
@@ -211,36 +313,36 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         ll = 2
         ##############
         
-        # YIELD PARAMETERS:
-        
         yp *= tf.ones_like(energies, dtype=fd.float_type())
-
-        p = yp + pmod_fermichange * 1/(tf.math.exp((pmod_fermimu-energies)/pmod_fermiwidth)+1)
+        
+        pmod_fermichange =  0.0123955796
+        pmod_fermimu = 67.5233566
+        pmod_fermiwidth = 3.0894864
+             
+        p = yp+pmod_fermichange*1/(tf.math.exp((pmod_fermimu-energies)/pmod_fermiwidth)+1)
         
         Qy = 1 / ythomas /  (energies + yepsilon)**p * ( 1 - 1/(1 + (energies/zeta)**eta) )
-        Ne_mean = Qy * energies
+        Ne_mean = Qy * energies ###
         
         Ly = yalpha * energies**ybeta - Ne_mean
-        Nph_mean = Ly * (1 - 1/(1 + (energies/theta)**ll) )
+        Nph_mean = Ly * (1 - 1/(1 + (energies/theta)**ll) ) ###
         
         ####### Calculate Ni,Ne means for Recombination Probability - AV added 240729
-        Ni_mean = 4./(ythomas*TI_multiplier)*(tf.math.exp(Ne_mean*ythomas*TI_multiplier/4.)-1)
+        TI_multiplier = 1. # default = 1.
+        Ni_mean = 4./(TI*TI_multiplier)*(np.exp(QyE*ThomasImel*TI_multiplier/4.)-1)
         Nex_mean = yalpha * energies** ybeta - Ni_mean
-        p_rec = 1-Ne_mean/Ni_mean
-        
-        
-        # QUANTA PARAMETERS:
+        p_rec = 1-QyE/Ni_mean
         
         Fi *= tf.ones_like(energies, dtype=fd.float_type())
         Fex *= tf.ones_like(energies, dtype=fd.float_type())
         
         Ne_fano = p_rec + (1-p_rec) * Fi
-        Ne_std = tf.sqrt(Ne_fano*Ne_mean)
+        Ne_std = np.sqrt(Ne_fano*Ne_mean)
         
         Nph_var = (Nex_mean*Fex) + (Ni_mean*p_rec*(1-p_rec)) + (p_rec**2*Ni_mean*Fi)
-        Nph_std = tf.sqrt(Nph_var)
+        Nph_std = np.sqrt(Nph_var)
         
-        if USE_NEST_INTERPOLATOR: # Use NEST for Nph skew, Ne skew, initial_corr
+        if 0: # Use NEST for Nph skew, Ne skew, initial_corr
             NBamp *= tf.ones_like(energies, dtype=fd.float_type())
             NBloc *= tf.ones_like(energies, dtype=fd.float_type())
             RawSkew *= tf.ones_like(energies, dtype=fd.float_type())
@@ -248,9 +350,9 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
             xcoords_skew2D = tf.stack((Fi, Fex, NBamp, NBloc, RawSkew, energies), axis=-1)
             skew2D_model_param = interp_nd(x=xcoords_skew2D) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation
             
-            Nph_skew = skew2D_model_param[:,4]
-            Ne_skew = skew2D_model_param[:,5]    
-            initial_corr = skew2D_model_param[:,6]
+            Nph_skew = skew2D_model_param[4]
+            Ne_skew = skew2D_model_param[5]    
+            initial_corr = skew2D_model_param[6]
             
         else: # ignores NEST interpolator function entirely
             Nph_skew = RawSkew*tf.ones_like(energies, dtype=fd.float_type())
@@ -258,7 +360,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
             initial_corr = NBloc*tf.ones_like(energies, dtype=fd.float_type())
             
             
-        return Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr
+        return Nph_mean, Ne_mean
         
         
         
@@ -447,10 +549,18 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         # Load params
         ptensor = self.ptensor_from_kwargs(**params)
         
-        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
-                                                                                        bonus_arg=energies, 
-                                                                                        ptensor=ptensor) #shape (energies)
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energies, 
+                                        ptensor=ptensor) #shape (energies)
         
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energies, 
+                                                                         ptensor=ptensor) #shape (energies)
+        
+        
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
         
         # Generate NphNe pdfs
         NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
@@ -525,9 +635,17 @@ class NRNRSource(NRSource):
         # note, pdf is calculated once because energy bins for the first and the second vertices are the same
         ptensor = self.ptensor_from_kwargs(**params)
         
-        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
-                                                                                        bonus_arg=energy_first, 
-                                                                                        ptensor=ptensor) #shape (energies)
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_first, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_first, 
+                                                                         ptensor=ptensor) #shape (energies)
+        
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
         
         # Nph-Ne pdf
         NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
@@ -632,9 +750,16 @@ class NRNRNRSource(NRNRSource):
         # note, pdf is calculated once because energy bins for all three vertices are the same
         ptensor = self.ptensor_from_kwargs(**params)
         
-        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
-                                                                                        bonus_arg=energy_first, 
-                                                                                        ptensor=ptensor) #shape (energies)
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_first, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_first, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
         
         # Nph-Ne pdf
         NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
@@ -760,9 +885,16 @@ class Migdal2Source(NRNRSource):
         # note, pdf is calculated once because energy bins for all three vertices are the same
         ptensor = self.ptensor_from_kwargs(**params)
         
-        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
-                                                                                        bonus_arg=energy_second, 
-                                                                                        ptensor=ptensor) #shape (energies)
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_second, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_second, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
         
         NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
 
@@ -872,10 +1004,17 @@ class MigdalMSUSource(Migdal2Source):
         # Load params
         # note, pdf is calculated once because energy bins for all three vertices are the same
         ptensor = self.ptensor_from_kwargs(**params)
-
-        Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr = self.gimme('yield_and_quanta_params',
-                                                                                        bonus_arg=energy_second, 
-                                                                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_mean, Ne_mean = self.gimme('yield_params',
+                                        bonus_arg=energy_second, 
+                                        ptensor=ptensor) #shape (energies)
+        
+        Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params',
+                                                                         bonus_arg=energy_second, 
+                                                                         ptensor=ptensor) #shape (energies)
+                
+        Nph_std = tf.sqrt(Nph_fano * Nph_mean) #shape (energies)
+        Ne_std = tf.sqrt(Ne_fano * Ne_mean) #shape (energies)
         
         NphNe_pdf = self.pdf_for_nphne(x, y, Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr) #shape (Nph,Ne,energies)
 

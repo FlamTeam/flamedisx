@@ -88,11 +88,24 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 #                               tf.shape(self.energies_first),
 #                               axis=1)
 
-#         spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',  ### turn off to test s1s2 diff rates alone! TODO
-#                                          data_tensor=data_tensor,
-#                                          ptensor=ptensor)[:, o],
-#                               tf.shape(self.energies_first),
-#                               axis=1)
+        spectrum *= tf.repeat(self.gimme('get_S2Width_diff_rate',  ### turn off to test s1s2 diff rates alone!
+                                         data_tensor=data_tensor,
+                                         ptensor=ptensor)[:, o],
+                              tf.shape(self.energies_first),
+                              axis=1)
+
+#################
+
+        # spectrum = tf.repeat(self.gimme('get_r_dt_diff_rate', ### TEST ISOLATED PDF FOR P-VAL TESTING
+        #                                  data_tensor=data_tensor,
+        #                                  ptensor=ptensor)[:, o],
+        #                       tf.shape(self.energies_first),
+        #                       axis=1)
+        # spectrum = tf.repeat(self.gimme('get_S2Width_diff_rate', ### TEST ISOLATED PDF FOR P-VAL TESTING
+        #                                  data_tensor=data_tensor,
+        #                                  ptensor=ptensor)[:, o],
+        #                       tf.shape(self.energies_first),
+        #                       axis=1)
 
         return spectrum
 
@@ -423,6 +436,6 @@ class EnergySpectrumSecondIE_CS(EnergySpectrumSecondMSU):
     else:
         KE_Spectrum_IE = str(KE_Spectrum)
     rates_vs_energy = pkl.load(open(os.path.join(
-        # os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum.pkl'), 'rb'))
-        os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum'+KE_Spectrum_IE+'.pkl'), 'rb'))
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum.pkl'), 'rb')) # Use this one regardless of KE spectrum
+        # os.path.dirname(__file__), '../migdal_database/IE_CS_spectrum'+KE_Spectrum_IE+'.pkl'), 'rb'))
     assert np.isclose(np.sum(rates_vs_energy), 1.)
