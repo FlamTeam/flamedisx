@@ -51,7 +51,7 @@ class XLZDSource:
         self.g1 = g1 # this represents PMT QE
 
         self.drift_velocity = fd_nest.calculate_drift_velocity(
-            self.drift_field, self.density, self.temperature, self.detector)
+            self.drift_field, self.density, self.temperature)
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
         self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
                                        self.g1_gas, self.extraction_eff)
