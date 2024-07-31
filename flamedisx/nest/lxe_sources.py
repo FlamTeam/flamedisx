@@ -3,6 +3,9 @@ import tensorflow as tf
 import configparser
 import os
 
+import pickle as pkl
+import pandas as pd
+
 import flamedisx as fd
 from .. import nest as fd_nest
 
@@ -20,7 +23,9 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default',)
+        assert detector in ('default', 'xlzd')
+
+        self.detector = detector
 
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), 'config/', detector + '.ini'))
@@ -42,7 +47,7 @@ class nestSource(fd.BlockModelSource):
             self.temperature, self.pressure)
         #
         self.drift_velocity = fd_nest.calculate_drift_velocity(
-            self.drift_field, self.density, self.temperature)
+            self.drift_field, self.density, self.temperature, self.detector)
         self.Wq_keV, self.alpha = fd_nest.calculate_work(self.density)
 
         # energy_spectrum.py
@@ -55,7 +60,7 @@ class nestSource(fd.BlockModelSource):
 
         # detection.py / pe_detection.py / double_pe.py / final_signals.py
         self.g1 = config.getfloat('NEST', 'g1_config')
-        self.elife = config.getint('NEST', 'elife_config')
+        self.elife = config.getfloat('NEST', 'elife_config')
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
         self.spe_res = config.getfloat('NEST', 'spe_res_config')
         self.spe_thr = config.getfloat('NEST', 'spe_thr_config')
@@ -77,21 +82,25 @@ class nestSource(fd.BlockModelSource):
         self.S1_noise = config.getfloat('NEST', 'S1_noise_config')
         self.S2_noise = config.getfloat('NEST', 'S2_noise_config')
 
+        self.s2_thr = config.getfloat('NEST', 's2_thr_config')
+
         self.S1_min = config.getfloat('NEST', 'S1_min_config')
         self.S1_max = config.getfloat('NEST', 'S1_max_config')
         self.S2_min = config.getfloat('NEST', 'S2_min_config')
         self.S2_max = config.getfloat('NEST', 'S2_max_config')
+
+        # Useful additional parameters
+        self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
+                                       self.g1_gas, self.extraction_eff)
 
         super().__init__(*args, **kwargs)
 
     final_dimensions = ('s1', 's2')
     no_step_dimensions = ('s1_photoelectrons_produced',
                           's1_photoelectrons_detected')
+    additional_bounds_dimensions = ('energy',)
     prior_dimensions = [(('electrons_produced', 'photons_produced'),
                         ('energy', 's1_photoelectrons_detected', 's2_photoelectrons_detected'))]
-
-    def extra_needed_columns(self):
-        return super().extra_needed_columns() + ['energy_min', 'energy_max']
 
     # quanta_splitting.py
 
@@ -184,10 +193,15 @@ class nestSource(fd.BlockModelSource):
 
 @export
 class nestERSource(nestSource):
-    def __init__(self, *args, energy_min=0.01, energy_max=10., num_energies=1000, **kwargs):
-        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
-                                fd.float_type())
-        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+    def __init__(self, *args, energy_min=0.01, energy_max=10., num_energies=1000, energy_bin_edges=None, **kwargs):
+        if not hasattr(self, 'energies'):
+            if energy_bin_edges is not None:
+                self.energies = fd.np_to_tf(0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1]))
+                self.rates_vs_energy = tf.ones(len(energy_bin_edges) - 1, fd.float_type())
+            else:
+                self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                        fd.float_type())
+                self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -292,6 +306,9 @@ class nestERSource(nestSource):
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
         skewness_masked = tf.multiply(skewness, tf.cast(mask_product, fd.float_type()))
 
+        if self.detector == 'xlzd':
+            skewness_masked = tf.zeros_like(nq_mean, dtype=fd.float_type())
+
         return skewness_masked
 
     def variance(self, *args):
@@ -300,7 +317,10 @@ class nestERSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        er_free_b = 0.0553
+        if self.detector == 'xlzd':
+            er_free_b = 0.046452
+        else:
+            er_free_b = 0.0553
         er_free_c = 0.205
         er_free_d = 0.45
         er_free_e = -0.2
@@ -328,10 +348,15 @@ class nestERSource(nestSource):
 
 @export
 class nestNRSource(nestSource):
-    def __init__(self, *args, energy_min=0.01, energy_max=150., num_energies=1000, **kwargs):
-        self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
-                                fd.float_type())
-        self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
+    def __init__(self, *args, energy_min=0.01, energy_max=10., num_energies=1000, energy_bin_edges=None, **kwargs):
+        if not hasattr(self, 'energies'):
+            if energy_bin_edges is not None:
+                self.energies = fd.np_to_tf(0.5 * (energy_bin_edges[1:] + energy_bin_edges[:-1]))
+                self.rates_vs_energy = tf.ones(len(energy_bin_edges) - 1, fd.float_type())
+            else:
+                self.energies = tf.cast(tf.linspace(energy_min, energy_max, num_energies),
+                                        fd.float_type())
+                self.rates_vs_energy = tf.ones(num_energies, fd.float_type())
         super().__init__(*args, **kwargs)
 
     model_blocks = (
@@ -401,10 +426,13 @@ class nestNRSource(nestSource):
 
         return nel, nq, ex_ratio
 
-    @staticmethod
-    def yield_fano(nq_mean):
-        nr_free_a = 1.
-        nr_free_b = 1.
+    def yield_fano(self, nq_mean):
+        if self.detector == 'xlzd':
+            nr_free_a = 0.4
+            nr_free_b = 0.4
+        else:
+            nr_free_a = 1.
+            nr_free_b = 1.
 
         ni_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_a
         nex_fano = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_b
@@ -421,14 +449,16 @@ class nestNRSource(nestSource):
 
         return skewness_masked
 
-    @staticmethod
-    def variance(*args):
+    def variance(self, *args):
         nel_mean = args[0]
         nq_mean = args[1]
         recomb_p = args[2]
         ni = args[3]
 
-        nr_free_c = 0.1
+        if self.detector == 'xlzd':
+            nr_free_c = 0.04
+        else:
+            nr_free_c = 0.1
         nr_free_d = 0.5
         nr_free_e = 0.19
 
@@ -437,7 +467,7 @@ class nestNRSource(nestSource):
         omega = nr_free_c * tf.exp(-0.5 * pow(elec_frac - nr_free_d, 2.) / (nr_free_e * nr_free_e))
         omega = tf.where(nq_mean == 0,
                          tf.zeros_like(omega, dtype=fd.float_type()),
-                         omega)
+                         tf.cast(omega, dtype=fd.float_type()))
 
         return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
 
@@ -499,14 +529,40 @@ class nestERGammaWeightedSource(nestERSource):
 
 @export
 class nestSpatialRateERSource(nestERSource):
-    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestERSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrumER,) + nestERSource.model_blocks[1:]
 
 
 @export
 class nestSpatialRateNRSource(nestNRSource):
-    model_blocks = (fd_nest.SpatialRateEnergySpectrum,) + nestNRSource.model_blocks[1:]
+    model_blocks = (fd_nest.SpatialRateEnergySpectrumNR,) + nestNRSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateOscillationERSource(nestERSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumOscillationER,) + nestERSource.model_blocks[1:]
+
+
+@export
+class nestTemporalRateOscillationNRSource(nestNRSource):
+    model_blocks = (fd_nest.TemporalRateEnergySpectrumOscillationNR,) + nestNRSource.model_blocks[1:]
 
 
 @export
 class nestWIMPSource(nestNRSource):
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
+
+    def __init__(self, *args, wimp_mass=40, fid_mass=1., livetime=1., **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
+        scale = fid_mass * livetime
+        self.energy_hist *= scale
+
+        self.n_time_bins = len(self.energy_hist.bin_edges[0])
+        e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(self.energy_hist.bin_edges[1])
+        self.energies = fd.np_to_tf(e_centers)
+
+        self.array_columns = (('energy_spectrum', len(e_centers)),)
+
+        super().__init__(*args, **kwargs)

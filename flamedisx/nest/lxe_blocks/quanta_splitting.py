@@ -26,11 +26,18 @@ class MakePhotonsElectronsNR(fd.Block):
                                'variance', 'width_correction', 'mu_correction')
     model_functions = special_model_functions
 
+    ions_produced_min_full= None
+    ions_produced_max_full= None
+
     def setup(self):
-        self.array_columns = (('ions_produced_min',
-                               max(min(len(self.source.energies),
-                                       self.source.max_dim_sizes['energy']),
-                                   2)),)
+        if 'energy' not in self.source.no_step_dimensions:
+            self.array_columns = (('ions_produced_min',
+                                   max(min(len(self.source.energies),
+                                           self.source.max_dim_sizes['energy']),
+                                       2)),)
+        else:
+            self.array_columns = (('ions_produced_min',
+                                   max(len(self.source.energies), 2)),)
 
     def _compute(self,
                  data_tensor, ptensor,
@@ -101,12 +108,12 @@ class MakePhotonsElectronsNR(fd.Block):
                                                         nq - _ions_produced)
                 else:
                     normal_dist_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                              scale=tf.sqrt(nq_mean*alpha) + 1e-10)
+                                                              scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10)
                     p_ni = normal_dist_ni.cdf(_ions_produced + 0.5) - \
                         normal_dist_ni.cdf(_ions_produced - 0.5)
 
                     normal_dist_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                              scale=tf.sqrt(nq_mean*alpha*ex_ratio) + 1e-10)
+                                                              scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10)
                     p_nq = normal_dist_nq.cdf(nq - _ions_produced + 0.5) \
                         - normal_dist_nq.cdf(nq - _ions_produced - 0.5)
 
@@ -127,7 +134,7 @@ class MakePhotonsElectronsNR(fd.Block):
             if self.is_ER:
                 owens_t_terms = 5
             else:
-                owens_t_terms = 2
+                owens_t_terms = 5
 
             if approx:
                 p_nel = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
@@ -277,7 +284,7 @@ class MakePhotonsElectronsNR(fd.Block):
     def _annotate(self, d):
         pass
 
-    def _annotate_special(self, d):
+    def _annotate_special(self, d, **kwargs):
         # Here we manually calculate ion bounds for each energy we will sum over in the spectrum
         # Simple computation, based on forward simulation procedure
 
@@ -316,13 +323,14 @@ class MakePhotonsElectronsNR(fd.Block):
             return (ions_produced_min, ions_produced_max)
 
         # Compute ion bounds for every energy in the full spectrum, once
-        if self.is_ER:
-            bounds = [get_bounds_ER(energy) for energy in self.source.energies.numpy()]
-        else:
-            bounds = [get_bounds_NR(energy) for energy in self.source.energies.numpy()]
+        if (self.ions_produced_min_full is None) or (self.ions_produced_max_full is None):
+            if self.is_ER:
+                bounds = [get_bounds_ER(energy) for energy in self.source.energies.numpy()]
+            else:
+                bounds = [get_bounds_NR(energy) for energy in self.source.energies.numpy()]
 
-        ions_produced_min_full = [x[0] for x in bounds]
-        ions_produced_max_full = [x[1] for x in bounds]
+            self.ions_produced_min_full = [x[0] for x in bounds]
+            self.ions_produced_max_full = [x[1] for x in bounds]
 
         for batch in range(self.source.n_batches):
             d_batch = d[batch * self.source.batch_size:(batch + 1) * self.source.batch_size]
@@ -336,20 +344,26 @@ class MakePhotonsElectronsNR(fd.Block):
 
             # Keep only the ion bounds corresponding to the energies in the trimmed
             # spectrum for this batch
-            ions_produced_min_full_trim = np.asarray(ions_produced_min_full)[
+            ions_produced_min_full_trim = np.asarray(self.ions_produced_min_full)[
                 (self.source.energies.numpy() >= energy_min) &
                 (self.source.energies.numpy() <= energy_max)]
-            ions_produced_max_full_trim = np.asarray(ions_produced_max_full)[
+            ions_produced_max_full_trim = np.asarray(self.ions_produced_max_full)[
                 (self.source.energies.numpy() >= energy_min) &
                 (self.source.energies.numpy() <= energy_max)]
 
-            index_step = np.round(np.linspace(0, len(energies_trim) - 1,
-                                              min(len(energies_trim), self.source.max_dim_sizes['energy']))).astype(int)
-
-            # Keep only the ion bounds corresponding to the energies in the stepped + trimmed
-            # spectrum for this batch
-            ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
-            ions_produced_max = list(np.take(ions_produced_max_full_trim, index_step))
+            if 'energy' not in self.source.no_step_dimensions:
+                index_step = np.round(np.linspace(0, len(energies_trim) - 1,
+                                                  min(len(energies_trim),
+                                                      self.source.max_dim_sizes['energy']))).astype(int)
+                # Keep only the ion bounds corresponding to the energies in the stepped + trimmed
+                # spectrum for this batch
+                ions_produced_min = list(np.take(ions_produced_min_full_trim, index_step))
+                ions_produced_max = list(np.take(ions_produced_max_full_trim, index_step))
+            else:
+                # Keep only the ion bounds corresponding to the energies in the trimmed
+                # spectrum for this batch
+                ions_produced_min = list(ions_produced_min_full_trim)
+                ions_produced_max = list(ions_produced_max_full_trim)
 
             # For the events in the dataframe that are part of this batch, save the ion bounds at each energy
             # in the dataframe
@@ -361,7 +375,11 @@ class MakePhotonsElectronsNR(fd.Block):
 
         # If mono-energetic, one zero element at the end to get tensor dimensions
         # that match up with non-mono-energetic case; will be discarded later on
-        max_num_energies = max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)
+        if 'energy' not in self.source.no_step_dimensions:
+            max_num_energies = max(min(len(self.source.energies), self.source.max_dim_sizes['energy']), 2)
+        else:
+            max_num_energies = max(len(self.source.energies), 2)
+
         # Pad with 0s at the end to make each one the same size
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
 

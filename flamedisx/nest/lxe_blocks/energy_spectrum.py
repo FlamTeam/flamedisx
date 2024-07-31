@@ -301,6 +301,63 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         return data
 
 
+@export
+class TemporalRateEnergySpectrumOscillation(FixedShapeEnergySpectrum):
+    model_attributes = (('n_time_bins', 'period_ns', 'amplitude', 'phase_ns')
+                        + FixedShapeEnergySpectrum.model_attributes)
+    frozen_model_functions = ('energy_spectrum_rate_multiplier',)
+
+    n_time_bins = 24
+
+    def setup(self):
+        times = np.linspace(self.t_start.value,
+                            self.t_stop.value,
+                            self.n_time_bins + 1)
+        time_centers = 0.5 * (times[1:] + times[:-1])
+
+        weights = 1. + self.amplitude * np.cos(2. * np.pi * (time_centers - self.phase_ns) / self.period_ns)
+
+        self.temporal_hist = Histdd.from_histogram(weights, bin_edges=(times,))
+
+    def local_rate_multiplier(self, event_time):
+        pdf = 1. + self.amplitude * np.cos(2. * np.pi * (event_time - self.phase_ns) / self.period_ns)
+        normalisation = 1. / ((self.t_stop.value - self.t_start.value) + self.amplitude * self.period_ns / (2. * np.pi) * \
+            (np.sin(2. * np.pi * (self.t_stop.value - self.phase_ns) / self.period_ns) - \
+            np.sin(2. * np.pi * (self.t_start.value - self.phase_ns) / self.period_ns)))
+        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+
+        return normalisation * pdf / uniform_pdf
+
+    def energy_spectrum_rate_multiplier(self, event_time):
+        return self.local_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        """
+        """
+        return self.temporal_hist.get_random(size=n_events)[:, 0]
+
+
+@export
+class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class SpatialRateEnergySpectrumER(SpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class TemporalRateEnergySpectrumOscillationNR(TemporalRateEnergySpectrumOscillation):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class TemporalRateEnergySpectrumOscillationER(TemporalRateEnergySpectrumOscillation):
+    max_dim_size = {'energy': 100}
+
+
+
 ##
 # Variable spectra
 ##
@@ -324,8 +381,28 @@ class VariableEnergySpectrum(EnergySpectrum):
                        dtype=fd.float_type())
 
     def _compute(self, data_tensor, ptensor, *, energy):
-        return self.gimme('energy_spectrum',
-                          data_tensor=data_tensor, ptensor=ptensor)
+        # We want to do the same trimming/stepping treatment to the values of the energy
+        # spectrum itself as we do its domain
+        left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
+        right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
+        bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
+                                   tf.less_equal(self.energies, right_bound))
+        spectrum_trim = tf.boolean_mask(self.gimme('energy_spectrum',
+                                        data_tensor=data_tensor, ptensor=ptensor),
+                                        bool_mask,
+                                        axis=1)
+        if 'energy' not in self.source.no_step_dimensions:
+            index_step = tf.round(tf.linspace(0, tf.shape(spectrum_trim)[1] - 1,
+                                              tf.math.minimum(tf.shape(spectrum_trim)[1],
+                                                              self.source.max_dim_sizes['energy'])))
+            spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()), axis=1)
+        else:
+            spectrum_trim_step = spectrum_trim
+        stepping_multiplier = tf.cast(tf.shape(spectrum_trim)[1] / tf.shape(spectrum_trim_step)[1], fd.float_type())
+
+        spectrum = spectrum_trim_step * stepping_multiplier[o, o]
+
+        return spectrum
 
     def random_truth(self, n_events, fix_truth=None, **params):
         raise NotImplementedError
@@ -341,62 +418,12 @@ class InvalidEventTimes(Exception):
 
 @export
 class WIMPEnergySpectrum(VariableEnergySpectrum):
-    model_attributes = ('pretend_wimps_dont_modulate',
-                        'mw',
-                        'sigma_nucleon',
-                        'n_time_bins',
-                        'energy_edges') + VariableEnergySpectrum.model_attributes
+    max_dim_size = {'energy': 150}
 
-    # If set to True, the energy spectrum at each time will be set to its
-    # average over the data taking period.
-    pretend_wimps_dont_modulate = False
-
-    mw = 1e3  # GeV
-    sigma_nucleon = 1e-45  # cm^2
-    n_time_bins = 24
-
-    # We can't use energies here, it is used already in the base classes
-    # for other purposes
-    energy_edges = np.geomspace(0.7, 50, 100)
+    model_attributes = ('n_time_bins',
+                        'energy_hist') + VariableEnergySpectrum.model_attributes
 
     frozen_model_functions = ('energy_spectrum',)
-    array_columns = (('energy_spectrum', len(energy_edges) - 1),)
-
-    def setup(self):
-        wimp_kwargs = dict(mw=self.mw,
-                           sigma_nucleon=self.sigma_nucleon,
-                           energy_edges=self.energy_edges)
-
-        # BlockModelSource is kind enough to let us change these attributes
-        # at this stage.
-        e_centers = self.bin_centers(wimp_kwargs['energy_edges'])
-        self.energies = fd.np_to_tf(e_centers)
-        self.array_columns = (('energy_spectrum', len(self.energy_edges) - 1),)
-
-        times = np.linspace(wr.j2000(self.t_start.value),
-                            wr.j2000(self.t_stop.value),
-                            self.n_time_bins + 1)
-        time_centers = self.bin_centers(times)
-
-        # Transform wimp_kwargs to arguments that can be passed to wimprates
-        # which means transforming es from edges to centers
-        del wimp_kwargs['energy_edges']
-        spectra = np.array([wr.rate_wimp_std(t=t,
-                                             es=e_centers,
-                                             **wimp_kwargs)
-                            * np.diff(self.energy_edges)
-                            for t in time_centers])
-        assert spectra.shape == (len(time_centers), len(e_centers))
-
-        self.energy_hist = Histdd.from_histogram(
-            spectra,
-            bin_edges=(times, self.energy_edges))
-
-        if self.pretend_wimps_dont_modulate:
-            self.energy_hist.histogram = (
-                np.ones_like(self.energy_hist.histogram)
-                * self.energy_hist.sum(axis=0).histogram.reshape(1, -1)
-                / self.n_time_bins)
 
     def energy_spectrum(self, event_time):
         ts = fd.tf_to_np(event_time)
