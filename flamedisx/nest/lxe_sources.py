@@ -549,6 +549,12 @@ class nestTemporalRateOscillationNRSource(nestNRSource):
 
 @export
 class nestWIMPSource(nestNRSource):
+    """SI WIMP signal source.
+    Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
+    Normalised with an exposure of 1 tonne year and a cross section of 1e-45 cm^2.
+    Temporally varying between 2019-09-01T08:28:00 and 2020-09-01T08:28:00.
+    """
+
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
 
     def __init__(self, *args, wimp_mass=40, fid_mass=1., livetime=1., **kwargs):
