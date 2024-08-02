@@ -204,7 +204,7 @@ class TSEvaluation():
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
-                    asymptotic=False):
+                    asymptotic=False, asymptotic_sensitivity=False):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -299,7 +299,8 @@ class TSEvaluation():
                     self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
                                                  test_stat_dists_SB_disco,
                                                  mu_test, signal_source, likelihood,
-                                                 save_fits=save_fits)
+                                                 save_fits=save_fits,
+                                                 asymptotic_sensitivity=asymptotic_sensitivity)
 
             if observed_data is not None:
                 observed_test_stats_collection[signal_source] = observed_test_stats
@@ -307,6 +308,9 @@ class TSEvaluation():
                 test_stat_dists_SB_collection[signal_source] = test_stat_dists_SB
                 test_stat_dists_SB_disco_collection[signal_source] = test_stat_dists_SB_disco
                 test_stat_dists_B_collection[signal_source] = test_stat_dists_B
+
+        if asymptotic_sensitivity:
+            return test_stat_dists_B_collection
 
         if observed_data is not None:
             return observed_test_stats_collection
@@ -366,7 +370,7 @@ class TSEvaluation():
     def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
                                 test_stat_dists_SB_disco,
                                 mu_test, signal_source_name, likelihood,
-                                save_fits=False):
+                                save_fits=False, asymptotic_sensitivity=False):
         """Internal function to get test statistic distribution.
         """
         ts_values_SB = []
@@ -380,35 +384,36 @@ class TSEvaluation():
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
-            simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
-                self.sample_data_constraints(mu_test, signal_source_name, likelihood)
+            if not asymptotic_sensitivity:
+                simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
+                    self.sample_data_constraints(mu_test, signal_source_name, likelihood)
 
-            # S+B toys
+                # S+B toys
 
-            # Shift the constraint in the likelihood based on the background RMs we drew
-            likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
-            # Set data
-            if hasattr(likelihood, 'likelihoods'):
-                for component, data in toy_data_SB.items():
-                    likelihood.set_data(data, component)
-            else:
-                likelihood.set_data(toy_data_SB)
-            # Create test statistic
-            test_statistic_SB = self.test_statistic(likelihood)
-            # Guesses for fit
-            guess_dict_SB = simulate_dict_SB.copy()
-            for key, value in guess_dict_SB.items():
-                if value < 0.1:
-                    guess_dict_SB[key] = 0.1
-            # Evaluate test statistics
-            ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
-            ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
-            # Save test statistics, and possibly fits
-            ts_values_SB.append(ts_result_SB[0])
-            ts_values_SB_disco.append(ts_result_SB_disco[0])
-            if save_fits:
-                unconditional_bfs_SB.append(ts_result_SB[1])
-                conditional_bfs_SB.append(ts_result_SB[2])
+                # Shift the constraint in the likelihood based on the background RMs we drew
+                likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
+                # Set data
+                if hasattr(likelihood, 'likelihoods'):
+                    for component, data in toy_data_SB.items():
+                        likelihood.set_data(data, component)
+                else:
+                    likelihood.set_data(toy_data_SB)
+                # Create test statistic
+                test_statistic_SB = self.test_statistic(likelihood)
+                # Guesses for fit
+                guess_dict_SB = simulate_dict_SB.copy()
+                for key, value in guess_dict_SB.items():
+                    if value < 0.1:
+                        guess_dict_SB[key] = 0.1
+                # Evaluate test statistics
+                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
+                ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
+                # Save test statistics, and possibly fits
+                ts_values_SB.append(ts_result_SB[0])
+                ts_values_SB_disco.append(ts_result_SB_disco[0])
+                if save_fits:
+                    unconditional_bfs_SB.append(ts_result_SB[1])
+                    conditional_bfs_SB.append(ts_result_SB[2])
 
             # B-only toys
 
@@ -435,12 +440,20 @@ class TSEvaluation():
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
             # Evaluate test statistic
-            ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
+            ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B,
+                                           asymptotic=asymptotic_sensitivity)
             # Save test statistic, and possibly fits
             ts_values_B.append(ts_result_B[0])
             if save_fits:
                 unconditional_bfs_B.append(ts_result_SB[1])
                 conditional_bfs_B.append(ts_result_SB[2])
+
+        if asymptotic_sensitivity:
+            test_stat_dists_B.add_ts_dist(mu_test, ts_values_B)
+            if save_fits:
+                test_stat_dists_B.add_unconditional_best_fit(mu_test, unconditional_bfs_B)
+                test_stat_dists_B.add_conditional_best_fit(mu_test, conditional_bfs_B)
+            return
 
         # Add to the test statistic distributions
         test_stat_dists_SB.add_ts_dist(mu_test, ts_values_SB)
