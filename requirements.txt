@@ -6,5 +6,5 @@ wimprates==0.5.0
 tqdm==4.66.5
 tensorflow==2.16.1
 tensorflow_probability==0.24.0
-tf-keras==2.16.0
+tf-keras==2.17.0
 iminuit==2.28.0
