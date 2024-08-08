@@ -133,12 +133,40 @@ class XLZDNRSource(XLZDSource, fd.nest.nestNRSource):
 
 @export
 class XLZDWIMPSource(XLZDSource, fd.nest.nestWIMPSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'xlzd'
-        if ('configuration' not in kwargs):
-            kwargs['configuration'] = '80t'
-        super().__init__(*args, **kwargs)
+
+    def __init__(
+        self,
+        *args,
+        wimp_mass=40,
+        sigma=1e-45,
+        fid_mass=1.0,
+        min_E=1e-2,
+        max_E=80.0,
+        n_energy_bins=800,
+        min_time="2019-09-01T08:28:00",
+        max_time="2020-09-01T08:28:00",
+        n_time_bins=25,
+        modulation=True,
+        **kwargs
+    ):
+        if "detector" not in kwargs:
+            kwargs["detector"] = "xlzd"
+        if "configuration" not in kwargs:
+            kwargs["configuration"] = "80t"
+        super().__init__(
+            *args,
+            wimp_mass=wimp_mass,
+            sigma=sigma,
+            fid_mass=fid_mass,
+            min_E=min_E,
+            max_E=max_E,
+            n_energy_bins=n_energy_bins,
+            min_time=min_time,
+            max_time=max_time,
+            n_time_bins=n_time_bins,
+            modulation=modulation,
+            **kwargs
+        )
 
 
 ##
