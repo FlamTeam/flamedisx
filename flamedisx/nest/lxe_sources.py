@@ -686,3 +686,121 @@ class nestWIMPSource(nestNRSource):
         )
 
         return hist
+
+
+@export
+class nestMigdalSource(nestERSource):
+
+    model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestERSource.model_blocks[1:]
+
+    def __init__(
+        self,
+        *args,
+        wimp_mass=40,
+        sigma=1e-45,
+        fid_mass=1.0,
+        min_E=1e-2,
+        max_E=80.0,
+        n_energy_bins=800,
+        min_time="2019-09-01T08:28:00",
+        max_time="2020-09-01T08:28:00",
+        n_time_bins=25,
+        modulation=True,
+        migdal_model="Cox",
+        **kwargs
+    ):
+        if migdal_model not in ["Ibe", "Cox", "Cox_dipole"]:
+            raise ValueError("Invalid Migdal model. Choose from 'Ibe', 'Cox', 'Cox_dipole'")
+        
+        if "detector" not in kwargs:
+            kwargs["detector"] = "default"
+
+        self.energy_hist = self.get_energy_hist(
+            wimp_mass=wimp_mass,
+            sigma=sigma,
+            min_E=min_E,
+            max_E=max_E,
+            n_energy_bins=n_energy_bins,
+            min_time=min_time,
+            max_time=max_time,
+            n_time_bins=n_time_bins,
+            modulation=modulation,
+            migdal_model=migdal_model,
+        )
+
+        livetime = pd.Timestamp(max_time) - pd.Timestamp(min_time)
+        livetime = livetime.days / 365.25
+        scale = fid_mass * livetime
+        self.energy_hist *= scale
+
+        self.n_time_bins = len(self.energy_hist.bin_edges[0])
+        e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(
+            self.energy_hist.bin_edges[1]
+        )
+        self.energies = fd.np_to_tf(e_centers)
+
+        self.array_columns = (("energy_spectrum", len(e_centers)),)
+
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def get_energy_hist(
+        wimp_mass=40.0,
+        sigma=1e-45,
+        min_E=1e-2,
+        max_E=40.0,
+        n_energy_bins=800,
+        min_time="2019-09-01T08:28:00",
+        max_time="2020-09-01T08:28:00",
+        n_time_bins=25,
+        modulation=True,
+        migdal_model="Cox",
+    ):
+        dipole = False
+        if migdal_model == "Cox_dipole":
+            migdal_model = "Cox"
+            dipole = True
+
+
+        energy_bin_edges = np.linspace(min_E, max_E, n_energy_bins + 1)
+        energy_values = (energy_bin_edges[1:] + energy_bin_edges[:-1]) / 2
+        time_bin_edges = (
+            pd.date_range(min_time, max_time, periods=n_time_bins + 1).to_julian_date()
+            - 2451545.0        # Convert to J2000
+        )
+        times = (time_bin_edges[1:] + time_bin_edges[:-1]) / 2
+
+        rates_list = []
+        if modulation:
+            # This should probably be done in a more efficient way
+            for time in times:
+                rates_list.append(
+                    wr.rate_wimp_std(
+                        energy_values,
+                        mw=wimp_mass,
+                        sigma_nucleon=sigma,
+                        t=time,
+                        detection_mechanism="migdal",
+                        migdal_model=migdal_model,
+                        dipole=dipole,
+                    )
+                )
+        else:
+            rates = wr.rate_wimp_std(
+                        energy_values,
+                        mw=wimp_mass,
+                        sigma_nucleon=sigma,
+                        detection_mechanism="migdal",
+                        migdal_model=migdal_model,
+                        dipole=dipole,
+                    )
+            for _ in times:
+                rates_list.append(rates)
+
+        RATES = np.array(rates_list)
+
+        hist = mh.Histdd.from_histogram(
+            RATES, [time_bin_edges, energy_bin_edges], axis_names=("time", "energy")
+        )
+
+        return hist
