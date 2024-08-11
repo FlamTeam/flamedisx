@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 import configparser
 import math as m
 import os
@@ -642,27 +643,31 @@ class nestWIMPSource(nestNRSource):
         energy_values = (energy_bin_edges[1:] + energy_bin_edges[:-1]) / 2
         time_bin_edges = (
             pd.date_range(min_time, max_time, periods=n_time_bins + 1).to_julian_date()
-            - 2451545.0        # Convert to J2000
+            - 2451545.0  # Convert to J2000
         )
         times = (time_bin_edges[1:] + time_bin_edges[:-1]) / 2
 
         rates_list = []
         if modulation:
-            for time in times:
-                rates_list.append(
-                    wr.rate_wimp_std(
-                        energy_values,
-                        mw=wimp_mass,
-                        sigma_nucleon=sigma,
-                        t=time,
+            with ProcessPoolExecutor(4) as executor:
+                for time in times:
+                    rates_list.append(
+                        executor.submit(
+                            wr.rate_wimp_std,
+                            energy_values,
+                            mw=wimp_mass,
+                            sigma_nucleon=sigma,
+                            t=time,
+                        )
                     )
-                )
+
+                rates_list = [future.result() for future in rates_list]
         else:
             rates = wr.rate_wimp_std(
-                        energy_values,
-                        mw=wimp_mass,
-                        sigma_nucleon=sigma,
-                    )
+                energy_values,
+                mw=wimp_mass,
+                sigma_nucleon=sigma,
+            )
             for _ in times:
                 rates_list.append(rates)
 
