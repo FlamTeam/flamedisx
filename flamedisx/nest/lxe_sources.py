@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 import configparser
 import math as m
 import os
@@ -645,7 +646,7 @@ class nestWIMPSource(nestNRSource):
 
         time_bin_edges = (
             pd.date_range(min_time, max_time, periods=n_time_bins + 1).to_julian_date()
-            - 2451545.0        # Convert to J2000
+            - 2451545.0  # Convert to J2000
         )
         time_bin_width = wr.j2000_to_datetime(time_bin_edges[1]) - wr.j2000_to_datetime(time_bin_edges[0])
         time_bin_width = time_bin_width.value * nu.ns
@@ -655,23 +656,28 @@ class nestWIMPSource(nestNRSource):
         scale *= energy_bin_width / nu.keV  # Convert from [per keV] to [per energy_bin_width]
 
         rates_list = []
-        for i, time in enumerate(times):
-            if modulation:
-                rates = wr.rate_wimp_std(
-                    energy_values,
-                    mw=wimp_mass,
-                    sigma_nucleon=sigma,
-                    t=time,
-                )
-            elif i == 0:
-                rates = wr.rate_wimp_std(
-                    energy_values,
-                    mw=wimp_mass,
-                    sigma_nucleon=sigma,
-                )
-            rates_list.append(
-                rates * scale
+        if modulation:
+            with ProcessPoolExecutor(4) as executor:
+                for time in times:
+                    rates_list.append(
+                        executor.submit(
+                            wr.rate_wimp_std,
+                            energy_values,
+                            mw=wimp_mass,
+                            sigma_nucleon=sigma,
+                            t=time,
+                        )
+                    )
+
+                rates_list = [future.result() for future in rates_list]
+        else:
+            rates = wr.rate_wimp_std(
+                energy_values,
+                mw=wimp_mass,
+                sigma_nucleon=sigma,
             )
+            for _ in times:
+                rates_list.append(rates)
 
         RATES = np.array(rates_list)
 
