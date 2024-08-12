@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 import configparser
 import math as m
 import os
@@ -576,7 +577,7 @@ class nestWIMPSource(nestNRSource):
         **kwargs
     ):
 
-        if (livetime < 0 or livetime > 1 )and not isinstance(livetime, float):
+        if (livetime < 0 or livetime > 1) and not isinstance(livetime, float):
             raise ValueError("Livetime should be a percentage between 0 and 1")
 
         if "detector" not in kwargs:
@@ -655,23 +656,28 @@ class nestWIMPSource(nestNRSource):
         scale *= energy_bin_width / nu.keV  # Convert from [per keV] to [per energy_bin_width]
 
         rates_list = []
-        for i, time in enumerate(times):
-            if modulation:
-                rates = wr.rate_wimp_std(
-                    energy_values,
-                    mw=wimp_mass,
-                    sigma_nucleon=sigma,
-                    t=time,
-                )
-            elif i == 0:
-                rates = wr.rate_wimp_std(
-                    energy_values,
-                    mw=wimp_mass,
-                    sigma_nucleon=sigma,
-                )
-            rates_list.append(
-                rates * scale
+        if modulation:
+            with ProcessPoolExecutor(4) as executor:
+                for time in times:
+                    rates_list.append(
+                        executor.submit(
+                            wr.rate_wimp_std,
+                            energy_values,
+                            mw=wimp_mass,
+                            sigma_nucleon=sigma,
+                            t=time,
+                        )
+                    )
+
+                rates_list = [future.result() for future in rates_list]
+        else:
+            rates = wr.rate_wimp_std(
+                energy_values,
+                mw=wimp_mass,
+                sigma_nucleon=sigma,
             )
+            for _ in times:
+                rates_list.append(rates * scale)
 
         RATES = np.array(rates_list)
 
