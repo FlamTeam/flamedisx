@@ -704,6 +704,7 @@ class nestMigdalSource(nestERSource):
         n_energy_bins=800,
         min_time="2019-09-01T08:28:00",
         max_time="2020-09-01T08:28:00",
+        livetime=1.0,
         n_time_bins=25,
         modulation=True,
         migdal_model="Cox",
@@ -711,7 +712,10 @@ class nestMigdalSource(nestERSource):
     ):
         if migdal_model not in ["Ibe", "Cox", "Cox_dipole"]:
             raise ValueError("Invalid Migdal model. Choose from 'Ibe', 'Cox', 'Cox_dipole'")
-        
+  
+        if (livetime < 0 or livetime > 1) and not isinstance(livetime, float):
+            raise ValueError("Livetime should be a percentage between 0 and 1")
+      
         if "detector" not in kwargs:
             kwargs["detector"] = "default"
 
@@ -728,15 +732,11 @@ class nestMigdalSource(nestERSource):
             migdal_model=migdal_model,
         )
 
-        livetime = pd.Timestamp(max_time) - pd.Timestamp(min_time)
-        livetime = livetime.days / 365.25
         scale = fid_mass * livetime
         self.energy_hist *= scale
 
-        self.n_time_bins = len(self.energy_hist.bin_edges[0])
-        e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(
-            self.energy_hist.bin_edges[1]
-        )
+        self.n_time_bins = len(self.energy_hist.bin_centers()[0])
+        e_centers = self.energy_hist.bin_centers()[1]
         self.energies = fd.np_to_tf(e_centers)
 
         self.array_columns = (("energy_spectrum", len(e_centers)),)
@@ -748,7 +748,7 @@ class nestMigdalSource(nestERSource):
         wimp_mass=40.0,
         sigma=1e-45,
         min_E=1e-2,
-        max_E=40.0,
+        max_E=80.0,
         n_energy_bins=800,
         min_time="2019-09-01T08:28:00",
         max_time="2020-09-01T08:28:00",
@@ -763,39 +763,49 @@ class nestMigdalSource(nestERSource):
 
 
         energy_bin_edges = np.linspace(min_E, max_E, n_energy_bins + 1)
+        energy_bin_width = (energy_bin_edges[1] - energy_bin_edges[0]) * nu.keV
         energy_values = (energy_bin_edges[1:] + energy_bin_edges[:-1]) / 2
+
         time_bin_edges = (
             pd.date_range(min_time, max_time, periods=n_time_bins + 1).to_julian_date()
             - 2451545.0        # Convert to J2000
         )
-        times = (time_bin_edges[1:] + time_bin_edges[:-1]) / 2
+        time_bin_width = wr.j2000_to_datetime(time_bin_edges[1]) - wr.j2000_to_datetime(time_bin_edges[0])
+        time_bin_width = time_bin_width.value * nu.ns
+        times = (time_bin_edges[:-1] + time_bin_edges[1:]) / 2
+
+        scale = time_bin_width / nu.year  # Convert from [per year] to [per time_bin_width]
+        scale *= energy_bin_width / nu.keV  # Convert from [per keV] to [per energy_bin_width]
 
         rates_list = []
         if modulation:
-            # This should probably be done in a more efficient way
-            for time in times:
-                rates_list.append(
-                    wr.rate_wimp_std(
-                        energy_values,
-                        mw=wimp_mass,
-                        sigma_nucleon=sigma,
-                        t=time,
-                        detection_mechanism="migdal",
-                        migdal_model=migdal_model,
-                        dipole=dipole,
+            with ProcessPoolExecutor(4) as executor:
+                for time in times:
+                    rates_list.append(
+                        executor.submit(
+                            wr.rate_wimp_std,
+                            energy_values,
+                            mw=wimp_mass,
+                            sigma_nucleon=sigma,
+                            t=time,
+                            detection_mechanism="migdal",
+                            migdal_model=migdal_model,
+                            dipole=dipole,
+                        )
                     )
-                )
+
+                rates_list = [future.result() for future in rates_list]
         else:
             rates = wr.rate_wimp_std(
-                        energy_values,
-                        mw=wimp_mass,
-                        sigma_nucleon=sigma,
-                        detection_mechanism="migdal",
-                        migdal_model=migdal_model,
-                        dipole=dipole,
-                    )
+                energy_values,
+                mw=wimp_mass,
+                sigma_nucleon=sigma,
+                detection_mechanism="migdal",
+                migdal_model=migdal_model,
+                dipole=dipole,
+            )
             for _ in times:
-                rates_list.append(rates)
+                rates_list.append(rates * scale)
 
         RATES = np.array(rates_list)
 
