@@ -565,7 +565,7 @@ class nestWIMPSource(nestNRSource):
         scale = fid_mass * livetime
         self.energy_hist *= scale
 
-        self.n_time_bins = len(self.energy_hist.bin_edges[0])
+        self.n_time_bins = len(self.energy_hist.bin_edges[0]) - 1
         e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(self.energy_hist.bin_edges[1])
         self.energies = fd.np_to_tf(e_centers)
 
