@@ -1,15 +1,17 @@
-import tensorflow as tf
-
 import configparser
+import math as m
 import os
 
-import pickle as pkl
+import numericalunits as nu
+import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 import flamedisx as fd
+import multihist as mh
+import wimprates as wr
 from .. import nest as fd_nest
 
-import math as m
 pi = tf.constant(m.pi)
 
 export, __all__ = fd.exporter()
@@ -552,16 +554,46 @@ class nestWIMPSource(nestNRSource):
     """SI WIMP signal source.
     Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
     Normalised with an exposure of 1 tonne year and a cross section of 1e-45 cm^2.
-    Temporally varying between 2019-09-01T08:28:00 and 2020-09-01T08:28:00.
+    By default, temporally varying between 2019-09-01T08:28:00 and 2020-09-01T08:28:00.
     """
 
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
 
-    def __init__(self, *args, wimp_mass=40, fid_mass=1., livetime=1., **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'default'
+    def __init__(
+        self,
+        *args,
+        wimp_mass=40,
+        sigma=1e-45,
+        fid_mass=1.0,
+        min_E=1e-2,
+        max_E=80.0,
+        n_energy_bins=800,
+        min_time="2019-09-01T08:28:00",
+        max_time="2020-09-01T08:28:00",
+        livetime=1.0,
+        n_time_bins=25,
+        modulation=True,
+        **kwargs
+    ):
 
-        self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
+        if (livetime < 0 or livetime > 1 )and not isinstance(livetime, float):
+            raise ValueError("Livetime should be a percentage between 0 and 1")
+
+        if "detector" not in kwargs:
+            kwargs["detector"] = "default"
+
+        self.energy_hist = self.get_energy_hist(
+            wimp_mass=wimp_mass,
+            sigma=sigma,
+            min_E=min_E,
+            max_E=max_E,
+            n_energy_bins=n_energy_bins,
+            min_time=min_time,
+            max_time=max_time,
+            n_time_bins=n_time_bins,
+            modulation=modulation,
+        )
+
         scale = fid_mass * livetime
         self.energy_hist *= scale
 
@@ -569,6 +601,82 @@ class nestWIMPSource(nestNRSource):
         e_centers = self.energy_hist.bin_centers()[1]
         self.energies = fd.np_to_tf(e_centers)
 
-        self.array_columns = (('energy_spectrum', len(e_centers)),)
+        self.array_columns = (("energy_spectrum", len(e_centers)),)
 
         super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def get_energy_hist(
+        wimp_mass=40.0,
+        sigma=1e-45,
+        min_E=1e-2,
+        max_E=80.0,
+        n_energy_bins=800,
+        min_time="2019-09-01T08:28:00",
+        max_time="2020-09-01T08:28:00",
+        n_time_bins=25,
+        modulation=True,
+    ):
+        """
+        Function to generate the energy histogram for a given WIMP mass
+
+        Parameters
+        ----------
+        wimp_mass : float
+            Mass of the WIMP in GeV/c^2
+        min_E : float
+            Minimum energy of the histogram in keV
+        max_E : float
+            Maximum energy of the histogram in keV
+        sigma : float
+            Cross-section of the WIMP in pb
+        n_bins_energy : int
+            Number of bins for the energy histogram
+        n_bins_time : int
+            Number of bins for the time histogram.
+            To total timespan to bin is currently hardcoded to 1 year
+        modulation : bool
+            Flag to enable/disable modulation
+        """
+
+        energy_bin_edges = np.linspace(min_E, max_E, n_energy_bins + 1)
+        energy_bin_width = (energy_bin_edges[1] - energy_bin_edges[0]) * nu.keV
+        energy_values = (energy_bin_edges[1:] + energy_bin_edges[:-1]) / 2
+
+        time_bin_edges = (
+            pd.date_range(min_time, max_time, periods=n_time_bins + 1).to_julian_date()
+            - 2451545.0        # Convert to J2000
+        )
+        time_bin_width = wr.j2000_to_datetime(time_bin_edges[1]) - wr.j2000_to_datetime(time_bin_edges[0])
+        time_bin_width = time_bin_width.value * nu.ns
+        times = (time_bin_edges[:-1] + time_bin_edges[1:]) / 2
+
+        scale = time_bin_width / nu.year  # Convert from [per year] to [per time_bin_width]
+        scale *= energy_bin_width / nu.keV  # Convert from [per keV] to [per energy_bin_width]
+
+        rates_list = []
+        for i, time in enumerate(times):
+            if modulation:
+                rates = wr.rate_wimp_std(
+                    energy_values,
+                    mw=wimp_mass,
+                    sigma_nucleon=sigma,
+                    t=time,
+                )
+            elif i == 0:
+                rates = wr.rate_wimp_std(
+                    energy_values,
+                    mw=wimp_mass,
+                    sigma_nucleon=sigma,
+                )
+            rates_list.append(
+                rates * scale
+            )
+
+        RATES = np.array(rates_list)
+
+        hist = mh.Histdd.from_histogram(
+            RATES, [time_bin_edges, energy_bin_edges], axis_names=("time", "energy")
+        )
+
+        return hist
