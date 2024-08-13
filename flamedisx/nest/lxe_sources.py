@@ -657,7 +657,7 @@ class nestWIMPSource(nestNRSource):
 
         rates_list = []
         if modulation:
-            with ProcessPoolExecutor(4) as executor:
+            with ProcessPoolExecutor() as executor:
                 for time in times:
                     rates_list.append(
                         executor.submit(
@@ -679,7 +679,7 @@ class nestWIMPSource(nestNRSource):
             for _ in times:
                 rates_list.append(rates)
 
-        RATES = np.array(rates_list)
+        RATES = np.array(rates_list) * scale
 
         hist = mh.Histdd.from_histogram(
             RATES, [time_bin_edges, energy_bin_edges], axis_names=("time", "energy")
@@ -779,7 +779,7 @@ class nestMigdalSource(nestERSource):
 
         rates_list = []
         if modulation:
-            with ProcessPoolExecutor(4) as executor:
+            with ProcessPoolExecutor() as executor:
                 for time in times:
                     rates_list.append(
                         executor.submit(
@@ -805,9 +805,9 @@ class nestMigdalSource(nestERSource):
                 dipole=dipole,
             )
             for _ in times:
-                rates_list.append(rates * scale)
+                rates_list.append(rates)
 
-        RATES = np.array(rates_list)
+        RATES = np.array(rates_list) * scale
 
         hist = mh.Histdd.from_histogram(
             RATES, [time_bin_edges, energy_bin_edges], axis_names=("time", "energy")
