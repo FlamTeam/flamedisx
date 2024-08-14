@@ -573,7 +573,7 @@ class nestWIMPSource(nestNRSource):
         max_time="2020-09-01T08:28:00",
         livetime=1.0,
         n_time_bins=25,
-        modulation=True,
+        modulation=False,
         **kwargs
     ):
 
@@ -583,7 +583,7 @@ class nestWIMPSource(nestNRSource):
         if "detector" not in kwargs:
             kwargs["detector"] = "default"
 
-        self.energy_hist = self.get_energy_hist(
+        self.energy_hist = fd_nest.get_energy_hist(
             wimp_mass=wimp_mass,
             sigma=sigma,
             min_E=min_E,
@@ -605,87 +605,6 @@ class nestWIMPSource(nestNRSource):
         self.array_columns = (("energy_spectrum", len(e_centers)),)
 
         super().__init__(*args, **kwargs)
-
-    @staticmethod
-    def get_energy_hist(
-        wimp_mass=40.0,
-        sigma=1e-45,
-        min_E=1e-2,
-        max_E=80.0,
-        n_energy_bins=800,
-        min_time="2019-09-01T08:28:00",
-        max_time="2020-09-01T08:28:00",
-        n_time_bins=25,
-        modulation=True,
-    ):
-        """
-        Function to generate the energy histogram for a given WIMP mass
-
-        Parameters
-        ----------
-        wimp_mass : float
-            Mass of the WIMP in GeV/c^2
-        min_E : float
-            Minimum energy of the histogram in keV
-        max_E : float
-            Maximum energy of the histogram in keV
-        sigma : float
-            Cross-section of the WIMP in pb
-        n_bins_energy : int
-            Number of bins for the energy histogram
-        n_bins_time : int
-            Number of bins for the time histogram.
-            To total timespan to bin is currently hardcoded to 1 year
-        modulation : bool
-            Flag to enable/disable modulation
-        """
-
-        energy_bin_edges = np.linspace(min_E, max_E, n_energy_bins + 1)
-        energy_bin_width = (energy_bin_edges[1] - energy_bin_edges[0]) * nu.keV
-        energy_values = (energy_bin_edges[1:] + energy_bin_edges[:-1]) / 2
-
-        time_bin_edges = (
-            pd.date_range(min_time, max_time, periods=n_time_bins + 1).to_julian_date()
-            - 2451545.0  # Convert to J2000
-        )
-        time_bin_width = wr.j2000_to_datetime(time_bin_edges[1]) - wr.j2000_to_datetime(time_bin_edges[0])
-        time_bin_width = time_bin_width.value * nu.ns
-        times = (time_bin_edges[:-1] + time_bin_edges[1:]) / 2
-
-        scale = time_bin_width / nu.year  # Convert from [per year] to [per time_bin_width]
-        scale *= energy_bin_width / nu.keV  # Convert from [per keV] to [per energy_bin_width]
-
-        rates_list = []
-        if modulation:
-            with ProcessPoolExecutor() as executor:
-                for time in times:
-                    rates_list.append(
-                        executor.submit(
-                            wr.rate_wimp_std,
-                            energy_values,
-                            mw=wimp_mass,
-                            sigma_nucleon=sigma,
-                            t=time,
-                        )
-                    )
-
-                rates_list = [future.result() for future in rates_list]
-        else:
-            rates = wr.rate_wimp_std(
-                energy_values,
-                mw=wimp_mass,
-                sigma_nucleon=sigma,
-            )
-            for _ in times:
-                rates_list.append(rates)
-
-        RATES = np.array(rates_list) * scale
-
-        hist = mh.Histdd.from_histogram(
-            RATES, [time_bin_edges, energy_bin_edges], axis_names=("time", "energy")
-        )
-
-        return hist
 
 
 @export
@@ -719,7 +638,7 @@ class nestMigdalSource(nestERSource):
         if "detector" not in kwargs:
             kwargs["detector"] = "default"
 
-        self.energy_hist = self.get_energy_hist(
+        self.energy_hist = fd_nest.get_energy_hist(
             wimp_mass=wimp_mass,
             sigma=sigma,
             min_E=min_E,
@@ -742,75 +661,3 @@ class nestMigdalSource(nestERSource):
         self.array_columns = (("energy_spectrum", len(e_centers)),)
 
         super().__init__(*args, **kwargs)
-
-    @staticmethod
-    def get_energy_hist(
-        wimp_mass=40.0,
-        sigma=1e-45,
-        min_E=1e-2,
-        max_E=80.0,
-        n_energy_bins=800,
-        min_time="2019-09-01T08:28:00",
-        max_time="2020-09-01T08:28:00",
-        n_time_bins=25,
-        modulation=True,
-        migdal_model="Cox",
-    ):
-        dipole = False
-        if migdal_model == "Cox_dipole":
-            migdal_model = "Cox"
-            dipole = True
-
-
-        energy_bin_edges = np.linspace(min_E, max_E, n_energy_bins + 1)
-        energy_bin_width = (energy_bin_edges[1] - energy_bin_edges[0]) * nu.keV
-        energy_values = (energy_bin_edges[1:] + energy_bin_edges[:-1]) / 2
-
-        time_bin_edges = (
-            pd.date_range(min_time, max_time, periods=n_time_bins + 1).to_julian_date()
-            - 2451545.0        # Convert to J2000
-        )
-        time_bin_width = wr.j2000_to_datetime(time_bin_edges[1]) - wr.j2000_to_datetime(time_bin_edges[0])
-        time_bin_width = time_bin_width.value * nu.ns
-        times = (time_bin_edges[:-1] + time_bin_edges[1:]) / 2
-
-        scale = time_bin_width / nu.year  # Convert from [per year] to [per time_bin_width]
-        scale *= energy_bin_width / nu.keV  # Convert from [per keV] to [per energy_bin_width]
-
-        rates_list = []
-        if modulation:
-            with ProcessPoolExecutor() as executor:
-                for time in times:
-                    rates_list.append(
-                        executor.submit(
-                            wr.rate_wimp_std,
-                            energy_values,
-                            mw=wimp_mass,
-                            sigma_nucleon=sigma,
-                            t=time,
-                            detection_mechanism="migdal",
-                            migdal_model=migdal_model,
-                            dipole=dipole,
-                        )
-                    )
-
-                rates_list = [future.result() for future in rates_list]
-        else:
-            rates = wr.rate_wimp_std(
-                energy_values,
-                mw=wimp_mass,
-                sigma_nucleon=sigma,
-                detection_mechanism="migdal",
-                migdal_model=migdal_model,
-                dipole=dipole,
-            )
-            for _ in times:
-                rates_list.append(rates)
-
-        RATES = np.array(rates_list) * scale
-
-        hist = mh.Histdd.from_histogram(
-            RATES, [time_bin_edges, energy_bin_edges], axis_names=("time", "energy")
-        )
-
-        return hist
