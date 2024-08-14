@@ -449,7 +449,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
         return np.clip(ts, tbins[0], tbins[-1])
 
     def mu_before_efficiencies(self, **params):
-        return self.energy_hist.n
+        return self.energy_hist.n / self.n_time_bins
 
     def random_truth(self, n_events, fix_truth=None, **params):
         """Draw n_events random energies and times from the energy/
