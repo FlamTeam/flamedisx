@@ -694,7 +694,7 @@ class IntervalCalculator():
                                   rising_edge=True, inverse=True)
 
     def get_bands(self, conf_level=0.1, quantiles=[0, 1, -1, 2, -2],
-                  use_CLs=False):
+                  use_CLs=False, asymptotic=False):
         """
         """
         bands = dict()
@@ -702,16 +702,20 @@ class IntervalCalculator():
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             # Get test statistic distribitions
-            test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
+            if not asymptotic:
+                test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
             test_stat_dists_B = self.test_stat_dists_B[signal_source]
 
             mus = []
             p_val_curves = []
             # Loop over signal rate multipliers
             for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
-                these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
-                                                               ts_values,
-                                                               kind='weak')) / 100.
+                if asymptotic:
+                    these_p_vals = ts_values
+                else:
+                    these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
+                                                                ts_values,
+                                                                kind='weak')) / 100.
                 if use_CLs:
                     these_p_vals_b = stats.percentileofscore(test_stat_dists_B.ts_dists[mu_test],
                                                              ts_values,
