@@ -45,6 +45,8 @@ pmod_fermichange =  0.00962442
 pmod_fermimu = 67.8454
 pmod_fermiwidth = 2.42731
 TI_multiplier = 0.576
+MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
+# MIG_SUPPRESSION = 1 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 1 = 0.95
 
 print('BCUT: %1.1f, MCUT: %1.2f'%(BCUT,MCUT))
 print('S1 MIN: %i, S1 MAX: %i, S2 MIN: %i, S2 MAX: %i'%(S1_MIN,S1_MAX,S2_MIN,S2_MAX))
@@ -52,6 +54,7 @@ print('Using NEST Interpolator: ',USE_NEST_INTERPOLATOR)
 
 print('pmod_fermichange: %1.3f, pmod_fermimu: %1.3f, pmod_fermiwidth: %1.3f'%(pmod_fermichange,pmod_fermimu,pmod_fermiwidth))
 print('TI_multiplier: %1.3f'%TI_multiplier)
+print('MIG_SUPPRESSION: %1.3f'%MIG_SUPPRESSION)
 
 ###################################################################################################
 
@@ -689,6 +692,7 @@ class Migdal2Source(NRNRSource):
 
     S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
+    
 
     def __init__(self, *args, **kwargs):
         energies_first = self.model_blocks[0].energies_first
@@ -700,6 +704,25 @@ class Migdal2Source(NRNRSource):
         
         super().__init__(*args, **kwargs)
 
+    def quanta_params_ER_mig(self, energy):
+        """
+        assume energy is rank 1
+        """
+        energy_cap = tf.where(energy <= 49., energy, 49. * tf.ones_like(energy, dtype=fd.float_type()))
+        energy_cap = tf.reshape(energy_cap, (-1,1))
+        skew2D_model_param = interp_nd_ER(x=energy_cap) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
+        
+        
+        Nph_mean = skew2D_model_param[:,0] + (1-MIG_SUPPRESSION)*(skew2D_model_param[:,1])
+        Ne_mean = skew2D_model_param[:,1] - (1-MIG_SUPPRESSION)*(skew2D_model_param[:,1])
+        Nph_fano = skew2D_model_param[:,2]     #shape (energies)
+        Ne_fano  = skew2D_model_param[:,3]     #shape (energies)
+        Nph_skew = skew2D_model_param[:,4]     #shape (energies)
+        Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
+        initial_corr = skew2D_model_param[:,6] #shape (energies)
+        
+        return Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
+    
     def quanta_params_ER(self, energy):
         """
         assume energy is rank 1
@@ -736,7 +759,7 @@ class Migdal2Source(NRNRSource):
         # Load params
         ptensor = self.ptensor_from_kwargs(**params)
               
-        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params_ER',
+        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params_ER_mig',
                                                                                    bonus_arg=energy_first, 
                                                                                    ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
                 
@@ -848,7 +871,7 @@ class MigdalMSUSource(Migdal2Source):
         # Load params
         ptensor = self.ptensor_from_kwargs(**params)
               
-        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params_ER',
+        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme('quanta_params_ER_mig',
                                                                                    bonus_arg=energy_first, 
                                                                                    ptensor=ptensor) # shape: {E1_bins} (matches bonus_arg)
                 
@@ -932,6 +955,25 @@ class IECSSource(Migdal2Source):
 
     S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
     S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()
+    
+    def quanta_params_ER_mig(self, energy):
+        """
+        assume energy is rank 1
+        """
+        energy_cap = tf.where(energy <= 49., energy, 49. * tf.ones_like(energy, dtype=fd.float_type()))
+        energy_cap = tf.reshape(energy_cap, (-1,1))
+        skew2D_model_param = interp_nd_ER(x=energy_cap) #shape (energies, 7), [Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, correlation]
+        
+        
+        Nph_mean = skew2D_model_param[:,0] 
+        Ne_mean = skew2D_model_param[:,1] 
+        Nph_fano = skew2D_model_param[:,2]     #shape (energies)
+        Ne_fano  = skew2D_model_param[:,3]     #shape (energies)
+        Nph_skew = skew2D_model_param[:,4]     #shape (energies)
+        Ne_skew  = skew2D_model_param[:,5]     #shape (energies)
+        initial_corr = skew2D_model_param[:,6] #shape (energies)
+        
+        return Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr
 
 
 @export

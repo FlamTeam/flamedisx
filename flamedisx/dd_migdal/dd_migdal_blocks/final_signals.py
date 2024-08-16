@@ -947,7 +947,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
     """
     """
     special_model_functions = ('yield_and_quanta_params','detector_params',
-                               'quanta_params_ER')
+                               'quanta_params_ER','quanta_params_ER_mig')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
     def _simulate(self, d):
@@ -955,7 +955,7 @@ class MakeS1S2Migdal(MakeS1S2MSU):
         energies_second = d['energy_second'].values
         
         # Load params
-        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies_first) # shape: {E1_bins} (matches bonus_arg)
+        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER_mig', energies_first) # shape: {E1_bins} (matches bonus_arg)
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
@@ -1269,7 +1269,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
     """
     """
     special_model_functions = ('yield_and_quanta_params','detector_params',
-                               'quanta_params_ER')
+                               'quanta_params_ER','quanta_params_ER_mig')
     model_functions = ('get_s2', 's1s2_acceptance',) + special_model_functions
 
     def _simulate(self, d):
@@ -1279,7 +1279,7 @@ class MakeS1S2MigdalMSU(MakeS1S2MSU3):
         
         ##### First Vertex
         # Load params
-        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER', energies_first) # shape: {E1_bins} (matches bonus_arg)
+        Nph_mean, Ne_mean, Nph_fano, Ne_fano, Nph_skew, Ne_skew, initial_corr = self.gimme_numpy('quanta_params_ER_mig', energies_first) # shape: {E1_bins} (matches bonus_arg)
         
         Nph_std = np.sqrt(Nph_fano * Nph_mean)
         Ne_std = np.sqrt(Ne_fano * Ne_mean) 
