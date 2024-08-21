@@ -1,15 +1,18 @@
-import tensorflow as tf
-
+from concurrent.futures import ProcessPoolExecutor
 import configparser
+import math as m
 import os
 
-import pickle as pkl
+import numericalunits as nu
+import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 import flamedisx as fd
+import multihist as mh
+import wimprates as wr
 from .. import nest as fd_nest
 
-import math as m
 pi = tf.constant(m.pi)
 
 export, __all__ = fd.exporter()
@@ -552,23 +555,109 @@ class nestWIMPSource(nestNRSource):
     """SI WIMP signal source.
     Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
     Normalised with an exposure of 1 tonne year and a cross section of 1e-45 cm^2.
-    Temporally varying between 2019-09-01T08:28:00 and 2020-09-01T08:28:00.
+    By default, temporally varying between 2019-09-01T08:28:00 and 2020-09-01T08:28:00.
     """
 
     model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestNRSource.model_blocks[1:]
 
-    def __init__(self, *args, wimp_mass=40, fid_mass=1., livetime=1., **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'default'
+    def __init__(
+        self,
+        *args,
+        wimp_mass=40,
+        sigma=1e-45,
+        fid_mass=1.0,
+        min_E=1e-2,
+        max_E=80.0,
+        n_energy_bins=800,
+        min_time="2019-09-01T08:28:00",
+        max_time="2020-09-01T08:28:00",
+        livetime=1.0,
+        n_time_bins=25,
+        modulation=False,
+        **kwargs
+    ):
 
-        self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
+        if (livetime < 0 or livetime > 1) and not isinstance(livetime, float):
+            raise ValueError("Livetime should be a percentage between 0 and 1")
+
+        if "detector" not in kwargs:
+            kwargs["detector"] = "default"
+
+        self.energy_hist = fd_nest.get_energy_hist(
+            wimp_mass=wimp_mass,
+            sigma=sigma,
+            min_E=min_E,
+            max_E=max_E,
+            n_energy_bins=n_energy_bins,
+            min_time=min_time,
+            max_time=max_time,
+            n_time_bins=n_time_bins,
+            modulation=modulation,
+        )
+
         scale = fid_mass * livetime
         self.energy_hist *= scale
 
-        self.n_time_bins = len(self.energy_hist.bin_edges[0]) - 1
-        e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(self.energy_hist.bin_edges[1])
+        self.n_time_bins = len(self.energy_hist.bin_centers()[0])
+        e_centers = self.energy_hist.bin_centers()[1]
         self.energies = fd.np_to_tf(e_centers)
 
-        self.array_columns = (('energy_spectrum', len(e_centers)),)
+        self.array_columns = (("energy_spectrum", len(e_centers)),)
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class nestMigdalSource(nestERSource):
+
+    model_blocks = (fd_nest.WIMPEnergySpectrum,) + nestERSource.model_blocks[1:]
+
+    def __init__(
+        self,
+        *args,
+        wimp_mass=40,
+        sigma=1e-45,
+        fid_mass=1.0,
+        min_E=1e-2,
+        max_E=80.0,
+        n_energy_bins=800,
+        min_time="2019-09-01T08:28:00",
+        max_time="2020-09-01T08:28:00",
+        livetime=1.0,
+        n_time_bins=25,
+        modulation=True,
+        migdal_model="Cox",
+        **kwargs
+    ):
+        if migdal_model not in ["Ibe", "Cox", "Cox_dipole"]:
+            raise ValueError("Invalid Migdal model. Choose from 'Ibe', 'Cox', 'Cox_dipole'")
+  
+        if (livetime < 0 or livetime > 1) and not isinstance(livetime, float):
+            raise ValueError("Livetime should be a percentage between 0 and 1")
+      
+        if "detector" not in kwargs:
+            kwargs["detector"] = "default"
+
+        self.energy_hist = fd_nest.get_energy_hist(
+            wimp_mass=wimp_mass,
+            sigma=sigma,
+            min_E=min_E,
+            max_E=max_E,
+            n_energy_bins=n_energy_bins,
+            min_time=min_time,
+            max_time=max_time,
+            n_time_bins=n_time_bins,
+            modulation=modulation,
+            migdal_model=migdal_model,
+        )
+
+        scale = fid_mass * livetime
+        self.energy_hist *= scale
+
+        self.n_time_bins = len(self.energy_hist.bin_centers()[0])
+        e_centers = self.energy_hist.bin_centers()[1]
+        self.energies = fd.np_to_tf(e_centers)
+
+        self.array_columns = (("energy_spectrum", len(e_centers)),)
 
         super().__init__(*args, **kwargs)
