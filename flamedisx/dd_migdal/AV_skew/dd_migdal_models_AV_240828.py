@@ -45,8 +45,9 @@ pmod_fermichange =  0.00962442
 pmod_fermimu = 67.8454
 pmod_fermiwidth = 2.42731
 TI_multiplier = 0.576
-MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
-# MIG_SUPPRESSION = 1 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 1 = 0.95
+# MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
+MIG_SUPPRESSION = 1 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 1 = 0.95
+# MIG_SUPPRESSION = 0.947 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.947 = 0.90
 
 print('BCUT: %1.1f, MCUT: %1.2f'%(BCUT,MCUT))
 print('S1 MIN: %i, S1 MAX: %i, S2 MIN: %i, S2 MAX: %i'%(S1_MIN,S1_MAX,S2_MIN,S2_MAX))
@@ -55,14 +56,6 @@ print('Using NEST Interpolator: ',USE_NEST_INTERPOLATOR)
 print('pmod_fermichange: %1.3f, pmod_fermimu: %1.3f, pmod_fermiwidth: %1.3f'%(pmod_fermichange,pmod_fermimu,pmod_fermiwidth))
 print('TI_multiplier: %1.3f'%TI_multiplier)
 print('MIG_SUPPRESSION: %1.3f'%MIG_SUPPRESSION)
-
-S2WIDTHCUT = False
-if S2WIDTHCUT:
-  s2w_filetag = ''
-  print('dd_migdal_model.py: s2 10-90 width cut is 1.47 us. (accept ~90% of SS)')
-else:
-  s2w_filetag = '_s2wcut2p4us'
-  print('dd_migdal_model.py: s2 10-90 width cut is 2.40 us. (no width cut)')
 
 ###################################################################################################
 
@@ -185,9 +178,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         fd_dd_migdal.EnergySpectrumFirstSS,
         fd_dd_migdal.MakeS1S2SS)
 
-    SS_s2w_filename = './migdal_database/SS_Mig_S2Width_template'+s2w_filetag+'.npz'
     S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), SS_s2w_filename))
+        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -506,9 +498,8 @@ class NRNRSource(NRSource):
 
     no_step_dimensions = ('energy_second')
 
-    msu_s2w_filename = './migdal_database/MSU_S2Width_template'+s2w_filetag+'.npz'
     S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), msu_s2w_filename))
+        os.path.dirname(__file__), './migdal_database/MSU_IECS_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -626,20 +617,6 @@ class NRNRNRSource(NRNRSource):
         fd_dd_migdal.MakeS1S2MSU3)
 
     no_step_dimensions = ('energy_others')
-    
-    msu3_s2w_filename = './migdal_database/MSU3_S2Width_template'+s2w_filetag+'.npz'
-    S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), msu3_s2w_filename))
-
-    hist_values_S2Width = S2Width_dist['hist_values']
-    S2Width_edges = S2Width_dist['S2Width_edges']
-
-    mh_S2Width = Hist1d(bins=len(S2Width_edges) - 1).from_histogram(hist_values_S2Width, bin_edges=S2Width_edges)
-    mh_S2Width = mh_S2Width / mh_S2Width.n
-    mh_S2Width = mh_S2Width / mh_S2Width.bin_volumes()
-
-    S2Width_diff_rate = mh_S2Width * (mh_S2Width.bin_volumes()) # 240416 AV Added so sum == 1
-    S2Width_events_per_bin = mh_S2Width * mh_S2Width.bin_volumes()    
 
     def fftConvolve_nphnePDFs(self, NphNe, Nph_bw, Ne_bw, **params):
         # Energy binning
@@ -704,9 +681,8 @@ class Migdal2Source(NRNRSource):
         fd_dd_migdal.EnergySpectrumSecondMigdal2,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    SS_s2w_filename = './migdal_database/SS_Mig_S2Width_template'+s2w_filetag+'.npz'
     S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), SS_s2w_filename))
+        os.path.dirname(__file__), './migdal_database/SS_Mig_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -864,9 +840,8 @@ class MigdalMSUSource(Migdal2Source):
 
     no_step_dimensions = ('energy_others')
 
-    msu_s2w_filename = './migdal_database/MSU_S2Width_template'+s2w_filetag+'.npz'
     S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), msu_s2w_filename))
+        os.path.dirname(__file__), './migdal_database/MSU_IECS_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']
@@ -969,9 +944,8 @@ class IECSSource(Migdal2Source):
         fd_dd_migdal.EnergySpectrumSecondIE_CS,
         fd_dd_migdal.MakeS1S2Migdal)
 
-    msu_s2w_filename = './migdal_database/IE_CS_S2Width_template'+s2w_filetag+'.npz'
     S2Width_dist = np.load(os.path.join(
-        os.path.dirname(__file__), msu_s2w_filename))
+        os.path.dirname(__file__), './migdal_database/MSU_IECS_S2Width_template.npz'))
 
     hist_values_S2Width = S2Width_dist['hist_values']
     S2Width_edges = S2Width_dist['S2Width_edges']

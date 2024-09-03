@@ -38,17 +38,7 @@ o = tf.newaxis
 # KE_Spectrum='_G4_CR_Chen_pmod_20240715_12th_spline' # Chen's adjustment w/ fermi pmod - low energy correction
 # KE_Spectrum='_G4_CR_Chen_pmod_20240715_15th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim
 KE_Spectrum='_G4_CR_Chen_pmod_20240718_19th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim (best fit as of 240718)
-
-S2WIDTHCUT = False
-if S2WIDTHCUT:
-  s2w_filetag = ''
-  rdt_bintag = ''
-  print('energy_spectra.py: s2 10-90 width cut is 1.47 us. (accept ~90% of SS)')
-else:
-  s2w_filetag = '_s2wcut2p4us'
-  # s2w_bintag = ''
-  rdt_bintag = '_matchingBins'
-  print('energy_spectra.py: s2 10-90 width cut is 2.40 us. (no width cut)')
+# KE_Spectrum='_8B' # For 8B Testing ONLY
 
 print('Using KE Spectrum: %s'%KE_Spectrum)
 
@@ -59,9 +49,8 @@ class EnergySpectrumFirstMSU(fd.FirstBlock):
 
     model_functions = ('get_r_dt_diff_rate', 'get_S2Width_diff_rate')
 
-    NR_spatial_filename = '../migdal_database/NR_spatial_template'+s2w_filetag+rdt_bintag+'.npz'
     r_dt_dist = np.load(os.path.join(
-        os.path.dirname(__file__), NR_spatial_filename))
+        os.path.dirname(__file__), '../migdal_database/NR_spatial_template.npz'))
 
     r_edges = r_dt_dist['r_edges']
     dt_edges = r_dt_dist['dt_edges']
@@ -218,9 +207,8 @@ class EnergySpectrumFirstIE_CS(EnergySpectrumFirstMSU):
     #: Dummy energy spectrum of 1s
     rates_vs_energy_first = tf.ones(99, dtype=fd.float_type()) / sum(tf.ones_like(energies_first,dtype=fd.float_type()))
 
-    IECS_spatial_filename = '../migdal_database/IE_CS_spatial_template'+s2w_filetag+rdt_bintag+'.npz'
     r_dt_dist = np.load(os.path.join(
-        os.path.dirname(__file__), IECS_spatial_filename))
+        os.path.dirname(__file__), '../migdal_database/IE_CS_spatial_template.npz'))
 
     hist_values_r_dt = r_dt_dist['hist_values']
     r_edges = r_dt_dist['r_edges']
@@ -240,9 +228,8 @@ class EnergySpectrumFirstER(EnergySpectrumFirstMSU):
     energies_first = tf.cast(tf.linspace(0.01, 35., 100), fd.float_type())
     rates_vs_energy_first = tf.ones_like(energies_first, fd.float_type()) / sum(tf.ones_like(energies_first,dtype=fd.float_type()))
 
-    er_spatial_filename = '../migdal_database/ER_spatial_template'+rdt_bintag+'.npz'
     r_dt_dist = np.load(os.path.join(
-        os.path.dirname(__file__), er_spatial_filename))
+        os.path.dirname(__file__), '../migdal_database/ER_spatial_template.npz'))
 
     hist_values_r_dt = r_dt_dist['hist_values']
     r_edges = r_dt_dist['r_edges']
@@ -265,7 +252,7 @@ class EnergySpectrumSecondMSU(fd.Block):
     energies_second = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     #: Joint energy spectrum for MSU scatters. Override for other double scatters
-    MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum'+KE_Spectrum+s2w_filetag+'.pkl'
+    MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum'+KE_Spectrum+'.pkl'
     # MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), MSU2_Spectrum_filename), 'rb'))
@@ -329,7 +316,7 @@ class EnergySpectrumOthersMSU3(fd.Block):
     #: Energies from the scatters
     energies_others = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
     #: Joint energy spectrum for MSU3 scatters. Override for other triple scatters
-    MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum'+KE_Spectrum+s2w_filetag+'.pkl'
+    MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum'+KE_Spectrum+'.pkl'
     # MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), MSU3_Spectrum_filename), 'rb'))
@@ -435,7 +422,7 @@ class EnergySpectrumOthersMigdalMSU(EnergySpectrumOthersMSU3):
                             dtype=fd.float_type())
     energies_second = energies_others
     #: Joint energy spectrum for MigdalMSU scatters
-    MigMSU_Spectrum_filename = '../migdal_database/migdal_MSU_spectrum'+KE_Spectrum+s2w_filetag+'.pkl'
+    MigMSU_Spectrum_filename = '../migdal_database/migdal_MSU_spectrum'+KE_Spectrum+'.pkl'
     # MigMSU_Spectrum_filename = '../migdal_database/migdal_MSU_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), MigMSU_Spectrum_filename), 'rb'))
