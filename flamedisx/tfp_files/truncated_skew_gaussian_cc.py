@@ -136,7 +136,7 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
   def _event_shape(self):
     return tf.TensorShape([])
 
-  def _log_prob(self, x):
+  def prob(self, x):
     scale = tf.convert_to_tensor(self.scale)
     skewness = tf.convert_to_tensor(self.skewness)
     limit = tf.convert_to_tensor(self.limit)
@@ -147,17 +147,17 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
 
     minus_inf = dtype_util.as_numpy_dtype(x.dtype)(-np.inf)
     #_log_prob is used by exp(ln(x)), gradients are 1/x *e^ln(x). diverge at 0.
-    bounded_log_prob = tf.where((x > limit),
-                                minus_inf,
-                                tf.math.log(cdf_upper - cdf_lower+1e-11))
-    bounded_log_prob = tf.where(tf.math.is_nan(bounded_log_prob),
-                                minus_inf,
-                                bounded_log_prob)
-    dumping_log_prob = tf.where((x == limit),
-                                tf.math.log(1 - cdf_lower+1e-11),
-                                bounded_log_prob)
+    bounded_prob = tf.where((x > limit),
+                                0.,
+                                cdf_upper - cdf_lower+1e-11)
+    bounded_prob = tf.where(tf.math.is_nan(bounded_prob),
+                                0.,
+                                bounded_prob)
+    dumping_prob = tf.where((x == limit),
+                                1 - cdf_lower+1e-11,
+                                bounded_prob)
 
-    return dumping_log_prob
+    return dumping_prob
 
   def _parameter_control_dependencies(self, is_init):
     assertions = []
