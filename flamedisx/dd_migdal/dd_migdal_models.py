@@ -41,19 +41,34 @@ S2_MAX=2e4
 
 USE_NEST_INTERPOLATOR=False
 
+USE_PMOD=True
 pmod_fermichange =  0.00962442
 pmod_fermimu = 67.8454
 pmod_fermiwidth = 2.42731
-TI_multiplier = 0.576
-MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
-# MIG_SUPPRESSION = 1 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 1 = 0.95
+
+USE_FEXMOD=False
+Fexmod_fermichange =  48.8434
+Fexmod_fermimu =  117.391
+Fexmod_fermiwidth = 28.3927
+
+# MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
+MIG_SUPPRESSION = 1 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 1 = 0.95
 
 print('BCUT: %1.1f, MCUT: %1.2f'%(BCUT,MCUT))
 print('S1 MIN: %i, S1 MAX: %i, S2 MIN: %i, S2 MAX: %i'%(S1_MIN,S1_MAX,S2_MIN,S2_MAX))
 print('Using NEST Interpolator: ',USE_NEST_INTERPOLATOR)
 
-print('pmod_fermichange: %1.3f, pmod_fermimu: %1.3f, pmod_fermiwidth: %1.3f'%(pmod_fermichange,pmod_fermimu,pmod_fermiwidth))
-print('TI_multiplier: %1.3f'%TI_multiplier)
+if USE_FEXMOD:
+    print('Fexmod_fermichange: %1.3f, Fexmod_fermimu: %1.3f, Fexmod_fermiwidth: %1.3f'%(Fexmod_fermichange,Fexmod_fermimu,Fexmod_fermiwidth))
+    RealThomasImel = 0.0103849
+    
+if USE_PMOD:
+    print('pmod_fermichange: %1.3f, pmod_fermimu: %1.3f, pmod_fermiwidth: %1.3f'%(pmod_fermichange,pmod_fermimu,pmod_fermiwidth))
+    RealThomasImel_fac = 0.576
+    RealThomasImel = RealThomasImel_fac
+    
+    
+print('RealThomasImel: %1.3f'%RealThomasImel)
 print('MIG_SUPPRESSION: %1.3f'%MIG_SUPPRESSION)
 
 S2WIDTHCUT = False
@@ -227,16 +242,21 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         
         yp *= tf.ones_like(energies, dtype=fd.float_type())
 
-        p = yp + pmod_fermichange * 1/(tf.math.exp((pmod_fermimu-energies)/pmod_fermiwidth)+1)
+        if USE_PMOD:
+            p = yp + pmod_fermichange * 1/(tf.math.exp((pmod_fermimu-energies)/pmod_fermiwidth)+1)
+            RealThomasImel = RealThomasImel_fac * ythomas
+            
+        else:
+            p = yp
         
         Qy = 1 / ythomas /  (energies + yepsilon)**p * ( 1 - 1/(1 + (energies/zeta)**eta) )
         Ne_mean = Qy * energies
         
-        Ly = yalpha * energies**ybeta - Ne_mean
-        Nph_mean = Ly * (1 - 1/(1 + (energies/theta)**ll) )
+        LyE = yalpha * energies**ybeta - Ne_mean
+        Nph_mean = LyE * (1 - 1/(1 + (energies/theta)**ll) )
         
         ####### Calculate Ni,Ne means for Recombination Probability - AV added 240729
-        Ni_mean = 4./(ythomas*TI_multiplier)*(tf.math.exp(Ne_mean*ythomas*TI_multiplier/4.)-1)
+        Ni_mean = 4./(RealThomasImel)*(tf.math.exp(Ne_mean*RealThomasImel/4.)-1)
         Nex_mean = yalpha * energies** ybeta - Ni_mean
         p_rec = 1-Ne_mean/Ni_mean
         
@@ -246,11 +266,9 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         Fi *= tf.ones_like(energies, dtype=fd.float_type())
         Fex *= tf.ones_like(energies, dtype=fd.float_type())
         
-        Ne_fano = p_rec + (1-p_rec) * Fi
-        Ne_std = tf.sqrt(Ne_fano*Ne_mean)
-        
-        Nph_var = (Nex_mean*Fex) + (Ni_mean*p_rec*(1-p_rec)) + (p_rec**2*Ni_mean*Fi)
-        Nph_std = tf.sqrt(Nph_var)
+        if USE_FEXMOD:
+            Fex += Fexmod_fermichange * 1/(tf.math.exp((Fexmod_fermimu-energies)/Fexmod_fermiwidth)+1)  # 240909: AV added for energy dependance in Fex
+
         
         if USE_NEST_INTERPOLATOR: # Use NEST for Nph skew, Ne skew, initial_corr
             NBamp *= tf.ones_like(energies, dtype=fd.float_type())
@@ -264,10 +282,19 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
             Ne_skew = skew2D_model_param[:,5]    
             initial_corr = skew2D_model_param[:,6]
             
+            
         else: # ignores NEST interpolator function entirely
             Nph_skew = RawSkew*tf.ones_like(energies, dtype=fd.float_type())
             Ne_skew = NBamp*tf.ones_like(energies, dtype=fd.float_type())
             initial_corr = NBloc*tf.ones_like(energies, dtype=fd.float_type())
+                
+                
+      
+        Ne_fano = p_rec + (1-p_rec) * Fi
+        Ne_std = tf.sqrt(Ne_fano*Ne_mean)
+        
+        Nph_var = (Nex_mean*Fex) + (Ni_mean*p_rec*(1-p_rec)) + (p_rec**2*Ni_mean*Fi)
+        Nph_std = tf.sqrt(Nph_var)
             
             
         return Nph_mean, Ne_mean, Nph_std, Ne_std, Nph_skew, Ne_skew, initial_corr
@@ -343,8 +370,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                             tf.ones_like(s2, dtype=fd.float_type()))
 
         # return (s1_acc * s2_acc * s1s2_acc * nr_endpoint) #includes mouth cut
-        # return (s1_acc * s2_acc) # FOR TESTING ONLY
-        return (s1_acc * s2_acc * s1s2_acc) # CURRENT as of 240429
+        return (s1_acc * s2_acc) # FOR TESTING ONLY
+        # return (s1_acc * s2_acc * s1s2_acc) # CURRENT as of 240429
 
     final_dimensions = ('s1',)
     
@@ -366,6 +393,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         aCa = 1. + x_skew * bCa1 + y_skew * bCa2
         delta1 = (1. / tf.sqrt(aCa)) * bCa1
         delta2 = (1. / tf.sqrt(aCa)) * bCa2
+        
         scale1 = x_std / tf.sqrt(1. - 2 * delta1**2 / pi)
         scale2 = y_std / tf.sqrt(1. - 2 * delta2**2 / pi)
         loc1 = x_mean - scale1 * delta1 * tf.sqrt(2/pi)
