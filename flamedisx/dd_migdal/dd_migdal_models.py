@@ -39,14 +39,14 @@ S1_MAX=200
 S2_MIN=400
 S2_MAX=2e4
 
-USE_NEST_INTERPOLATOR=False
+USE_NEST_INTERPOLATOR=True
 
-USE_PMOD=True
+USE_PMOD=False
 pmod_fermichange =  0.00962442
 pmod_fermimu = 67.8454
 pmod_fermiwidth = 2.42731
 
-USE_FEXMOD=False
+USE_FEXMOD=True
 Fexmod_fermichange =  48.8434
 Fexmod_fermimu =  117.391
 Fexmod_fermiwidth = 28.3927
@@ -60,7 +60,9 @@ print('Using NEST Interpolator: ',USE_NEST_INTERPOLATOR)
 
 if USE_FEXMOD:
     print('Fexmod_fermichange: %1.3f, Fexmod_fermimu: %1.3f, Fexmod_fermiwidth: %1.3f'%(Fexmod_fermichange,Fexmod_fermimu,Fexmod_fermiwidth))
-    RealThomasImel = 0.0103849
+    RealThomasImel_fac = 0.0103849
+    RealThomasImel = RealThomasImel_fac
+    
     
 if USE_PMOD:
     print('pmod_fermichange: %1.3f, pmod_fermimu: %1.3f, pmod_fermiwidth: %1.3f'%(pmod_fermichange,pmod_fermimu,pmod_fermiwidth))
@@ -248,6 +250,7 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
             
         else:
             p = yp
+            RealThomasImel = RealThomasImel_fac
         
         Qy = 1 / ythomas /  (energies + yepsilon)**p * ( 1 - 1/(1 + (energies/zeta)**eta) )
         Ne_mean = Qy * energies
@@ -370,8 +373,8 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
                             tf.ones_like(s2, dtype=fd.float_type()))
 
         # return (s1_acc * s2_acc * s1s2_acc * nr_endpoint) #includes mouth cut
-        return (s1_acc * s2_acc) # FOR TESTING ONLY
-        # return (s1_acc * s2_acc * s1s2_acc) # CURRENT as of 240429
+        # return (s1_acc * s2_acc) # FOR TESTING ONLY
+        return (s1_acc * s2_acc * s1s2_acc) # CURRENT as of 240429
 
     final_dimensions = ('s1',)
     

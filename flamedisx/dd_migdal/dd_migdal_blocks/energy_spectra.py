@@ -37,8 +37,8 @@ o = tf.newaxis
 # KE_Spectrum='_G4_CR_Chen_pmod_240710_8th' # Chen's adjustment w/ fermi pmod
 # KE_Spectrum='_G4_CR_Chen_pmod_20240715_12th_spline' # Chen's adjustment w/ fermi pmod - low energy correction
 # KE_Spectrum='_G4_CR_Chen_pmod_20240715_15th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim
-KE_Spectrum='_G4_CR_Chen_pmod_20240718_19th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim (best fit as of 240718)
-# KE_Spectrum='_v22_Fmod' # Chen's adjustment w/ fermi Fexmod - low energy correction - no low S1 cut in sim (best fit as of 240909)
+# KE_Spectrum='_G4_CR_Chen_pmod_20240718_19th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim (best fit as of 240718)
+KE_Spectrum='_v22_Fmod' # Chen's adjustment w/ fermi Fexmod - low energy correction - no low S1 cut in sim (best fit as of 240909)
 
 S2WIDTHCUT = False
 if S2WIDTHCUT:
