@@ -356,7 +356,40 @@ class LZNRSource(LZSource, fd.nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
         super().__init__(*args, **kwargs)
+    def mean_yield_electron(self, energy,*args):
+        #Refactored to take constants from lzlama !397
+        er_m1=12.4886
+        er_m2=85.0
+        er_m3=0.6050
+        er_m4= 2.14687
+        er_m5=25.721
+        er_m6=-1.0
+        er_m7=59.651,
+        er_m8=3.6869
+        er_m9=0.2872
+        er_m10=0.1121
+        Wq_eV = self.Wq_keV * 1e3
 
+        Nq = energy * 1e3 / Wq_eV       
+
+
+        Qy = m1 + (m2 - m1) / pow((1. + pow(energy /m3,m4)),m9) + \
+            m5 + (m6 - m5) / pow((1. + pow(energy /m7, m8)), m10)
+
+        coeff_TI = tf.cast(pow(1. / XENON_REF_DENSITY, 0.3), fd.float_type())
+        coeff_Ni = tf.cast(pow(1. / XENON_REF_DENSITY, 1.4), fd.float_type())
+        coeff_OL = tf.cast(pow(1. / XENON_REF_DENSITY, -1.7) /
+                           fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
+
+        Qy *= coeff_OL * fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7)
+
+        nel_temp = Qy * energy
+        # Don't let number of electrons go negative
+        nel = tf.where(nel_temp < 0,
+                       0 * nel_temp,
+                       nel_temp)
+
+        return nel
 
 ##
 # Calibration sources
