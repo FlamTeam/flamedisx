@@ -22,7 +22,7 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default', 'lz')
+        assert detector in ('default', 'lz','lz_SR3')
 
         self.detector = detector
 
@@ -218,7 +218,7 @@ class nestERSource(nestSource):
 
     # quanta_splitting.py
 
-    def mean_yield_electron(self, energy,*args):
+    def mean_yield_electron(self, energy):
         #NEED TO REFACTOR IN TERMS OF M1,M2...,M10 ignoring functional forms
         er_m1_a=30.66
         er_m1_b=6.1978
@@ -331,7 +331,7 @@ class nestERSource(nestSource):
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
         skewness_masked = tf.multiply(skewness, tf.cast(mask_product, fd.float_type()))
 
-        if self.detector == 'lz':
+        if self.detector in ['lz','lz_SR3']:
             skewness_masked = tf.zeros_like(nq_mean, dtype=fd.float_type())
 
         return skewness_masked
@@ -342,7 +342,7 @@ class nestERSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        if self.detector == 'lz':
+        if self.detector in ['lz','lz_SR3']:
             er_free_b = 0.04311#0.046452
         else:
             er_free_b = 0.0553
@@ -399,7 +399,7 @@ class nestNRSource(nestSource):
 
     # quanta_splitting.py
 
-    def mean_yields(self, energy,*args):
+    def mean_yields(self, energy):
         nr_nuis_alpha = 10.36
         nr_nuis_beta = 1.11
         nr_nuis_gamma = 0.0494
@@ -452,7 +452,7 @@ class nestNRSource(nestSource):
         return nel, nq, ex_ratio
 
     def yield_fano(self, nq_mean):
-        if self.detector == 'lz':
+        if self.detector in ['lz','lz_SR3']:
             nr_free_a = 0.375
             nr_free_b = 0.367
         else:
@@ -480,7 +480,7 @@ class nestNRSource(nestSource):
         recomb_p = args[2]
         ni = args[3]
 
-        if self.detector == 'lz':
+        if self.detector in ['lz','lz_SR3']:
             nr_free_c = 0.0412
         else:
             nr_free_c = 0.1

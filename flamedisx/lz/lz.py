@@ -64,10 +64,10 @@ def build_position_map_from_data(map_file, axis_names, bins):
 
 
 class LZSource:
-    path_s1_corr_LZAP = 'sr1/s1_map_22Apr22.json'
-    path_s2_corr_LZAP = 'sr1/s2_map_30Mar22.json'
-    path_s1_corr_latest = 'sr1/s1_map_latest.json'
-    path_s2_corr_latest = 'sr1/s2_map_latest.json'
+    path_s1_corr_LZAP = 'new_data/s1Area_Correction_TPC_SR3_06Apr23.json'
+    path_s2_corr_LZAP = 'new_data/s2Area_Correction_TPC_SR3_06Apr23.json'
+    path_s1_corr_latest = 'new_data/s1Area_Correction_TPC_SR3_radon_31Jan2024.json'
+    path_s2_corr_latest = 'new_data/s2Area_Correction_TPC_SR3_radon_31Jan2024.json'
 
     path_s1_acc_curve = 'sr1/cS1_acceptance_curve.pkl'
     path_s2_acc_curve = 'sr1/cS2_acceptance_curve.pkl'
@@ -77,7 +77,7 @@ class LZSource:
 
         self.cap_upper_cs1 = cap_upper_cs1
 
-        assert kwargs['detector'] in ('lz',)
+        assert kwargs['detector'] in ('lz_SR3',)
 
         assert os.path.exists(os.path.join(
             os.path.dirname(__file__), '../nest/config/', kwargs['detector'] + '.ini'))
@@ -330,9 +330,9 @@ class LZSource:
 class LZERSource(LZSource, fd.nest.nestERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
-    def mean_yield_electron(self, energy,*args):
+    def mean_yield_electron(self, energy):
         #Refactored to take constants from lzlama !397
         er_m1=12.4886
         er_m2=85.0
@@ -371,7 +371,7 @@ class LZERSource(LZSource, fd.nest.nestERSource):
 class LZGammaSource(LZSource, fd.nest.nestGammaSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -379,7 +379,7 @@ class LZGammaSource(LZSource, fd.nest.nestGammaSource):
 class LZERGammaWeightedSource(LZSource, fd.nest.nestERGammaWeightedSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -387,7 +387,7 @@ class LZERGammaWeightedSource(LZSource, fd.nest.nestERGammaWeightedSource):
 class LZNRSource(LZSource, fd.nest.nestNRSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -406,7 +406,7 @@ class LZCH3TSource(LZSource, fd.nest.CH3TSource):
 
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
     @staticmethod
@@ -424,7 +424,7 @@ class LZDDSource(LZSource, fd.nest.DDSource):
 
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
     @staticmethod
@@ -441,7 +441,7 @@ class LZDDSource(LZSource, fd.nest.DDSource):
 class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -449,7 +449,7 @@ class LZWIMPSource(LZSource, fd.nest.nestWIMPSource):
 class LZFermionicDMSource(LZSource, fd.nest.FermionicDMSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -462,7 +462,7 @@ class LZFermionicDMSource(LZSource, fd.nest.FermionicDMSource):
 class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
 
         if bins is None:
             bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=21)),
@@ -478,7 +478,7 @@ class LZPb214Source(LZSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSour
 class LZDetERSource(LZSource, fd.nest.DetERSource, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
 
         mh = fd.get_lz_file('DetER_spatial_map_hist.pkl')
         self.spatial_hist = mh
@@ -490,7 +490,7 @@ class LZDetERSource(LZSource, fd.nest.DetERSource, fd.nest.nestSpatialRateERSour
 class LZBetaSource(LZSource, fd.nest.BetaSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -498,7 +498,7 @@ class LZBetaSource(LZSource, fd.nest.BetaSource):
 class LZXe136Source(LZSource, fd.nest.Xe136Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -506,7 +506,7 @@ class LZXe136Source(LZSource, fd.nest.Xe136Source):
 class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
     def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
 
         if amplitude is None:
             self.amplitude = 2. * 0.01671
@@ -530,7 +530,7 @@ class LZvERSource(LZSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillati
 class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
     def __init__(self, *args, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
 
         if time_constant_ns is None:
             self.time_constant_ns = (35.0 / np.log(2)) * 1e9 * 3600. * 24.
@@ -544,7 +544,7 @@ class LZAr37Source(LZSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayER
 class LZXe124Source(LZSource, fd.nest.Xe124Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -552,7 +552,7 @@ class LZXe124Source(LZSource, fd.nest.Xe124Source):
 class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRateDecayERSource):
     def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
 
         if bins is None:
             bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
@@ -573,7 +573,7 @@ class LZXe127Source(LZSource, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRa
 class LZB8Source(LZSource, fd.nest.B8Source, fd.nest.nestTemporalRateOscillationNRSource):
     def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
 
         if amplitude is None:
             self.amplitude = 2. * 0.01671
@@ -600,7 +600,7 @@ class LZDetNRSource(LZSource, fd.nest.nestSpatialRateNRSource):
 
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
 
         df_DetNR = fd.get_lz_file('DetNR_spectrum.pkl')
 
@@ -745,7 +745,7 @@ class LZAccidentalsSource(fd.TemplateSource):
 class LZERSourceGroup(LZSource, fd.nest.nestERSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -753,7 +753,7 @@ class LZERSourceGroup(LZSource, fd.nest.nestERSourceGroup):
 class LZERGammaWeightedSourceGroup(LZSource, fd.nest.nestERGammaWeightedSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
 
 
@@ -761,5 +761,5 @@ class LZERGammaWeightedSourceGroup(LZSource, fd.nest.nestERGammaWeightedSourceGr
 class LZNRSourceGroup(LZSource, fd.nest.nestNRSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
+            kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
