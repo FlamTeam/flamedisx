@@ -64,15 +64,15 @@ def build_position_map_from_data(map_file, axis_names, bins):
 
 
 class LZSource:
-    path_s1_corr_LZAP = 's1_map_22Apr22.json'
-    path_s2_corr_LZAP = 's2_map_30Mar22.json'
-    path_s1_corr_latest = 's1_map_latest.json'
-    path_s2_corr_latest = 's2_map_latest.json'
+    path_s1_corr_LZAP = 'sr1/s1_map_22Apr22.json'
+    path_s2_corr_LZAP = 'sr1/s2_map_30Mar22.json'
+    path_s1_corr_latest = 'sr1/s1_map_latest.json'
+    path_s2_corr_latest = 'sr1/s2_map_latest.json'
 
-    path_s1_acc_curve = 'cS1_acceptance_curve.pkl'
-    path_s2_acc_curve = 'cS2_acceptance_curve.pkl'
+    path_s1_acc_curve = 'sr1/cS1_acceptance_curve.pkl'
+    path_s2_acc_curve = 'sr1/cS2_acceptance_curve.pkl'
 
-    def __init__(self, *args, ignore_maps_acc=False, cap_upper_cs1=False, **kwargs):
+    def __init__(self, *args, ignore_maps=False, ignore_acc=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.cap_upper_cs1 = cap_upper_cs1
@@ -91,47 +91,47 @@ class LZSource:
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
 
-        if ignore_maps_acc:
+        if ignore_acc:
             self.ignore_acceptances = True
 
+            self.cs1_acc_domain = None
+            self.log10_cs2_acc_domain = None
+        else:
+            try:
+                df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve)
+                df_S2_acc =fd.get_lz_file(self.path_s2_acc_curve)
+
+                self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction)  # phd to phe
+                self.cs1_acc_curve = df_S1_acc['cS1_acceptance'].values
+
+                self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + \
+                    np.log10(1 + self.double_pe_fraction)  # log_10(phd) to log_10(phe)
+                self.log10_cs2_acc_curve = df_S2_acc['cS2_acceptance'].values
+            except Exception:
+                print("Could not load acceptance curves; setting to 1")
+
+                self.cs1_acc_domain = None
+                self.log10_cs2_acc_domain = None
+
+        if ignore_maps:
             self.s1_map_LZAP = None
             self.s2_map_LZAP = None
             self.s1_map_latest = None
             self.s2_map_latest = None
+        else:
+            try:
+                self.s1_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_LZAP))
+                self.s2_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_LZAP))
+                self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest))
+                self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest))
+            except Exception:
+                print("Could not load maps; setting position corrections to 1")
+                self.s1_map_LZAP = None
+                self.s2_map_LZAP = None
+                self.s1_map_latest = None
+                self.s2_map_latest = None
 
-            self.cs1_acc_domain = None
-            self.log10_cs2_acc_domain = None
-
-            return
-
-        try:
-            self.s1_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_LZAP))
-            self.s2_map_LZAP = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_LZAP))
-            self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest))
-            self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest))
-        except Exception:
-            print("Could not load maps; setting position corrections to 1")
-            self.s1_map_LZAP = None
-            self.s2_map_LZAP = None
-            self.s1_map_latest = None
-            self.s2_map_latest = None
-
-        try:
-            df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve)
-            df_S2_acc =fd.get_lz_file(self.path_s2_acc_curve)
-
-            self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction)  # phd to phe
-            self.cs1_acc_curve = df_S1_acc['cS1_acceptance'].values
-
-            self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + \
-                np.log10(1 + self.double_pe_fraction)  # log_10(phd) to log_10(phe)
-            self.log10_cs2_acc_curve = df_S2_acc['cS2_acceptance'].values
-        except Exception:
-            print("Could not load acceptance curves; setting to 1")
-
-            self.cs1_acc_domain = None
-            self.log10_cs2_acc_domain = None
-
+       
     @staticmethod
     def photon_detection_eff(z, *, g1=0.1122):
         return g1 * tf.ones_like(z)
@@ -332,30 +332,6 @@ class LZERSource(LZSource, fd.nest.nestERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz'
         super().__init__(*args, **kwargs)
-
-
-@export
-class LZGammaSource(LZSource, fd.nest.nestGammaSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
-        super().__init__(*args, **kwargs)
-
-
-@export
-class LZERGammaWeightedSource(LZSource, fd.nest.nestERGammaWeightedSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
-        super().__init__(*args, **kwargs)
-
-
-@export
-class LZNRSource(LZSource, fd.nest.nestNRSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz'
-        super().__init__(*args, **kwargs)
     def mean_yield_electron(self, energy,*args):
         #Refactored to take constants from lzlama !397
         er_m1=12.4886
@@ -390,6 +366,30 @@ class LZNRSource(LZSource, fd.nest.nestNRSource):
                        nel_temp)
 
         return nel
+
+@export
+class LZGammaSource(LZSource, fd.nest.nestGammaSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZERGammaWeightedSource(LZSource, fd.nest.nestERGammaWeightedSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZNRSource(LZSource, fd.nest.nestNRSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz'
+        super().__init__(*args, **kwargs)
+
 
 ##
 # Calibration sources
