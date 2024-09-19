@@ -92,6 +92,7 @@ class LZSource:
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
 
         if ignore_acc:
+            print("ignoring acceptances")
             self.ignore_acceptances = True
 
             self.cs1_acc_domain = None
@@ -114,6 +115,7 @@ class LZSource:
                 self.log10_cs2_acc_domain = None
 
         if ignore_maps:
+            print("ingoring LCE maps")
             self.s1_map_LZAP = None
             self.s2_map_LZAP = None
             self.s1_map_latest = None
@@ -175,7 +177,8 @@ class LZSource:
                               tf.zeros_like(s1, dtype=fd.float_type()))  # if false
 
         # multiplying by efficiency curve
-        acceptance *= cs1_acc_curve
+        if not self.ignore_acceptances:
+            acceptance *= cs1_acc_curve
 
         return acceptance
 
@@ -188,7 +191,8 @@ class LZSource:
                               tf.zeros_like(s2, dtype=fd.float_type()))  # if false
 
         # multiplying by efficiency curve
-        acceptance *= cs2_acc_curve
+        if not self.ignore_acceptances:
+            acceptance *= cs2_acc_curve
 
         # We will insert the FV acceptance here
         acceptance *= fv_acceptance

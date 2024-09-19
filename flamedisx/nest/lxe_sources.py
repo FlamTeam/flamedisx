@@ -400,19 +400,19 @@ class nestNRSource(nestSource):
     # quanta_splitting.py
 
     def mean_yields(self, energy):
-        nr_nuis_alpha = 10.36
+        nr_nuis_alpha = 10.19
         nr_nuis_beta = 1.11
-        nr_nuis_gamma = 0.0494
+        nr_nuis_gamma = 0.0498
         nr_nuis_delta = -0.0533
-        nr_nuis_epsilon = 11.35
-        nr_nuis_zeta =  0.3364
-        nr_nuis_eta = 2.324
-        nr_nuis_theta = 0.3238
-        nr_nuis_l = 2.371
-        nr_nuis_p = 0.517
-        nr_new_nuis_a = 0.997
-        nr_new_nuis_b =  0.998
-
+        nr_nuis_epsilon = 12.46
+        nr_nuis_zeta =  0.2942
+        nr_nuis_eta = 1.899
+        nr_nuis_theta = 0.3197
+        nr_nuis_l = 2.066
+        nr_nuis_p = 0.509
+        nr_new_nuis_a = 0.996
+        nr_new_nuis_b =  0.999
+ 
         TIB = nr_nuis_gamma * tf.math.pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
         Qy = 1. / (TIB * tf.math.pow(energy + nr_nuis_epsilon, nr_nuis_p))
         Qy *= (1. - (1. / tf.math.pow(1. + tf.math.pow(tf.math.divide_no_nan(energy , nr_nuis_zeta), nr_nuis_eta), nr_new_nuis_a)))
@@ -453,8 +453,8 @@ class nestNRSource(nestSource):
 
     def yield_fano(self, nq_mean):
         if self.detector in ['lz','lz_SR3']:
-            nr_free_a = 0.375
-            nr_free_b = 0.367
+            nr_free_a = 0.404
+            nr_free_b = 0.393
         else:
             nr_free_a = 1.
             nr_free_b = 1.
@@ -466,7 +466,7 @@ class nestNRSource(nestSource):
 
     @staticmethod
     def skewness(nq_mean):
-        nr_free_f =  2.335
+        nr_free_f =  2.220
 
         mask = tf.less(nq_mean, 1e4 * tf.ones_like(nq_mean))
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * nr_free_f
@@ -481,11 +481,11 @@ class nestNRSource(nestSource):
         ni = args[3]
 
         if self.detector in ['lz','lz_SR3']:
-            nr_free_c = 0.0412
+            nr_free_c = 0.0383
         else:
             nr_free_c = 0.1
-        nr_free_d = 0.479
-        nr_free_e =  0.1709
+        nr_free_d = 0.497
+        nr_free_e =  0.1906
 
         elec_frac = nel_mean / nq_mean
 
