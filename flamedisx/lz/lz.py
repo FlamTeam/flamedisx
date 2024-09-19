@@ -229,7 +229,7 @@ class LZSource:
             d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
 
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
-            d['electron_lifetime'] = self.get_elife(d['event_time'].values)
+            d['electron_lifetime'] = self.elife#self.get_elife(d['event_time'].values)
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
@@ -292,8 +292,8 @@ class LZSource:
 
             radius_cm = d['r'].values
 
-            accept_upper_drift_time = np.where(drift_time_us < 936.5, 1., 0.)
-            accept_lower_drift_time = np.where(drift_time_us > 86., 1., 0.)
+            accept_upper_drift_time = np.where(drift_time_us < 960.5, 1., 0.)
+            accept_lower_drift_time = np.where(drift_time_us > 71., 1., 0.)
             accept_radial = np.where(radius_cm < boundaryR, 1., 0.)
 
             d['fv_acceptance'] = accept_upper_drift_time * accept_lower_drift_time * accept_radial
@@ -338,16 +338,16 @@ class LZERSource(LZSource, fd.nest.nestERSource):
         super().__init__(*args, **kwargs)
     def mean_yield_electron(self, energy):
         #Refactored to take constants from lzlama !397
-        er_m1=12.4886
-        er_m2=85.0
-        er_m3=0.6050
-        er_m4= 2.14687
-        er_m5=25.721
-        er_m6=-1.0
-        er_m7=59.651,
-        er_m8=3.6869
-        er_m9=0.2872
-        er_m10=0.1121
+        m1=12.4886
+        m2=85.0
+        m3=0.6050
+        m4= 2.14687
+        m5=25.721
+        m6=-1.0
+        m7=59.651,
+        m8=3.6869
+        m9=0.2872
+        m10=0.1121
         Wq_eV = self.Wq_keV * 1e3
 
         Nq = energy * 1e3 / Wq_eV       
@@ -716,7 +716,7 @@ class LZAccidentalsSource(fd.TemplateSource):
         lz_source = LZERSource()
 
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
-            d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
+            d['electron_lifetime'] =self.elife # lz_source.get_elife(d['event_time'].values)
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_LZAP']
