@@ -64,8 +64,8 @@ def build_position_map_from_data(map_file, axis_names, bins):
 
 
 class LZSource:
-    path_s1_corr_LZAP = 'new_data/s1Area_Correction_TPC_SR3_06Apr23.json'
-    path_s2_corr_LZAP = 'new_data/s2Area_Correction_TPC_SR3_06Apr23.json'
+    path_s1_corr_LZAP = 'new_data/s1Area_Correction_TPC_SR3_radon_31Jan2024.json'#'new_data/s1Area_Correction_TPC_SR3_06Apr23.json'
+    path_s2_corr_LZAP = 'new_data/s2Area_Correction_TPC_SR3_radon_31Jan2024.json'#'new_data/s2Area_Correction_TPC_SR3_06Apr23.json'
     path_s1_corr_latest = 'new_data/s1Area_Correction_TPC_SR3_radon_31Jan2024.json'
     path_s2_corr_latest = 'new_data/s2Area_Correction_TPC_SR3_radon_31Jan2024.json'
 
@@ -340,40 +340,7 @@ class LZERSource(LZSource, fd.nest.nestERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_SR3'
         super().__init__(*args, **kwargs)
-    def mean_yield_electron(self, energy):
-        #Refactored to take constants from lzlama !397
-        m1=12.4886
-        m2=85.0
-        m3=0.6050
-        m4= 2.14687
-        m5=25.721
-        m6=-1.0
-        m7=59.651,
-        m8=3.6869
-        m9=0.2872
-        m10=0.1121
-        Wq_eV = self.Wq_keV * 1e3
-
-        Nq = energy * 1e3 / Wq_eV       
-
-
-        Qy = m1 + (m2 - m1) / pow((1. + pow(energy /m3,m4)),m9) + \
-            m5 + (m6 - m5) / pow((1. + pow(energy /m7, m8)), m10)
-
-        coeff_TI = tf.cast(pow(1. / XENON_REF_DENSITY, 0.3), fd.float_type())
-        coeff_Ni = tf.cast(pow(1. / XENON_REF_DENSITY, 1.4), fd.float_type())
-        coeff_OL = tf.cast(pow(1. / XENON_REF_DENSITY, -1.7) /
-                           fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
-
-        Qy *= coeff_OL * fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7)
-
-        nel_temp = Qy * energy
-        # Don't let number of electrons go negative
-        nel = tf.where(nel_temp < 0,
-                       0 * nel_temp,
-                       nel_temp)
-
-        return nel
+    
 
 @export
 class LZGammaSource(LZSource, fd.nest.nestGammaSource):
