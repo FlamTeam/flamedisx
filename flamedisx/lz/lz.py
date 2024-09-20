@@ -329,6 +329,10 @@ class LZSource:
 # Different interaction types: flat spectra
 ##
 
+GAS_CONSTANT = 8.314
+N_AVAGADRO = 6.0221409e23
+A_XENON = 131.293
+XENON_REF_DENSITY = 2.90
 
 @export
 class LZERSource(LZSource, fd.nest.nestERSource):
@@ -671,7 +675,7 @@ class LZAccidentalsSource(fd.TemplateSource):
         df = df.join(df_time)
 
         lz_source.add_extra_columns(df)
-        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+        df['acceptance'] = np.ones_like(df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values)
 
         df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
         df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
