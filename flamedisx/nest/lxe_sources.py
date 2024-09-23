@@ -385,9 +385,10 @@ class nestERSource(nestSource):
 
         elec_frac = nel_mean / nq_mean
         ampl = er_free_b
-        # tf.cast(0.086036 + (er_free_b - 0.086036) /
-        #                pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
-        #                fd.float_type())
+        
+        ampl =  tf.cast(0.086036 + (er_free_b - 0.086036) /
+                       pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
+                       fd.float_type()) 
         wide = er_free_c
         cntr = er_free_d
         skew = er_free_e
