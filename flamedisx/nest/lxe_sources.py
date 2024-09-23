@@ -332,7 +332,7 @@ class nestERSource(nestSource):
         er_free_a = 0.3#0.0015
         Fano = 0.12707 - 0.029623 * self.density - 0.0057042 * pow(self.density, 2.) + 0.0015957 * pow(self.density, 3.)
 
-        return Fano + er_free_a * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
+        return tf.constant(er_free_a,tf.float32) #Fano + er_free_a * tf.sqrt(nq_mean) * pow(self.drift_field, 0.5)
 
     def exciton_ratio(self, energy):
         return self.alpha * tf.math.erf(0.05 * energy)
@@ -384,9 +384,10 @@ class nestERSource(nestSource):
         er_free_e = -0.26564#-0.2
 
         elec_frac = nel_mean / nq_mean
-        ampl = tf.cast(0.086036 + (er_free_b - 0.086036) /
-                       pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
-                       fd.float_type())
+        ampl = er_free_b
+        # tf.cast(0.086036 + (er_free_b - 0.086036) /
+        #                pow((1. + pow(self.drift_field / 295.2, 251.6)), 0.0069114),
+        #                fd.float_type())
         wide = er_free_c
         cntr = er_free_d
         skew = er_free_e
