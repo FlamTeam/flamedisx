@@ -72,7 +72,7 @@ class LZSource:
     path_s1_acc_curve = 'sr1/cS1_acceptance_curve.pkl'
     path_s2_acc_curve = 'sr1/cS2_acceptance_curve.pkl'
 
-    def __init__(self, *args, ignore_maps=False, ignore_acc=False, cap_upper_cs1=False, **kwargs):
+    def __init__(self, *args, ignore_maps=False, ignore_acc_maps=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.cap_upper_cs1 = cap_upper_cs1
@@ -91,9 +91,9 @@ class LZSource:
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
 
-        if ignore_acc:
+        if ignore_acc_maps:
             print("ignoring acceptances")
-            self.ignore_acceptances = True
+            self.ignore_acceptances_maps = True
 
             self.cs1_acc_domain = None
             self.log10_cs2_acc_domain = None
@@ -177,7 +177,7 @@ class LZSource:
                               tf.zeros_like(s1, dtype=fd.float_type()))  # if false
 
         # multiplying by efficiency curve
-        if not self.ignore_acceptances:
+        if not self.ignore_acceptances_maps:
             acceptance *= cs1_acc_curve
 
         return acceptance
@@ -191,7 +191,7 @@ class LZSource:
                               tf.zeros_like(s2, dtype=fd.float_type()))  # if false
 
         # multiplying by efficiency curve
-        if not self.ignore_acceptances:
+        if not self.ignore_acceptances_maps:
             acceptance *= cs2_acc_curve
 
         # We will insert the FV acceptance here
@@ -296,7 +296,7 @@ class LZSource:
             accept_lower_drift_time = np.where(drift_time_us > 71., 1., 0.)
             accept_radial = np.where(radius_cm < boundaryR, 1., 0.)
 
-            d['fv_acceptance'] = accept_upper_drift_time * accept_lower_drift_time * accept_radial
+            d['fv_acceptance'] =np.ones_like(accept_upper_drift_time * accept_lower_drift_time * accept_radial)
 
         if 'resistor_acceptance' not in d.columns:
             x = d['x'].values
@@ -311,7 +311,7 @@ class LZSource:
             not_inside_res1 = np.where(np.sqrt( (x-res1X)*(x-res1X) + (y-res1Y)*(y-res1Y) ) < res1R, 0., 1.)
             not_inside_res2 = np.where(np.sqrt( (x-res2X)*(x-res2X) + (y-res2Y)*(y-res2Y) ) < res2R, 0., 1.)
 
-            d['resistor_acceptance'] = not_inside_res1 * not_inside_res2
+            d['resistor_acceptance'] = np.ones_like(not_inside_res1 * not_inside_res2)
 
         if 'timestamp_acceptance' not in d.columns:
             t_start = pd.to_datetime('2021-12-23T09:37:51')
@@ -322,7 +322,7 @@ class LZSource:
             not_inside_window1 = np.where((days_since_start >= 25.5) & (days_since_start <= 33.), 0., 1.)
             not_inside_window2 = np.where((days_since_start >= 90.) & (days_since_start <= 93.5), 0., 1.)
 
-            d['timestamp_acceptance'] = not_inside_window1 * not_inside_window2
+            d['timestamp_acceptance'] =np.ones_like( not_inside_window1 * not_inside_window2)
 
 
 ##

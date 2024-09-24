@@ -209,7 +209,7 @@ class EnergySpectrum(fd.FirstBlock):
             else:
                 raise ValueError("When fixing position, give (x, y, z), "
                                  "or (r, theta, z).")
-            data=apply_drift_map(data,self.drift_map,None,self.z_topDrift, self.drift_velocity)
+            d=apply_drift_map(d,self.drift_map,None,self.z_topDrift, self.drift_velocity)
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
             raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
