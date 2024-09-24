@@ -10,7 +10,23 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-
+def apply_drift_map(data,drift_map,s2x_map,z_topDrift,drift_velocity):
+    #Replace with drift-time map
+    if drift_map is not None:
+        print("using drift-map")
+        data['drift_time']=drift_map(np.array([data['r'],data['z']]).T)
+    elif s2x_map is not None:
+        #leave this in for now
+        print("using S2x map")
+        costheta=data['x']/data['r']
+        sinetheta=data['y']/data['r']
+        data['s2x']=drift_map(np.array([data['r'],data['z']]).T)
+        data['x']=data['s2x']*costheta
+        data['y']=data['s2x']*sinetheta
+    else: 
+        print("using linear relation")
+        data['drift_time'] = (z_topDrift-data['z']) / drift_velocity
+    return data
 @export
 class EnergySpectrum(fd.FirstBlock):
     dimensions = ('energy',)
@@ -18,7 +34,7 @@ class EnergySpectrum(fd.FirstBlock):
         'energies',
         'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
-        't_start', 't_stop')
+        't_start', 't_stop','drift_map')
 
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
@@ -32,6 +48,8 @@ class EnergySpectrum(fd.FirstBlock):
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
+    #drift map variabls
+    drift_map=None
 
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
@@ -114,7 +132,8 @@ class EnergySpectrum(fd.FirstBlock):
                                       size=n_events)
         data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
 
-        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
+        #Replace with drift-time map
+        data=apply_drift_map(data,self.drift_map,None,self.z_topDrift, self.drift_velocity)
         return data
 
     def draw_time(self, n_events, **params):
@@ -190,7 +209,7 @@ class EnergySpectrum(fd.FirstBlock):
             else:
                 raise ValueError("When fixing position, give (x, y, z), "
                                  "or (r, theta, z).")
-            d['drift_time'] = (self.z_topDrift-d['z']) / self.drift_velocity
+            data=apply_drift_map(data,self.drift_map,None,self.z_topDrift, self.drift_velocity)
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
             raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
@@ -348,7 +367,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         else:
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
-        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
+        data=apply_drift_map(data,self.drift_map,None,self.z_topDrift, self.drift_velocity)
         return data
 
 

@@ -7,7 +7,8 @@ import pickle as pkl
 
 import flamedisx as fd
 from .. import nest as fd_nest
-
+import numpy as np
+from scipy import interpolate
 import math as m
 pi = tf.constant(m.pi)
 
@@ -21,8 +22,13 @@ XENON_REF_DENSITY = 2.90
 
 
 class nestSource(fd.BlockModelSource):
-    def __init__(self, *args, detector='default', **kwargs):
+    def __init__(self, *args, detector='default',drift_map_path=None, **kwargs):
         assert detector in ('default', 'lz','lz_SR3')
+        
+        if drift_map_path is not None:
+            print("Loading in Drift map:\n",drift_map_path)
+            drift_map=np.loadtxt(drift_map_path,delimiter=',').T
+            self.drift_map=interpolate.LinearNDInterpolator(drift_map[:2].T/10,drift_map[3]*1e3)
 
         self.detector = detector
 
