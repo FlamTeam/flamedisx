@@ -230,7 +230,7 @@ class nestERSource(nestSource):
         m3=0.6050
         m4= 2.14687
         m5=25.721
-        m6=-1.0
+        m6=0. #-1.0 #<--- not used
         m7=59.651
         m8=3.6869
         m9=0.2872
@@ -238,7 +238,6 @@ class nestERSource(nestSource):
         Wq_eV = self.Wq_keV * 1e3
 
         Nq = energy * 1e3 / Wq_eV       
-
 
         Qy = m1 + (m2 - m1) / pow((1. + pow(energy /m3,m4)),m9) + \
             m5 + (m6 - m5) / pow((1. + pow(energy /m7, m8)), m10)
