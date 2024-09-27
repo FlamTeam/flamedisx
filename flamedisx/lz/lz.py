@@ -22,6 +22,45 @@ export, __all__ = fd.exporter()
 # Useful functions
 ##
 
+from scipy.interpolate import RegularGridInterpolator
+## Interpolate S2 splitting efficiency 
+
+def SR3S2splittingReconEff(S2c, driftTime_us, hist,weird=False):    
+    ## Make values more python friendly
+    weights = np.reshape(hist[0], hist[0].size)
+    zmax =  np.max(weights)
+    zmin = np.min(weights[weights>0.])
+    ## Read into interpolator
+    xentries_vals = np.array(hist[1][:-1])
+    yentries_vals = np.array(hist[2][:-1])
+    Interp = RegularGridInterpolator((xentries_vals,yentries_vals), hist[0])
+    
+    ## Convert S2c to mean N_e
+    mean_SE_area = 44.5 # phd/e-
+    mean_Ne = S2c/mean_SE_area
+
+    ## Initialize acceptance values
+    acceptance = np.ones_like(mean_Ne)
+    ## curves not defined for above 100 e- 
+    ## Assume 100% eff. (probably ok...)
+    acceptance[mean_Ne>np.max(xentries_vals)] = 1.
+    ## Also not defined for < 10e-
+    ## ok with 15e- ROI threshold
+    acceptance[mean_Ne<np.min(xentries_vals)] = 0.
+    
+    temp_drift = driftTime_us
+    temp_drift[temp_drift<np.min(yentries_vals)] = np.min(yentries_vals)
+    temp_drift[temp_drift>np.max(yentries_vals)] = np.max(yentries_vals)
+    
+    mask = (mean_Ne>=np.min(xentries_vals)) & (mean_Ne<=np.max(xentries_vals))
+    ## Acceptances are provided in percent - divide by 100.
+    acceptance[mask] = Interp(np.vstack([mean_Ne[mask],temp_drift[mask]]).T)/100.
+    
+    
+    return acceptance
+
+
+
 
 def interpolate_acceptance(arg, domain, acceptances):
     """ Function to interpolate signal acceptance curves
@@ -69,9 +108,9 @@ class LZSource:
     path_s1_corr_latest = 'new_data/s1Area_Correction_TPC_SR3_radon_31Jan2024.json'
     path_s2_corr_latest = 'new_data/s2Area_Correction_TPC_SR3_radon_31Jan2024.json'
 
-    path_s1_acc_curve = 'sr1/cS1_acceptance_curve.pkl'
-    path_s2_acc_curve = 'sr1/cS2_acceptance_curve.pkl'
-
+    path_s1_acc_curve = 'new_data/cS1_acceptance_curve.pkl'
+    # path_s2_acc_curve = 'sr1/cS2_acceptance_curve.pkl' Not used
+    path_s2_splitting_curve='new_data/WS2024_S2splittingReconEff_mean.pkl'
     def __init__(self, *args, ignore_maps=False, ignore_acc_maps=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -96,23 +135,26 @@ class LZSource:
             self.ignore_acceptances_maps = True
 
             self.cs1_acc_domain = None
-            self.log10_cs2_acc_domain = None
+            self.cS2_drift_acceptance_hist = None
+            
         else:
             try:
                 df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve)
-                df_S2_acc =fd.get_lz_file(self.path_s2_acc_curve)
+                # df_S2_acc =fd.get_lz_file(self.path_s2_acc_curve)
 
                 self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction)  # phd to phe
                 self.cs1_acc_curve = df_S1_acc['cS1_acceptance'].values
-
-                self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + \
-                    np.log10(1 + self.double_pe_fraction)  # log_10(phd) to log_10(phe)
-                self.log10_cs2_acc_curve = df_S2_acc['cS2_acceptance'].values
+                self.cS2_drift_acceptance_hist=pkl.load(open(path_s2_splitting_curve,'rb'))
+                self.cS2_drift_acceptance_hist[1]*= (1 + self.double_pe_fraction) #convert phd to phe
+                
+                # self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + \
+                #     np.log10(1 + self.double_pe_fraction)  # log_10(phd) to log_10(phe)
+                # self.log10_cs2_acc_curve = df_S2_acc['cS2_acceptance'].values
             except Exception:
                 print("Could not load acceptance curves; setting to 1")
 
                 self.cs1_acc_domain = None
-                self.log10_cs2_acc_domain = None
+                self.cS2_drift_acceptance_hist = None
 
         if ignore_maps:
             print("ingoring LCE maps")
@@ -267,11 +309,14 @@ class LZSource:
             else:
                 d['cs1_acc_curve'] = np.ones_like(d['cs1'].values)
         if 'cs2' in d.columns and 'cs2_acc_curve' not in d.columns:
-            if self.log10_cs2_acc_domain is not None:
-                d['cs2_acc_curve'] = interpolate_acceptance(
-                    np.log10(d['cs2'].values),
-                    self.log10_cs2_acc_domain,
-                    self.log10_cs2_acc_curve)
+            if self.cS2_drift_acceptance_hist is not None:
+                d['cs2_acc_curve'] = SR3S2splittingReconEff(d['cs2'].values,
+                                                            d['drift_time'].values,
+                                                            self.cS2_drift_acceptance_hist)
+                # interpolate_acceptance(
+                #     np.log10(d['cs2'].values),
+                #     self.log10_cs2_acc_domain,
+                #     self.log10_cs2_acc_curve)
             else:
                 d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
 
