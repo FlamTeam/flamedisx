@@ -58,6 +58,31 @@ def SR3S2splittingReconEff(S2c, driftTime_us, hist,weird=False):
     
     
     return acceptance
+##Build S2raw acceptance
+def SR3TriggerAcceptance(S2raw, which='mean'):
+    
+    # 50% threshold = 106.89 +/- 0.43 phd
+    # 95% threshold = 160.7 +/- 3.5 phd
+    # k = 0.0547 +/- 0.0035 phd-1
+    
+    x0 = 160.7
+    k = 0.0547
+    
+    if which == 'plus1sigma' or which == 'p1sig':
+        x0 -=  3.5
+        k +=  0.0035
+    if which == 'minus1sigma' or which == 'm1sig':
+        x0 +=  3.5
+        k -=  0.0035
+        
+    
+    accValues =  ( 1./( 1 + np.exp( -k*(S2raw-x0) ) ) )
+    
+    ## make sure acceptances can't go above 1. or below 0.
+    accValues[accValues>1.] = 1. 
+    accValues[accValues<0.] = 0.
+    
+    return accValues
 
 
 
@@ -108,9 +133,9 @@ class LZSource:
     path_s1_corr_latest = 'new_data/s1Area_Correction_TPC_SR3_radon_31Jan2024.json'
     path_s2_corr_latest = 'new_data/s2Area_Correction_TPC_SR3_radon_31Jan2024.json'
 
-    path_s1_acc_curve = 'new_data/cS1_acceptance_curve.pkl'
+    path_s1_acc_curve = 'new_data/cS1_acceptance_curve.json'
     # path_s2_acc_curve = 'sr1/cS2_acceptance_curve.pkl' Not used
-    path_s2_splitting_curve='new_data/WS2024_S2splittingReconEff_mean.pkl'
+    path_s2_splitting_curve='lz_private_data/new_data/WS2024_S2splittingReconEff_mean.pickle'
     def __init__(self, *args, ignore_maps=False, ignore_acc_maps=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -129,7 +154,7 @@ class LZSource:
         self.cS1_max = config.getfloat('NEST', 'cS1_max_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
-
+        self.ignore_acceptances_maps=False
         if ignore_acc_maps:
             print("ignoring acceptances")
             self.ignore_acceptances_maps = True
@@ -141,11 +166,12 @@ class LZSource:
             try:
                 df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve)
                 # df_S2_acc =fd.get_lz_file(self.path_s2_acc_curve)
-
-                self.cs1_acc_domain = df_S1_acc['cS1_phd'].values * (1 + self.double_pe_fraction)  # phd to phe
-                self.cs1_acc_curve = df_S1_acc['cS1_acceptance'].values
-                self.cS2_drift_acceptance_hist=pkl.load(open(path_s2_splitting_curve,'rb'))
-                self.cS2_drift_acceptance_hist[1]*= (1 + self.double_pe_fraction) #convert phd to phe
+                self.cs1_acc_domain = np.array(df_S1_acc['cS1_phd']) * (1 + self.double_pe_fraction)  # phd to phe
+                self.cs1_acc_curve = np.array(df_S1_acc['cS1_acceptance'])
+                input_curve=pkl.load(open(self.path_s2_splitting_curve,'rb'))
+                self.cS2_drift_acceptance_hist= (input_curve[0],
+                                                 input_curve[1],
+                                                 input_curve[2])
                 
                 # self.log10_cs2_acc_domain = df_S2_acc['log10_cS2_phd'].values + \
                 #     np.log10(1 + self.double_pe_fraction)  # log_10(phd) to log_10(phe)
@@ -310,15 +336,19 @@ class LZSource:
                 d['cs1_acc_curve'] = np.ones_like(d['cs1'].values)
         if 'cs2' in d.columns and 'cs2_acc_curve' not in d.columns:
             if self.cS2_drift_acceptance_hist is not None:
-                d['cs2_acc_curve'] = SR3S2splittingReconEff(d['cs2'].values,
-                                                            d['drift_time'].values,
+                d['cs2_acc_curve'] = SR3S2splittingReconEff(d['cs2'].values/(1+self.double_pe_fraction),
+                                                            d['drift_time'].values/1e3,#us
                                                             self.cS2_drift_acceptance_hist)
+                #if cs2 exists s2 must (handled above)
+                d['cs2_acc_curve'] *=SR3TriggerAcceptance(d['s2'].values/(1+self.double_pe_fraction))
                 # interpolate_acceptance(
                 #     np.log10(d['cs2'].values),
                 #     self.log10_cs2_acc_domain,
                 #     self.log10_cs2_acc_curve)
             else:
                 d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
+        
+            
 
         if 'fv_acceptance' not in d.columns:
             standoffDistance_cm = 4.
