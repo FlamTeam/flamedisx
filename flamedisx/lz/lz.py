@@ -85,6 +85,24 @@ def SR3TriggerAcceptance(S2raw, which='mean'):
     return accValues
 
 
+# Define polynomial coefficients associated with each azimuthal wall position;
+# these start at the 7 o'clock position and progress anti-clockwise
+phi_coeffs = [[-1.78880746e-13, 4.91268301e-10, -4.96134607e-07, 2.26430932e-04, -4.71792008e-02, 7.33811298e+01],
+              [-1.72264463e-13, 4.59149636e-10, -4.59325165e-07, 2.14612376e-04, -4.85599108e-02, 7.35290867e+01],
+              [-3.17099156e-14, 7.26336129e-11, -6.99495385e-08, 3.85531008e-05, -1.33386004e-02, 7.18002889e+01],
+              [-6.12280314e-14, 1.67968911e-10, -1.83625538e-07, 1.00457608e-04, -2.86728022e-02, 7.22754350e+01],
+              [-1.89897962e-14, 1.52777215e-11, -2.79681508e-09, 1.25689887e-05, -1.33093804e-02, 7.17662251e+01],
+              [-2.32118621e-14, 7.30043322e-11, -9.40606298e-08, 6.29728588e-05, -2.28150175e-02, 7.22661091e+01],
+              [-8.29749194e-14, 2.31096069e-10, -2.47867121e-07, 1.27576029e-04, -3.24702414e-02, 7.26357609e+01],
+              [-2.00718008e-13, 5.44135757e-10, -5.59484466e-07, 2.73028553e-04, -6.46879791e-02, 7.45264998e+01],
+              [-7.77420021e-14, 1.97357045e-10, -1.90016273e-07, 8.99659454e-05, -2.30169916e-02, 7.25038258e+01],
+              [-5.27296334e-14, 1.49415580e-10, -1.58205132e-07, 8.00275441e-05, -2.13559394e-02, 7.23995451e+01],
+              [-6.00198219e-14, 1.55333004e-10, -1.60367908e-07, 7.97754165e-05, -1.94435594e-02, 7.22714399e+01],
+              [-8.89919309e-14, 2.40830027e-10, -2.57060475e-07, 1.33002951e-04, -3.32969110e-02, 7.28696020e+01]]
+
+
+# Use the above set of coefficients to define azimuthal wall position contours
+phi_walls = [np.poly1d(phi_coeffs[i]) for i in range(len(phi_coeffs))]
 
 
 def interpolate_acceptance(arg, domain, acceptances):
@@ -351,55 +369,61 @@ class LZSource:
             
 
         if 'fv_acceptance' not in d.columns:
-            standoffDistance_cm = 4.
+            
+            x = d['x'].values
+            y = d['y'].values
+            dt=d['drift_time'].values/1e3
+            # Define radial contour for N_tot = 0.01 expected counts (drift-∆R_phi space)
+            FV_poly = np.poly1d([-4.44147071e-14,  1.43684777e-10, -1.82739476e-07,
+                                 1.02160174e-04, -2.31617857e-02, -2.05932471e+00])
+            contour=FV_poly(dt)
+            #===CALCULATE DR_DPHI
+            # Define azimuthal slices
+            n_phi_slices = 12
+            phi_slices = np.linspace(-np.pi, np.pi, n_phi_slices + 1) + np.pi/4
+            phi_slices[phi_slices > np.pi] -= 2*np.pi
 
-            m_idealFiducialWallFit = [72.4403, 0.00933984, 5.06325e-5, 1.65361e-7,
-                                      2.92605e-10, 2.53539e-13, 8.30075e-17]
+            # Calculate event radii and angles, then mask them according to each slice
+            R = np.sqrt(x**2 + y**2)
+            phi = np.arctan2(y, x)
+            phi_cuts = [((phi >= phi_slices[i]) & (phi < phi_slices[i + 1])) if not (phi_slices[i] > phi_slices[i + 1]) else \
+                       ~((phi <= phi_slices[i]) & (phi > phi_slices[i + 1])) for i in range(n_phi_slices)]
 
-            boundaryR = 0
-            drift_time_us = d['drift_time'].values / 1000.
-            for i in range(len(m_idealFiducialWallFit)):
-                boundaryR += m_idealFiducialWallFit[i] * pow(-drift_time_us, i)
+            # Calculate dR_phi by replacing relevant points in loops over phi slices, then return
+            dR_phi = np.zeros(len(R))
+            for i, p in enumerate(phi_cuts):
+                dR_phi[p] = R[p] - phi_walls[i](dt[p])
 
-            boundaryR = np.where(drift_time_us < 200., boundaryR - 5.2, boundaryR)
-            boundaryR = np.where(drift_time_us > 800., boundaryR - 5., boundaryR)
-            boundaryR = np.where((drift_time_us > 200.) & (drift_time_us < 800.), boundaryR - standoffDistance_cm, boundaryR)
+            # Segment events by whether or not they're in the expandable part
+            expandable = (dt > 71) & (dt < 900)
 
-            radius_cm = d['r'].values
-
-            accept_upper_drift_time = np.where(drift_time_us < 960.5, 1., 0.)
-            accept_lower_drift_time = np.where(drift_time_us > 71., 1., 0.)
-            accept_radial = np.where(radius_cm < boundaryR, 1., 0.)
-
-            d['fv_acceptance'] =np.ones_like(accept_upper_drift_time * accept_lower_drift_time * accept_radial)
+            # Get the radial cut as a mask between two parts
+            expansion = 0
+            mask = ((dR_phi < (contour + expansion)) & expandable) | ((dR_phi < contour) & ~expandable)
+            
+            #cut the drift time 
+            dt_cut = (dt > 71) & (dt < 1030)
+                
+            d['fv_acceptance'] =dt_cut&mask&(dR_phi<=0)
 
         if 'resistor_acceptance' not in d.columns:
             x = d['x'].values
             y = d['y'].values
 
-            res1X = -71.2
-            res1Y = 4.4
+            res1X = -69.8
+            res1Y = 3.5
             res1R = 6
-            res2X = -69.2
-            res2Y = -14.6
+            res2X = -67.5
+            res2Y = -14.3
             res2R = 6
+
             not_inside_res1 = np.where(np.sqrt( (x-res1X)*(x-res1X) + (y-res1Y)*(y-res1Y) ) < res1R, 0., 1.)
             not_inside_res2 = np.where(np.sqrt( (x-res2X)*(x-res2X) + (y-res2Y)*(y-res2Y) ) < res2R, 0., 1.)
 
-            d['resistor_acceptance'] = np.ones_like(not_inside_res1 * not_inside_res2)
-
+            d['resistor_acceptance'] =not_inside_res1 * not_inside_res2
         if 'timestamp_acceptance' not in d.columns:
-            t_start = pd.to_datetime('2021-12-23T09:37:51')
-            t_start = t_start.tz_localize(tz='America/Denver').value
-
-            days_since_start = (d['event_time'].values - t_start) / 3600. / 24. / 1e9
-
-            not_inside_window1 = np.where((days_since_start >= 25.5) & (days_since_start <= 33.), 0., 1.)
-            not_inside_window2 = np.where((days_since_start >= 90.) & (days_since_start <= 93.5), 0., 1.)
-
-            d['timestamp_acceptance'] =np.ones_like( not_inside_window1 * not_inside_window2)
-
-
+            d['timestamp_acceptance'] = np.ones_like(d['event_time'],dtype=bool)
+        
 ##
 # Different interaction types: flat spectra
 ##
@@ -717,7 +741,7 @@ class LZAccidentalsSource(fd.TemplateSource):
         df = df.join(df_time)
 
         lz_source.add_extra_columns(df)
-        df['acceptance'] = np.ones_like(df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values)
+        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
 
         df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
         df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
