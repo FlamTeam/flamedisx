@@ -22,7 +22,7 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default', 'lz')
+        assert detector in ('default', 'lz','lz_WS2024')
 
         self.detector = detector
 
@@ -305,7 +305,7 @@ class nestERSource(nestSource):
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
         skewness_masked = tf.multiply(skewness, tf.cast(mask_product, fd.float_type()))
 
-        if self.detector == 'lz':
+        if self.detector in ['lz','lz_WS2024']:
             skewness_masked = tf.zeros_like(nq_mean, dtype=fd.float_type())
 
         return skewness_masked
