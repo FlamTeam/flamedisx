@@ -10,7 +10,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-
 @export
 class EnergySpectrum(fd.FirstBlock):
     dimensions = ('energy',)
@@ -18,7 +17,7 @@ class EnergySpectrum(fd.FirstBlock):
         'energies',
         'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
-        't_start', 't_stop')
+        't_start', 't_stop','drift_map')
 
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
@@ -32,7 +31,18 @@ class EnergySpectrum(fd.FirstBlock):
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
-
+    #Define so it can be ignored
+    drift_map=None
+    
+    def derive_drift_time(self, data):
+        """
+            Helper function for getting drift time from true z
+            data: Data DataFrame
+        """
+        if self.drift_map is None:
+            return (self.z_topDrift-data['z']) / self.drift_velocity
+        return self.drift_map(np.array([data['r'],data['z']]).T)
+    
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
 
@@ -114,7 +124,7 @@ class EnergySpectrum(fd.FirstBlock):
                                       size=n_events)
         data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
 
-        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
+        data['drift_time'] = self.derive_drift_time(data)
         return data
 
     def draw_time(self, n_events, **params):
@@ -190,7 +200,7 @@ class EnergySpectrum(fd.FirstBlock):
             else:
                 raise ValueError("When fixing position, give (x, y, z), "
                                  "or (r, theta, z).")
-            d['drift_time'] = (self.z_topDrift-d['z']) / self.drift_velocity
+            d['drift_time'] = self.derive_drift_time(d)
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
             raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
@@ -348,7 +358,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         else:
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
-        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
+        data['drift_time'] = self.derive_drift_time(data)
         return data
 
 

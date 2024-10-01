@@ -15,7 +15,7 @@ from .WS2024_cuts_and_acceptances import *
 import pickle as pkl
 
 from multihist import Histdd
-
+from scipy import interpolate
 export, __all__ = fd.exporter()
 pi = tf.constant(m.pi)
 GAS_CONSTANT = 8.314
@@ -73,9 +73,9 @@ class LZWS2024Source:
     path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
 
     path_s1_acc_curve = 'WS2024/cS1_tritium_acceptance_curve.json'
-    path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pickle'
-    
-    def __init__(self, *args, ignore_maps=False, ignore_acc_maps=False, cap_upper_cs1=False, **kwargs):
+    path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
+    path_drift_map='WS2024/WS2024_driftmap_prelimWallCharge.json'
+    def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.cap_upper_cs1 = cap_upper_cs1
@@ -93,6 +93,19 @@ class LZWS2024Source:
         self.cS1_max = config.getfloat('NEST', 'cS1_max_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
+        
+        if not ignore_drift_map:
+            try:
+                drift_map=fd.get_lz_file(self.path_drift_map)
+                self.drift_map=interpolate.LinearNDInterpolator(np.transpose([drift_map['r_cm'],drift_map['z_cm']]),drift_map['drift_time_ns'])
+            except:
+                self.drift_map=None
+                print(f"Could not load drift map: {self.path_drift_map} \n !Using default NEST Calculation!")
+        else:
+            print("Ignoring drift map")
+        
+        
+        
         self.ignore_acceptances_maps=False
         if ignore_acc_maps:
             print("ignoring acceptances")
@@ -100,7 +113,6 @@ class LZWS2024Source:
 
             self.cs1_acc_domain = None
             self.cS2_drift_acceptance_hist = None
-            
         else:
             try:
                 df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve)
@@ -108,15 +120,13 @@ class LZWS2024Source:
                 self.cs1_acc_curve = np.array(df_S1_acc['cS1_acceptance'])
                 #TO-DO: Adapt to json for get_lz_file
                 self.cS2_drift_acceptance_hist= fd.get_lz_file(self.path_s2_splitting_curve)
-                
-
             except Exception:
                 print("Could not load acceptance curves; setting to 1")
 
                 self.cs1_acc_domain = None
                 self.cS2_drift_acceptance_hist = None
 
-        if ignore_maps:
+        if ignore_LCE_maps:
             print("ingoring LCE maps")
             self.s1_map_latest = None
             self.s2_map_latest = None
