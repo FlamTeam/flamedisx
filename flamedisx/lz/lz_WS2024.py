@@ -75,6 +75,7 @@ class LZWS2024Source:
     path_s1_acc_curve = 'WS2024/cS1_tritium_acceptance_curve.json'
     path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
     path_drift_map='WS2024/WS2024_driftmap_prelimWallCharge.json'
+    inverse_drift_map = None
     def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -98,6 +99,7 @@ class LZWS2024Source:
             try:
                 drift_map=fd.get_lz_file(self.path_drift_map)
                 self.drift_map=interpolate.LinearNDInterpolator(np.transpose([drift_map['r_cm'],drift_map['z_cm']]),drift_map['drift_time_ns'])
+                self.inverse_drift_map=interpolate.LinearNDInterpolator(np.transpose([drift_map['r_cm'],drift_map['drift_time_ns']]),drift_map['z_cm'])
             except:
                 self.drift_map=None
                 print(f"Could not load drift map: {self.path_drift_map} \n !Using default NEST Calculation!")
@@ -138,7 +140,17 @@ class LZWS2024Source:
                 print("Could not load maps; setting position corrections to 1")
                 self.s1_map_latest = None
                 self.s2_map_latest = None
-
+                
+    
+    def derive_z(self, data):
+        """
+            Helper function for getting z from true drift time
+            I don't think the function of r should be necessary, but add anyway
+            data: Data DataFrame
+        """
+        if self.inverse_drift_map is None:
+            return self.z_topDrift - data['drift_time'] * self.drift_velocity
+        return self.inverse_drift_map(np.array([data['r'],data['drift_time']]).T)
        
     @staticmethod
     def photon_detection_eff(z, *, g1=0.1122):

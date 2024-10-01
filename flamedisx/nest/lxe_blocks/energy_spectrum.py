@@ -32,8 +32,8 @@ class EnergySpectrum(fd.FirstBlock):
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
     #Define so it can be ignored
-    drift_map=None
-    
+    drift_map = None
+    inverse_drift_map = None
     def derive_drift_time(self, data):
         """
             Helper function for getting drift time from true z
@@ -42,6 +42,15 @@ class EnergySpectrum(fd.FirstBlock):
         if self.drift_map is None:
             return (self.z_topDrift-data['z']) / self.drift_velocity
         return self.drift_map(np.array([data['r'],data['z']]).T)
+    def derive_z(self, data):
+        """
+            Helper function for getting z from true drift time
+            I don't think the function of r should be necessary, but add anyway
+            data: Data DataFrame
+        """
+        if self.inverse_drift_map is None:
+            return self.z_topDrift - data['drift_time'] * self.drift_velocity
+        return self.inverse_drift_map(np.array([data['r'],data['drift_time']]).T)
     
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
@@ -345,7 +354,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
         if self.mod_cart:
-            data['z'] = self.z_topDrift - data['drift_time'] * self.drift_velocity
+            data['z'] = self.derive_z(data)
         if self.polar:
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         elif self.r_z:
@@ -354,7 +363,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         elif self.r_dt:
             theta = np.random.uniform(0, 2*np.pi, size=n_events)
             data['x'], data['y'] = fd.pol_to_cart(data['r'], theta)
-            data['z'] = self.z_topDrift - data['drift_time'] * self.drift_velocity
+            data['z'] = self.derive_z(data)
         else:
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
