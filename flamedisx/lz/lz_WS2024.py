@@ -76,11 +76,11 @@ class LZWS2024Source:
     path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
     path_drift_map='WS2024/WS2024_driftmap_prelimWallCharge.json'
     inverse_drift_map = None
-    def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
+    def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False,ignore_all_cuts=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.cap_upper_cs1 = cap_upper_cs1
-
+        self.ignore_all_cuts = ignore_all_cuts
         assert kwargs['detector'] in ('lz_WS2024',)
 
         assert os.path.exists(os.path.join(
@@ -98,8 +98,10 @@ class LZWS2024Source:
         if not ignore_drift_map:
             try:
                 drift_map=fd.get_lz_file(self.path_drift_map)
-                self.drift_map=interpolate.LinearNDInterpolator(np.transpose([drift_map['r_cm'],drift_map['z_cm']]),drift_map['drift_time_ns'])
-                self.inverse_drift_map=interpolate.LinearNDInterpolator(np.transpose([drift_map['r_cm'],drift_map['drift_time_ns']]),drift_map['z_cm'])
+                self.drift_map=interpolate.LinearNDInterpolator(np.transpose([drift_map['r_cm'],drift_map['z_cm']]),drift_map['drift_time_ns'],
+                                                                fill_value=0)
+                self.inverse_drift_map=interpolate.LinearNDInterpolator(np.transpose([drift_map['r_cm'],drift_map['drift_time_ns']]),drift_map['z_cm'],
+                                                                        fill_value=0)
             except:
                 self.drift_map=None
                 print(f"Could not load drift map: {self.path_drift_map} \n !Using default NEST Calculation!")
@@ -188,7 +190,8 @@ class LZWS2024Source:
         return s2_pos_corr_latest
 
     def s1_acceptance(self, s1, cs1, cs1_acc_curve):
-
+        if self.ignore_all_cuts:
+            return tf.ones_like(s1, dtype=fd.float_type())
         acceptance = tf.where((s1 >= self.spe_thr) &
                               (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
                               tf.ones_like(s1, dtype=fd.float_type()),  # if condition non-zero
@@ -197,12 +200,13 @@ class LZWS2024Source:
         # multiplying by efficiency curve
         if not self.ignore_acceptances_maps:
             acceptance *= cs1_acc_curve
-
+        
         return acceptance
 
     def s2_acceptance(self, s2, cs2, cs2_acc_curve,
                       fv_acceptance, resistor_acceptance, timestamp_acceptance):
-
+        if self.ignore_all_cuts:
+            return tf.ones_like(s2, dtype=fd.float_type())
         acceptance = tf.where((s2 >= self.s2_thr) &
                               (s2 >= self.S2_min) & (cs2 <= self.cS2_max),
                               tf.ones_like(s2, dtype=fd.float_type()),  # if condition non-zero
