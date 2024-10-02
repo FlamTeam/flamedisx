@@ -52,13 +52,8 @@ class nestSource(fd.BlockModelSource):
         # energy_spectrum.py
         self.radius = config.getfloat('NEST', 'radius_config')
         self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
-        #TO DO-Derive these from the drift map? (invert it and centre?)
-        self.z_top = self.derive_z({'r':0,'drift_time': config.getfloat('NEST', 'dt_min_config')})
-        # self.z_topDrift - self.drift_velocity * \
-        #     config.getfloat('NEST', 'dt_min_config')
-        self.z_bottom = self.derive_z({'r':0,'drift_time': config.getfloat('NEST', 'dt_max_config')})
-        # self.z_topDrift - self.drift_velocity * \
-        #     config.getfloat('NEST', 'dt_max_config')
+        self.z_top = config.getfloat('NEST', 'gate_config')
+        self.z_bottom = config.getfloat('NEST', 'cathode_config')
 
         # detection.py / pe_detection.py / double_pe.py / final_signals.py
         self.g1 = config.getfloat('NEST', 'g1_config')
