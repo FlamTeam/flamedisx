@@ -39,7 +39,7 @@ S1_MAX=200
 S2_MIN=400
 S2_MAX=2e4
 
-USE_NEST_INTERPOLATOR=True
+USE_NEST_INTERPOLATOR=False
 
 USE_PMOD=False
 pmod_fermichange =  0.00962442
@@ -51,8 +51,8 @@ Fexmod_fermichange =  48.8434
 Fexmod_fermimu =  117.391
 Fexmod_fermiwidth = 28.3927
 
-# MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
-MIG_SUPPRESSION = 1 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 1 = 0.95
+MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
+# MIG_SUPPRESSION = 1 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 1 = 0.95
 
 print('BCUT: %1.1f, MCUT: %1.2f'%(BCUT,MCUT))
 print('S1 MIN: %i, S1 MAX: %i, S2 MIN: %i, S2 MAX: %i'%(S1_MIN,S1_MAX,S2_MIN,S2_MAX))
@@ -60,7 +60,7 @@ print('Using NEST Interpolator: ',USE_NEST_INTERPOLATOR)
 
 if USE_FEXMOD:
     print('Fexmod_fermichange: %1.3f, Fexmod_fermimu: %1.3f, Fexmod_fermiwidth: %1.3f'%(Fexmod_fermichange,Fexmod_fermimu,Fexmod_fermiwidth))
-    RealThomasImel_fac = 0.0103849
+    RealThomasImel_fac = 0.010 # 0.0103849
     RealThomasImel = RealThomasImel_fac
     
     
@@ -501,7 +501,13 @@ class NRSource(fd.BlockModelSource): # TODO -- ADD SKEW!
         NphNe_pdf *= spectrum #shape (Nph,Ne,energies)
         NphNe_pdf = tf.reduce_sum(NphNe_pdf, axis=tf.range(2,tf.rank(NphNe_pdf))) #shape (Nph,Ne)
         
+        
+        
         NphNe_probs = NphNe_pdf*Nph_diffs[0]*Ne_diffs[0] #shape (Nph,Ne), Nph and Ne grids must be linspace!
+        
+        # plt.imshow(NphNe_probs)
+        # np.savez('./'+'_NphNe_hist2d_SS.npz',NphNe_hist2d_SS = NphNe_probs)
+
         
         # avoid Nph=0 and Ne=0 for the S1, S2 calculation
         NphNe_probs = NphNe_probs[1:,1:]

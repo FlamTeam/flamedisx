@@ -38,7 +38,8 @@ o = tf.newaxis
 # KE_Spectrum='_G4_CR_Chen_pmod_20240715_12th_spline' # Chen's adjustment w/ fermi pmod - low energy correction
 # KE_Spectrum='_G4_CR_Chen_pmod_20240715_15th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim
 # KE_Spectrum='_G4_CR_Chen_pmod_20240718_19th_spline' # Chen's adjustment w/ fermi pmod - low energy correction - no low S1 cut in sim (best fit as of 240718)
-KE_Spectrum='_v22_Fmod' # Chen's adjustment w/ fermi Fexmod - low energy correction - no low S1 cut in sim (best fit as of 240909)
+# KE_Spectrum='_v22_Fmod' # Chen's adjustment w/ fermi Fexmod - low energy correction - no low S1 cut in sim (best fit as of 240909)
+KE_Spectrum='_v22_Fmod_MSfix' # Chen's adjustment w/ fermi Fexmod - low energy correction - no low S1 cut in sim (best fit as of 240909)
 
 S2WIDTHCUT = False
 if S2WIDTHCUT:
@@ -267,6 +268,7 @@ class EnergySpectrumSecondMSU(fd.Block):
                             dtype=fd.float_type())
     #: Joint energy spectrum for MSU scatters. Override for other double scatters
     MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum'+KE_Spectrum+s2w_filetag+'.pkl'
+    # MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum_Mono.pkl'
     # MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), MSU2_Spectrum_filename), 'rb'))
@@ -331,6 +333,7 @@ class EnergySpectrumOthersMSU3(fd.Block):
     energies_others = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
     #: Joint energy spectrum for MSU3 scatters. Override for other triple scatters
     MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum'+KE_Spectrum+s2w_filetag+'.pkl'
+    # MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum_Mono.pkl'
     # MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
         os.path.dirname(__file__), MSU3_Spectrum_filename), 'rb'))
