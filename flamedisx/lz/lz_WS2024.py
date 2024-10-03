@@ -75,7 +75,6 @@ class LZWS2024Source:
     path_s1_acc_curve = 'WS2024/cS1_tritium_acceptance_curve.json'
     path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
     path_drift_map='WS2024/drift_map_WS2024.json'
-    inverse_drift_map = None
     def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False,ignore_all_cuts=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -138,33 +137,22 @@ class LZWS2024Source:
                 print("Could not load maps; setting position corrections to 1")
                 self.s1_map_latest = None
                 self.s2_map_latest = None
-                
-    
-    def derive_z(self, data):
-        """
-            Helper function for getting z from true drift time
-            I don't think the function of r should be necessary, but add anyway
-            data: Data DataFrame
-        """
-        if self.inverse_drift_map is None:
-            return self.z_topDrift - data['drift_time'] * self.drift_velocity
-        return self.inverse_drift_map(np.array([data['r'],data['drift_time']]).T)
        
     @staticmethod
-    def photon_detection_eff(z, *, g1=0.1122):
+    def photon_detection_eff(drift_time, *, g1=0.1122):
         """
             g1_gas: Floatable (defined in function argument)
             ensure this default is correct
         """
-        return g1 * tf.ones_like(z)
+        return g1 * tf.ones_like(drift_time)
 
     @staticmethod
-    def s2_photon_detection_eff(z, *, g1_gas=0.076404):
+    def s2_photon_detection_eff(drift_time, *, g1_gas=0.076404):
         """
             g1_gas: Floatable (defined in function argument)
             ensure this default is correct
         """
-        return g1_gas * tf.ones_like(z)
+        return g1_gas * tf.ones_like(drift_time)
 
     @staticmethod
     def get_elife(event_time):
