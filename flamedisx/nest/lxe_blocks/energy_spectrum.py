@@ -17,7 +17,8 @@ class EnergySpectrum(fd.FirstBlock):
         'energies',
         'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
-        't_start', 't_stop','drift_map')
+        't_start', 't_stop',
+        'drift_map_dt', 'drift_map_x')
 
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
@@ -31,16 +32,32 @@ class EnergySpectrum(fd.FirstBlock):
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
-    #Define so it can be ignored
-    drift_map = None
+
+    drift_map_dt = None
     def derive_drift_time(self, data):
         """
             Helper function for getting drift time from true z
             data: Data DataFrame
         """
-        if self.drift_map is None:
+        if self.drift_map_dt is None:
             return (self.z_topDrift - data['z']) / self.drift_velocity
-        return self.drift_map(np.array([data['r'], data['z']]).T)
+
+        return self.drift_map_dt(np.array([data['r'], data['z']]).T)
+
+    drift_map_x = None
+    def derive_observed_xy(self, data):
+        """
+        """
+        if self.drift_map_x is None:
+            return data['x'], data['y']
+
+        cosTheta = data['x'] / data['r']
+        sinTheta = data['y'] / data['r']
+
+        x_obs = self.drift_map_x(np.array([data['r'], data['z']]).T) * cosTheta
+        y_obs = self.drift_map_x(np.array([data['r'], data['z']]).T) * sinTheta
+
+        return x_obs, y_obs
     
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
@@ -120,9 +137,12 @@ class EnergySpectrum(fd.FirstBlock):
         data['r'] = (np.random.rand(n_events) * self.radius**2)**0.5
         data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
         data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
-
         data['z'] = np.random.uniform(self.z_bottom, self.z_top,
                                       size=n_events)
+
+        data['x_obs'], data['y_obs'] = self.derive_observed_xy(data)
+        data['r_obs'], data['theta_obs'] = fd.cart_to_pol(data['x_obs'], data['y_obs'])
+
         data['drift_time'] = self.derive_drift_time(data)
         data.pop('z')
 

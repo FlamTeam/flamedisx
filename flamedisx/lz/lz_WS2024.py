@@ -74,7 +74,9 @@ class LZWS2024Source:
 
     path_s1_acc_curve = 'WS2024/cS1_tritium_acceptance_curve.json'
     path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
-    path_drift_map='WS2024/drift_map_WS2024.json'
+    path_drift_map_dt='WS2024/drift_map_dt_WS2024.json'
+    path_drift_map_x='WS2024/drift_map_x_WS2024.json'
+
     def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False,ignore_all_cuts=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -96,10 +98,13 @@ class LZWS2024Source:
         
         if not ignore_drift_map:
             try:
-                self.drift_map = fd.InterpolatingMap(fd.get_lz_file(self.path_drift_map))
+                self.drift_map_dt = fd.InterpolatingMap(fd.get_lz_file(self.path_drift_map_dt))
+                self.drift_map_x = fd.InterpolatingMap(fd.get_lz_file(self.path_drift_map_x))
             except:
-                self.drift_map=None
-                print(f"Could not load drift map: {self.path_drift_map} \n !Using default NEST Calculation!")
+                self.drift_map_dt = None
+                self.drift_map_x = None
+
+                print('Could not load drift maps \n !Using default NEST Calculation!')
         else:
             print("Ignoring drift map")
         
