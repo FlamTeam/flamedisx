@@ -16,6 +16,7 @@ import pickle as pkl
 
 from multihist import Histdd
 from scipy import interpolate
+
 export, __all__ = fd.exporter()
 pi = tf.constant(m.pi)
 GAS_CONSTANT = 8.314
@@ -98,8 +99,10 @@ class LZWS2024Source:
         
         if not ignore_drift_map:
             try:
-                self.drift_map_dt = fd.InterpolatingMap(fd.get_lz_file(self.path_drift_map_dt))
-                self.drift_map_x = fd.InterpolatingMap(fd.get_lz_file(self.path_drift_map_x))
+                drift_map=fd.get_lz_file(self.path_drift_map_dt)
+                self.drift_map_dt = interpolate.LinearNDInterpolator(drift_map['coordinate_system'],drift_map['map'],fill_value=0)
+                drift_map_xy=fd.get_lz_file(self.path_drift_map_x)
+                self.drift_map_x = interpolate.LinearNDInterpolator(drift_map_xy['coordinate_system'],drift_map_xy['map'],fill_value=0)
             except:
                 self.drift_map_dt = None
                 self.drift_map_x = None
@@ -216,8 +219,16 @@ class LZWS2024Source:
 
     def add_extra_columns(self, d):
         super().add_extra_columns(d)
-
+        
+        
+        if 'x_obs' not in d.columns:
+            x_obs,y_obs=self.derive_observed_xy(d)
+            d['x_obs'] = x_obs
+            d['y_obs'] = y_obs
+            
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
+            #LZLAMA uses correctedX and Y
+            #I think this is meant to represent cluster (and therfore True position)
             d['s1_pos_corr_latest'] = self.s1_map_latest(
                 np.transpose([d['x'].values,
                               d['y'].values,
@@ -228,7 +239,7 @@ class LZWS2024Source:
         else:
             d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
             d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
-
+        
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
             d['electron_lifetime'] = self.get_elife(d['event_time'].values)
 
@@ -279,14 +290,14 @@ class LZWS2024Source:
                 d['cs2_acc_curve'] = np.ones_like(d['cs2'].values)
         
         if 'fv_acceptance' not in d.columns:
-            x = d['x'].values
-            y = d['y'].values
+            x = d['x_obs'].values
+            y = d['y_obs'].values
             dt=d['drift_time'].values/1e3
             d['fv_acceptance']=WS2024_fiducial_volume_cut(x,y,dt)
 
         if 'resistor_acceptance' not in d.columns:
-            x = d['x'].values
-            y = d['y'].values
+            x = d['x_obs'].values
+            y = d['y_obs'].values
             d['resistor_acceptance'] = WS2024_resistor_XY_cut(x,y)
             
         if 'timestamp_acceptance' not in d.columns:
