@@ -558,7 +558,7 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
 
 
 @export
-class LZCH3TSource(LZWS2024Source, fd.nest.CH3TSource):
+class LZ24CH3TSource(LZ24ERSource, fd.nest.CH3TSource):
     t_start = pd.to_datetime('2022-04-19T00:00:00')
     t_start = t_start.tz_localize(tz='America/Denver')
 
@@ -569,14 +569,10 @@ class LZCH3TSource(LZWS2024Source, fd.nest.CH3TSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
-
-    @staticmethod
-    def get_elife(event_time):
-        return 6600000.
 
 
 @export
-class LZDDSource(LZWS2024Source, fd.nest.DDSource):
+class LZ24DDSource(LZ24NRSource, fd.nest.DDSource):
     t_start = pd.to_datetime('2022-04-19T00:00:00')
     t_start = t_start.tz_localize(tz='America/Denver')
 
@@ -587,10 +583,6 @@ class LZDDSource(LZWS2024Source, fd.nest.DDSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
-
-    @staticmethod
-    def get_elife(event_time):
-        return 6600000.
 
 
 ##
@@ -599,7 +591,7 @@ class LZDDSource(LZWS2024Source, fd.nest.DDSource):
 
 
 @export
-class LZWIMPSource(LZWS2024Source, fd.nest.nestWIMPSource):
+class LZWIMPSource(LZ24NRSource, fd.nest.nestWIMPSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -607,7 +599,7 @@ class LZWIMPSource(LZWS2024Source, fd.nest.nestWIMPSource):
 
 
 @export
-class LZFermionicDMSource(LZWS2024Source, fd.nest.FermionicDMSource):
+class LZ24FermionicDMSource(LZ24ERSource, fd.nest.FermionicDMSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -620,7 +612,7 @@ class LZFermionicDMSource(LZWS2024Source, fd.nest.FermionicDMSource):
 
 
 @export
-class LZPb214Source(LZWS2024Source, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
+class LZ24Pb214Source(LZ24ERSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -636,7 +628,7 @@ class LZPb214Source(LZWS2024Source, fd.nest.Pb214Source, fd.nest.nestSpatialRate
 
 
 @export
-class LZDetERSource(LZWS2024Source, fd.nest.DetERSource, fd.nest.nestSpatialRateERSource):
+class LZ24DetERSource(LZ24ERSource, fd.nest.DetERSource, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -648,7 +640,7 @@ class LZDetERSource(LZWS2024Source, fd.nest.DetERSource, fd.nest.nestSpatialRate
 
 
 @export
-class LZBetaSource(LZWS2024Source, fd.nest.BetaSource):
+class LZ24BetaSource(LZ24ERSource, fd.nest.BetaSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -656,7 +648,7 @@ class LZBetaSource(LZWS2024Source, fd.nest.BetaSource):
 
 
 @export
-class LZXe136Source(LZWS2024Source, fd.nest.Xe136Source):
+class LZ24Xe136Source(LZ24ERSource, fd.nest.Xe136Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -664,7 +656,7 @@ class LZXe136Source(LZWS2024Source, fd.nest.Xe136Source):
 
 
 @export
-class LZvERSource(LZWS2024Source, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
+class LZ24vERSource(LZ24ERSource, fd.nest.vERSource, fd.nest.nestTemporalRateOscillationERSource):
     def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -688,7 +680,7 @@ class LZvERSource(LZWS2024Source, fd.nest.vERSource, fd.nest.nestTemporalRateOsc
 
 
 @export
-class LZAr37Source(LZWS2024Source, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
+class LZ24Ar37Source(LZ24ERSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateDecayERSource):
     def __init__(self, *args, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -731,7 +723,7 @@ class LZXe127Source(LZWS2024Source, fd.nest.Xe127Source, fd.nest.nestSpatialTemp
 
 
 @export
-class LZB8Source(LZWS2024Source, fd.nest.B8Source, fd.nest.nestTemporalRateOscillationNRSource):
+class LZ24B8Source(LZ24NRSource, fd.nest.B8Source, fd.nest.nestTemporalRateOscillationNRSource):
     def __init__(self, *args, amplitude=None, phase_ns=None, period_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -755,7 +747,7 @@ class LZB8Source(LZWS2024Source, fd.nest.B8Source, fd.nest.nestTemporalRateOscil
 
 
 @export
-class LZDetNRSource(LZWS2024Source, fd.nest.nestSpatialRateNRSource):
+class LZ24DetNRSource(LZ24NRSource, fd.nest.nestSpatialRateNRSource):
     """
     """
 
