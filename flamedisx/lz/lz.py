@@ -133,12 +133,12 @@ class LZSource:
             self.log10_cs2_acc_domain = None
 
     @staticmethod
-    def photon_detection_eff(z, *, g1=0.113569):
-        return g1 * tf.ones_like(z)
+    def photon_detection_eff(drift_time, *, g1=0.113569):
+        return g1 * tf.ones_like(drift_time)
 
     @staticmethod
-    def s2_photon_detection_eff(z, *, g1_gas=0.092103545):
-        return g1_gas * tf.ones_like(z)
+    def s2_photon_detection_eff(drift_time, *, g1_gas=0.092103545):
+        return g1_gas * tf.ones_like(drift_time)
 
     @staticmethod
     def get_elife(event_time):

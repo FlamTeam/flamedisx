@@ -10,7 +10,6 @@ import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
 
-
 @export
 class EnergySpectrum(fd.FirstBlock):
     dimensions = ('energy',)
@@ -18,7 +17,8 @@ class EnergySpectrum(fd.FirstBlock):
         'energies','max_dim_size',
         'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
-        't_start', 't_stop')
+        't_start', 't_stop',
+        'drift_map_dt', 'drift_map_x')
 
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
@@ -32,13 +32,41 @@ class EnergySpectrum(fd.FirstBlock):
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
-    
     default_size=100
     max_dim_size : dict
     def setup(self):
+        """
+           Setups up a managable max dim size
+        """
         assert isinstance(self.max_dim_size,dict)
         self.max_dim_size={'energy':self.max_dim_size['energy']}
-        
+
+    drift_map_dt = None
+    def derive_drift_time(self, data):
+        """
+            Helper function for getting drift time from true z
+            data: Data DataFrame
+        """
+        if self.drift_map_dt is None:
+            return (self.z_topDrift - data['z']) / self.drift_velocity
+
+        return self.drift_map_dt(np.array([data['r'], data['z']]).T)
+
+    drift_map_x = None
+    def derive_observed_xy(self, data):
+        """
+        """
+        if self.drift_map_x is None:
+            return data['x'], data['y']
+
+        cosTheta = data['x'] / data['r']
+        sinTheta = data['y'] / data['r']
+
+        x_obs = self.drift_map_x(np.array([data['r'], data['z']]).T) * cosTheta
+        y_obs = self.drift_map_x(np.array([data['r'], data['z']]).T) * sinTheta
+
+        return x_obs, y_obs
+
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
 
@@ -116,11 +144,16 @@ class EnergySpectrum(fd.FirstBlock):
         data = dict()
         data['r'] = (np.random.rand(n_events) * self.radius**2)**0.5
         data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
+        data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         data['z'] = np.random.uniform(self.z_bottom, self.z_top,
                                       size=n_events)
-        data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
 
-        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
+        data['x_obs'], data['y_obs'] = self.derive_observed_xy(data)
+        data['r_obs'], data['theta_obs'] = fd.cart_to_pol(data['x_obs'], data['y_obs'])
+
+        data['drift_time'] = self.derive_drift_time(data)
+        data.pop('z')
+
         return data
 
     def draw_time(self, n_events, **params):
@@ -167,7 +200,7 @@ class EnergySpectrum(fd.FirstBlock):
         """
         # When passing in an event as DataFrame we select and set
         # only these columns:
-        cols = ['x', 'y', 'z', 'r', 'theta', 'event_time', 'drift_time']
+        cols = ['x', 'y', 'r', 'theta', 'event_time', 'drift_time']
         if d is None:
             return dict()
         elif isinstance(d, pd.DataFrame):
@@ -186,21 +219,20 @@ class EnergySpectrum(fd.FirstBlock):
             assert isinstance(d, dict), \
                 "fix_truth needs to be a DataFrame, dict, or None"
 
-        if 'z' in d:
+        if 'drift_time' in d:
             # Position is fixed. Ensure both Cartesian and polar coordinates
-            # are available, and compute drift_time from z.
+            # are available.
             if 'x' in d and 'y' in d:
                 d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
             elif 'r' in d and 'theta' in d:
                 d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
             else:
-                raise ValueError("When fixing position, give (x, y, z), "
-                                 "or (r, theta, z).")
-            d['drift_time'] = (self.z_topDrift-d['z']) / self.drift_velocity
+                raise ValueError("When fixing position, give (x, y, drift_time), "
+                                 "or (r, theta, drift_time).")
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
-            raise ValueError(f"Dict should contain at least ['x', 'y', 'z'] "
-                             "and/or ['r', 'theta', 'z'] and/or 'event_time' "
+            raise ValueError(f"Dict should contain at least ['x', 'y', 'drift_time'] "
+                             "and/or ['r', 'theta', 'drift_time'] and/or 'event_time' "
                              f"and/or 'energy', but it contains: {d.keys()}")
         return d
 
@@ -287,24 +319,22 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     def setup(self):
         assert isinstance(self.spatial_hist, Histdd)
 
-        # Are we Cartesian, modified Cartesian (x, y, dt), polar, 2D (r, z or r, dt),
+        # Are we Cartesian (x, y, dt), polar (r, theta, dt), 2D (r, dt),
         # or in trouble?
         axes = tuple(self.spatial_hist.axis_names)
-        self.mod_cart = (axes == ('x', 'y', 'drift_time'))
-        self.polar = (axes == ('r', 'theta', 'z'))
-        self.r_z = (axes == ('r', 'z'))
+        self.polar = (axes == ('r', 'theta', 'drift_time'))
         self.r_dt = (axes == ('r', 'drift_time'))
 
         self.bin_volumes = self.spatial_hist.bin_volumes()
         # Volume element in cylindrical coords = r * (dr dq dz)
         if self.polar:
             self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
-        elif (self.r_z or self.r_dt):
+        elif (self.r_dt):
             self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
         else:
-            assert (axes == ('x', 'y', 'z')) or self.mod_cart, \
+            assert (axes == ('x', 'y', 'drift_time')), \
                 ("axis_names of spatial_rate_hist must be "
-                 "['r', 'theta', 'z'], ['r', 'z'], ['r', 'drift_time'], ['x', 'y', 'z'] "
+                 "['r', 'theta', 'drift_time'], ['r', 'drift_time'] "
                  "or ['x', 'y', 'drift_time']")
 
         # Normalize the histogram
@@ -318,19 +348,13 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
             (self.spatial_hist.histogram / self.bin_volumes)
             * self.bin_volumes.sum())
 
-    def energy_spectrum_rate_multiplier(self, x, y, z):
+    def energy_spectrum_rate_multiplier(self, x, y, drift_time):
         if self.polar:
-            positions = list(fd.cart_to_pol(x, y)) + [z]
-        elif self.r_z:
-            positions = [fd.cart_to_pol(x, y)[0]] + [z]
+            positions = list(fd.cart_to_pol(x, y)) + [drift_time]
         elif self.r_dt:
-            dt = (self.z_topDrift - z) / self.drift_velocity
-            positions = [fd.cart_to_pol(x, y)[0]] + [dt]
-        elif self.mod_cart:
-            dt = (self.z_topDrift - z) / self.drift_velocity
-            positions = [x, y, dt]
+            positions = [fd.cart_to_pol(x, y)[0]] + [drift_time]
         else:
-            positions = [x, y, z]
+            positions = [x, y, drift_time]
         return self.local_rate_multiplier.lookup(*positions)
 
     def draw_positions(self, n_events, **params):
@@ -341,21 +365,14 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         positions = self.spatial_hist.get_random(size=n_events)
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
-        if self.mod_cart:
-            data['z'] = self.z_topDrift - data['drift_time'] * self.drift_velocity
         if self.polar:
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
-        elif self.r_z:
-            theta = np.random.uniform(0, 2*np.pi, size=n_events)
-            data['x'], data['y'] = fd.pol_to_cart(data['r'], theta)
         elif self.r_dt:
             theta = np.random.uniform(0, 2*np.pi, size=n_events)
             data['x'], data['y'] = fd.pol_to_cart(data['r'], theta)
-            data['z'] = self.z_topDrift - data['drift_time'] * self.drift_velocity
         else:
             data['r'], data['theta'] = fd.cart_to_pol(data['x'], data['y'])
 
-        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
         return data
 
 

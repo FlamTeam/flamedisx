@@ -33,10 +33,6 @@ from .xenon.x1t_sr1 import *
 # Access through fd.nest.xxx
 from . import nest
 
-# LUX models
-# Access through fd.lux.xxx
-from . import lux
-
 # LZ models
 # Access through fd.lz.xxx
 from . import lz

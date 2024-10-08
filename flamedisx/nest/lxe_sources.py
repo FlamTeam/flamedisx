@@ -22,7 +22,9 @@ XENON_REF_DENSITY = 2.90
 
 class nestSource(fd.BlockModelSource):
     def __init__(self, *args, detector='default', **kwargs):
-        assert detector in ('default', 'lz')
+      
+        assert detector in ('default', 'lz','lz_WS2024')
+        
         self.detector = detector
 
         assert os.path.exists(os.path.join(
@@ -49,10 +51,8 @@ class nestSource(fd.BlockModelSource):
         # energy_spectrum.py
         self.radius = config.getfloat('NEST', 'radius_config')
         self.z_topDrift = config.getfloat('NEST', 'z_topDrift_config')
-        self.z_top = self.z_topDrift - self.drift_velocity * \
-            config.getfloat('NEST', 'dt_min_config')
-        self.z_bottom = self.z_topDrift - self.drift_velocity * \
-            config.getfloat('NEST', 'dt_max_config')
+        self.z_top = config.getfloat('NEST', 'gate_config')
+        self.z_bottom = config.getfloat('NEST', 'cathode_config')
 
         # detection.py / pe_detection.py / double_pe.py / final_signals.py
         self.g1 = config.getfloat('NEST', 'g1_config')
@@ -126,32 +126,32 @@ class nestSource(fd.BlockModelSource):
 
     # detection.py
 
-    def photon_detection_eff(self, z):
-        return self.g1 * tf.ones_like(z)
+    def photon_detection_eff(self, drift_time):
+        return self.g1 * tf.ones_like(drift_time)
 
     def electron_detection_eff(self, drift_time):
         return self.extraction_eff * tf.exp(-drift_time / self.elife)
 
-    def s2_photon_detection_eff(self, z):
-        return self.g1_gas * tf.ones_like(z)
+    def s2_photon_detection_eff(self, drift_time):
+        return self.g1_gas * tf.ones_like(drift_time)
 
     # secondary_quanta_generation.py
 
-    def electron_gain_mean(self, z):
+    def electron_gain_mean(self, drift_time):
         elYield = (
             0.137 * self.gas_field * 1e3 -
             4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
             * self.gas_gap * 0.1
 
-        return tf.cast(elYield, fd.float_type()) * tf.ones_like(z)
+        return tf.cast(elYield, fd.float_type()) * tf.ones_like(drift_time)
 
-    def electron_gain_std(self, z):
+    def electron_gain_std(self, drift_time):
         elYield = (
             0.137 * self.gas_field * 1e3 -
             4.70e-18 * (N_AVAGADRO * self.density_gas / A_XENON)) \
             * self.gas_gap * 0.1
 
-        return tf.sqrt(self.s2Fano * elYield) * tf.ones_like(z)
+        return tf.sqrt(self.s2Fano * elYield) * tf.ones_like(drift_time)
 
     # pe_detection.py
 
@@ -330,7 +330,7 @@ class nestERSource(nestSource):
         skewness = tf.ones_like(nq_mean, dtype=fd.float_type()) * skew
         skewness_masked = tf.multiply(skewness, tf.cast(mask_product, fd.float_type()))
 
-        if self.detector == 'lz':
+        if self.detector in ['lz','lz_WS2024']:
             skewness_masked = tf.zeros_like(nq_mean, dtype=fd.float_type())
         return skewness_masked
 
