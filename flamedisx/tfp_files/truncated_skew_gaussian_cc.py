@@ -147,17 +147,16 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
 
     minus_inf = dtype_util.as_numpy_dtype(x.dtype)(-np.inf)
     #_log_prob is used by exp(ln(x)), gradients are 1/x *e^ln(x). diverge at 0.
+    prob=cdf_upper - cdf_lower
     bounded_prob = tf.where((x > limit),
                                 0.,
-                                cdf_upper - cdf_lower+1e-11)
-    bounded_prob = tf.where(tf.math.is_nan(bounded_prob),
-                                0.,
-                                bounded_prob)
+                                prob)
     dumping_prob = tf.where((x == limit),
-                                1 - cdf_lower+1e-11,
+                                1 - cdf_lower,
                                 bounded_prob)
 
     return dumping_prob
+
 
   def _parameter_control_dependencies(self, is_init):
     assertions = []

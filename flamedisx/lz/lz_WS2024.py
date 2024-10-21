@@ -221,21 +221,24 @@ class LZWS2024Source:
         super().add_extra_columns(d)
         
         
-        if 'x_obs' not in d.columns:
-            x_obs,y_obs=self.derive_observed_xy(d)
+        if 'x_obs' not in d.columns and 'z' in d.columns:
+            x_obs,y_obs=self.model_blocks[0].derive_observed_xy(d)
             d['x_obs'] = x_obs
             d['y_obs'] = y_obs
+        if 'x_obs' not in d.columns and 'z' not in d.columns:
+            print("not good")
+            raise NotImplemented
             
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             #LZLAMA uses correctedX and Y
             #I think this is meant to represent cluster (and therfore True position)
             d['s1_pos_corr_latest'] = self.s1_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values,
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values,
                               d['drift_time'].values * 1e-9 / 1e-6]))
             d['s2_pos_corr_latest'] = self.s2_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values]))
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values]))
         else:
             d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
             d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
@@ -436,18 +439,18 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
             See section C. in Arxiv: 2211.10726 
             Energy: energy in keV
         """
-        nr_nuis_alpha = 10.19
-        nr_nuis_beta = 1.11
-        nr_nuis_gamma = 0.0498
-        nr_nuis_delta = -0.0533
-        nr_nuis_epsilon = 12.46
-        nr_nuis_zeta =  0.2942
-        nr_nuis_eta = 1.899
-        nr_nuis_theta = 0.3197
-        nr_nuis_l = 2.066
-        nr_nuis_p = 0.509
-        nr_new_nuis_a = 0.996
-        nr_new_nuis_b =  0.999
+        nr_nuis_alpha = tf.cast(10.19,tf.float32)
+        nr_nuis_beta = tf.cast(1.11,tf.float32)
+        nr_nuis_gamma = tf.cast(0.0498,tf.float32)
+        nr_nuis_delta = tf.cast(-0.0533,tf.float32)
+        nr_nuis_epsilon = tf.cast(12.46,tf.float32)
+        nr_nuis_zeta =  tf.cast(0.2942,tf.float32)
+        nr_nuis_eta = tf.cast(1.899,tf.float32)
+        nr_nuis_theta = tf.cast(0.3197,tf.float32)
+        nr_nuis_l = tf.cast(2.066,tf.float32)
+        nr_nuis_p = tf.cast(0.509,tf.float32)
+        nr_new_nuis_a = tf.cast(0.996,tf.float32)
+        nr_new_nuis_b =  tf.cast(0.999,tf.float32)
  
         TIB = nr_nuis_gamma * tf.math.pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
         Qy = 1. / (TIB * tf.math.pow(energy + nr_nuis_epsilon, nr_nuis_p))
@@ -591,7 +594,7 @@ class LZ24DDSource(LZ24NRSource, fd.nest.DDSource):
 
 
 @export
-class LZWIMPSource(LZ24NRSource, fd.nest.nestWIMPSource):
+class LZ24WIMPSource(LZ24NRSource, fd.nest.nestWIMPSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
