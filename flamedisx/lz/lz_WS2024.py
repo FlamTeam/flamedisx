@@ -68,7 +68,7 @@ def build_position_map_from_data(map_file, axis_names, bins):
 # Common to all LZ sources
 ##
 
-
+@export
 class LZWS2024Source:
     path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
     path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
@@ -222,9 +222,8 @@ class LZWS2024Source:
         
         
         if 'x_obs' not in d.columns:
-            x_obs,y_obs=self.derive_observed_xy(d)
-            d['x_obs'] = x_obs
-            d['y_obs'] = y_obs
+            print("ERROR: Require observed X and Y")
+            raise NotImplemented
             
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             #LZLAMA uses correctedX and Y
