@@ -698,6 +698,8 @@ class IntervalCalculator():
         """
         """
         bands = dict()
+        all_mus = dict()
+        all_p_val_curves = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
@@ -735,8 +737,10 @@ class IntervalCalculator():
             for quantile in quantiles:
                 these_bands[quantile] = np.quantile(np.sort(upper_lims_bands), stats.norm.cdf(quantile))
             bands[signal_source] = these_bands
+            all_mus[signal_source] = mus
+            all_p_val_curves[signal_source] = p_val_curves
 
-        return bands
+        return bands, all_mus, all_p_val_curves
 
     def get_disco_sig(self):
         """
