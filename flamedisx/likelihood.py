@@ -284,7 +284,7 @@ class LogLikelihood:
                 continue
 
             # Copy ensures annotations don't clobber
-            source.set_data(deepcopy(data[dname]), data_is_annotated,ignore_priors=True)
+            source.set_data(deepcopy(data[dname]), data_is_annotated)
 
             # Update batch info
             dset_index = self.dsetnames.index(dname)
@@ -355,10 +355,6 @@ class LogLikelihood:
             mu = rm * s.mu_before_efficiencies(
                 **self._filter_source_kwargs(params, sname))
             # Simulate this many events from source
-            if type(self.sources[sname]).__name__!='TemplateSource':
-                #only do for non-template sources
-                mu=mu/self.mu_estimators[sname](**self._filter_source_kwargs(params, sname))
-                
             n_to_sim = np.random.poisson(mu)
             if n_to_sim == 0:
                 continue
@@ -535,6 +531,7 @@ class LogLikelihood:
                 ll += tf.where( tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
                                 self.log_constraint(**kwargs),
                                 0.)
+
 
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]

@@ -17,6 +17,16 @@ import pickle as pkl
 from multihist import Histdd
 from scipy import interpolate
 
+import scipy
+from multihist import Histdd
+
+
+import flamedisx as fd
+from flamedisx.lz.lz import LZSource
+from flamedisx.lz.lz import LZXe124Source
+from flamedisx.nest import nestGammaSource
+from flamedisx.nest import nestERSource
+from copy import deepcopy
 export, __all__ = fd.exporter()
 pi = tf.constant(m.pi)
 GAS_CONSTANT = 8.314
@@ -68,7 +78,7 @@ def build_position_map_from_data(map_file, axis_names, bins):
 # Common to all LZ sources
 ##
 
-
+@export
 class LZWS2024Source:
     path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
     path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
@@ -185,9 +195,13 @@ class LZWS2024Source:
         if self.ignore_all_cuts:
             return tf.ones_like(s1, dtype=fd.float_type())
         acceptance = tf.where((s1 >= self.spe_thr) &
-                              (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
+                              (cs1 >= self.cS1_min),
                               tf.ones_like(s1, dtype=fd.float_type()),  # if condition non-zero
                               tf.zeros_like(s1, dtype=fd.float_type()))  # if false
+        if self.cap_upper_cs1:
+            acceptance *= tf.where(cs1 <= self.cS1_max,
+                                  tf.ones_like(s1, dtype=fd.float_type()),  # if condition non-zero
+                                  tf.zeros_like(s1, dtype=fd.float_type()))  # if false
 
         # multiplying by efficiency curve
         if not self.ignore_acceptances_maps:
@@ -221,12 +235,8 @@ class LZWS2024Source:
         super().add_extra_columns(d)
         
         
-        if 'x_obs' not in d.columns and 'z' in d.columns:
-            x_obs,y_obs=self.model_blocks[0].derive_observed_xy(d)
-            d['x_obs'] = x_obs
-            d['y_obs'] = y_obs
-        if 'x_obs' not in d.columns and 'z' not in d.columns:
-            print("not good")
+        if 'x_obs' not in d.columns:
+            print("ERROR: Require observed X and Y")
             raise NotImplemented
             
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
@@ -328,16 +338,16 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
             Constants are direct over-rides of eqn 6 in Arxiv: 2211.10726 
             Energy: energy in keV
         """
-        m1=12.4886
-        m2=85.0
-        m3=0.6050
-        m4= 2.14687
-        m5=25.721
-        m6=0. 
-        m7=59.651
-        m8=3.6869
-        m9=0.2872
-        m10=0.1121 
+        m1=tf.cast(12.4886,tf.float32)
+        m2=tf.cast(85.0,tf.float32)
+        m3=tf.cast(0.6050,tf.float32)
+        m4= tf.cast(2.14687,tf.float32)
+        m5=tf.cast(25.721,tf.float32)
+        m6=tf.cast(0. ,tf.float32)
+        m7=tf.cast(59.651,tf.float32)
+        m8=tf.cast(3.6869,tf.float32)
+        m9=tf.cast(0.2872,tf.float32)
+        m10=tf.cast(0.1121 ,tf.float32)
 
         Nq = energy  / self.Wq_keV  #equation is in keV   
 
@@ -712,7 +722,7 @@ class LZXe127Source(LZWS2024Source, fd.nest.Xe127Source, fd.nest.nestSpatialTemp
 
         if bins is None:
             bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
-                  np.linspace(fd.lz.LZERSource().z_bottom, fd.lz.LZERSource().z_top, num=51))
+                  np.linspace(LZERSource().z_bottom, LZERSource().z_top, num=51))
 
         mh = fd.get_lz_file('Xe127_spatial_map_hist.pkl')
         self.spatial_hist = mh
@@ -772,6 +782,214 @@ class LZ24DetNRSource(LZ24NRSource, fd.nest.nestSpatialRateNRSource):
 ## TO DO:
 ## ADD in accidentals source
 
+
+class LZXe124Source(LZWS2024Source, fd.nest.Xe124Source):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+        super().__init__(*args, **kwargs)
+
+    def mean_yield_electron(self, energy,b=1.3):
+        # Default EC model (Weighted ER)
+        weight_param_a = 0.23
+        weight_param_b = 0.77
+        weight_param_c = 2.95
+        weight_param_d = -1.44
+        weight_param_e = 421.15
+        weight_param_f = 3.27
+
+        weightG = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
+                          (tf.math.log(energy) + weight_param_d)) *
+                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
+                          fd.float_type())
+        weightB = tf.cast(1. - weightG, fd.float_type())
+
+        nel_gamma = tf.cast(nestGammaSource.mean_yield_electron(self, energy), fd.float_type())
+        nel_beta = tf.cast(nestERSource.mean_yield_electron(self, energy), fd.float_type())
+
+        nel_raw = nel_gamma * weightG + nel_beta * weightB
+        # ===============END OF EC MODEL===================
+        # Based on xi and b, calculate scaling factor s
+        xi_L=7.52
+        
+        s=tf.math.log(1+b*xi_L) / tf.math.log(1+xi_L) /b
+        nel_DEC = nel_raw * s
+        
+        nel_temp = tf.where(tf.logical_and((energy >9.7), (energy <10.1)), nel_DEC, nel_raw) # select LL shell based on energy
+        # Don't let number of electrons go negative
+        nel = tf.where(nel_temp < 0,
+                       0 * nel_temp,
+                       nel_temp)
+
+        return nel
+    
+@export
+class LZ24CH3TSource(LZ24ERSource,fd.nest.CH3TSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+
+        super().__init__(*args, **kwargs)
+@export
+class LZ24C14Source(LZ24ERSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+        m_e = 510.9989461  # e- rest mass-energy [keV]
+        aa = 0.0072973525664;          # fine structure constant
+        ZZ = 7.;
+        V0 = 0.495;  # effective offset in T due to screening of the nucleus by electrons
+        qValue = 156.
+        #energy range to avoid nans
+        energies = tf.linspace(0.01, qValue, 1000)
+
+        Ee=energies+m_e
+        pe=np.sqrt(np.square(Ee)-np.square(m_e))
+        dNdE_phasespace=pe * Ee * (qValue - energies)**2
+        Ee_screen = Ee - V0
+        W_screen = (Ee_screen) / m_e
+        p_screen = np.sqrt(W_screen * W_screen - 1)
+        p_screen=np.where(W_screen<1,0.,p_screen)
+        WW = (Ee) / m_e
+        pp = np.sqrt(WW * WW - 1)
+        G_screen = (Ee_screen) / (m_e)  ## Gamma, Total energy(KE+M) over M
+        B_screen = np.sqrt((G_screen * G_screen - 1)*(G_screen * G_screen))  # v/c of electron. Ratio of
+        B_screen=np.where(G_screen<1,0.,B_screen)
+        x_screen = (2 * pi * ZZ * aa) / B_screen
+        F_nr_screen = W_screen * p_screen / (WW * pp) * x_screen * (1 / (1 - np.exp(-x_screen)))
+        F_nr_screen=np.where(p_screen<=0. ,0. ,F_nr_screen)
+        F_bb_screen =F_nr_screen *np.power(W_screen * W_screen * (1 + 4 * (aa * ZZ) * (aa * ZZ)) - 1,np.sqrt(1 - aa * aa * ZZ * ZZ) - 1)
+        spectrum = dNdE_phasespace * F_bb_screen
+        spectrum=spectrum/np.sum(spectrum)
+        energies = tf.cast(energies, fd.float_type())
+        rates_vs_energy = tf.cast(spectrum, fd.float_type())
+        self.energies = tf.cast(energies, fd.float_type())
+        self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
+        super().__init__(*args, **kwargs)
+@export
+class LZ24AccidentalsSource(fd.TemplateSource):
+    path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
+    path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
+
+    def __init__(self, *args, simulate_safety_factor=2., **kwargs):
+        hist = fd.get_lz_file('WS2024/accidentals_model.pkl')
+
+        hist_values = hist['hist_values']
+        s1_edges = hist['cs1_phd_edges']
+        s2_edges = hist['log10_cs2_phd_edges']
+
+        mh = Histdd(bins=[len(s1_edges) - 1, len(s2_edges) - 1]).from_histogram(hist_values, bin_edges=[s1_edges, s2_edges])
+        mh = mh / mh.n
+        mh = mh / mh.bin_volumes()
+
+        self.simulate_safety_factor = simulate_safety_factor
+
+        try:
+            self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest))
+            self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest))
+        except Exception:
+            print("Could not load maps; setting position corrections to 1")
+            self.s1_map_latest = None
+            self.s2_map_latest = None
+
+        super().__init__(*args, template=mh, interpolate=True,
+                         axis_names=('cs1_phd', 'log10_cs2_phd'),
+                         **kwargs)
+
+    def _annotate(self,ignore_priors=False, **kwargs):
+        """
+            Currently quite weird, ignore priors isn't used
+        """
+        super()._annotate(**kwargs)
+
+        lz_source = LZ24ERSource()
+        self.data[self.column] /= (1 + lz_source.double_pe_fraction)
+        self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
+        self.data[self.column] /= self.data['s1_pos_corr_latest'].values
+        self.data[self.column] *= (np.exp(self.data['drift_time'].values /
+                                          self.data['electron_lifetime'].values) /
+                                   self.data['s2_pos_corr_latest'].values)
+
+    def simulate(self, n_events, fix_truth=None, full_annotate=False,
+                 keep_padding=False, **params):
+        df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
+                              full_annotate=full_annotate, keep_padding=keep_padding, **params)
+
+        lz_source = LZ24ERSource()
+        df_pos = pd.DataFrame(lz_source.model_blocks[0].draw_positions(len(df)))
+        df = df.join(df_pos)
+
+        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(len(df)), columns=['event_time'])
+        df = df.join(df_time)
+
+        lz_source.add_extra_columns(df)
+        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+
+        df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
+        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
+        df['s1'] = df['cs1'] * df['s1_pos_corr_latest']
+        df['s2'] = (
+            df['cs2']
+            * df['s2_pos_corr_latest']
+            / np.exp(df['drift_time'] / df['electron_lifetime']))
+
+        df['acceptance'] *= (df['s2'].values >= lz_source.S2_min)
+
+        df = df[df['acceptance'] == 1.]
+        df = df.reset_index(drop=True)
+
+        try:
+            df = df.head(n_events)
+        except Exception:
+            raise RuntimeError('Too many events lost due to spatial/temporal cuts, try increasing \
+                                simulate_safety_factor')
+        df = df.drop(columns=['fv_acceptance', 'resistor_acceptance', 'timestamp_acceptance',
+                              'acceptance'])
+
+        lz_source.add_extra_columns(df)
+
+        return df
+
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+
+        if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
+            d['s1_pos_corr_latest'] = self.s1_map_latest(
+                np.transpose([d['x'].values,
+                              d['y'].values,
+                              d['drift_time'].values * 1e-9 / 1e-6]))
+            d['s2_pos_corr_latest'] = self.s2_map_latest(
+                np.transpose([d['x'].values,
+                              d['y'].values]))
+        else:
+            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
+
+        lz_source = LZ24ERSource()
+
+        if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
+            d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
+
+        if 's1' in d.columns and 'cs1' not in d.columns:
+            d['cs1'] = d['s1'] / d['s1_pos_corr_latest']
+            d['cs1_phd'] = d['cs1'] / (1 + lz_source.double_pe_fraction)
+        if 's2' in d.columns and 'cs2' not in d.columns:
+            d['cs2'] = (
+                d['s2']
+                / d['s2_pos_corr_latest']
+                * np.exp(d['drift_time'] / d['electron_lifetime']))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
+
+    def estimate_position_acceptance(self, n_trials=int(1e5)):
+        lz_source = LZ24ERSource()
+        df = pd.DataFrame(lz_source.model_blocks[0].draw_positions(n_trials))
+        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
+        df = df.join(df_time)
+
+        lz_source.add_extra_columns(df)
+        df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
+
+        return np.sum(df['acceptance'].values) / n_trials
 
 ##
 # Source groups

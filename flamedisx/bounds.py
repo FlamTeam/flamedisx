@@ -125,8 +125,8 @@ def get_priors(source, reservoir, prior_dims,
             prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] >= filter_dim_min)
 
         prior_data = reservoir[:, prior_data_col][prior_data_filter]
-        prior_hist = np.histogram(prior_data)
-        prior_pdf = stats.rv_histogram(prior_hist)
+        prior_hist,prior_xedge = np.histogram(prior_data)  #weird casting!
+        prior_pdf = stats.rv_histogram([list(prior_hist),list(prior_xedge)])
         prior_dict[prior_dim] = prior_pdf
 
     source.prior_PDFs_LB += (prior_dict,)
@@ -140,8 +140,8 @@ def get_priors(source, reservoir, prior_dims,
             prior_data_filter = prior_data_filter * (reservoir[:, filter_data_col] <= filter_dim_max)
 
         prior_data = reservoir[:, prior_data_col][prior_data_filter]
-        prior_hist = np.histogram(prior_data)
-        prior_pdf = stats.rv_histogram(prior_hist)
+        prior_hist,prior_xedge = np.histogram(prior_data) #weird casting!
+        prior_pdf = stats.rv_histogram([list(prior_hist),list(prior_xedge)])
         prior_dict[prior_dim] = prior_pdf
 
     source.prior_PDFs_UB += (prior_dict,)

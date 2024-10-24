@@ -1,22 +1,26 @@
 import random
 import string
-
-from multihist import Histdd
-import pandas as pd
-from scipy.interpolate import interp2d
-
+import typing as ty
 
 import numpy as np
+from multihist import Histdd
+import pandas as pd
+import scipy.interpolate
+import tensorflow as tf
+import tensorflow_probability as tfp
+
+from flamedisx.tfbspline import bspline
 
 import flamedisx as fd
 
+from copy import deepcopy
+
+
 export, __all__ = fd.exporter()
 
-
 @export
-class TemplateSource(fd.ColumnSource):
-    """Source that looks up precomputed differential rates in a template
-    (probably a histogram from a simulation).
+class TemplateWrapper:
+    """Wrapper around a template (probably a histogram from a simulation)
 
     Arguments:
         - template: numpy array, multhist.Histdd, or (hist/boost_histogram).
@@ -27,19 +31,23 @@ class TemplateSource(fd.ColumnSource):
             If None, get this info from template.
         - events_per_bin: set to True if template specifies expected events per
             bin, rather than differential rate.
-
-    For other arguments, see flamedisx.source.Source
+        - interpolate: if True, differential rates are interpolated linearly
+            between the bin centers.
     """
+
+    #: Total expected events
+    mu: float
+
+    #: Names of template axes = names of final dimensions
+    axis_names: str
 
     def __init__(
             self,
             template,
-            interp_2d=False,
             bin_edges=None,
             axis_names=None,
             events_per_bin=False,
-            *args,
-            **kwargs):
+            interpolate=False):
         # Get template, bin_edges, and axis_names
         if bin_edges is None:
             # Hopefully we got some kind of histogram container
@@ -61,15 +69,7 @@ class TemplateSource(fd.ColumnSource):
 
         if not axis_names or len(axis_names) != len(template.shape):
             raise ValueError("Axis names missing or mismatched")
-        self.final_dimensions = axis_names
-
-        if interp_2d:
-            assert len(self.final_dimensions) == 2, "Interpolation only supported for 2D histogram!"
-            centers_dim_1 = 0.5 * (bin_edges[0][1:] + bin_edges[0][:-1])
-            centers_dim_2 = 0.5 * (bin_edges[1][1:] + bin_edges[1][:-1])
-            self.interp_2d = interp2d(centers_dim_1, centers_dim_2, np.transpose(template))
-        else:
-            self.interp_2d = None
+        self.axis_names = axis_names
 
         # Build a diff rate and events/bin multihist from the template
         _mh = Histdd.from_histogram(template, bin_edges=bin_edges)
@@ -82,6 +82,74 @@ class TemplateSource(fd.ColumnSource):
 
         self.mu = fd.np_to_tf(self._mh_events_per_bin.n)
 
+        if interpolate:
+            # Build an interpolator for the differential rate
+            bin_centers = [
+                0.5 * (edges[1:] + edges[:-1])
+                for edges in bin_edges]
+            self._interpolator = scipy.interpolate.RegularGridInterpolator(
+                points=tuple(bin_centers),
+                values=self._mh_diff_rate.histogram,
+                method='linear',
+                fill_value=None,
+                bounds_error=False)
+        else:
+            self._interpolator = None
+
+    def differential_rates_numpy(self, data):
+        data = np.stack([
+            data[dim].values
+            for dim in self.axis_names])
+
+        if self._interpolator:
+            # transpose since RegularGridInterpolator expects (n_points, n_dims)
+            interp_diff_rates = self._interpolator(data.T)
+            lookup_diff_rates = self._mh_diff_rate.lookup(*data)
+            return np.where(interp_diff_rates <= 0., lookup_diff_rates, interp_diff_rates)
+        else:
+            return self._mh_diff_rate.lookup(*data)
+
+    def simulate(self, n_events):
+        return pd.DataFrame(dict(zip(
+            self.axis_names,
+            self._mh_events_per_bin.get_random(n_events).T)))
+    
+    
+@export
+class TemplateSource(fd.ColumnSource):
+    """Source that looks up precomputed differential rates in a template
+    (probably a histogram from a simulation).
+
+    Arguments:
+        - template: numpy array, multhist.Histdd, or (hist/boost_histogram).
+            containing the differential rate.
+        - bin_edges: None, or a list of numpy arrays with bin edges.
+            If None, get this info from template.
+        - axis_names: None, or a sequence of axis names.
+            If None, get this info from template.
+        - events_per_bin: set to True if template specifies expected events per
+            bin, rather than differential rate.
+        - interpolate: if True, differential rates are interpolated linearly
+            between the bin centers.
+
+    For other arguments, see flamedisx.source.Source
+    """
+
+    def __init__(
+            self,
+            template,
+            bin_edges=None,
+            axis_names=None,
+            events_per_bin=False,
+            interpolate=False,
+            *args,
+            **kwargs):
+        self._template = TemplateWrapper(
+            template, bin_edges, axis_names, events_per_bin, interpolate)
+
+        self.final_dimensions = self._template.axis_names
+        self.mu = self._template.mu
+
         # Generate a random column name to use to store the diff rates
         # of observed events
         self.column = (
@@ -90,16 +158,10 @@ class TemplateSource(fd.ColumnSource):
 
         super().__init__(*args, **kwargs)
 
-    def _annotate(self, **kwargs):
+    def _annotate(self):
         """Add columns needed in inference to self.data
         """
-        if self.interp_2d is not None:
-            self.data[self.column] = np.array([self.interp_2d(r[self.data.columns.get_loc(self.final_dimensions[0])],
-                                                              r[self.data.columns.get_loc(self.final_dimensions[1])])[0]
-                                               for r in self.data.itertuples(index=False)])
-        else:
-            self.data[self.column] = self._mh_diff_rate.lookup(
-                *[self.data[x] for x in self.final_dimensions])
+        self.data[self.column] = self._template.differential_rates_numpy(self.data)
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
@@ -113,6 +175,4 @@ class TemplateSource(fd.ColumnSource):
         # TODO: all other arguments are ignored, they make no sense
         # for this source. Should we warn about this? Remove them from def?
 
-        return pd.DataFrame(dict(zip(
-            self.final_dimensions,
-            self._mh_events_per_bin.get_random(n_events).T)))
+        return self._template.simulate(n_events)
