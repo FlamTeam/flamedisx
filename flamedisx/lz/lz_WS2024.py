@@ -631,17 +631,17 @@ class LZ24FermionicDMSource(LZ24ERSource, fd.nest.FermionicDMSource):
 
 
 @export
-class LZ24Pb214Source(LZ24ERSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
+class LZ24Pb214Source(LZ24ERSource, fd.nest.Pb214Source):#, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
 
-        if bins is None:
-            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=21)),
-                  np.linspace(86000., 936500., num=21))
+        # if bins is None:
+        #     bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=21)),
+        #           np.linspace(86000., 936500., num=21))
 
-        mh = build_position_map_from_data('sr1/Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
-        self.spatial_hist = mh
+        # mh = build_position_map_from_data('sr1/Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
+        # self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
