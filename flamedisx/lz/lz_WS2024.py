@@ -250,15 +250,15 @@ class LZWS2024Source:
             #LZLAMA uses correctedX and Y
             #I think this is meant to represent cluster (and therfore True position)
             d['s1_pos_corr_latest'] = self.s1_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values,
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values,
                               d['drift_time'].values * 1e-9 / 1e-6]))
             d['s2_pos_corr_latest'] = self.s2_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values]))
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values]))
         else:
-            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
-            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
         
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
             d['electron_lifetime'] = self.get_elife(d['event_time'].values)
@@ -957,15 +957,15 @@ class LZ24AccidentalsSource(fd.TemplateSource):
 
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             d['s1_pos_corr_latest'] = self.s1_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values,
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values,
                               d['drift_time'].values * 1e-9 / 1e-6]))
             d['s2_pos_corr_latest'] = self.s2_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values]))
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values]))
         else:
-            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
-            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
 
         lz_source = LZ24ERSource()
 
