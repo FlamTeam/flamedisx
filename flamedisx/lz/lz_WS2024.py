@@ -647,13 +647,13 @@ class LZ24Pb214Source(LZ24ERSource, fd.nest.Pb214Source, fd.nest.nestSpatialRate
 
 
 @export
-class LZ24DetERSource(LZ24ERSource, fd.nest.DetERSource, fd.nest.nestSpatialRateERSource):
+class LZ24DetERSource(LZ24ERSource, fd.nest.DetERSource):#, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
 
-        mh = fd.get_lz_file('sr1/DetER_spatial_map_hist.pkl')
-        self.spatial_hist = mh
+        # mh = fd.get_lz_file('sr1/DetER_spatial_map_hist.pkl')
+        # self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
@@ -713,7 +713,7 @@ class LZ24Ar37Source(LZ24ERSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateD
 
 
 @export
-class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRateDecayERSource):
+class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source):#, fd.nest.nestSpatialTemporalRateDecayERSource):
     def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -722,8 +722,8 @@ class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source, fd.nest.nestSpatialTe
             bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
                   np.linspace(LZERSource().z_bottom, LZERSource().z_top, num=51))
 
-        mh = fd.get_lz_file('sr1/Xe127_spatial_map_hist.pkl')
-        self.spatial_hist = mh
+        # mh = fd.get_lz_file('sr1/Xe127_spatial_map_hist.pkl')
+        # self.spatial_hist = mh
 
         if time_constant_ns is None:
             self.time_constant_ns = (36.4 / np.log(2)) * 1e9 * 3600. * 24.
@@ -758,7 +758,7 @@ class LZ24B8Source(LZ24NRSource, fd.nest.B8Source, fd.nest.nestTemporalRateOscil
 
 
 @export
-class LZ24DetNRSource(LZ24NRSource, fd.nest.nestSpatialRateNRSource):
+class LZ24DetNRSource(LZ24NRSource):#, fd.nest.nestSpatialRateNRSource):
     """
     """
 
@@ -771,8 +771,8 @@ class LZ24DetNRSource(LZ24NRSource, fd.nest.nestSpatialRateNRSource):
         self.energies = tf.convert_to_tensor(df_DetNR['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_DetNR['spectrum_value_norm'].values, dtype=fd.float_type())
 
-        mh = fd.get_lz_file('sr1/DetNR_spatial_map_hist.pkl')
-        self.spatial_hist = mh
+        # mh = fd.get_lz_file('sr1/DetNR_spatial_map_hist.pkl')
+        # self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
