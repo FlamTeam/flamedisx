@@ -250,8 +250,8 @@ class LZWS2024Source:
                 np.transpose([d['x_obs'].values,
                               d['y_obs'].values]))
         else:
-            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
-            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
         
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
             d['electron_lifetime'] = self.get_elife(d['event_time'].values)
@@ -259,8 +259,7 @@ class LZWS2024Source:
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_latest']
             d['cs1_phd'] = d['cs1'] / (1 + self.double_pe_fraction)
-            if self.cap_upper_cs1 == True:
-                d['cs1'] = np.where(d['cs1'].values <= self.cS1_max, d['cs1'].values, self.cS1_max)
+
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
@@ -625,29 +624,29 @@ class LZ24FermionicDMSource(LZ24ERSource, fd.nest.FermionicDMSource):
 
 
 @export
-class LZ24Pb214Source(LZ24ERSource, fd.nest.Pb214Source, fd.nest.nestSpatialRateERSource):
+class LZ24Pb214Source(LZ24ERSource, fd.nest.Pb214Source):#, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, bins=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
 
-        if bins is None:
-            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=21)),
-                  np.linspace(86000., 936500., num=21))
+        # if bins is None:
+        #     bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=21)),
+        #           np.linspace(86000., 936500., num=21))
 
-        mh = build_position_map_from_data('Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
-        self.spatial_hist = mh
+        # mh = build_position_map_from_data('sr1/Pb214_spatial_map_data.pkl', ['r', 'drift_time'], bins)
+        # self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
 
 @export
-class LZ24DetERSource(LZ24ERSource, fd.nest.DetERSource, fd.nest.nestSpatialRateERSource):
+class LZ24DetERSource(LZ24ERSource, fd.nest.DetERSource):#, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
 
-        mh = fd.get_lz_file('DetER_spatial_map_hist.pkl')
-        self.spatial_hist = mh
+        # mh = fd.get_lz_file('sr1/DetER_spatial_map_hist.pkl')
+        # self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
@@ -707,15 +706,7 @@ class LZ24Ar37Source(LZ24ERSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateD
 
 
 @export
-class LZXe124Source(LZWS2024Source, fd.nest.Xe124Source):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz_WS2024'
-        super().__init__(*args, **kwargs)
-
-
-@export
-class LZXe127Source(LZWS2024Source, fd.nest.Xe127Source, fd.nest.nestSpatialTemporalRateDecayERSource):
+class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source):#, fd.nest.nestSpatialTemporalRateDecayERSource):
     def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -724,8 +715,8 @@ class LZXe127Source(LZWS2024Source, fd.nest.Xe127Source, fd.nest.nestSpatialTemp
             bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
                   np.linspace(LZERSource().z_bottom, LZERSource().z_top, num=51))
 
-        mh = fd.get_lz_file('Xe127_spatial_map_hist.pkl')
-        self.spatial_hist = mh
+        # mh = fd.get_lz_file('sr1/Xe127_spatial_map_hist.pkl')
+        # self.spatial_hist = mh
 
         if time_constant_ns is None:
             self.time_constant_ns = (36.4 / np.log(2)) * 1e9 * 3600. * 24.
@@ -760,7 +751,7 @@ class LZ24B8Source(LZ24NRSource, fd.nest.B8Source, fd.nest.nestTemporalRateOscil
 
 
 @export
-class LZ24DetNRSource(LZ24NRSource, fd.nest.nestSpatialRateNRSource):
+class LZ24DetNRSource(LZ24NRSource):#, fd.nest.nestSpatialRateNRSource):
     """
     """
 
@@ -768,13 +759,13 @@ class LZ24DetNRSource(LZ24NRSource, fd.nest.nestSpatialRateNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
 
-        df_DetNR = fd.get_lz_file('DetNR_spectrum.pkl')
+        df_DetNR = fd.get_lz_file('sr1/DetNR_spectrum.pkl')
 
         self.energies = tf.convert_to_tensor(df_DetNR['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_DetNR['spectrum_value_norm'].values, dtype=fd.float_type())
 
-        mh = fd.get_lz_file('DetNR_spatial_map_hist.pkl')
-        self.spatial_hist = mh
+        # mh = fd.get_lz_file('sr1/DetNR_spatial_map_hist.pkl')
+        # self.spatial_hist = mh
 
         super().__init__(*args, **kwargs)
 
@@ -783,7 +774,11 @@ class LZ24DetNRSource(LZ24NRSource, fd.nest.nestSpatialRateNRSource):
 ## ADD in accidentals source
 
 
-class LZXe124Source(LZWS2024Source, fd.nest.Xe124Source):
+
+
+
+@export
+class LZ24Xe124Source(LZWS2024Source, fd.nest.Xe124Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -955,15 +950,15 @@ class LZ24AccidentalsSource(fd.TemplateSource):
 
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             d['s1_pos_corr_latest'] = self.s1_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values,
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values,
                               d['drift_time'].values * 1e-9 / 1e-6]))
             d['s2_pos_corr_latest'] = self.s2_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values]))
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values]))
         else:
-            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
-            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
 
         lz_source = LZ24ERSource()
 
@@ -990,6 +985,14 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
 
         return np.sum(df['acceptance'].values) / n_trials
+
+
+
+
+
+
+
+
 
 ##
 # Source groups
