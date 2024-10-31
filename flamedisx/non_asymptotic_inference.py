@@ -177,7 +177,7 @@ class TSEvaluation():
             expected_background_counts: ty.Dict[str, float] = None,
             gaussian_constraint_widths: ty.Dict[str, float] = None,
             sample_other_constraints: ty.Dict[str, ty.Callable] = None,
-            likelihood=None,
+            likelihood_container=None,
             ntoys=1000):
 
         if gaussian_constraint_widths is None:
@@ -188,7 +188,7 @@ class TSEvaluation():
 
         self.ntoys = ntoys
 
-        self.likelihood = likelihood
+        self.likelihood_container = likelihood_container
         self.test_statistic = test_statistic
 
         self.signal_source_names = signal_source_names
@@ -260,19 +260,18 @@ class TSEvaluation():
             test_stat_dists_SB_disco = TestStatisticDistributions()
             test_stat_dists_B = TestStatisticDistributions()
 
-            # Get likelihood
-            likelihood = deepcopy(self.likelihood)
+            sources = dict()
+            arguments = dict()
+            for sname, source in self.likelihood_container.sources.items():
+                if (sname == signal_source) or (sname in self.background_source_names):
+                    sources[sname] = source
+                    arguments[sname] = self.likelihood_container.arguments[sname]
 
-            assert hasattr(likelihood, 'likelihoods'), 'Logic only currently works for combined likelihood'
-            for ll in likelihood.likelihoods.values():
-                sources_remove = []
-                params_remove = []
-                for sname in ll.sources:
-                    if (sname != signal_source) and (sname not in self.background_source_names):
-                        sources_remove.append(sname)
-                        params_remove.append(f'{sname}_rate_multiplier')
-            likelihood.rebuild(sources_remove=sources_remove,
-                               params_remove=params_remove)
+            likelihood = fd.LogLikelihood(sources=sources,
+                                          arguments=arguments,
+                                          batch_size=self.likelihood_container.batch_size,
+                                          free_rates=tuple(sources.keys()),
+                                          log_constraint=self.likelihood_container.log_constraint)
 
             # Where we want to generate B-only toys
             if generate_B_toys:

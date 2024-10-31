@@ -45,6 +45,3 @@ from . import xlzd
 # Custom TFP files
 # Access through fd.tfp_files.xxx
 from . import tfp_files
-
-# TEMPORARY,I HOPE
-from . import tfbspline
