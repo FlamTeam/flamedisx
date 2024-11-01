@@ -380,6 +380,9 @@ class LogLikelihood:
                        omit_grads=tuple(), **kwargs):
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
+        ll = 0.
+        llgrad = np.zeros(n_grads, dtype=np.float64)
+        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
 
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
@@ -392,18 +395,14 @@ class LogLikelihood:
             else:
                 empty_batch = False
 
-            ll = {i_batch: 0. for i_batch in range(n_batches)}
-            llgrad = np.zeros(n_grads, dtype=np.float64)
-            llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
-
             for i_batch in range(n_batches):
                 # Iterating over tf.range seems much slower!
                 if empty_batch:
                     batch_data_tensor = None
                 else:
-                    batch_data_tensor = tf.gather(self.data_tensors[dsetname], i_batch)
+                    batch_data_tensor = self.data_tensors[dsetname][i_batch]
                 results = self._log_likelihood(
-                    i_batch,
+                    tf.constant(i_batch, dtype=fd.int_type()),
                     dsetname=dsetname,
                     data_tensor=batch_data_tensor,
                     batch_info=self.batch_info,
@@ -412,18 +411,18 @@ class LogLikelihood:
                     empty_batch=empty_batch,
                     constraint_extra_args=self.constraint_extra_args,
                     **params)
-                ll[i_batch] = results[0]
+                ll += results[0].numpy().astype(np.float64)
 
                 if self.param_names:
                     if results[1] is None:
                         raise ValueError("TensorFlow returned None as gradient!")
-                    llgrad += results[1]
+                    llgrad += results[1].numpy().astype(np.float64)
                     if second_order:
-                        llgrad2 += results[2]
+                        llgrad2 += results[2].numpy().astype(np.float64)
 
         if second_order:
-            return np.sum(list(ll.values())), llgrad, llgrad2
-        return np.sum(list(ll.values())), llgrad, None
+            return ll, llgrad, llgrad2
+        return ll, llgrad, None
 
     def minus2_ll(self, *, omit_grads=tuple(), **kwargs):
         result = self.log_likelihood(omit_grads=omit_grads, **kwargs)
@@ -432,6 +431,11 @@ class LogLikelihood:
         return -2 * ll, -2 * grad, hess
 
     def prepare_params(self, kwargs, free_all_rates=False):
+        for k in kwargs:
+            if k not in self.param_defaults:
+                if k.endswith('_rate_multiplier') and free_all_rates:
+                    continue
+                raise ValueError(f"Unknown parameter {k}")
         return {**self.param_defaults, **fd.values_to_constants(kwargs)}
 
     def _get_rate_mult(self, sname, kwargs):

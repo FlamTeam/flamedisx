@@ -4,8 +4,6 @@ from scipy import stats
 from tqdm.auto import tqdm
 import typing as ty
 
-from copy import deepcopy
-
 import tensorflow as tf
 
 export, __all__ = fd.exporter()
@@ -25,7 +23,7 @@ class TestStatistic():
     def __call__(self, mu_test, signal_source_name, guess_dict,
                  asymptotic=False):
         # To fix the signal RM in the conditional fit
-        fix_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(mu_test, fd.float_type())}
+        fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
 
         guess_dict_nuisance = guess_dict.copy()
         guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
@@ -392,11 +390,7 @@ class TSEvaluation():
                 # Shift the constraint in the likelihood based on the background RMs we drew
                 likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
                 # Set data
-                if hasattr(likelihood, 'likelihoods'):
-                    for component, data in toy_data_SB.items():
-                        likelihood.set_data(data, component)
-                else:
-                    likelihood.set_data(toy_data_SB)
+                likelihood.set_data(toy_data_SB)
                 # Create test statistic
                 test_statistic_SB = self.test_statistic(likelihood)
                 # Guesses for fit
@@ -431,11 +425,7 @@ class TSEvaluation():
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args_B)
             # Set data
-            if hasattr(likelihood, 'likelihoods'):
-                for component, data in toy_data_B.items():
-                    likelihood.set_data(data, component)
-            else:
-                likelihood.set_data(toy_data_B)
+            likelihood.set_data(toy_data_B)
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
             # Evaluate test statistic
@@ -480,11 +470,7 @@ class TSEvaluation():
         likelihood.set_constraint_extra_args(**constraint_extra_args)
 
         # Set data
-        if hasattr(likelihood, 'likelihoods'):
-            for component, data in observed_data.items():
-                likelihood.set_data(data, component)
-        else:
-            likelihood.set_data(observed_data)
+        likelihood.set_data(observed_data)
 
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
