@@ -42,6 +42,35 @@ class TestStatistic():
 
 
 @export
+class TestStatisticTMu(TestStatistic):
+    """Evaluate the test statistic of equation 11 in https://arxiv.org/abs/1007.1727.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def evaluate(self, bf_unconditional, bf_conditional):
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        ts = -2. * (ll_conditional - ll_unconditional)
+        if ts < 0.:
+            return 0.
+        else:
+            return ts
+
+    def evaluate_asymptotic_pval(self, bf_unconditional, bf_conditional, mu_test):
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        ts = -2. * (ll_conditional - ll_unconditional)
+
+        F = 2. * stats.norm.cdf(np.sqrt(ts)) - 1.
+
+        pval = 1. - F
+        return pval
+
+
+@export
 class TestStatisticTMuTilde(TestStatistic):
     """Evaluate the test statistic of equation 11 in https://arxiv.org/abs/1007.1727.
     """
