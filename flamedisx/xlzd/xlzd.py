@@ -25,6 +25,9 @@ class XLZDSource:
                  ignore_maps_acc=False, **kwargs):
         super().__init__(*args, **kwargs)
 
+        if ignore_maps_acc:
+            self.ignore_acceptances = True
+
         assert kwargs['detector'] in ('xlzd',)
         assert kwargs['configuration'] in ('80t', '60t', '40t')
 
@@ -35,8 +38,10 @@ class XLZDSource:
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
                                  kwargs['detector'] + '.ini'))
 
-        if ignore_maps_acc:
-            self.ignore_acceptances = True
+        self.cS1_min = config.getfloat('NEST', 'cS1_min_config')
+        self.cS1_max = config.getfloat('NEST', 'cS1_max_config')
+        self.log10_cS2_min = config.getfloat('NEST', 'log10_cS2_min_config')
+        self.log10_cS2_max = config.getfloat('NEST', 'log10_cS2_max_config')
 
         self.radius = config.getfloat(kwargs['configuration'], 'radius_config')
         self.z_topDrift = config.getfloat(kwargs['configuration'], 'z_topDrift_config')
@@ -55,6 +60,25 @@ class XLZDSource:
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
         self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
                                        self.g1_gas, self.extraction_eff)
+
+    def s1_acceptance(self, s1, cs1):
+
+        acceptance = tf.where((s1 >= self.spe_thr) & (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
+                              tf.ones_like(s1, dtype=fd.float_type()),  # if condition non-zero
+                              tf.zeros_like(s1, dtype=fd.float_type()))  # if false
+
+        return acceptance
+
+    def s2_acceptance(self, s2, cs2):
+
+        log10_cs2 = np.log10(cs2 + 1e-10)
+
+        acceptance = tf.where((s2 >= self.s2_thr) &
+                              (log10_cs2 >= self.log10_cS2_min) & (log10_cs2 <= self.log10_cS2_max),
+                              tf.ones_like(s2, dtype=fd.float_type()),  # if condition non-zero
+                              tf.zeros_like(s2, dtype=fd.float_type()))  # if false
+
+        return acceptance
 
     def s1_posDependence(self, z):
         """
