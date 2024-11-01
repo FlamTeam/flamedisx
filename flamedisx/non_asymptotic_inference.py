@@ -418,7 +418,7 @@ class TSEvaluation():
                     if value < 0.1:
                         guess_dict_B[key] = 0.1
                 toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
-                constraint_extra_args_B = self.constraint_extra_args_B[toy]
+                constraint_extra_args_B = self.constraint_extra_args_B[toy+(self.toy_batch*self.ntoys)]
             except Exception:
                 raise RuntimeError("Could not find background-only datasets")
 
