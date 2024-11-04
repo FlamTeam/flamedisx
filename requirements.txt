@@ -3,7 +3,7 @@ scipy==1.14.1
 pandas==2.2.3
 multihist==0.6.5
 wimprates==0.5.0
-tqdm==4.66.5
+tqdm==4.66.6
 tensorflow==2.16.1
 tensorflow_probability==0.24.0
 tf-keras==2.16.0
