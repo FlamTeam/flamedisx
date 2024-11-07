@@ -350,15 +350,15 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
 
         Nq = energy  / self.Wq_keV  #equation is in keV   
 
-        Qy = m1 + (m2 - m1) / pow((1. + pow(energy /m3,m4)),m9) + \
-            m5 + (m6 - m5) / pow((1. + pow(energy /m7, m8)), m10)
+        Qy = m1 + (m2 - m1) / tf.math.pow((1. + tf.math.pow(energy /m3,m4)),m9) + \
+            m5 + (m6 - m5) / tf.math.pow((1. + tf.math.pow(energy /m7, m8)), m10)
 
         coeff_TI = tf.cast(pow(1. / XENON_REF_DENSITY, 0.3), fd.float_type())
         coeff_Ni = tf.cast(pow(1. / XENON_REF_DENSITY, 1.4), fd.float_type())
         coeff_OL = tf.cast(pow(1. / XENON_REF_DENSITY, -1.7) /
-                           fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
+                           fd.tf_log10(1. + coeff_TI * coeff_Ni * tf.math.pow(XENON_REF_DENSITY, 1.7)), fd.float_type())
 
-        Qy *= coeff_OL * fd.tf_log10(1. + coeff_TI * coeff_Ni * pow(self.density, 1.7)) * pow(self.density, -1.7)
+        Qy *= coeff_OL * fd.tf_log10(1. + coeff_TI * coeff_Ni * tf.math.pow(tf.cast(self.density,fd.float_type()), 1.7)) * tf.math.pow(tf.cast(self.density,fd.float_type()), -1.7)
 
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
