@@ -109,7 +109,7 @@ def WS2024_fiducial_volume_cut(x,y,dt):
                ~((phi <= phi_slices[i]) & (phi > phi_slices[i + 1])) for i in range(n_phi_slices)]
 
     # Calculate dR_phi by replacing relevant points in loops over phi slices, then return
-    dR_phi = np.zeros(len(R))
+    dR_phi = np.zeros_like(x)
     for i, p in enumerate(phi_cuts):
         dR_phi[p] = R[p] - phi_walls[i](dt[p])
 
@@ -121,7 +121,7 @@ def WS2024_fiducial_volume_cut(x,y,dt):
     mask = ((dR_phi < (contour + expansion)) & expandable) | ((dR_phi < contour) & ~expandable)
 
     #cut the drift time 
-    dt_cut = (dt > 71) & (dt < 1030)
+    dt_cut = (dt > 71) & (dt < 1034)
 
     return dt_cut&mask&(dR_phi<=0)
 
