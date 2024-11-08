@@ -577,7 +577,7 @@ class nestWIMPSource(nestNRSource):
         **kwargs
     ):
 
-        if (livetime < 0 or livetime > 1 )and not isinstance(livetime, float):
+        if (livetime < 0 or livetime > 1) and not isinstance(livetime, float):
             raise ValueError("Livetime should be a percentage between 0 and 1")
 
         if "detector" not in kwargs:
