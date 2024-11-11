@@ -11,10 +11,11 @@ class SABRESource(fd.BlockModelSource):
     model_blocks = (
         fd_sabre.FixedShapeEnergySpectrum,
         fd_sabre.MakePhotons,
+        fd_sabre.DetectPhotoelectrons,
         fd_sabre.MakeFinalSignal)
 
     @staticmethod
-    def light_yield(energy, *, abs_ly=10.):
+    def light_yield(energy, *, abs_ly=45.):
         """
         """
         ly = abs_ly
