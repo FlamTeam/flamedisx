@@ -27,8 +27,8 @@ class MakeFinalSignal(fd.Block):
 
     max_dim_size = {'photoelectrons_detected': 120}
 
-    photoelectron_gain_mean = 1.
-    photoelectron_gain_std = 0.5
+    photoelectron_gain_mean = 0.5
+    photoelectron_gain_std = 0.2
 
     def _simulate(self, d):
         d['integrated_charge'] = stats.norm.rvs(
