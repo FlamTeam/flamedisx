@@ -41,3 +41,7 @@ from . import lux
 # Custom TFP files
 # Access through fd.tfp_files.xxx
 from . import tfp_files
+
+# SABRE models
+# Access through fd.sabre.xxx
+from . import sabre
