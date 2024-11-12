@@ -262,18 +262,8 @@ class TSEvaluation():
 
             # Get likelihood
             likelihood = deepcopy(self.likelihood)
-
-            assert hasattr(likelihood, 'likelihoods'), 'Logic only currently works for combined likelihood'
-            for ll in likelihood.likelihoods.values():
-                sources_remove = []
-                params_remove = []
-                for sname in ll.sources:
-                    if (sname != signal_source) and (sname not in self.background_source_names):
-                        sources_remove.append(sname)
-                        params_remove.append(f'{sname}_rate_multiplier')
-            likelihood.rebuild(sources_remove=sources_remove,
-                               params_remove=params_remove)
-
+            
+            
             # Where we want to generate B-only toys
             if generate_B_toys:
                 toy_data_B_all = []
@@ -388,11 +378,8 @@ class TSEvaluation():
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
             # Set data
-            if hasattr(likelihood, 'likelihoods'):
-                for component, data in toy_data_SB.items():
-                    likelihood.set_data(data, component)
-            else:
-                likelihood.set_data(toy_data_SB)
+            
+            likelihood.set_data(toy_data_SB)
             # Create test statistic
             test_statistic_SB = self.test_statistic(likelihood)
             # Guesses for fit
@@ -427,11 +414,7 @@ class TSEvaluation():
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args_B)
             # Set data
-            if hasattr(likelihood, 'likelihoods'):
-                for component, data in toy_data_B.items():
-                    likelihood.set_data(data, component)
-            else:
-                likelihood.set_data(toy_data_B)
+            likelihood.set_data(toy_data_B)
             # Create test statistic
             test_statistic_B = self.test_statistic(likelihood)
             # Evaluate test statistic
@@ -468,11 +451,7 @@ class TSEvaluation():
         likelihood.set_constraint_extra_args(**constraint_extra_args)
 
         # Set data
-        if hasattr(likelihood, 'likelihoods'):
-            for component, data in observed_data.items():
-                likelihood.set_data(data, component)
-        else:
-            likelihood.set_data(observed_data)
+        likelihood.set_data(observed_data)
 
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
