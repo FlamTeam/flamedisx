@@ -1059,7 +1059,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
 
 
 @export
-class LZERSourceGroup(LZWS2024Source, fd.nest.nestERSourceGroup):
+class LZ24ERSourceGroup(LZWS2024Source, fd.nest.nestERSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -1067,7 +1067,7 @@ class LZERSourceGroup(LZWS2024Source, fd.nest.nestERSourceGroup):
 
 
 @export
-class LZERGammaWeightedSourceGroup(LZWS2024Source, fd.nest.nestERGammaWeightedSourceGroup):
+class LZ24ERGammaWeightedSourceGroup(LZWS2024Source, fd.nest.nestERGammaWeightedSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -1075,7 +1075,7 @@ class LZERGammaWeightedSourceGroup(LZWS2024Source, fd.nest.nestERGammaWeightedSo
 
 
 @export
-class LZNRSourceGroup(LZWS2024Source, fd.nest.nestNRSourceGroup):
+class LZ24NRSourceGroup(LZWS2024Source, fd.nest.nestNRSourceGroup):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
