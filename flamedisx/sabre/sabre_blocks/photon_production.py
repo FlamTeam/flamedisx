@@ -29,8 +29,7 @@ class MakePhotons(fd.Block):
                                 data_tensor=data_tensor, ptensor=ptensor)
         mean_yield = energy * ly
 
-        return rate_vs_energy[:, o, :] * tfp.distributions.Poisson(
-                rate=mean_yield).prob(photons_produced)
+        return tfp.distributions.Poisson(rate=mean_yield).prob(photons_produced)
 
     def _simulate(self, d):
         d['ly'] = self.gimme_numpy('light_yield', bonus_arg=d['energy'].values)

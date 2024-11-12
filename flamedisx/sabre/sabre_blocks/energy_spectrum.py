@@ -75,7 +75,7 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
      If you add a rate variation depending on both space and time, you must
      override all of random_truth!
 
-    By default, this uses a flat 0 - 100 keV spectrum, sampled at 100 points.
+    By default, this uses a flat 1 - 100 keV spectrum, sampled at 100 points.
     """
 
     model_attributes = ('rates_vs_energy',) + EnergySpectrum.model_attributes
