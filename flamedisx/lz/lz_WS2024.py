@@ -956,7 +956,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         """
         super()._annotate(**kwargs)
 
-        lz_source = fd.lz.LZ24ERSource()
+        lz_source = LZ24ERSource()
         self.data[self.column] /= (1 + lz_source.double_pe_fraction)
         self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
         self.data[self.column] /= self.data['s1_pos_corr_latest'].values
@@ -969,7 +969,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
                               full_annotate=full_annotate, keep_padding=keep_padding, **params)
 
-        lz_source = fd.lz.LZ24ERSource()
+        lz_source = LZ24ERSource()
         df_pos = pd.DataFrame(lz_source.model_blocks[0].draw_positions(len(df)))
         df = df.join(df_pos)
 
@@ -1009,17 +1009,17 @@ class LZ24AccidentalsSource(fd.TemplateSource):
 
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             d['s1_pos_corr_latest'] = self.s1_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values,
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values,
                               d['drift_time'].values * 1e-9 / 1e-6]))
             d['s2_pos_corr_latest'] = self.s2_map_latest(
-                np.transpose([d['x'].values,
-                              d['y'].values]))
+                np.transpose([d['x_obs'].values,
+                              d['y_obs'].values]))
         else:
-            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
-            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
 
-        lz_source = fd.lz.LZ24ERSource()
+        lz_source = LZ24ERSource()
 
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
             d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
@@ -1035,7 +1035,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
             d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
 
     def estimate_position_acceptance(self, n_trials=int(1e5)):
-        lz_source = fd.lz.LZ24ERSource()
+        lz_source = LZ24ERSource()
         df = pd.DataFrame(lz_source.model_blocks[0].draw_positions(n_trials))
         df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
         df = df.join(df_time)
