@@ -20,22 +20,10 @@ from scipy import interpolate
 import scipy
 from multihist import Histdd
 
-
-import flamedisx as fd
 from flamedisx.lz.lz import LZSource
 from flamedisx.lz.lz import LZXe124Source
 from flamedisx.nest import nestGammaSource
 from flamedisx.nest import nestERSource
-from copy import deepcopy
-
-from flamedisx.lz.lz import LZSource
-from flamedisx.lz.lz import LZXe124Source
-from flamedisx.nest import nestGammaSource
-from flamedisx.nest import nestERSource
-
-
-
-
 
 export, __all__ = fd.exporter()
 pi = tf.constant(m.pi)
@@ -658,6 +646,7 @@ class LZ24FermionicDMSource(LZ24ERSource, fd.nest.FermionicDMSource):
 ##
 
 
+
 @export
 class LZ24Pb214Source(LZ24ERSource, fd.nest.Pb214Source):#, fd.nest.nestSpatialRateERSource):
     def __init__(self, *args, bins=None, **kwargs):
@@ -734,6 +723,27 @@ class LZ24Ar37Source(LZ24ERSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateD
 
         if time_constant_ns is None:
             self.time_constant_ns = (35.0 / np.log(2)) * 1e9 * 3600. * 24.
+        else:
+            self.time_constant_ns = time_constant_ns
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source):#, fd.nest.nestSpatialTemporalRateDecayERSource):
+    def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+
+        if bins is None:
+            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
+                  np.linspace(LZ24ERSource().z_bottom, LZ24ERSource().z_top, num=51))
+
+        # mh = fd.get_lz_file('sr1/Xe127_spatial_map_hist.pkl')
+        # self.spatial_hist = mh
+
+        if time_constant_ns is None:
+            self.time_constant_ns = (36.4 / np.log(2)) * 1e9 * 3600. * 24.
         else:
             self.time_constant_ns = time_constant_ns
 
@@ -917,6 +927,7 @@ class LZ24C14Source(LZ24ERSource):
         self.energies = tf.cast(energies, fd.float_type())
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
         super().__init__(*args, **kwargs)
+
 @export
 class LZ24AccidentalsSource(fd.TemplateSource):
     path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
@@ -1041,13 +1052,6 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
 
         return np.sum(df['acceptance'].values) / n_trials
-
-
-
-
-
-
-
 
 
 ##
