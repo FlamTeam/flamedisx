@@ -28,7 +28,10 @@ from flamedisx.nest import nestGammaSource
 from flamedisx.nest import nestERSource
 from copy import deepcopy
 
-
+from flamedisx.lz.lz import LZSource
+from flamedisx.lz.lz import LZXe124Source
+from flamedisx.nest import nestGammaSource
+from flamedisx.nest import nestERSource
 
 
 
@@ -326,11 +329,6 @@ class LZWS2024Source:
 # Different interaction types: flat spectra
 ##
 
-GAS_CONSTANT = 8.314
-N_AVAGADRO = 6.0221409e23
-A_XENON = 131.293
-XENON_REF_DENSITY = 2.90
-
 @export
 class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
     def __init__(self, *args, **kwargs):
@@ -575,18 +573,48 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
 # Calibration sources
 ##
 
-
 @export
-class LZ24CH3TSource(LZ24ERSource, fd.nest.CH3TSource):
-    t_start = pd.to_datetime('2022-04-19T00:00:00')
-    t_start = t_start.tz_localize(tz='America/Denver')
-
-    t_stop = pd.to_datetime('2022-04-19T00:00:00')
-    t_stop = t_stop.tz_localize(tz='America/Denver')
-
+class LZ24CH3TSource(LZ24ERSource,fd.nest.CH3TSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
+
+        super().__init__(*args, **kwargs)
+@export
+class LZ24C14Source(LZ24ERSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+        m_e = 510.9989461  # e- rest mass-energy [keV]
+        aa = 0.0072973525664;          # fine structure constant
+        ZZ = 7.;
+        V0 = 0.495;  # effective offset in T due to screening of the nucleus by electrons
+        qValue = 156.
+        #energy range to avoid nans
+        energies = tf.linspace(0.01, qValue, 1000)
+
+        Ee=energies+m_e
+        pe=np.sqrt(np.square(Ee)-np.square(m_e))
+        dNdE_phasespace=pe * Ee * (qValue - energies)**2
+        Ee_screen = Ee - V0
+        W_screen = (Ee_screen) / m_e
+        p_screen = np.sqrt(W_screen * W_screen - 1)
+        p_screen=np.where(W_screen<1,0.,p_screen)
+        WW = (Ee) / m_e
+        pp = np.sqrt(WW * WW - 1)
+        G_screen = (Ee_screen) / (m_e)  ## Gamma, Total energy(KE+M) over M
+        B_screen = np.sqrt((G_screen * G_screen - 1)*(G_screen * G_screen))  # v/c of electron. Ratio of
+        B_screen=np.where(G_screen<1,0.,B_screen)
+        x_screen = (2 * pi * ZZ * aa) / B_screen
+        F_nr_screen = W_screen * p_screen / (WW * pp) * x_screen * (1 / (1 - np.exp(-x_screen)))
+        F_nr_screen=np.where(p_screen<=0. ,0. ,F_nr_screen)
+        F_bb_screen =F_nr_screen *np.power(W_screen * W_screen * (1 + 4 * (aa * ZZ) * (aa * ZZ)) - 1,np.sqrt(1 - aa * aa * ZZ * ZZ) - 1)
+        spectrum = dNdE_phasespace * F_bb_screen
+        spectrum=spectrum/np.sum(spectrum)
+        energies = tf.cast(energies, fd.float_type())
+        rates_vs_energy = tf.cast(spectrum, fd.float_type())
+        self.energies = tf.cast(energies, fd.float_type())
+        self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
         super().__init__(*args, **kwargs)
 
 
@@ -628,6 +656,7 @@ class LZ24FermionicDMSource(LZ24ERSource, fd.nest.FermionicDMSource):
 ##
 # Background sources
 ##
+
 
 
 @export
@@ -712,25 +741,47 @@ class LZ24Ar37Source(LZ24ERSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateD
         super().__init__(*args, **kwargs)
 
 
+
 @export
-class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source):#, fd.nest.nestSpatialTemporalRateDecayERSource):
-    def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
+class LZXe124Source(LZWS2024Source, fd.nest.Xe124Source):
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
-
-        if bins is None:
-            bins=(np.sqrt(np.linspace(0.**2, 67.8**2, num=51)),
-                  np.linspace(LZERSource().z_bottom, LZERSource().z_top, num=51))
-
-        # mh = fd.get_lz_file('sr1/Xe127_spatial_map_hist.pkl')
-        # self.spatial_hist = mh
-
-        if time_constant_ns is None:
-            self.time_constant_ns = (36.4 / np.log(2)) * 1e9 * 3600. * 24.
-        else:
-            self.time_constant_ns = time_constant_ns
-
         super().__init__(*args, **kwargs)
+
+    def mean_yield_electron(self, energy,b=1.3):
+        # Default EC model (Weighted ER)
+        weight_param_a = 0.23
+        weight_param_b = 0.77
+        weight_param_c = 2.95
+        weight_param_d = -1.44
+        weight_param_e = 421.15
+        weight_param_f = 3.27
+
+        weightG = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
+                          (tf.math.log(energy) + weight_param_d)) *
+                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
+                          fd.float_type())
+        weightB = tf.cast(1. - weightG, fd.float_type())
+
+        nel_gamma = tf.cast(nestGammaSource.mean_yield_electron(self, energy), fd.float_type())
+        nel_beta = tf.cast(nestERSource.mean_yield_electron(self, energy), fd.float_type())
+
+        nel_raw = nel_gamma * weightG + nel_beta * weightB
+        # ===============END OF EC MODEL===================
+        # Based on xi and b, calculate scaling factor s
+        xi_L=7.52
+        
+        s=tf.math.log(1+b*xi_L) / tf.math.log(1+xi_L) /b
+        nel_DEC = nel_raw * s
+        
+        nel_temp = tf.where(tf.logical_and((energy >9.7), (energy <10.1)), nel_DEC, nel_raw) # select LL shell based on energy
+        # Don't let number of electrons go negative
+        nel = tf.where(nel_temp < 0,
+                       0 * nel_temp,
+                       nel_temp)
+
+        return nel
 
 
 @export
@@ -868,6 +919,7 @@ class LZ24C14Source(LZ24ERSource):
         self.energies = tf.cast(energies, fd.float_type())
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
         super().__init__(*args, **kwargs)
+
 @export
 class LZ24AccidentalsSource(fd.TemplateSource):
     path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
@@ -904,7 +956,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         """
         super()._annotate(**kwargs)
 
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
         self.data[self.column] /= (1 + lz_source.double_pe_fraction)
         self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
         self.data[self.column] /= self.data['s1_pos_corr_latest'].values
@@ -917,7 +969,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
                               full_annotate=full_annotate, keep_padding=keep_padding, **params)
 
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
         df_pos = pd.DataFrame(lz_source.model_blocks[0].draw_positions(len(df)))
         df = df.join(df_pos)
 
@@ -957,17 +1009,17 @@ class LZ24AccidentalsSource(fd.TemplateSource):
 
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             d['s1_pos_corr_latest'] = self.s1_map_latest(
-                np.transpose([d['x_obs'].values,
-                              d['y_obs'].values,
+                np.transpose([d['x'].values,
+                              d['y'].values,
                               d['drift_time'].values * 1e-9 / 1e-6]))
             d['s2_pos_corr_latest'] = self.s2_map_latest(
-                np.transpose([d['x_obs'].values,
-                              d['y_obs'].values]))
+                np.transpose([d['x'].values,
+                              d['y'].values]))
         else:
-            d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
-            d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
+            d['s1_pos_corr_latest'] = np.ones_like(d['x'].values)
+            d['s2_pos_corr_latest'] = np.ones_like(d['x'].values)
 
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
 
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
             d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
@@ -983,7 +1035,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
             d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
 
     def estimate_position_acceptance(self, n_trials=int(1e5)):
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
         df = pd.DataFrame(lz_source.model_blocks[0].draw_positions(n_trials))
         df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
         df = df.join(df_time)
