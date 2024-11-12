@@ -8,7 +8,6 @@ from .likelihood import *
 from .inference import *
 from .bounds import *
 from .mu_estimation import *
-from .frozen_reservoir import *
 from .non_asymptotic_inference import *
 
 # Original flamedisx models

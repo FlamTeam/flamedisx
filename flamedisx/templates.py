@@ -9,8 +9,6 @@ import scipy.interpolate
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from flamedisx.tfbspline import bspline
-
 import flamedisx as fd
 
 from copy import deepcopy
