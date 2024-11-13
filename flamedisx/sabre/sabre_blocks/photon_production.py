@@ -10,8 +10,6 @@ o = tf.newaxis
 
 @export
 class MakePhotons(fd.Block):
-
-    depends_on = ((('energy',), 'rate_vs_energy'),)
     dimensions = ('photons_produced', 'energy')
 
     special_model_functions = ('light_yield',)
@@ -21,10 +19,7 @@ class MakePhotons(fd.Block):
 
     def _compute(self,
                  data_tensor, ptensor,
-                 # Domain
-                 photons_produced,
-                 # Dependency domain and value
-                 energy, rate_vs_energy):
+                 energy, photons_produced):
         ly = self.source.gimme('light_yield', bonus_arg=energy,
                                 data_tensor=data_tensor, ptensor=ptensor)
         mean_yield = energy * ly

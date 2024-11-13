@@ -24,17 +24,17 @@ class SABRESource(fd.BlockModelSource):
 
         super().__init__(*args, **kwargs)
 
-    def light_yield(self, energy, *, abs_ly=45., eta_eh=0.534, dEdx_birks=166.):
+    def light_yield(self, energy, *, abs_ly=45.):
         """
         """
         ly_relative_energies_keV = tf.experimental.numpy.geomspace(1., 450., num=100, dtype=fd.float_type())
-        ly_relative = self.light_yield_relative_interp(ly_relative_energies_keV, eta_eh, dEdx_birks)
+        ly_relative = self.light_yield_relative_interp(ly_relative_energies_keV)
 
         ly_relative_interp = tfp.math.interp_regular_1d_grid(energy, 1., 450., ly_relative)
 
         return abs_ly * ly_relative_interp
 
-    def light_yield_relative_interp(self, ly_relative_energies_keV, eta_eh, dEdx_birks):
+    def light_yield_relative_interp(self, ly_relative_energies_keV):
         """
         """
         def light_yield_relative(args):
@@ -47,8 +47,10 @@ class SABRESource(fd.BlockModelSource):
             # Fixed parameters: model
             c = 2.8
             dEdx_ons = 36.4 # MeV / cm
+            eta_eh = 0.534
+            dEdx_birks = 166 # MeV / cm
 
-            def eta_cap(E_keV, eta_eh, dEdx_birks):
+            def eta_cap(E_keV):
                 dEdx = dEdx_MeV_cm(E_keV)
 
                 numerator = 1. - eta_eh * tf.math.exp(-dEdx / dEdx_ons)
@@ -69,18 +71,14 @@ class SABRESource(fd.BlockModelSource):
                 return dEdx_MeV_cm
 
             E_keV = args[0]
-            eta_eh = args[1]
-            dEdx_birks = args[2]
 
             x = tf.linspace(I_keV_NaI, E_keV, num=1000)
-            y = eta_cap(x, eta_eh, dEdx_birks)
+            y = eta_cap(x)
 
             return tfp.math.trapz(y, x=x) / (E_keV - I_keV_NaI)
 
-        ly_relative = tf.vectorized_map(light_yield_relative, elems=[ly_relative_energies_keV,
-                                                                     tf.ones_like(ly_relative_energies_keV) * eta_eh,
-                                                                     tf.ones_like(ly_relative_energies_keV) * dEdx_birks])
-        ly_relative = ly_relative / light_yield_relative([450., eta_eh, dEdx_birks])
+        ly_relative = tf.vectorized_map(light_yield_relative, elems=[ly_relative_energies_keV])
+        ly_relative = ly_relative / light_yield_relative([450.])
 
         return ly_relative
 

@@ -13,9 +13,6 @@ class DetectPhotoelectrons(fd.Block):
 
     dimensions = ('photoelectrons_detected', 'photons_produced')
 
-    special_model_functions = ('pe_detection_eff',)
-    model_functions = special_model_functions
-
     special_model_functions = ()
     model_functions = ('pe_detection_eff',) + special_model_functions
 
