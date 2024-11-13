@@ -218,6 +218,12 @@ class EnergySpectrum(fd.FirstBlock):
         else:
             assert isinstance(d, dict), \
                 "fix_truth needs to be a DataFrame, dict, or None"
+        if 'z' in d and 'drift_time' not in d:
+            if 'x' in d and 'y' in d:
+                d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
+            if 'r' not in d:
+                raise ValueError("Require either (x,y,z) or (r,z) to derive drift time")
+            d['drift_time']=self.derive_drift_time(d)
 
         if 'drift_time' in d:
             # Position is fixed. Ensure both Cartesian and polar coordinates
@@ -226,9 +232,20 @@ class EnergySpectrum(fd.FirstBlock):
                 d['r'], d['theta'] = fd.cart_to_pol(d['x'], d['y'])
             elif 'r' in d and 'theta' in d:
                 d['x'], d['y'] = fd.pol_to_cart(d['r'], d['theta'])
+            if 'x' in d and 'y' in d:
+                if d['r']>0:
+                    d['x_obs'],d['y_obs']=self.derive_observed_xy(d)
+                else:
+                    d['x_obs'],d['y_obs'],d['r_obs'],d['theta_obs']=0,0,0,0
+            elif 'x_obs' in d and 'y_obs' in d:
+                d['r_obs'], d['theta_obs'] = fd.cart_to_pol(d['x_obs'], d['y_obs'])
+            elif 'r_obs' in d and 'theta_obs' in d:
+                d['x_obs'], d['y_obs'] = fd.pol_to_cart(d['r_obs'], d['theta_obs'])
             else:
-                raise ValueError("When fixing position, give (x, y, drift_time), "
-                                 "or (r, theta, drift_time).")
+                raise ValueError("When fixing position, give (x/_obs, x/_obs, z/drift_time), "
+                                 "or (r/_obs, theta/_obs, z/drift_time)")
+            
+                
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
             raise ValueError(f"Dict should contain at least ['x', 'y', 'drift_time'] "
