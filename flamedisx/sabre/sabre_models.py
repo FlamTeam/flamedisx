@@ -13,8 +13,7 @@ export, __all__ = fd.exporter()
 class SABRESource(fd.BlockModelSource):
     model_blocks = (
         fd_sabre.FixedShapeEnergySpectrum,
-        fd_sabre.MakePhotons,
-        fd_sabre.DetectPhotoelectrons,
+        fd_sabre.PhotonsPhotoelectrons,
         fd_sabre.MakeFinalSignal)
 
     def __init__(self, *args, spectrum_path=None, **kwargs):
@@ -24,7 +23,7 @@ class SABRESource(fd.BlockModelSource):
 
         super().__init__(*args, **kwargs)
 
-    def light_yield(self, energy, *, abs_ly=45.):
+    def eff_light_yield(self, energy, *, eff_ly=11.25):
         """
         """
         ly_relative_energies_keV = tf.experimental.numpy.geomspace(1., 450., num=100, dtype=fd.float_type())
@@ -32,7 +31,7 @@ class SABRESource(fd.BlockModelSource):
 
         ly_relative_interp = tfp.math.interp_regular_1d_grid(energy, 1., 450., ly_relative)
 
-        return abs_ly * ly_relative_interp
+        return eff_ly * ly_relative_interp
 
     def light_yield_relative_interp(self, ly_relative_energies_keV):
         """
