@@ -325,7 +325,21 @@ class nestERSource(nestSource):
 
         return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
 
-
+@export
+class nestERSource_simpson(nestERSource):
+    model_blocks = (
+        fd_nest.FixedShapeEnergySpectrumER_simpson,
+        fd_nest.MakePhotonsElectronER,
+        fd_nest.DetectPhotons,
+        fd_nest.MakeS1Photoelectrons,
+        fd_nest.DetectS1Photoelectrons,
+        fd_nest.MakeS1,
+        fd_nest.DetectElectrons,
+        fd_nest.MakeS2Photons,
+        fd_nest.DetectS2Photons,
+        fd_nest.MakeS2Photoelectrons,
+        fd_nest.MakeS2)
+    
 @export
 class nestNRSource(nestSource):
     def __init__(self, *args, energy_min=0.01, energy_max=150., num_energies=1000, **kwargs):

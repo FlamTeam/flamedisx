@@ -231,15 +231,60 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     def mu_before_efficiencies(self, **params):
         return np.sum(fd.np_to_tf(self.rates_vs_energy))
 
+@export
+class FixedShapeEnergySpectrum_simpson(EnergySpectrum):
+    model_attributes = ('rates_vs_energy',) + EnergySpectrum.model_attributes
+    model_functions = ('energy_spectrum_rate_multiplier',)
 
+    rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
+
+    energy_spectrum_rate_multiplier = 1.0/3.0
+
+    def _compute(self, data_tensor, ptensor, *, energy):
+        left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
+        right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
+        simpson_step_length = (right_bound - left_bound)/self.source.max_dim_sizes['energy']
+        
+        bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
+                                   tf.less_equal(self.energies, right_bound))
+        spectrum_trim = tf.boolean_mask(self.rates_vs_energy, bool_mask)
+        index_step = tf.round(tf.linspace(0, tf.shape(spectrum_trim)[0] - 1,
+                                          tf.math.minimum(tf.shape(spectrum_trim),
+                                                          self.source.max_dim_sizes['energy'])[0]))
+        spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()))
+
+        stepping_multiplier = np.ones(self.source.max_dim_sizes['energy'])
+        for i in range(1,self.source.max_dim_sizes['energy']-1):
+            stepping_multiplier[i] *= 2
+            if i%2 == 1:
+                stepping_multiplier[i] *= 2
+        stepping_multiplier = tf.constant(stepping_multiplier, dtype=fd.float_type())
+
+        spectrum = tf.repeat(spectrum_trim_step[o, :] * stepping_multiplier,
+                             self.source.batch_size,
+                             axis=0)
+        rate_multiplier = simpson_step_length*self.gimme('energy_spectrum_rate_multiplier',
+                                     data_tensor=data_tensor, ptensor=ptensor)
+        return spectrum * rate_multiplier[:, o]
+
+    def mu_before_efficiencies(self, **params):
+        return np.sum(fd.np_to_tf(self.rates_vs_energy))
+    
 @export
 class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
     max_dim_size = {'energy': 100}
-
+    
+@export
+class FixedShapeEnergySpectrumNR_simpson(FixedShapeEnergySpectrum_simpson):
+    max_dim_size = {'energy': 41}
 
 @export
 class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
     max_dim_size = {'energy': 50}
+
+@export
+class FixedShapeEnergySpectrumER_simpson(FixedShapeEnergySpectrum_simpson):
+    max_dim_size = {'energy': 21}
 
 
 @export
