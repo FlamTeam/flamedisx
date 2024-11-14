@@ -234,16 +234,16 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
 @export
 class FixedShapeEnergySpectrum_simpson(EnergySpectrum):
     model_attributes = ('rates_vs_energy',) + EnergySpectrum.model_attributes
-    model_functions = ('energy_spectrum_rate_multiplier',)
-
+    model_functions = ('energy_spectrum_rate_multiplier','energy_spectrum_rate_multiplier_simpson')
+    
     rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
 
-    energy_spectrum_rate_multiplier = 1.0/3.0
-
+    energy_spectrum_rate_multiplier = 1.
+    energy_spectrum_rate_multiplier_simpson = 1./3.
+    
     def _compute(self, data_tensor, ptensor, *, energy):
         left_bound = tf.reduce_min(self.source._fetch('energy_min', data_tensor=data_tensor))
         right_bound = tf.reduce_max(self.source._fetch('energy_max', data_tensor=data_tensor))
-        simpson_step_length = (right_bound - left_bound)/self.source.max_dim_sizes['energy']
         
         bool_mask = tf.logical_and(tf.greater_equal(self.energies, left_bound),
                                    tf.less_equal(self.energies, right_bound))
@@ -252,19 +252,29 @@ class FixedShapeEnergySpectrum_simpson(EnergySpectrum):
                                           tf.math.minimum(tf.shape(spectrum_trim),
                                                           self.source.max_dim_sizes['energy'])[0]))
         spectrum_trim_step = tf.gather(spectrum_trim, tf.cast(index_step, fd.int_type()))
-
-        stepping_multiplier = np.ones(self.source.max_dim_sizes['energy'])
-        for i in range(1,self.source.max_dim_sizes['energy']-1):
-            stepping_multiplier[i] *= 2
-            if i%2 == 1:
+        
+        if tf.reduce_all(tf.equal(tf.shape(spectrum_trim_step), tf.shape(spectrum_trim))):
+            stepping_multiplier = tf.cast(tf.shape(spectrum_trim) / tf.shape(spectrum_trim_step), fd.float_type())
+            rate_multiplier = self.gimme('energy_spectrum_rate_multiplier',
+                                         data_tensor=data_tensor, ptensor=ptensor)
+        else:
+            energies_step = tf.gather(self.source.energies, tf.cast(index_step, fd.int_type()))
+            this_right_bound = energies_step[-1]
+            this_left_bound = energies_step[0]
+            simpson_step_length = (this_right_bound - this_left_bound)/(self.source.max_dim_sizes['energy']-1)
+            dE = (self.source.energies[1] - self.source.energies[0])
+            stepping_multiplier = np.ones(self.source.max_dim_sizes['energy'])
+            for i in range(1,self.source.max_dim_sizes['energy']-1):
                 stepping_multiplier[i] *= 2
-        stepping_multiplier = tf.constant(stepping_multiplier, dtype=fd.float_type())
-
+                if i%2 == 1:
+                    stepping_multiplier[i] *= 2
+            rate_multiplier = (simpson_step_length/dE) * self.gimme('energy_spectrum_rate_multiplier_simpson',
+                                                                    data_tensor=data_tensor, ptensor=ptensor)
+        
+            stepping_multiplier = tf.cast(stepping_multiplier, fd.float_type())
         spectrum = tf.repeat(spectrum_trim_step[o, :] * stepping_multiplier,
                              self.source.batch_size,
                              axis=0)
-        rate_multiplier = simpson_step_length*self.gimme('energy_spectrum_rate_multiplier',
-                                     data_tensor=data_tensor, ptensor=ptensor)
         return spectrum * rate_multiplier[:, o]
 
     def mu_before_efficiencies(self, **params):
@@ -276,7 +286,7 @@ class FixedShapeEnergySpectrumNR(FixedShapeEnergySpectrum):
     
 @export
 class FixedShapeEnergySpectrumNR_simpson(FixedShapeEnergySpectrum_simpson):
-    max_dim_size = {'energy': 41}
+    max_dim_size = {'energy': 64}
 
 @export
 class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
@@ -284,7 +294,7 @@ class FixedShapeEnergySpectrumER(FixedShapeEnergySpectrum):
 
 @export
 class FixedShapeEnergySpectrumER_simpson(FixedShapeEnergySpectrum_simpson):
-    max_dim_size = {'energy': 21}
+    max_dim_size = {'energy': 27}
 
 
 @export
