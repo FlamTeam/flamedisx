@@ -9,7 +9,11 @@ import scipy.interpolate
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from flamedisx.tfbspline import bspline
+
 import flamedisx as fd
+
+from copy import deepcopy
 
 export, __all__ = fd.exporter()
 
@@ -98,7 +102,9 @@ class TemplateWrapper:
 
         if self._interpolator:
             # transpose since RegularGridInterpolator expects (n_points, n_dims)
-            return self._interpolator(data.T)
+            interp_diff_rates = self._interpolator(data.T)
+            lookup_diff_rates = self._mh_diff_rate.lookup(*data)
+            return np.where(interp_diff_rates <= 0., lookup_diff_rates, interp_diff_rates)
         else:
             return self._mh_diff_rate.lookup(*data)
 
@@ -197,10 +203,12 @@ class MultiTemplateSource(fd.Source):
     def __init__(
             self,
             params_and_templates: ty.Tuple[ty.Dict[str, float], ty.Any],
+            params_and_normalisations:ty.Tuple[ty.Dict[str, float], float],
             bin_edges=None,
             axis_names=None,
             events_per_bin=False,
             interpolate=False,
+            _skip_tf_init=False,
             *args,
             **kwargs):
 
@@ -208,6 +216,9 @@ class MultiTemplateSource(fd.Source):
             TemplateWrapper(
                 template, bin_edges, axis_names, events_per_bin, interpolate)
             for _, template in params_and_templates]
+
+        # We will include mu variation separately
+        self.mu = self._templates[0].mu
 
         # Grab parameter names. Promote first set of values to defaults.
         self.n_templates = n_templates = len(self._templates)
@@ -224,9 +235,9 @@ class MultiTemplateSource(fd.Source):
         #
         # When evaluated at the exact location of a template, the result has 1
         # in the corresponding template's position, and zeros elsewhere.
-        _template_weights = scipy.interpolate.LinearNDInterpolator(
-            points=np.asarray([list(params.values()) for params, _ in params_and_templates]),
-            values=np.eye(n_templates))
+        _template_weights = scipy.interpolate.interp1d(
+            x=np.asarray([list(params.values())[0] for params, _ in params_and_templates]),
+            y=np.eye(n_templates))
 
         # Unfortunately TensorFlow has no equivalent of LinearNDInterpolator,
         # only interpolators that work on rectilinear grids. Thus, instead of
@@ -240,30 +251,11 @@ class MultiTemplateSource(fd.Source):
                                   for params, _ in params_and_templates)))
             for param in defaults])
         _full_grid_coordinates = np.meshgrid(*_grid_coordinates, indexing='ij')
-        n_grid_points = np.prod([len(x) for x in _grid_coordinates])
 
         # Evaluate our irregular-grid scipy-interpolator on the grid.
         # This gives an array of shape (n_templates, ngrid_dim0, ngrid_dim1, ...)
         # for use in tensorflow interpolation.
         _grid_weights = _template_weights(*_full_grid_coordinates)
-
-        # The expected number of events must also be interpolated.
-        # For consistency, it must be done in the same way (first interpolate
-        # to a regular grid, then linearly from there).
-        # (n_templates,) array
-        _template_mus = np.asarray([
-            template.mu for template in self._templates])
-        self._grid_mus = np.average(
-            # numpy won't let us get away with a size-1 axis here, we have to
-            # actually repeat the values. (If we had jax we could just vmap...)
-            np.repeat(_template_mus[:, None], n_grid_points, axis=1),
-            axis=0,
-            weights=_grid_weights.reshape(n_templates, n_grid_points))
-        assert self._grid_mus.shape == (n_templates,)
-        self._mu_interpolator = scipy.interpolate.RegularGridInterpolator(
-            points=_grid_coordinates,
-            values=self._grid_mus.reshape(_full_grid_coordinates[0].shape),
-            method='linear')
 
         # Generate a random column name to use to store the diff rates
         # of observed events under every template
@@ -274,21 +266,31 @@ class MultiTemplateSource(fd.Source):
         # ... this column will hold an array, with one entry per template
         self.array_columns = ((self.column, n_templates),)
 
-        # This source has parameters but no model functions, so we can't do the
-        # usual Source.scan_model_functions.
-        self.f_dims = dict()
-        self.f_params = dict()
-        self.defaults = defaults
-
         # This is needed in tensorflow, so convert it now
         self._grid_coordinates = tuple([fd.np_to_tf(np.asarray(g)) for g in _grid_coordinates])
         self._grid_weights = fd.np_to_tf(_grid_weights)
 
+        param_vals = np.asarray([list(params.values())[0] for params, _ in params_and_templates])
+        self.pmin = tf.constant(min(param_vals), fd.float_type())
+        self.pmax = tf.constant(max(param_vals), fd.float_type())
+        self.pvals = tf.convert_to_tensor(param_vals, fd.float_type())
+
+        normalisations = np.array([norm for _, norm in params_and_normalisations])
+        self.normalisations = tf.convert_to_tensor(normalisations / normalisations[0],
+                                                   fd.float_type())
+
+        # Assume equi-spacing!
+        self.dstep=self.pvals[1]-self.pvals[0]
+        # Need to pad domain.. four might be excessive
+        self.pvals=list(np.arange(self.pvals[0]-4*(self.dstep),self.pvals[-1]+5*(self.dstep),self.dstep))
+        self.array_columns = ((self.column, n_templates+8),)
+
         super().__init__(*args, **kwargs)
 
-    def scan_model_functions(self):
-        # Don't do anything here, already set defaults etc. in __init__ above
-        pass
+        self.defaults = {**self.defaults,**{k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}}
+        self.parameter_index = fd.index_lookup_dict(self.defaults.keys())
+        if not _skip_tf_init:
+            self.trace_differential_rate()
 
     def extra_needed_columns(self):
         return super().extra_needed_columns() + [self.column]
@@ -296,45 +298,118 @@ class MultiTemplateSource(fd.Source):
     def _annotate(self):
         """Add columns needed in inference to self.data
         """
-        # Get array of differential rates for each template.
-        # Outer list() is to placate pandas, which does not like array columns..
+        #construct tensor of knots
+        #requires a tensor of elements
+        #data is stored as [[d_evt1^h1,d_evt1^h2..],[d_evt2^h1,d_evt2^h2..]]
+        # so just need to construct and x-values object and let data column handle y-values
+        #with some padding for the domain!
+        Nk=len(self.pvals)
+        knot_range=self.pvals[-1]-self.pvals[0]
+        linear_shift=2*self.dstep/knot_range
+        start=min(self.pvals)
+        end=max(self.pvals)
+        self.original_range=tf.constant(end-start,dtype=fd.float_type())
+        self.max_pos=tf.constant(Nk- 2,dtype=fd.float_type())
+
+        self.start=tf.constant(start,dtype=fd.float_type())
+        self.linear_shift=tf.constant(linear_shift,dtype=fd.float_type())
+        self.linear_shift_shift=tf.constant(knot_range/2,dtype=fd.float_type())
+
         self.data[self.column] = list(np.asarray([
             template.differential_rates_numpy(self.data)
             for template in self._templates]).T)
 
-    def mu_before_efficiencies(self, **params):
-        return self.estimate_mu(self, **params)
+        linear_interp_padded_diff_rates=[]
+        for diff_rate_per_hist in self.data[self.column]:
 
-    def estimate_mu(self, **params):
-        """Estimate the number of events expected from the template source.
-        """
-        # TODO: maybe need .item or something here?
-        return self._mu_interpolator([
-            params.get(param, default)
-            for param, default in self.defaults.items()])
+            if np.sum(diff_rate_per_hist[:2])>0:
+                left_edge=scipy.interpolate.interp1d(
+                    self.pvals[4:6],diff_rate_per_hist[:2],
+                    kind='linear',fill_value="extrapolate",
+                    bounds_error=False)(self.pvals[:4])
+            else:
+                left_edge=list(np.repeat(diff_rate_per_hist[0],4))
+
+            if np.sum(diff_rate_per_hist[-2:])>0:
+                right_edge=scipy.interpolate.interp1d(
+                    self.pvals[-6:-4],diff_rate_per_hist[-2:],
+                    kind='linear',fill_value="extrapolate",
+                    bounds_error=False)(self.pvals[-4:])
+            else:
+                right_edge=list(np.repeat(diff_rate_per_hist[-1],4))
+
+            linear_interp_padded_diff_rates.append(np.concatenate([left_edge,diff_rate_per_hist,right_edge]))
+
+        self.data[self.column]=linear_interp_padded_diff_rates
+        self.tensor_xvals=tf.convert_to_tensor([self.pvals for _ in range(self.batch_size)],dtype=fd.float_type())
+
+    def mu_before_efficiencies(self, **params):
+        return self.mu
+
+    def estimate_mu(self, n_trials=None, **params):
+        norm = tfp.math.batch_interp_regular_1d_grid(
+                    x=params[self.param_name],
+                    x_ref_min=self.pmin,
+                    x_ref_max=self.pmax,
+                    y_ref=self.normalisations,
+                    )
+
+        return tf.reshape(norm, shape=[]) * self.mu
+
+    def bspline_interpolate_per_bin(self, param,knots):
+        def interp(knots_for_event):
+            #second order non-cyclical b-spline with varying knots
+            #returns [x,y] so ignore x
+            #hackiest shit ever
+            return tf.reduce_sum(bspline.interpolate(knots_for_event,
+                                                     self.max_pos*(param-self.start)/self.original_range+self.linear_shift*(param -self.linear_shift_shift), 2, False) \
+                                * tf.constant([0,1],dtype=fd.float_type()))
+        #vectorized map over all events
+        y=tf.vectorized_map(interp,elems=knots)
+        return y
 
     def _differential_rate(self, data_tensor, ptensor):
-        # Compute template weights at this parameter point
-        # (n_templates,) tensor
-        # (The axis order is weird here. It seems to work...)
-        permutation = (
-            [self._grid_weights.ndim - 1]
-            + list(range(0, self._grid_weights.ndim - 1)))
-        template_weights = tfp.math.batch_interp_rectilinear_nd_grid(
-            x=ptensor[None, :],
-            x_grid_points=self._grid_coordinates,
-            y_ref=tf.transpose(self._grid_weights, permutation),
-            axis=1,
-        )[:, 0]
-        # Ensure template weights sum to one.
+        norm = tfp.math.batch_interp_regular_1d_grid(
+                x=ptensor[None, :],
+                x_ref_min=self.pmin,
+                x_ref_max=self.pmax,
+                y_ref=self.normalisations,
+                )
+
+        knots_per_event=tf.convert_to_tensor([self.tensor_xvals,self._fetch(self.column, data_tensor)],dtype=fd.float_type())
+        bspline_diff_rates=self.bspline_interpolate_per_bin(ptensor[None, :], tf.transpose(knots_per_event,perm=[1,0,2]))
+        dr=tf.squeeze(norm)*bspline_diff_rates
+
+        return dr
+
+    def simulate(self, n_events, fix_truth=None, full_annotate=False,
+                 keep_padding=False, **params):
+        """Simulate n events.
+        """
+        if fix_truth:
+            raise NotImplementedError("TemplateSource does not yet support fix_truth")
+        assert isinstance(n_events, (int, float)), \
+            f"n_events must be an int or float, not {type(n_events)}"
+
+        # TODO: all other arguments are ignored, they make no sense
+        # for this source. Should we warn about this? Remove them from def?
+
+        assert len(self.defaults) == 1
+
+        template_weights = tfp.math.batch_interp_regular_1d_grid(
+            x=params[next(iter(self.defaults))],
+            x_ref_min=self._grid_coordinates[0][0],
+            x_ref_max=self._grid_coordinates[0][-1],
+            y_ref=self._grid_weights,
+        )
+
         template_weights /= tf.reduce_sum(template_weights)
 
-        # Fetch precomputed diff rates for each template.
-        # (n_events, n_templates) tensor
-        template_diffrates = self._fetch(self.column, data_tensor)
+        template_epb = [template._mh_events_per_bin for template in self._templates]
+        template_epb_combine = deepcopy(template_epb[0])
+        template_epb_combine.histogram = np.sum([template.histogram * weight for template, weight in
+                                                 zip(template_epb, template_weights)], axis=0)
 
-        # Compute weighted average of diff rates
-        # (n_events,) tensor
-        return tf.reduce_sum(
-            template_diffrates * template_weights[None, :],
-            axis=1)
+        return pd.DataFrame(dict(zip(
+            self._templates[0].axis_names,
+            template_epb_combine.get_random(n_events).T)))
