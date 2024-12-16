@@ -85,8 +85,12 @@ class LZWS2024Source:
     path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
     path_drift_map_dt='WS2024/drift_map_dt_WS2024.json'
     path_drift_map_x='WS2024/drift_map_x_WS2024.json'
-
-    def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False,ignore_all_cuts=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
+    path_field_map_E='WS2024/WS2024_field_map.json'
+    def __init__(self, *args, 
+                 ignore_field_map=False, 
+                 ignore_LCE_maps=False, ignore_acc_maps=False,
+                 ignore_all_cuts=False, ignore_drift_map=False, 
+                 cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.cap_upper_cs1 = cap_upper_cs1
@@ -105,6 +109,14 @@ class LZWS2024Source:
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
         
+        if not ignore_field_map:
+            try:
+                drift_map=fd.get_lz_file(self.path_field_map_E)
+                self.drift_map_dt = interpolate.LinearNDInterpolator(drift_map['coordinate_system'],drift_map['map'],fill_value=0)
+            except:
+                print("Failed to load field map")
+                self.drift_map_dt = None
+
         if not ignore_drift_map:
             try:
                 drift_map=fd.get_lz_file(self.path_drift_map_dt)
