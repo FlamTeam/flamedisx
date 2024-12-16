@@ -111,11 +111,11 @@ class LZWS2024Source:
         
         if not ignore_field_map:
             try:
-                drift_map=fd.get_lz_file(self.path_field_map_E)
-                self.drift_map_dt = interpolate.LinearNDInterpolator(drift_map['coordinate_system'],drift_map['map'],fill_value=0)
+                field_map=fd.get_lz_file(self.path_field_map_E)
+                self.field_map_E = interpolate.LinearNDInterpolator(drift_map['coordinate_system'],drift_map['map'],fill_value=0)
             except:
                 print("Failed to load field map")
-                self.drift_map_dt = None
+                self.field_map_E = None
 
         if not ignore_drift_map:
             try:
