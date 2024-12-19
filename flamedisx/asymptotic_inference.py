@@ -351,18 +351,29 @@ class IntervalCalculator():
 
         return bands, all_mus, all_p_val_curves
 
-    # def get_bands_discovery(self, quantiles=[0, 1, -1, 2, -2]):
-    #     """
-    #     """
-    #     bands = dict()
-    #     # Loop over signal sources
-    #     for signal_source in self.signal_source_names:
-    #         # Get test statistic distribitions
-    #         test_stat_dists_SB_disco = self.test_stat_dists_SB_disco[signal_source]
-    #         assert len(test_stat_dists_SB_disco.ts_dists.keys()) == 1, 'Currently only support a single signal strength'
-    #         these_disco_sigs = np.sqrt(list(test_stat_dists_SB_disco.ts_dists.values())[0])
-    #         these_bands = dict()
-    #         for quantile in quantiles:
-    #             these_bands[quantile] = np.quantile(np.sort(these_disco_sigs), stats.norm.cdf(quantile))
-    #         bands[signal_source] = these_bands
-    #     return bands
+    def get_bands_discovery(self, quantiles=[0, 1, -1, 2, -2]):
+        """
+        """
+        bands = dict()
+        all_mus = dict()
+
+        # Loop over signal sources
+        for signal_source in self.signal_source_names:
+            # Get p-value distribitions
+            pval_dists = self.pval_dists[signal_source]
+
+            bands[signal_source] = dict()
+            mus = []
+            # Loop over signal rate multipliers
+            for mu_test, these_p_vals in pval_dists.pval_dists.items():
+                mus.append(mu_test)
+                these_disco_sigs = stats.norm.ppf(1. - these_p_vals)
+                these_disco_sigs = np.where(these_disco_sigs > 0., these_disco_sigs, 0.)
+
+                these_bands = dict()
+                for quantile in quantiles:
+                    these_bands[quantile] = np.quantile(np.sort(these_disco_sigs), stats.norm.cdf(quantile))
+                bands[signal_source][mu_test] = these_bands
+                all_mus[signal_source] = mus
+
+        return bands, all_mus
