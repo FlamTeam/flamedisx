@@ -18,7 +18,7 @@ class EnergySpectrum(fd.FirstBlock):
         'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
         't_start', 't_stop',
-        'drift_map_dt', 'drift_map_x')
+        'drift_map_dt', 'drift_map_x','field_map_E')
 
     # The default boundaries are at points where the WIMP wind is at its
     # average speed.
@@ -58,6 +58,20 @@ class EnergySpectrum(fd.FirstBlock):
         y_obs = self.drift_map_x(np.array([data['r'], data['z']]).T) * sinTheta
 
         return x_obs, y_obs
+
+    field_map_E = None
+    def derive_drift_field(self, data):
+        """
+            Helper function for getting field from observed r and drift time
+            data: Data DataFrame
+            If None, simply restores set drift field
+        """
+        if self.field_map_E is None:
+            return self.source.drift_field *np.ones_like(data['r_obs'])
+        field=self.field_map_E(np.array([data['r_obs'], data['drift_time']]).T)
+        #set zero field to default, should not be in FV
+        #limit extreme variation in the field 
+        return tf.where((field>self.source.drift_field/5)&(field<=self.source.drift_field*5),field,self.source.drift_field) 
     
     def domain(self, data_tensor):
         assert isinstance(self.energies, tf.Tensor)  # see WIMPsource for why
@@ -144,6 +158,8 @@ class EnergySpectrum(fd.FirstBlock):
         data['r_obs'], data['theta_obs'] = fd.cart_to_pol(data['x_obs'], data['y_obs'])
 
         data['drift_time'] = self.derive_drift_time(data)
+
+        data['drift_field'] = self.derive_drift_field(data)
         data.pop('z')
 
         return data
@@ -236,7 +252,12 @@ class EnergySpectrum(fd.FirstBlock):
             else:
                 raise ValueError("When fixing position, give (x/_obs, x/_obs, z/drift_time), "
                                  "or (r/_obs, theta/_obs, z/drift_time)")
-            
+        
+        if 'drift_field' not in d:
+            if 'r_obs' and 'drift_time' in d:
+                data['drift_field'] = self.derive_drift_field(data)
+            else:
+                ValueError("Cannot Derive drift field without observed position and drift time")
                 
         elif 'event_time' not in d and 'energy' not in d:
             # Neither position, time, nor energy given
