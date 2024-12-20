@@ -267,7 +267,9 @@ class EnergySpectrumSecondMSU(fd.Block):
     energies_second = tf.cast(tf.linspace(1.75, 97.95, 65),
                             dtype=fd.float_type())
     #: Joint energy spectrum for MSU scatters. Override for other double scatters
-    MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum'+KE_Spectrum+s2w_filetag+'.pkl'
+    MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum'+KE_Spectrum+s2w_filetag+'.pkl' # STANDARD!
+    # MSU2_Spectrum_filename =  '/global/cfs/cdirs/lz/users/jbang/flamedisx/migdal_database_241004/MSU_spectrum_G4_CR_Chen_pmod_20240718_19th_spline_s2wcut2p4us_wideS2w1p8us.pkl' # S2w > 1.8 us
+    # MSU2_Spectrum_filename = '/global/cfs/cdirs/lz/users/jbang/flamedisx/migdal_database_241004/MSU_spectrum_G4_CR_Chen_pmod_20240718_19th_spline_s2wcut2p0us_wideS2w1p8us.pkl' #  1.8 us < S2w 2.0 us
     # MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum_Mono.pkl'
     # MSU2_Spectrum_filename = '../migdal_database/MSU_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
@@ -332,7 +334,9 @@ class EnergySpectrumOthersMSU3(fd.Block):
     #: Energies from the scatters
     energies_others = tf.cast(tf.linspace(3., 95., 24), dtype=fd.float_type())
     #: Joint energy spectrum for MSU3 scatters. Override for other triple scatters
-    MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum'+KE_Spectrum+s2w_filetag+'.pkl'
+    MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum'+KE_Spectrum+s2w_filetag+'.pkl' # STANDARD
+    # MSU3_Spectrum_filename = '/global/cfs/cdirs/lz/users/jbang/flamedisx/migdal_database_241004/MSU3_spectrum_G4_CR_Chen_pmod_20240718_19th_spline_s2wcut2p4us_wideS2w1p8us.pkl' # S2w > 1.8 us
+    # MSU3_Spectrum_filename = '/global/cfs/cdirs/lz/users/jbang/flamedisx/migdal_database_241004/MSU3_spectrum_G4_CR_Chen_pmod_20240718_19th_spline_s2wcut2p0us_wideS2w1p8us.pkl' # 1.8 us < S2w < 2.0 us
     # MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum_Mono.pkl'
     # MSU3_Spectrum_filename = '../migdal_database/MSU3_spectrum_CR_100keVnr_min.pkl'
     rates_vs_energy = pkl.load(open(os.path.join(
@@ -371,13 +375,16 @@ class EnergySpectrumOthersMSU3(fd.Block):
             size=len(d),
             p=spectrum_flat / spectrum_flat.sum(),
             replace=True)
-        d['energy_first'] = Es_flat[energy_index][:, 0]
-        d['energy_second'] = Es_flat[energy_index][:, 1]
-        d['energy_third'] = Es_flat[energy_index][:, 2]
+        
+        # print(Es_flat[energy_index][:, 0])
+        # print(tf.random.uniform(minval=-3,maxval=3,shape=Es_flat[energy_index][:, 0].shape))
+        d['energy_first'] = Es_flat[energy_index][:, 0] #+ tf.random.uniform(minval=-3,maxval=3,shape=Es_flat[energy_index][:, 0].shape)
+        d['energy_second'] = Es_flat[energy_index][:, 1] #+ tf.random.uniform(minval=-3,maxval=3,shape=Es_flat[energy_index][:, 1].shape)
+        d['energy_third'] = Es_flat[energy_index][:, 2]# + tf.random.uniform(minval=-3,maxval=3,shape=Es_flat[energy_index][:, 2].shape)
 
-        assert np.all(d['energy_first'] >= 0), "Generated negative energies??"
-        assert np.all(d['energy_second'] >= 0), "Generated negative energies??"
-        assert np.all(d['energy_third'] >= 0), "Generated negative energies??"
+        assert np.all(d['energy_first'] >= 0), "Generated negative energies 1??"
+        assert np.all(d['energy_second'] >= 0), "Generated negative energies 2??"
+        assert np.all(d['energy_third'] >= 0), "Generated negative energies 3??"
 
     def _annotate(self, d):
         d['energy_others_min'] = fd.tf_to_np(self.energies_others)[0]

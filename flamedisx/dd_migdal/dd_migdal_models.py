@@ -39,6 +39,11 @@ S1_MAX=200
 S2_MIN=400
 S2_MAX=2e4
 
+# S1_MIN=5
+# S1_MAX=300
+# S2_MIN=400
+# S2_MAX=2.5e4
+
 USE_NEST_INTERPOLATOR=False
 
 USE_PMOD=False
@@ -48,7 +53,7 @@ pmod_fermiwidth = 2.42731
 
 USE_FEXMOD=True
 Fexmod_fermichange =  48.8434
-Fexmod_fermimu =  117.391
+Fexmod_fermimu = 117.391
 Fexmod_fermiwidth = 28.3927
 
 MIG_SUPPRESSION = 0.873 # Starting from mig_suppression of 0.95. So true suppression = 0.95 * 0.873 = 0.83
