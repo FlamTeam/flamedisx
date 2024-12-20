@@ -84,8 +84,8 @@ class LZWS2024Source:
     path_s1_acc_curve = 'WS2024/cS1_tritium_acceptance_curve.json'
     path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
     path_drift_map_dt='WS2024/drift_map_dt_WS2024.json'
-    path_drift_map_x='WS2024/drift_map_x_WS2024.json'
-    path_field_map_E='WS2024/WS2024_field_map.json'
+    path_drift_map_x= 'WS2024/drift_map_x_WS2024.json'
+    path_field_map_E= 'WS2024/WS2024_field_map.json'
     def __init__(self, *args, 
                  ignore_field_map=False, 
                  ignore_LCE_maps=False, ignore_acc_maps=False,
@@ -112,7 +112,7 @@ class LZWS2024Source:
         if not ignore_field_map:
             try:
                 field_map=fd.get_lz_file(self.path_field_map_E)
-                self.field_map_E = interpolate.LinearNDInterpolator(drift_map['coordinate_system'],drift_map['map'],fill_value=0)
+                self.field_map_E = interpolate.LinearNDInterpolator(field_map['coordinate_system'],field_map['map'],fill_value=0)
             except:
                 print("Failed to load field map")
                 self.field_map_E = None
@@ -248,7 +248,13 @@ class LZWS2024Source:
         if 'x_obs' not in d.columns:
             print("ERROR: Require observed X and Y")
             raise NotImplemented
-            
+
+        if 'r_obs' not in d.columns:
+            d['r_obs']=np.hypot(d['x_obs'],d['y_obs'])
+        if 'drift_field' not in d:
+            d['drift_field'] = self.model_blocks[0].derive_drift_field(d)
+
+
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             #LZLAMA uses correctedX and Y
             #I think this is meant to represent cluster (and therfore True position)
