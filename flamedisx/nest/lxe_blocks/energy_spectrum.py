@@ -255,7 +255,7 @@ class EnergySpectrum(fd.FirstBlock):
         
         if 'drift_field' not in d:
             if 'r_obs' and 'drift_time' in d:
-                data['drift_field'] = self.derive_drift_field(data)
+                d['drift_field'] = self.derive_drift_field(d)
             else:
                 ValueError("Cannot Derive drift field without observed position and drift time")
                 
