@@ -66,9 +66,8 @@ class MakePhotonsElectronsNR(fd.Block):
             if self.is_ER:
                 nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
-                #a fix to retain back-compatibiliy, god help me.                     
-                nel_mean = nel_mean*tf.transpose(tf.ones_like(nq, fd.float_type()),perm=[1,2,3,0]) 
-                nel_mean = tf.transpose(nel_mean,perm=[3,0,1,2])
+                if self.source.field_map_E is not None:
+                    nel_mean=tf.tensordot(nel_mean,tf.ones_like(nq),0)[:,0,:] #map the mean val to proper shape.
                 nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
                                      bonus_arg=(energy, nel_mean))
                 fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
