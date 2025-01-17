@@ -113,6 +113,7 @@ class LZWS2024Source:
             try:
                 field_map=fd.get_lz_file(self.path_field_map_E)
                 self.field_map_E = interpolate.LinearNDInterpolator(field_map['coordinate_system'],field_map['map'],fill_value=0)
+                self.model_blocks[1].has_driftField=True #tell quanta splitting there's a drift field!
             except:
                 print("Failed to load field map")
                 self.field_map_E = None

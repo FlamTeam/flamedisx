@@ -13,7 +13,7 @@ o = tf.newaxis
 @export
 class MakePhotonsElectronsNR(fd.Block):
     is_ER = False
-
+    has_driftField=False
     dimensions = ('electrons_produced', 'photons_produced')
     bonus_dimensions = (('ions_produced', True),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
@@ -51,7 +51,6 @@ class MakePhotonsElectronsNR(fd.Block):
         def compute_single_energy(args, approx=False):
             # Compute the block for a single energy.
             # Set approx to True for an approximate computation at higher energies
-
             energy = args[0]
             rate_vs_energy = args[1]
             ions_min = args[2]
@@ -66,13 +65,15 @@ class MakePhotonsElectronsNR(fd.Block):
             if self.is_ER:
                 nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
-                if self.source.field_map_E is not None:
-                    nel_mean=tf.tensordot(nel_mean,tf.ones_like(nq),0)[:,0,:] #map the mean val to proper shape.
+                if self.has_driftField:
+                    nel_mean = tf.repeat(nel_mean[:, o], tf.shape(ions_produced)[1], axis=1)
+                    nel_mean = tf.repeat(nel_mean[:, :, o], tf.shape(ions_produced)[2], axis=2)
+                    nel_mean = tf.repeat(nel_mean[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
+
                 nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
                                      bonus_arg=(energy, nel_mean))
                 fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=nq_mean)
-
                 if approx:
                     p_nq = tfp.distributions.Normal(loc=nq_mean,
                                                     scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq)
