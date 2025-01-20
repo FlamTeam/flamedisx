@@ -63,13 +63,13 @@ class MakePhotonsElectronsNR(fd.Block):
             _ions_produced = ions_produced_add + ions_min
            
             if self.is_ER:
-                nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
-                                      bonus_arg=energy)
+                
                 if self.has_driftField:
-                    nel_mean = tf.repeat(nel_mean[:, o], tf.shape(ions_produced)[1], axis=1)
-                    nel_mean = tf.repeat(nel_mean[:, :, o], tf.shape(ions_produced)[2], axis=2)
-                    nel_mean = tf.repeat(nel_mean[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
-
+                    nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=(energy,drift_field))
+                else:
+                    nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=energy)
                 nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
                                      bonus_arg=(energy, nel_mean))
                 fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
@@ -182,6 +182,14 @@ class MakePhotonsElectronsNR(fd.Block):
         # for the lowest energy
         ions_produced_add = ions_produced - ions_min_initial
 
+        #stop vecotrized map from shitting the bed?
+        if self.has_driftField:
+            drift_field=self.gimme('drift_field',data_tensor=data_tensor)
+            drift_field =tf.repeat(drift_field[:, o], tf.shape(ions_produced)[1], axis=1)
+            drift_field = tf.repeat(drift_field[:, :, o], tf.shape(ions_produced)[2], axis=2)
+            drift_field = tf.repeat(drift_field[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
+
+        
         # Energy above which we use the approximate computation
         if self.is_ER:
             cutoff_energy = 5.
@@ -190,6 +198,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
         energies_below_cutoff = tf.size(tf.where(energy[0, :] < cutoff_energy))
         energies_above_cutoff = tf.size(tf.where(energy[0, :] >= cutoff_energy))
+        
 
         # We split the sum over energies to implement the approximate computation
         # above the cutoff energy
@@ -219,7 +228,10 @@ class MakePhotonsElectronsNR(fd.Block):
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
         if self.is_ER:
-            nel = self.gimme_numpy('mean_yield_electron', d['energy'].values)
+            if self.has_driftField:
+                nel = self.gimme_numpy('mean_yield_electron', (d['energy'].values, d['drift_field'].values))
+            else:
+                nel = self.gimme_numpy('mean_yield_electron', d['energy'].values)
             nq = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nel))
             fano = self.gimme_numpy('fano_factor', nq)
 
@@ -292,7 +304,11 @@ class MakePhotonsElectronsNR(fd.Block):
         # Simple computation, based on forward simulation procedure
 
         def get_bounds_ER(energy):
-            nel = self.gimme_numpy('mean_yield_electron', energy)
+            if self.has_driftField:
+                drift_field=self.gimme_numpy('drift_field')
+                nel = self.gimme_numpy('mean_yield_electron', (energy,drift_field))
+            else:
+                nel = self.gimme_numpy('mean_yield_electron', energy)
             nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
             fano = self.gimme_numpy('fano_factor', nq)
             nq_actual_upper = nq + np.sqrt(fano * nq) * self.source.max_sigma
