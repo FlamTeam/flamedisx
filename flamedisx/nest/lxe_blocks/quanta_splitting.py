@@ -182,7 +182,7 @@ class MakePhotonsElectronsNR(fd.Block):
         # for the lowest energy
         ions_produced_add = ions_produced - ions_min_initial
 
-        #stop vecotrized map from shitting the bed?
+        #faster/less memory intense to do this outside of the loop! consider doing for ions_min?
         if self.has_driftField:
             drift_field=self.gimme('drift_field',data_tensor=data_tensor)
             drift_field =tf.repeat(drift_field[:, o], tf.shape(ions_produced)[1], axis=1)
@@ -215,12 +215,12 @@ class MakePhotonsElectronsNR(fd.Block):
         result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
                                                       elems=[energy_full,
                                                              rate_vs_energy_full,
-                                                             tf.transpose(ion_bounds_min_full)]),
+                                                             tf.transpose(ion_bounds_min_full)], fallback_to_while_loop=False),
                                     0)
         result_approx = tf.reduce_sum(tf.vectorized_map(compute_single_energy_approx,
                                                         elems=[energy_approx,
                                                                rate_vs_energy_approx,
-                                                               tf.transpose(ion_bounds_min_approx)]),
+                                                               tf.transpose(ion_bounds_min_approx)], fallback_to_while_loop=False),
                                       0)
 
         return (result_full + result_approx)
@@ -305,7 +305,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
         def get_bounds_ER(energy):
             if self.has_driftField:
-                drift_field=self.gimme_numpy('drift_field')
+                drift_field=self.source.drift_field #TEMPORARY FIX!!! NOT ACCURATE
                 nel = self.gimme_numpy('mean_yield_electron', (energy,drift_field))
             else:
                 nel = self.gimme_numpy('mean_yield_electron', energy)
