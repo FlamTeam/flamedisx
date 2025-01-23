@@ -349,16 +349,16 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
             Constants are direct over-rides of eqn 6 in Arxiv: 2211.10726 
             Energy: energy in keV
         """
-        m1=   12.4886    #tf.cast(12.4886,tf.float32)  12.4886
-        m2=  85.0    #tf.cast(85.0,tf.float32)  85.0
-        m3=  0.6050    #tf.cast(0.6050,tf.float32)  0.6050
-        m4=  2.14687     #tf.cast(2.14687,tf.float32)  2.14687
-        m5= 5.721     #tf.cast(25.721,tf.float32)  25.721
-        m6=  0.      #tf.cast(0. ,tf.float32)   0. 
-        m7=  59.651     #tf.cast(59.651,tf.float32)  59.651
-        m8= 3.6869     #tf.cast(3.6869,tf.float32)  3.6869
-        m9=  0.2872    #tf.cast(0.2872,tf.float32)  0.2872
-        m10=  0.1121     #tf.cast(0.1121 ,tf.float32)  0.1121 
+        m1 = 12.4886
+        m2 = 85.0   
+        m3 = 0.6050 
+        m4 = 2.14687
+        m5 = 5.721   
+        m6 = 0.     
+        m7 = 59.651 
+        m8 = 3.6869  
+        m9 = 0.2872 
+        m10 = 0.1121
 
         Nq = energy  / self.Wq_keV  #equation is in keV   
 
@@ -460,18 +460,18 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
             See section C. in Arxiv: 2211.10726 
             Energy: energy in keV
         """
-        nr_nuis_alpha = 10.19#tf.cast(10.19,tf.float32)   
-        nr_nuis_beta = 1.11#tf.cast(1.11,tf.float32)   
-        nr_nuis_gamma = 0.0498#tf.cast(0.0498,tf.float32)   
-        nr_nuis_delta = -0.0533#tf.cast(-0.0533,tf.float32)   
-        nr_nuis_epsilon = 12.46#tf.cast(12.46,tf.float32)   
-        nr_nuis_zeta =  0.2942#tf.cast(0.2942,tf.float32)   
-        nr_nuis_eta = 1.899#tf.cast(1.899,tf.float32)   
-        nr_nuis_theta = 0.3197#tf.cast(0.3197,tf.float32)   
-        nr_nuis_l = 2.066#tf.cast(2.066,tf.float32)   
-        nr_nuis_p = 0.509#tf.cast(0.509,tf.float32)   
-        nr_new_nuis_a = 0.996#tf.cast(0.996,tf.float32)   
-        nr_new_nuis_b =  0.999#tf.cast(0.999,tf.float32)   
+        nr_nuis_alpha = 10.19
+        nr_nuis_beta = 1.11
+        nr_nuis_gamma = 0.0498
+        nr_nuis_delta = -0.0533
+        nr_nuis_epsilon = 12.46
+        nr_nuis_zeta =  0.2942
+        nr_nuis_eta = 1.899
+        nr_nuis_theta = 0.3197
+        nr_nuis_l = 2.066
+        nr_nuis_p = 0.509
+        nr_new_nuis_a = 0.996
+        nr_new_nuis_b =  0.999
  
         TIB = nr_nuis_gamma * tf.math.pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
         Qy = 1. / (TIB * tf.math.pow(energy + nr_nuis_epsilon, nr_nuis_p))
