@@ -47,8 +47,93 @@ class MakePhotonsElectronsNR(fd.Block):
                  ions_produced,
                  # Dependency domain and value
                  energy, rate_vs_energy):
+        """
+            Compute function is unique: it internally contracts the previous dimension (rate_vs_energy) instead of a block sum
+            and, as each yield depends on the energy, it performs a parallel loop over each energy, also contracting an internal
+            ions dimension. 
+        """
+        def compute_ER_specific(energy,rate_vs_energy,_ions_produced,approx):
+            """
+                handle ER ions and quanta
+            """
+            if self.has_driftField:
+                    nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=(energy,drift_field))
+            else:
+                nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=energy)
+            nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
+                                 bonus_arg=(energy, nel_mean))
+            fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
+                              bonus_arg=nq_mean)
+            if approx:
+                p_nq = tfp.distributions.Normal(loc=nq_mean,
+                                                scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq)
+            else:
+                normal_dist_nq = tfp.distributions.Normal(loc=nq_mean,
+                                                          scale=tf.sqrt(nq_mean * fano) + 1e-10)
+                p_nq = normal_dist_nq.cdf(nq + 0.5) - normal_dist_nq.cdf(nq - 0.5)
 
+            ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=energy)
+            alpha = 1. / (1. + ex_ratio)
+
+            p_ni = tfp.distributions.Binomial(
+                total_count=nq, probs=alpha).prob(_ions_produced)
+            return p_ni , p_nq, nel_mean, nq_mean, ex_ratio
+            
+        def compute_NR_specific(energy,rate_vs_energy,_ions_produced,approx):
+            """
+                handle NR ions and quanta
+            """
+            if self.has_driftField:
+                yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=(energy,drift_field))
+            else:
+                yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
+                                bonus_arg=energy)
+            nel_mean = yields[0]
+            nq_mean = yields[1]
+            ex_ratio = yields[2]
+            alpha = 1. / (1. + ex_ratio)
+
+            if self.has_driftField:
+                yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=(nq_mean,drift_field))
+            else:
+                yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=nq_mean)
+
+            ni_fano = yield_fano[0]
+            nex_fano = yield_fano[1]
+
+            if approx:
+                p_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
+                                                scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10).prob(_ions_produced)
+
+                p_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
+                                                scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10).prob(
+                                                    nq - _ions_produced)
+            else:
+                normal_dist_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
+                                                          scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10)
+                p_ni = normal_dist_ni.cdf(_ions_produced + 0.5) - \
+                    normal_dist_ni.cdf(_ions_produced - 0.5)
+
+                normal_dist_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
+                                                          scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10)
+                p_nq = normal_dist_nq.cdf(nq - _ions_produced + 0.5) \
+                    - normal_dist_nq.cdf(nq - _ions_produced - 0.5)
+            return p_ni , p_nq, nel_mean, nq_mean, ex_ratio
+            
+            
         def compute_single_energy(args, approx=False):
+            """
+                args: tuple containing energy,rate and ions passed in vectorized sum
+                approx: wether or not to use a continuity correction (CC) (True: no CC, False: CC)
+                This follows the NEST model for recombination, the  ionisation and excitation of
+                ERs and NRs, hence the separation. 
+            """
             # Compute the block for a single energy.
             # Set approx to True for an approximate computation at higher energies
             energy = args[0]
@@ -63,62 +148,9 @@ class MakePhotonsElectronsNR(fd.Block):
             _ions_produced = ions_produced_add + ions_min
            
             if self.is_ER:
-                
-                if self.has_driftField:
-                    nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
-                                      bonus_arg=(energy,drift_field))
-                else:
-                    nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
-                                      bonus_arg=energy)
-                nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
-                                     bonus_arg=(energy, nel_mean))
-                fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
-                                  bonus_arg=nq_mean)
-                if approx:
-                    p_nq = tfp.distributions.Normal(loc=nq_mean,
-                                                    scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq)
-                else:
-                    normal_dist_nq = tfp.distributions.Normal(loc=nq_mean,
-                                                              scale=tf.sqrt(nq_mean * fano) + 1e-10)
-                    p_nq = normal_dist_nq.cdf(nq + 0.5) - normal_dist_nq.cdf(nq - 0.5)
-
-                ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
-                                      bonus_arg=energy)
-                alpha = 1. / (1. + ex_ratio)
-
-                p_ni = tfp.distributions.Binomial(
-                    total_count=nq, probs=alpha).prob(_ions_produced)
-
+                p_ni , p_nq, nel_mean, nq_mean, ex_ratio = compute_ER_specific(energy,rate_vs_energy,_ions_produced,approx)    
             else:
-                yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
-                                    bonus_arg=energy)
-                nel_mean = yields[0]
-                nq_mean = yields[1]
-                ex_ratio = yields[2]
-                alpha = 1. / (1. + ex_ratio)
-
-                yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
-                                        bonus_arg=nq_mean)
-                ni_fano = yield_fano[0]
-                nex_fano = yield_fano[1]
-
-                if approx:
-                    p_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                    scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10).prob(_ions_produced)
-
-                    p_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                    scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10).prob(
-                                                        nq - _ions_produced)
-                else:
-                    normal_dist_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
-                                                              scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10)
-                    p_ni = normal_dist_ni.cdf(_ions_produced + 0.5) - \
-                        normal_dist_ni.cdf(_ions_produced - 0.5)
-
-                    normal_dist_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
-                                                              scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10)
-                    p_nq = normal_dist_nq.cdf(nq - _ions_produced + 0.5) \
-                        - normal_dist_nq.cdf(nq - _ions_produced - 0.5)
+                p_ni , p_nq, nel_mean, nq_mean, ex_ratio = compute_NR_specific(energy,rate_vs_energy,_ions_produced,approx)
 
             recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=(nel_mean, nq_mean, ex_ratio))
@@ -182,7 +214,7 @@ class MakePhotonsElectronsNR(fd.Block):
         # for the lowest energy
         ions_produced_add = ions_produced - ions_min_initial
 
-        #faster/less memory intense to do this outside of the loop! consider doing for ions_min?
+        #The reason to do this externally is to prevent repeats on a traced variable (can be slow)
         if self.has_driftField:
             drift_field=self.gimme('drift_field',data_tensor=data_tensor)
             drift_field =tf.repeat(drift_field[:, o], tf.shape(ions_produced)[1], axis=1)
@@ -300,9 +332,11 @@ class MakePhotonsElectronsNR(fd.Block):
         pass
 
     def _annotate_special(self, d, **kwargs):
-        # Here we manually calculate ion bounds for each energy we will sum over in the spectrum
-        # Simple computation, based on forward simulation procedure
-
+        """
+            Here we manually calculate ion bounds for each energy we will sum over in the spectrum
+            Simple computation, based on forward simulation procedure
+            Warning: Currently approximating to mean-E-field for ion bound estimation!
+        """
         def get_bounds_ER(energy):
             if self.has_driftField:
                 drift_field=self.source.drift_field #TEMPORARY FIX!!! NOT ACCURATE
@@ -328,11 +362,16 @@ class MakePhotonsElectronsNR(fd.Block):
             return (ions_produced_min, ions_produced_max)
 
         def get_bounds_NR(energy):
-            nq = self.gimme_numpy('mean_yields', energy)[1]
-            ex_ratio = self.gimme_numpy('mean_yields', energy)[2]
+            if self.has_driftField:
+                drift_field=self.source.drift_field 
+                nq = self.gimme_numpy('mean_yields', (energy,drift_field))[1]
+                ex_ratio = self.gimme_numpy('mean_yields', (energy,drift_field))[2]
+                ni_fano = self.gimme_numpy('yield_fano', (nq,drift_field))[0]
+            else:
+                nq = self.gimme_numpy('mean_yields', energy)[1]
+                ex_ratio = self.gimme_numpy('mean_yields', energy)[2]
+                ni_fano = self.gimme_numpy('yield_fano', nq)[0]
             alpha = 1. / (1. + ex_ratio)
-            ni_fano = self.gimme_numpy('yield_fano', nq)[0]
-
             ions_mean = nq * alpha
             ions_std = np.sqrt(nq * alpha * ni_fano)
 
