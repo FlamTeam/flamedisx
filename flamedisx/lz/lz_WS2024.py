@@ -84,9 +84,13 @@ class LZWS2024Source:
     path_s1_acc_curve = 'WS2024/cS1_tritium_acceptance_curve.json'
     path_s2_splitting_curve='WS2024/WS2024_S2splittingReconEff_mean.pkl'
     path_drift_map_dt='WS2024/drift_map_dt_WS2024.json'
-    path_drift_map_x='WS2024/drift_map_x_WS2024.json'
-
-    def __init__(self, *args, ignore_LCE_maps=False, ignore_acc_maps=False,ignore_all_cuts=False, ignore_drift_map=False, cap_upper_cs1=False, **kwargs):
+    path_drift_map_x= 'WS2024/drift_map_x_WS2024.json'
+    path_field_map_E= 'WS2024/WS2024_field_map.json'
+    def __init__(self, *args, 
+                 ignore_field_map=False, 
+                 ignore_LCE_maps=False, ignore_acc_maps=False,
+                 ignore_all_cuts=False, ignore_drift_map=False, 
+                 cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.cap_upper_cs1 = cap_upper_cs1
@@ -105,6 +109,15 @@ class LZWS2024Source:
         self.S2_min = config.getfloat('NEST', 'S2_min_config') * (1 + self.double_pe_fraction)  # phd to phe
         self.cS2_max = config.getfloat('NEST', 'cS2_max_config') * (1 + self.double_pe_fraction)  # phd to phe
         
+        if not ignore_field_map:
+            try:
+                field_map=fd.get_lz_file(self.path_field_map_E)
+                self.field_map_E = interpolate.LinearNDInterpolator(field_map['coordinate_system'],field_map['map'],fill_value=0)
+                self.model_blocks[1].has_driftField=True #tell quanta splitting there's a drift field!
+            except:
+                print("Failed to load field map")
+                self.field_map_E = None
+
         if not ignore_drift_map:
             try:
                 drift_map=fd.get_lz_file(self.path_drift_map_dt)
@@ -236,7 +249,13 @@ class LZWS2024Source:
         if 'x_obs' not in d.columns:
             print("ERROR: Require observed X and Y")
             raise NotImplemented
-            
+
+        if 'r_obs' not in d.columns:
+            d['r_obs']=np.hypot(d['x_obs'],d['y_obs'])
+        if 'drift_field' not in d:
+            d['drift_field'] = self.model_blocks[0].derive_drift_field(d)
+
+
         if (self.s1_map_latest is not None) and (self.s2_map_latest is not None):
             #LZLAMA uses correctedX and Y
             #I think this is meant to represent cluster (and therfore True position)
@@ -330,16 +349,16 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
             Constants are direct over-rides of eqn 6 in Arxiv: 2211.10726 
             Energy: energy in keV
         """
-        m1=tf.cast(12.4886,tf.float32)
-        m2=tf.cast(85.0,tf.float32)
-        m3=tf.cast(0.6050,tf.float32)
-        m4= tf.cast(2.14687,tf.float32)
-        m5=tf.cast(25.721,tf.float32)
-        m6=tf.cast(0. ,tf.float32)
-        m7=tf.cast(59.651,tf.float32)
-        m8=tf.cast(3.6869,tf.float32)
-        m9=tf.cast(0.2872,tf.float32)
-        m10=tf.cast(0.1121 ,tf.float32)
+        m1 = 12.4886
+        m2 = 85.0   
+        m3 = 0.6050 
+        m4 = 2.14687
+        m5 = 5.721   
+        m6 = 0.     
+        m7 = 59.651 
+        m8 = 3.6869  
+        m9 = 0.2872 
+        m10 = 0.1121
 
         Nq = energy  / self.Wq_keV  #equation is in keV   
 
@@ -441,18 +460,18 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
             See section C. in Arxiv: 2211.10726 
             Energy: energy in keV
         """
-        nr_nuis_alpha = tf.cast(10.19,tf.float32)
-        nr_nuis_beta = tf.cast(1.11,tf.float32)
-        nr_nuis_gamma = tf.cast(0.0498,tf.float32)
-        nr_nuis_delta = tf.cast(-0.0533,tf.float32)
-        nr_nuis_epsilon = tf.cast(12.46,tf.float32)
-        nr_nuis_zeta =  tf.cast(0.2942,tf.float32)
-        nr_nuis_eta = tf.cast(1.899,tf.float32)
-        nr_nuis_theta = tf.cast(0.3197,tf.float32)
-        nr_nuis_l = tf.cast(2.066,tf.float32)
-        nr_nuis_p = tf.cast(0.509,tf.float32)
-        nr_new_nuis_a = tf.cast(0.996,tf.float32)
-        nr_new_nuis_b =  tf.cast(0.999,tf.float32)
+        nr_nuis_alpha = 10.19
+        nr_nuis_beta = 1.11
+        nr_nuis_gamma = 0.0498
+        nr_nuis_delta = -0.0533
+        nr_nuis_epsilon = 12.46
+        nr_nuis_zeta =  0.2942
+        nr_nuis_eta = 1.899
+        nr_nuis_theta = 0.3197
+        nr_nuis_l = 2.066
+        nr_nuis_p = 0.509
+        nr_new_nuis_a = 0.996
+        nr_new_nuis_b =  0.999
  
         TIB = nr_nuis_gamma * tf.math.pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
         Qy = 1. / (TIB * tf.math.pow(energy + nr_nuis_epsilon, nr_nuis_p))

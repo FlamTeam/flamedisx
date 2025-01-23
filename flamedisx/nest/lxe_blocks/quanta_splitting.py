@@ -13,7 +13,7 @@ o = tf.newaxis
 @export
 class MakePhotonsElectronsNR(fd.Block):
     is_ER = False
-
+    has_driftField=False
     dimensions = ('electrons_produced', 'photons_produced')
     bonus_dimensions = (('ions_produced', True),)
     depends_on = ((('energy',), 'rate_vs_energy'),)
@@ -48,9 +48,14 @@ class MakePhotonsElectronsNR(fd.Block):
                  # Dependency domain and value
                  energy, rate_vs_energy):
         def compute_single_energy(args, approx=False):
+            """
+                args: tuple containing energy,rate and ions passed in vectorized sum
+                approx: wether or not to use a continuity correction (CC) (True: no CC, False: CC)
+                This follows the NEST model for recombination, the  ionisation and excitation of
+                ERs and NRs, hence the separation. 
+            """
             # Compute the block for a single energy.
             # Set approx to True for an approximate computation at higher energies
-
             energy = args[0]
             rate_vs_energy = args[1]
             ions_min = args[2]
@@ -214,7 +219,14 @@ class MakePhotonsElectronsNR(fd.Block):
         # for the lowest energy
         ions_produced_add = ions_produced - ions_min_initial
 
+        #The reason to do this externally is to prevent repeats on a traced variable (can be slow)
+        if self.has_driftField:
+            drift_field=self.gimme('drift_field',data_tensor=data_tensor)
+            drift_field =tf.repeat(drift_field[:, o], tf.shape(ions_produced)[1], axis=1)
+            drift_field = tf.repeat(drift_field[:, :, o], tf.shape(ions_produced)[2], axis=2)
+            drift_field = tf.repeat(drift_field[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
 
+        
         # Energy above which we use the approximate computation
         if self.is_ER:
             cutoff_energy = 5.
@@ -223,6 +235,7 @@ class MakePhotonsElectronsNR(fd.Block):
 
         energies_below_cutoff = tf.size(tf.where(energy[0, :] < cutoff_energy))
         energies_above_cutoff = tf.size(tf.where(energy[0, :] >= cutoff_energy))
+        
 
         # We split the sum over energies to implement the approximate computation
         # above the cutoff energy
@@ -239,12 +252,12 @@ class MakePhotonsElectronsNR(fd.Block):
         result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
                                                       elems=[energy_full,
                                                              rate_vs_energy_full,
-                                                             tf.transpose(ion_bounds_min_full)]),
+                                                             tf.transpose(ion_bounds_min_full)], fallback_to_while_loop=False),
                                     0)
         result_approx = tf.reduce_sum(tf.vectorized_map(compute_single_energy_approx,
                                                         elems=[energy_approx,
                                                                rate_vs_energy_approx,
-                                                               tf.transpose(ion_bounds_min_approx)]),
+                                                               tf.transpose(ion_bounds_min_approx)], fallback_to_while_loop=False),
                                       0)
 
         return (result_full + result_approx)
@@ -252,7 +265,10 @@ class MakePhotonsElectronsNR(fd.Block):
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
         if self.is_ER:
-            nel = self.gimme_numpy('mean_yield_electron', d['energy'].values)
+            if self.has_driftField:
+                nel = self.gimme_numpy('mean_yield_electron', (d['energy'].values, d['drift_field'].values))
+            else:
+                nel = self.gimme_numpy('mean_yield_electron', d['energy'].values)
             nq = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nel))
             fano = self.gimme_numpy('fano_factor', nq)
 
@@ -329,11 +345,17 @@ class MakePhotonsElectronsNR(fd.Block):
         pass
 
     def _annotate_special(self, d, **kwargs):
-        # Here we manually calculate ion bounds for each energy we will sum over in the spectrum
-        # Simple computation, based on forward simulation procedure
-
+        """
+            Here we manually calculate ion bounds for each energy we will sum over in the spectrum
+            Simple computation, based on forward simulation procedure
+            Warning: Currently approximating to mean-E-field for ion bound estimation!
+        """
         def get_bounds_ER(energy):
-            nel = self.gimme_numpy('mean_yield_electron', energy)
+            if self.has_driftField:
+                drift_field=self.source.drift_field #TEMPORARY FIX!!! NOT ACCURATE
+                nel = self.gimme_numpy('mean_yield_electron', (energy,drift_field))
+            else:
+                nel = self.gimme_numpy('mean_yield_electron', energy)
             nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
             fano = self.gimme_numpy('fano_factor', nq)
             nq_actual_upper = nq + np.sqrt(fano * nq) * self.source.max_sigma
@@ -353,11 +375,16 @@ class MakePhotonsElectronsNR(fd.Block):
             return (ions_produced_min, ions_produced_max)
 
         def get_bounds_NR(energy):
-            nq = self.gimme_numpy('mean_yields', energy)[1]
-            ex_ratio = self.gimme_numpy('mean_yields', energy)[2]
+            if self.has_driftField:
+                drift_field=self.source.drift_field 
+                nq = self.gimme_numpy('mean_yields', (energy,drift_field))[1]
+                ex_ratio = self.gimme_numpy('mean_yields', (energy,drift_field))[2]
+                ni_fano = self.gimme_numpy('yield_fano', (nq,drift_field))[0]
+            else:
+                nq = self.gimme_numpy('mean_yields', energy)[1]
+                ex_ratio = self.gimme_numpy('mean_yields', energy)[2]
+                ni_fano = self.gimme_numpy('yield_fano', nq)[0]
             alpha = 1. / (1. + ex_ratio)
-            ni_fano = self.gimme_numpy('yield_fano', nq)[0]
-
             ions_mean = nq * alpha
             ions_std = np.sqrt(nq * alpha * ni_fano)
 
