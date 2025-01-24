@@ -473,9 +473,9 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
         nr_new_nuis_a = 0.996
         nr_new_nuis_b =  0.999
  
-        TIB = nr_nuis_gamma * tf.math.pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
-        Qy = 1. / (TIB * tf.math.pow(energy + nr_nuis_epsilon, nr_nuis_p))
-        Qy *= (1. - (1. / tf.math.pow(1. + tf.math.pow(tf.math.divide_no_nan(energy , nr_nuis_zeta), nr_nuis_eta), nr_new_nuis_a)))
+        TIB = nr_nuis_gamma * pow(self.drift_field, nr_nuis_delta) * pow(self.density / XENON_REF_DENSITY, 0.3)
+        Qy = 1. / (TIB * pow(energy + nr_nuis_epsilon, nr_nuis_p))
+        Qy *= (1. - (1. /pow(1. + pow(tf.math.divide_no_nan(energy , nr_nuis_zeta), nr_nuis_eta), nr_new_nuis_a)))
 
         nel_temp = Qy * energy
         # Don't let number of electrons go negative
@@ -485,7 +485,7 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
 
         nq_temp = nr_nuis_alpha * pow(energy, nr_nuis_beta)
 
-        nph_temp = (nq_temp - nel) * (1. - (1. / tf.math.pow(1. + tf.math.pow(tf.math.divide_no_nan(energy , nr_nuis_theta), nr_nuis_l), nr_new_nuis_b)))
+        nph_temp = (nq_temp - nel) * (1. - (1. / pow(1. + pow(tf.math.divide_no_nan(energy , nr_nuis_theta), nr_nuis_l), nr_new_nuis_b)))
         # Don't let number of photons go negative
         nph = tf.where(nph_temp < 0,
                        0 * nph_temp,
