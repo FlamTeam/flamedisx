@@ -38,8 +38,23 @@ class MakePhotonsElectronsNR(fd.Block):
         else:
             self.array_columns = (('ions_produced_min',
                                    max(len(self.source.energies), 2)),)
-
     def _compute(self,
+                 data_tensor, ptensor,
+                 # Domain
+                 electrons_produced, photons_produced,
+                 # Bonus dimension
+                 ions_produced,
+                 # Dependency domain and value
+                 energy, rate_vs_energy):
+        if self.has_driftField:
+            return self._compute_with_drift_field(data_tensor, ptensor, electrons_produced,
+                                                photons_produced, ions_produced,
+                                                energy, rate_vs_energy)
+        return self._compute_without_drift_field(data_tensor, ptensor, electrons_produced,
+                                                photons_produced, ions_produced,
+                                                energy, rate_vs_energy)
+
+    def _compute_without_drift_field(self,
                  data_tensor, ptensor,
                  # Domain
                  electrons_produced, photons_produced,
@@ -218,15 +233,203 @@ class MakePhotonsElectronsNR(fd.Block):
         # Work out the difference between each point in the ion domain and the lower bound,
         # for the lowest energy
         ions_produced_add = ions_produced - ions_min_initial
+        # Energy above which we use the approximate computation
+        if self.is_ER:
+            cutoff_energy = 5.
+        else:
+            cutoff_energy = 20.
 
-        #The reason to do this externally is to prevent repeats on a traced variable (can be slow)
-        if self.has_driftField:
-            drift_field=self.gimme('drift_field',data_tensor=data_tensor)
-            drift_field =tf.repeat(drift_field[:, o], tf.shape(ions_produced)[1], axis=1)
-            drift_field = tf.repeat(drift_field[:, :, o], tf.shape(ions_produced)[2], axis=2)
-            drift_field = tf.repeat(drift_field[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
-
+        energies_below_cutoff = tf.size(tf.where(energy[0, :] < cutoff_energy))
+        energies_above_cutoff = tf.size(tf.where(energy[0, :] >= cutoff_energy))
         
+
+        # We split the sum over energies to implement the approximate computation
+        # above the cutoff energy
+        energy_full, energy_approx = tf.split(energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
+        rate_vs_energy_full, rate_vs_energy_approx = \
+            tf.split(rate_vs_energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
+        # Want to get rid of the padding of 0s at the end
+        ion_bounds_min = self.source._fetch('ions_produced_min', data_tensor=data_tensor)[:, 0:tf.size(energy[0, :])]
+        ion_bounds_min_full, ion_bounds_min_approx = \
+            tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
+
+        # Sum the block result per energy over energies, separately for the
+        # energies below the cutoff and the energies above the cutoff
+        result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
+                                                      elems=[energy_full,
+                                                             rate_vs_energy_full,
+                                                             tf.transpose(ion_bounds_min_full)], fallback_to_while_loop=False),
+                                    0)
+        result_approx = tf.reduce_sum(tf.vectorized_map(compute_single_energy_approx,
+                                                        elems=[energy_approx,
+                                                               rate_vs_energy_approx,
+                                                               tf.transpose(ion_bounds_min_approx)], fallback_to_while_loop=False),
+                                      0)
+
+        return (result_full + result_approx)
+
+    def _compute_with_drift_field(self,
+                 data_tensor, ptensor,
+                 # Domain
+                 electrons_produced, photons_produced,
+                 # Bonus dimension
+                 ions_produced,
+                 # Dependency domain and value
+                 energy, rate_vs_energy):
+        def compute_single_energy(args, approx=False):
+            """
+                args: tuple containing energy,rate and ions passed in vectorized sum
+                approx: wether or not to use a continuity correction (CC) (True: no CC, False: CC)
+                This follows the NEST model for recombination, the  ionisation and excitation of
+                ERs and NRs, hence the separation. 
+            """
+            # Compute the block for a single energy.
+            # Set approx to True for an approximate computation at higher energies
+            energy = args[0]
+            rate_vs_energy = args[1]
+            ions_min = args[2]
+
+            ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
+            ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
+            ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
+
+            # Calculate the ion domain tensor for this energy
+            _ions_produced = ions_produced_add + ions_min
+            #every event in the batch shares E therefore ions domain
+            _ions_produced_1D=_ions_produced[:,0,0,:]
+            #create nevtxnq'xni dimensionality tensors 
+            #could repeats be avoided by creating a unit-tensor outside and using a tensordot???
+            ni_3D_unq=tf.repeat(_ions_produced_1D[:,o,:],tf.shape(unique_quanta)[0],axis=1) #nevtxnq'xni
+            
+            if self.is_ER:
+                nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=(energy,drift_field_2D_unq))
+                nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
+                                     bonus_arg=(energy, nel_mean,drift_field_2D_unq))
+                fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=(nq_mean,drift_field_2D_unq))
+                
+                if approx:
+                    p_nq_2D = tfp.distributions.Normal(loc=nq_mean,
+                                                    scale=tf.sqrt(nq_mean * fano) + 1e-10).prob(nq_2D)
+                else:
+                    normal_dist_nq = tfp.distributions.Normal(loc=nq_mean,
+                                                              scale=tf.sqrt(nq_mean * fano) + 1e-10) 
+                    p_nq_2D=normal_dist_nq.cdf(unique_quanta + 0.5) - normal_dist_nq.cdf(nq_2D - 0.5)
+                #restore p_ni from unique_nq x n_ions -> unique_nel x n_electrons x n_photons (does not need n_ions)
+                p_nq=tf.gather_nd(params=p_nq_2D,indices=index_nq_3D[:,:,:,o],batch_dims=1)
+                # p_nq=tf.reshape(p_nq,[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2]])
+                
+
+                ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=(energy,drift_field_3D_unq))
+                alpha = 1. / (1. + ex_ratio)
+
+                p_ni_3D=tfp.distributions.Binomial(total_count=nq_3D, probs=alpha).prob(ni_3D_unq)
+                #restore p_ni from nevtxunique_nq x n_ions -> unique_nel x n_electrons x n_photons x n_ions
+                p_ni=tf.gather_nd(params=p_ni_3D,indices=index_nq_3D[:,:,:,o],batch_dims=1) #if this works I'll eat my hat.
+                # p_ni=tf.reshape(tf.reshape(p_ni,[-1]),[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2],tf.shape(nq)[3]])
+                
+
+
+            
+            ni_3D=_ions_produced[:,:,0,:] #nevsxnelxni
+            #---recalculate parameters with correct shape-------
+            #need to check if it messes with differentiability... it shouldn't!
+            nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=(energy,drift_field_3D))
+            nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
+                                 bonus_arg=(energy, nel_mean,drift_field_3D))
+
+            ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=(energy,drift_field_3D))
+            #-----end recalculate----
+            
+            recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=(nel_mean, nq_mean, ex_ratio))
+            skew = self.gimme('skewness', data_tensor=data_tensor, ptensor=ptensor,
+                              bonus_arg=nq_mean)
+            var = self.gimme('variance', data_tensor=data_tensor, ptensor=ptensor,
+                             bonus_arg=(nel_mean, nq_mean, recomb_p, ni_3D))
+            width_corr = self.gimme('width_correction', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=skew)
+            mu_corr = self.gimme('mu_correction', data_tensor=data_tensor, ptensor=ptensor,
+                                 bonus_arg=(skew, var, width_corr))
+
+            mean = (tf.ones_like(ni_3D, dtype=fd.float_type()) - recomb_p) * ni_3D - mu_corr
+            std_dev = tf.sqrt(var) / width_corr
+
+            if self.is_ER:
+                owens_t_terms = 5
+            else:
+                owens_t_terms = 5
+
+            if approx:
+                p_nel_3D = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
+                                                skewness=skew,
+                                                owens_t_terms=owens_t_terms).prob(nel_3D)
+            else:
+                p_nel_3D = fd.tfp_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
+                                                                        skewness=skew,
+                                                                        limit=ni_3D,
+                                                                        owens_t_terms=owens_t_terms).prob(nel_3D)
+
+            
+            #To resore dimensionality now, just need to resotre photon dimension
+            p_nel=tf.repeat(p_nel_3D[:,:,o,:],tf.shape(nq)[2],axis=2)
+            
+            #modified contractions remove need for costly repeats in ions dimension.
+            if self.is_ER:
+                p_mult = p_ni * p_nel
+                p_final = tf.reduce_sum(p_mult, 3)*p_nq #p_nq has no ions dimension
+            else:
+                p_mult = p_nq*p_nel
+                p_final = tf.tensordot(p_mult,p_ni_1D,axes=[[3],[0]])
+
+            r_final = p_final * rate_vs_energy
+
+            r_final = tf.where(tf.math.is_nan(r_final),
+                               tf.zeros_like(r_final, dtype=fd.float_type()),
+                               r_final)
+
+            return r_final
+
+        def compute_single_energy_full(args):
+            # Compute the block for a single energy, without approximations
+            return compute_single_energy(args, approx=False)
+
+        def compute_single_energy_approx(args):
+            # Compute the block for a single energy, without continuity corrections
+            # or truncated skew Gaussian
+            return compute_single_energy(args, approx=True)
+
+        nq = electrons_produced + photons_produced
+        #remove degenerate dimensions
+        #nevtxnelxnph->nq'
+        unique_quanta,index_nq=tf.unique(tf.reshape(nq[:,:,:,0],[-1]))
+        nq_2D=tf.repeat(unique_quanta[o,:],tf.shape(nq)[0],axis=0) #nevtsxnq'
+        nq_3D=tf.repeat(nq_2D[:,:,o],tf.shape(nq)[3],axis=2) #nevtsxnq'xni
+        index_nq_3D=tf.reshape(index_nq,tf.shape(nq[:,:,:,0]))#restore the index
+        #then need to map this back you to 
+        #nevtxnelxnphxni->nevtxnelxnions
+        nel_3D = electrons_produced[:,:,0,:]
+
+        #produced nevtxunq drift field
+        drift_field=self.gimme('drift_field',data_tensor=data_tensor)
+        drift_field_2D_unq=tf.repeat(drift_field[:,o],tf.shape(unique_quanta)[0],axis=1)
+        drift_field_3D_unq=tf.repeat(drift_field_2D_unq[:,:,o],tf.shape(nq)[3],axis=2)
+        
+        drift_field_2D=tf.repeat(drift_field[:,o],tf.shape(nq)[1],axis=1)#nevts xnel
+        drift_field_3D=tf.repeat(drift_field_2D[:,:,o],tf.shape(nq)[3],axis=2)#nevts xnelxni
+
+        ions_min_initial = self.source._fetch('ions_produced_min', data_tensor=data_tensor)[:, 0, o]
+        ions_min_initial = tf.repeat(ions_min_initial, tf.shape(ions_produced)[1], axis=1)
+        ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
+        ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
+
+        # Work out the difference between each point in the ion domain and the lower bound,
+        # for the lowest energy
+        ions_produced_add = ions_produced - ions_min_initial
         # Energy above which we use the approximate computation
         if self.is_ER:
             cutoff_energy = 5.
@@ -453,7 +656,6 @@ class MakePhotonsElectronsNR(fd.Block):
 
         # Pad with 0s at the end to make each one the same size
         [bounds.extend([0]*(max_num_energies - len(bounds))) for bounds in d['ions_produced_min'].values]
-
         return True
 
     def _calculate_dimsizes_special(self):
@@ -497,8 +699,8 @@ class MakePhotonsElectronsNR(fd.Block):
         ions = tf.repeat(ions[:, :, o, :], tf.shape(photons_domain)[1], axis=2)
 
         return dict({'electrons_produced': electrons,
-                     'photons_produced': photons,
-                     'ions_produced': ions})
+                    'photons_produced': photons,
+                    'ions_produced': ions})
 
 
 @export
