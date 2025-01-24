@@ -276,6 +276,22 @@ class MakePhotonsElectronsNR(fd.Block):
                  ions_produced,
                  # Dependency domain and value
                  energy, rate_vs_energy):
+        def NR_yields(energy,drift_field):
+                    """
+                        A crime, against humanity
+                    """
+                    yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
+                                        bonus_arg=(energy,drift_field))
+                    nel_mean = yields[0]
+                    nq_mean = yields[1]
+                    ex_ratio = yields[2]
+                    alpha = 1. / (1. + ex_ratio)
+
+                    yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
+                                            bonus_arg=(nq_mean,drift_field))
+                    ni_fano = yield_fano[0]
+                    nex_fano = yield_fano[1]
+                    return nel_mean, nq_mean, ex_ratio, alpha, ni_fano, nex_fano
         def compute_single_energy(args, approx=False):
             """
                 args: tuple containing energy,rate and ions passed in vectorized sum
@@ -296,10 +312,10 @@ class MakePhotonsElectronsNR(fd.Block):
             # Calculate the ion domain tensor for this energy
             _ions_produced = ions_produced_add + ions_min
             #every event in the batch shares E therefore ions domain
-            _ions_produced_1D=_ions_produced[:,0,0,:]
+            _ions_produced_2D=_ions_produced[:,0,0,:]
             #create nevtxnq'xni dimensionality tensors 
             #could repeats be avoided by creating a unit-tensor outside and using a tensordot???
-            ni_3D_unq=tf.repeat(_ions_produced_1D[:,o,:],tf.shape(unique_quanta)[0],axis=1) #nevtxnq'xni
+            ni_3D_unq=tf.repeat(_ions_produced_2D[:,o,:],tf.shape(unique_quanta)[0],axis=1) #nevtxnq'xni
             
             if self.is_ER:
                 nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
@@ -329,22 +345,52 @@ class MakePhotonsElectronsNR(fd.Block):
                 #restore p_ni from nevtxunique_nq x n_ions -> unique_nel x n_electrons x n_photons x n_ions
                 p_ni=tf.gather_nd(params=p_ni_3D,indices=index_nq_3D[:,:,:,o],batch_dims=1) #if this works I'll eat my hat.
                 # p_ni=tf.reshape(tf.reshape(p_ni,[-1]),[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2],tf.shape(nq)[3]])
+            else:
                 
+                if approx:
+                    #p_ni is in nevt x ni
+                    nel_mean, nq_mean, ex_ratio, alpha, ni_fano, nex_fano=NR_yields(energy,drift_field_3D[:,0,:])
+                    p_ni_2D = tfp.distributions.Normal(loc=nq_mean*alpha,
+                                                    scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10).prob(_ions_produced_2D)
+                    #p_nq is in nevt x nq' x ni
+                    nel_mean, nq_mean, ex_ratio, alpha, ni_fano, nex_fano=NR_yields(energy,drift_field_3D_unq)
+                    p_nq_3D = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
+                                                    scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10).prob(
+                                                        nq_3D - ni_3D_unq)
+                else:
+                    #p_ni is in nevt x ni
+                    nel_mean, nq_mean, ex_ratio, alpha, ni_fano, nex_fano=NR_yields(energy,drift_field_3D[:,0,:])
+                    normal_dist_ni = tfp.distributions.Normal(loc=nq_mean*alpha,
+                                                              scale=tf.sqrt(nq_mean*alpha*ni_fano) + 1e-10)
+                    p_ni_2D = normal_dist_ni.cdf(_ions_produced_2D + 0.5) - \
+                        normal_dist_ni.cdf(_ions_produced_2D - 0.5)
+                    #p_nq is in nevt x nq' x ni
+                    nel_mean, nq_mean, ex_ratio, alpha, ni_fano, nex_fano=NR_yields(energy,drift_field_3D_unq)                    
+                    normal_dist_nq = tfp.distributions.Normal(loc=nq_mean*alpha*ex_ratio,
+                                                              scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10)
+                    p_nq_3D = normal_dist_nq.cdf(nq_3D - ni_3D_unq + 0.5) \
+                        - normal_dist_nq.cdf(nq_3D - ni_3D_unq - 0.5)
+
+                # restore p_nq from nevts x nq' x n_ions -> unique_nel x n_electrons x n_photons x n_ions
+                p_nq=tf.gather_nd(params=p_nq_3D,indices=index_nq_3D[:,:,:,o],batch_dims=1)
 
 
             
             ni_3D=_ions_produced[:,:,0,:] #nevsxnelxni
             #---recalculate parameters with correct shape-------
             #need to check if it messes with differentiability... it shouldn't!
-            nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
-                                      bonus_arg=(energy,drift_field_3D))
-            nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
-                                 bonus_arg=(energy, nel_mean,drift_field_3D))
+            if self.is_ER:
+                nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                        bonus_arg=(energy,drift_field_3D))
+                nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=(energy, nel_mean,drift_field_3D))
 
-            ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
-                                      bonus_arg=(energy,drift_field_3D))
+                ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
+                                        bonus_arg=(energy,drift_field_3D))
+            else:
+                nel_mean, nq_mean, ex_ratio, alpha, ni_fano, nex_fano=NR_yields(energy,drift_field_3D) 
             #-----end recalculate----
-            
+
             recomb_p = self.gimme('recomb_prob', data_tensor=data_tensor, ptensor=ptensor,
                                   bonus_arg=(nel_mean, nq_mean, ex_ratio))
             skew = self.gimme('skewness', data_tensor=data_tensor, ptensor=ptensor,
@@ -384,7 +430,9 @@ class MakePhotonsElectronsNR(fd.Block):
                 p_final = tf.reduce_sum(p_mult, 3)*p_nq #p_nq has no ions dimension
             else:
                 p_mult = p_nq*p_nel
-                p_final = tf.tensordot(p_mult,p_ni_1D,axes=[[3],[0]])
+                #thank chatgpt for this one
+                p_final = tf.reduce_sum(tf.multiply(p_mult,p_ni_2D[:,o,o,:]),3)
+                
 
             r_final = p_final * rate_vs_energy
 
