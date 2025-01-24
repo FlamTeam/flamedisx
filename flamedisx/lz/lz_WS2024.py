@@ -349,6 +349,7 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
             Constants are direct over-rides of eqn 6 in Arxiv: 2211.10726 
             Energy: energy in keV
         """
+        energy=args[0]
         m1 = 12.4886
         m2 = 85.0   
         m3 = 0.6050 
@@ -379,13 +380,15 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
                        nel_temp)
 
         return nel
-    def fano_factor(self, nq_mean):
+    def fano_factor(self, *args):
         """
             Update fano factor
             ERNRWidthParams from NEST/LZLAMA
             WS2024 directly over-ride and lose functional form of Arix:2211.10726
+            args: nq_mean, drift_field (if field map used)
             nq_mean: mean number of quanta (self.mean_yield_quanta)
         """
+        nq_mean = args[0]
         er_free_a = 0.3
         return tf.constant(er_free_a,tf.float32)
     
@@ -453,13 +456,14 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
-    def mean_yields(self, energy):
+    def mean_yields(self, *args):
         """
             Update the mean yields to WS2024 LZLAMA (!397)
             NRYieldParams from NEST/LZLAMA
             See section C. in Arxiv: 2211.10726 
             Energy: energy in keV
         """
+        energy = args[0]
         nr_nuis_alpha = 10.19
         nr_nuis_beta = 1.11
         nr_nuis_gamma = 0.0498
@@ -511,12 +515,13 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
 
         return nel, nq, ex_ratio
 
-    def yield_fano(self, nq_mean):
+    def yield_fano(self, *args):
         """
             Update fano factor
             ERNRWidthParams from NEST/LZLAMA
             nq_mean: mean number of quanta (self.mean_yield_quanta)
         """
+        nq_mean = args[0]
         if self.detector in ['lz','lz_WS2024']:
             nr_free_a = 0.404
             nr_free_b = 0.393
@@ -530,12 +535,13 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
         return ni_fano, nex_fano
 
     @staticmethod
-    def skewness(nq_mean):
+    def skewness(*args):
         """
             Update skewness 
             ERNRWidthParams from NEST/LZLAMA
             nq_mean: mean number of quanta (self.mean_yield_quanta)
         """
+        nq_mean = args[0]
         nr_free_f =  2.220
 
         mask = tf.less(nq_mean, 1e4 * tf.ones_like(nq_mean))
