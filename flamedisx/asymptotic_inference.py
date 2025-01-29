@@ -20,7 +20,7 @@ class TestStatistic():
     def __init__(self, likelihood):
         self.likelihood = likelihood
 
-    def __call__(self, mu_test, signal_source_name, guess_dict):
+    def __call__(self, mu_test, signal_source_name, guess_dict, discovery=False):
         # To fix the signal RM in the conditional fit
         fix_dict = {f'{signal_source_name}_rate_multiplier': mu_test}
 
@@ -32,9 +32,14 @@ class TestStatistic():
         # Uncnditional fit
         bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
 
-        # Return the asymptotic p-value
-        return self.evaluate_asymptotic_pval(bf_unconditional, bf_conditional,
-                                                 mu_test)
+        if discovery:
+            # Return the asymptotic discovery significance
+            return self.evaluate_asymptotic_disco_sig(bf_unconditional, bf_conditional,
+                                                      mu_test)
+        else:
+            # Return the asymptotic p-value
+            return self.evaluate_asymptotic_pval(bf_unconditional, bf_conditional,
+                                                    mu_test)
 
 
 @export
@@ -57,15 +62,31 @@ class TestStatisticTMu(TestStatistic):
     
 
 @export
-class pValDistributions():
-    """ Class to store p-values (pass in as a list),
+class TestStatisticQ0(TestStatistic):
+    """Evaluate the test statistic of equation 12 in https://arxiv.org/abs/1007.1727.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def evaluate_asymptotic_disco_sig(self, bf_unconditional, bf_conditional, mu_test):
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        ts = max([-2. * (ll_conditional - ll_unconditional), 0.])
+
+        return np.sqrt(ts)
+
+
+@export
+class statDistributions():
+    """ Class to store p-values or discovery significances (pass in as a list),
     for a range of values of the parameter of interest being tested ('mu').
     """
     def __init__(self):
-        self.pval_dists = dict()
+        self.dists = dict()
 
-    def add_pval_dist(self, mu_test, pvals):
-        self.pval_dists[mu_test] = np.array(pvals)
+    def add_dist(self, mu_test, vals):
+        self.dists[mu_test] = np.array(vals)
 
 
 @export
@@ -142,11 +163,11 @@ class TSEvaluation():
             self.constraint_extra_args_B = constraint_extra_args_B
             self.toy_batch = toy_batch
 
-        pval_dists_collection = dict()
+        stat_dists_collection = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
-            pval_dists= pValDistributions()
+            stat_dists= statDistributions()
 
             sources = dict()
             arguments = dict()
@@ -176,13 +197,13 @@ class TSEvaluation():
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
-                self.toy_test_statistic_dist(pval_dists,
+                self.toy_test_statistic_dist(stat_dists,
                                              mu_test, signal_source, likelihood,
                                              mode=mode)
 
-            pval_dists_collection[signal_source] = pval_dists
+            stat_dists_collection[signal_source] = stat_dists
 
-        return pval_dists_collection
+        return stat_dists_collection
 
     def sample_data_constraints(self, mu_test, signal_source_name, likelihood):
         """Internal function to sample the toy data and constraint central values
@@ -207,12 +228,12 @@ class TSEvaluation():
 
         return simulate_dict, toy_data, constraint_extra_args
 
-    def toy_test_statistic_dist(self, pval_dist,
+    def toy_test_statistic_dist(self, stat_dist,
                                 mu_test, signal_source_name, likelihood,
                                 mode='sensitivity'):
         """Internal function to get test statistic distribution.
         """
-        pvals = []
+        stats = []
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
@@ -234,9 +255,9 @@ class TSEvaluation():
                 # Create test statistic
                 test_statistic_SB = self.test_statistic(likelihood)
 
-                # Evaluate discovery p-value
-                pval_disco_SB = test_statistic_SB(0., signal_source_name, guess_dict_SB)
-                pvals.append(pval_disco_SB)
+                # Evaluate discovery signififcance
+                disco_sig_SB = test_statistic_SB(0., signal_source_name, guess_dict_SB, discovery=True)
+                stats.append(disco_sig_SB)
 
             elif mode == 'sensitivity':
                 # B-only toys
@@ -262,9 +283,9 @@ class TSEvaluation():
 
                 # Evaluate p-value
                 pval_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
-                pvals.append(pval_B)
+                stats.append(pval_B)
 
-        pval_dist.add_pval_dist(mu_test, pvals)
+        stat_dist.add_dist(mu_test, stats)
         return
 
 
@@ -275,17 +296,17 @@ class IntervalCalculator():
     Arguments:
         - signal_source_names: tuple of names for signal sources (e.g. WIMPs of different
             masses)
-        - pval_dists: dictionary {sourcename: pValDistributions} returned
-            by running TSEvaluation routine to get p-values under either the S+B or
-            the B hypothesis
+        - stat_dists: dictionary {sourcename: statDistributions} returned
+            by running TSEvaluation routine to get p-values or discovery significances under 
+            either the S+B or the B hypothesis
     """
     def __init__(
             self,
             signal_source_names: ty.Tuple[str],
-            pval_dists: pValDistributions):
+            stat_dists: statDistributions):
 
         self.signal_source_names = signal_source_names
-        self.pval_dists = pval_dists
+        self.stat_dists = stat_dists
 
     @staticmethod
     def interp_helper(x, y, crossing_points, crit_val,
@@ -326,12 +347,12 @@ class IntervalCalculator():
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             # Get p-value distribitions
-            pval_dists = self.pval_dists[signal_source]
+            pval_dists = self.stat_dists[signal_source]
 
             mus = []
             p_val_curves = []
             # Loop over signal rate multipliers
-            for mu_test, these_p_vals in pval_dists.pval_dists.items():
+            for mu_test, these_p_vals in pval_dists.dists.items():
                 mus.append(mu_test)
                 p_val_curves.append(these_p_vals)
 
@@ -359,16 +380,14 @@ class IntervalCalculator():
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
-            # Get p-value distribitions
-            pval_dists = self.pval_dists[signal_source]
+            # Get discovery significances
+            disco_sigs = self.stat_dists[signal_source]
 
             bands[signal_source] = dict()
             mus = []
             # Loop over signal rate multipliers
-            for mu_test, these_p_vals in pval_dists.pval_dists.items():
+            for mu_test, these_disco_sigs in disco_sigs.dists.items():
                 mus.append(mu_test)
-                these_disco_sigs = stats.norm.ppf(1. - these_p_vals)
-                these_disco_sigs = np.where(these_disco_sigs > 0., these_disco_sigs, 0.)
 
                 these_bands = dict()
                 for quantile in quantiles:
