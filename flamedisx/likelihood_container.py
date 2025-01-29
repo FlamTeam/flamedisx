@@ -9,7 +9,7 @@ class LikelihoodContainer():
     """
     def __init__(self, sources, arguments, batch_size=1000, log_constraint=None,
                  expected_signal_counts=dict(), expected_background_counts=dict(),
-                 gaussian_constraint_widths=dict()):
+                 gaussian_constraint_widths=dict(), signal_counts_uncertainties=dict()):
         self.sources = sources
         self.arguments = arguments
         self.batch_size = batch_size
@@ -17,3 +17,4 @@ class LikelihoodContainer():
         self.expected_signal_counts = expected_signal_counts
         self.expected_background_counts = expected_background_counts
         self.gaussian_constraint_widths = gaussian_constraint_widths
+        self.signal_counts_uncertainties = signal_counts_uncertainties

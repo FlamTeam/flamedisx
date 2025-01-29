@@ -1,6 +1,6 @@
 import flamedisx as fd
 import numpy as np
-from scipy import stats
+import scipy.stats as sps
 from tqdm.auto import tqdm
 import typing as ty
 
@@ -55,7 +55,7 @@ class TestStatisticTMu(TestStatistic):
 
         ts = max([-2. * (ll_conditional - ll_unconditional), 0.])
 
-        F = 2. * stats.norm.cdf(np.sqrt(ts)) - 1.
+        F = 2. * sps.norm.cdf(np.sqrt(ts)) - 1.
 
         pval = 1. - F
         return pval
@@ -133,7 +133,7 @@ class TSEvaluation():
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
-                    mode='sensitivity'):
+                    mode='sensitivity', vary_signal_dict=None):
         """BLAH
 
         Arguments:
@@ -199,7 +199,7 @@ class TSEvaluation():
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
                 self.toy_test_statistic_dist(stat_dists,
                                              mu_test, signal_source, likelihood,
-                                             mode=mode)
+                                             mode=mode, vary_signal_dict=vary_signal_dict)
 
             stat_dists_collection[signal_source] = stat_dists
 
@@ -217,7 +217,7 @@ class TSEvaluation():
 
             # Sample constraint centers
             if background_source in self.gaussian_constraint_widths:
-                draw = stats.norm.rvs(loc=expected_background_counts,
+                draw = sps.norm.rvs(loc=expected_background_counts,
                                       scale=self.gaussian_constraint_widths[background_source])
                 constraint_extra_args[f'{background_source}_expected_counts'] = tf.cast(draw, fd.float_type())
 
@@ -230,7 +230,7 @@ class TSEvaluation():
 
     def toy_test_statistic_dist(self, stat_dist,
                                 mu_test, signal_source_name, likelihood,
-                                mode='sensitivity'):
+                                mode='sensitivity', vary_signal_dict=None):
         """Internal function to get test statistic distribution.
         """
         stats = []
@@ -240,8 +240,14 @@ class TSEvaluation():
             if mode == 'discovery':
                 # S+B toys
 
+                if vary_signal_dict is not None:
+                    mu_sim = sps.norm.rvs(loc=mu_test,
+                                             scale=vary_signal_dict[signal_source_name])
+                else:
+                    mu_sim = mu_test
+
                 simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
-                    self.sample_data_constraints(mu_test, signal_source_name, likelihood)
+                    self.sample_data_constraints(mu_sim, signal_source_name, likelihood)
                 # Guesses for fit
                 guess_dict_SB = simulate_dict_SB.copy()
                 for key, value in guess_dict_SB.items():
@@ -365,7 +371,7 @@ class IntervalCalculator():
 
             these_bands = dict()
             for quantile in quantiles:
-                these_bands[quantile] = np.quantile(np.sort(upper_lims_bands), stats.norm.cdf(quantile))
+                these_bands[quantile] = np.quantile(np.sort(upper_lims_bands), sps.norm.cdf(quantile))
             bands[signal_source] = these_bands
             all_mus[signal_source] = mus
             all_p_val_curves[signal_source] = p_val_curves
@@ -391,7 +397,7 @@ class IntervalCalculator():
 
                 these_bands = dict()
                 for quantile in quantiles:
-                    these_bands[quantile] = np.quantile(np.sort(these_disco_sigs), stats.norm.cdf(quantile))
+                    these_bands[quantile] = np.quantile(np.sort(these_disco_sigs), sps.norm.cdf(quantile))
                 bands[signal_source][mu_test] = these_bands
                 all_mus[signal_source] = mus
 
