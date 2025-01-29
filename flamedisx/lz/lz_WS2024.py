@@ -342,7 +342,7 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
-    def mean_yield_electron(self, energy):
+    def mean_yield_electron(self, *args):
         """
             Update the mean yields to WS2024 LZLAMA (!397)
             ERYieldParams from NEST/LZLAMA
