@@ -59,7 +59,7 @@ class Xe136Source(fd_nest.nestERSource):
 
 
 @export
-class Xe136Source(fd_nest.nestERSource):
+class Xe124Source(fd_nest.nestERSource):
     """"EC background source from the 2-neutrino double electron capture of 124Xe.
     Reads in energy spectrum from .pkl file.
     Normalise such that the spectrum predicts 8.805 events in 1 tonne year.
