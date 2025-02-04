@@ -59,6 +59,26 @@ class Xe136Source(fd_nest.nestERSource):
 
 
 @export
+class Xe136Source(fd_nest.nestERSource):
+    """"EC background source from the 2-neutrino double electron capture of 124Xe.
+    Reads in energy spectrum from .pkl file.
+    Normalise such that the spectrum predicts 8.805 events in 1 tonne year.
+    """
+
+    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        df_vER = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/124Xe_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_vER['energy_keV'].values, dtype=fd.float_type())
+        scale = fid_mass * livetime * 8.805
+        self.rates_vs_energy = tf.convert_to_tensor(df_vER['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
+
+
+@export
 class Pb214Source(fd_nest.nestERSource):
     """Beta background source from 214Pbr.
     Normalise such that the spectrum predicts 11.41 events in 1 tonne year.
