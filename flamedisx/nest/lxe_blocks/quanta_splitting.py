@@ -553,15 +553,7 @@ class MakePhotonsElectronsNR(fd.Block):
                                           ni_temp * 0,
                                           ni_temp)
             
-            mean_nex=nq*alpha*ex_ratio
-            width_nex=mean_nex*nex_fano
-            mean_nex=np.where(mean_nex < 0,
-                                          mean_nex * 0,
-                                          mean_nex)
-            width_nex=np.where(width_nex < 0,
-                                          width_nex * 0,
-                                          width_nex)
-            nex_temp = np.round(stats.norm.rvs(mean_nex, np.sqrt(width_nex))).astype(int)
+            nex_temp = np.round(stats.norm.rvs(nq*alpha*ex_ratio, np.sqrt(nq*alpha*ex_ratio*nex_fano))).astype(int)
             # Don't let number of excitons go negative
             nex = np.where(nex_temp < 0,
                            nex_temp * 0,
