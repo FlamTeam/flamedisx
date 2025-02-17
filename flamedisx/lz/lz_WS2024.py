@@ -31,7 +31,7 @@ GAS_CONSTANT = 8.314
 N_AVAGADRO = 6.0221409e23
 A_XENON = 131.293
 XENON_REF_DENSITY = 2.90
-
+BRANCH = 'JRG_WS2024_data'
 ##
 # Useful functions
 ##
@@ -49,7 +49,7 @@ def interpolate_acceptance(arg, domain, acceptances):
 def build_position_map_from_data(map_file, axis_names, bins):
     """
     """
-    map_df= fd.get_lz_file(map_file)
+    map_df= fd.get_lz_file(map_file, branch=BRANCH)
     assert isinstance(map_df, pd.DataFrame), 'Must pass in a dataframe to build position map hisotgram'
 
     mh = Histdd(bins=bins, axis_names=axis_names)
@@ -111,7 +111,7 @@ class LZWS2024Source:
         
         if not ignore_field_map:
             try:
-                field_map=fd.get_lz_file(self.path_field_map_E)
+                field_map=fd.get_lz_file(self.path_field_map_E, branch=BRANCH)
                 self.field_map_E = interpolate.LinearNDInterpolator(field_map['coordinate_system'],field_map['map'],fill_value=0)
                 self.model_blocks[1].has_driftField=True #tell quanta splitting there's a drift field!
             except:
@@ -120,9 +120,9 @@ class LZWS2024Source:
 
         if not ignore_drift_map:
             try:
-                drift_map=fd.get_lz_file(self.path_drift_map_dt)
+                drift_map=fd.get_lz_file(self.path_drift_map_dt, branch=BRANCH)
                 self.drift_map_dt = interpolate.LinearNDInterpolator(drift_map['coordinate_system'],drift_map['map'],fill_value=0)
-                drift_map_xy=fd.get_lz_file(self.path_drift_map_x)
+                drift_map_xy=fd.get_lz_file(self.path_drift_map_x, branch=BRANCH)
                 self.drift_map_x = interpolate.LinearNDInterpolator(drift_map_xy['coordinate_system'],drift_map_xy['map'],fill_value=0)
             except:
                 self.drift_map_dt = None
@@ -143,11 +143,11 @@ class LZWS2024Source:
             self.cS2_drift_acceptance_hist = None
         else:
             try:
-                df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve)
+                df_S1_acc = fd.get_lz_file(self.path_s1_acc_curve, branch=BRANCH)
                 self.cs1_acc_domain = np.array(df_S1_acc['cS1_phd']) * (1 + self.double_pe_fraction)  # phd to phe
                 self.cs1_acc_curve = np.array(df_S1_acc['cS1_acceptance'])
                 #TO-DO: Adapt to json for get_lz_file
-                self.cS2_drift_acceptance_hist= fd.get_lz_file(self.path_s2_splitting_curve)
+                self.cS2_drift_acceptance_hist= fd.get_lz_file(self.path_s2_splitting_curve, branch=BRANCH)
             except Exception:
                 print("Could not load acceptance curves; setting to 1")
 
@@ -160,8 +160,8 @@ class LZWS2024Source:
             self.s2_map_latest = None
         else:
             try:
-                self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest))
-                self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest))
+                self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest, branch=BRANCH))
+                self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest, branch=BRANCH))
             except Exception:
                 print("Could not load maps; setting position corrections to 1")
                 self.s1_map_latest = None
@@ -453,6 +453,7 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
+        
     def mean_yields(self, energy):
         """
             Update the mean yields to WS2024 LZLAMA (!397)
@@ -844,7 +845,7 @@ class LZ24DetNRSource(LZ24NRSource):#, fd.nest.nestSpatialRateNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
 
-        df_DetNR = fd.get_lz_file('sr1/DetNR_spectrum.pkl')
+        df_DetNR = fd.get_lz_file('sr1/DetNR_spectrum.pkl', branch=BRANCH)
 
         self.energies = tf.convert_to_tensor(df_DetNR['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_DetNR['spectrum_value_norm'].values, dtype=fd.float_type())
@@ -860,7 +861,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
     path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
 
     def __init__(self, *args, simulate_safety_factor=2., **kwargs):
-        hist = fd.get_lz_file('WS2024/accidentals_model.pkl')
+        hist = fd.get_lz_file('WS2024/accidentals_model.pkl', branch=BRANCH)
 
         hist_values = hist['hist_values']
         s1_edges = hist['cs1_phd_edges']
@@ -873,8 +874,8 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         self.simulate_safety_factor = simulate_safety_factor
 
         try:
-            self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest))
-            self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest))
+            self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest, BRANCH))
+            self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest, BRANCH))
         except Exception:
             print("Could not load maps; setting position corrections to 1")
             self.s1_map_latest = None
