@@ -9,6 +9,7 @@ import pandas as pd
 import pickle as pkl
 import tensorflow as tf
 from scipy import stats
+from copy import deepcopy
 
 from tqdm import tqdm
 
@@ -78,6 +79,10 @@ class Source:
 
     # Dimensions which we want to calculate priors for, in bounds computation.
     prior_dimensions: ty.List[ty.Tuple[ty.Tuple[str], ty.Tuple[str]]] = []
+
+    #: Spectrum/position sampling can be expensive, as there are no cuts
+    #:  have option to save simulated energy, position, time,etc.
+    saved_random_truth : pd.DataFrame = None
 
     # List all columns that are manually _fetch ed here
     # These will be added to the data_tensor even when the model function
@@ -718,10 +723,12 @@ class Source:
     ##
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
-                 keep_padding=False, **params):
+                 keep_padding=False, use_saved_truth=False, **params):
         """Simulate n events.
 
-        Will omit events lost due to selection/detection efficiencies
+        Will omit events lost due to selection/detection efficiencies.
+        use_saved_truth : Boolean, if True, will use saved truth if available. 
+                          To regerenate the saved, set to false once.
         """
         assert isinstance(n_events, (int, float)), \
             f"n_events must be an int or float, not {type(n_events)}"
@@ -731,7 +738,17 @@ class Source:
         fix_truth = self.validate_fix_truth(fix_truth.copy()
                                             if fix_truth is not None
                                             else None)
-        sim_data = self.random_truth(n_events, fix_truth=fix_truth, **params)
+        # If we have saved truth, use that instead of generating new.
+        #  Regenerate if the number of events is different.
+        if ( use_saved_truth and self.saved_random_truth is not None  
+            and len(self.saved_random_truth) >= n_events ):
+            if n_events<int(1e5):
+                warnings.warn("It is unwise to use saved truth for <1e5 events")
+            sim_data=deepcopy(self.saved_random_truth)
+        else:
+            sim_data = self.random_truth(n_events, fix_truth=fix_truth, **params)
+            self.saved_random_truth = deepcopy(sim_data)
+        
         assert isinstance(sim_data, pd.DataFrame)
 
         with self._set_temporarily(sim_data, _skip_bounds_computation=True,
