@@ -100,7 +100,8 @@ class TemplateWrapper:
             # transpose since RegularGridInterpolator expects (n_points, n_dims)
             return self._interpolator(data.T)
         else:
-            return self._mh_diff_rate.lookup(*data)
+            dr = self._mh_diff_rate.lookup(*data)
+            return np.where(dr <= 0., 1e-10, dr)
 
     def simulate(self, n_events):
         return pd.DataFrame(dict(zip(

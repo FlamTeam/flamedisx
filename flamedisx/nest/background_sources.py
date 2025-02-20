@@ -20,7 +20,7 @@ export, __all__ = fd.exporter()
 
 @export
 class vERSource(fd_nest.nestERSource):
-    """ER background source from solar neutrinos (PP+7Be+CNO).
+    """ER background source from solar neutrinos (PP + 7Be + CNO).
     Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
     Normalise such that the spectrum predicts 77.467 events in 1 tonne year.
     """
@@ -80,7 +80,7 @@ class Xe124Source(fd_nest.nestERSource):
 
 @export
 class Pb214Source(fd_nest.nestERSource):
-    """Beta background source from 214Pbr.
+    """Beta background source from 214Pb.
     Normalise such that the spectrum predicts 11.41 events in 1 tonne year.
     """
 
@@ -135,8 +135,8 @@ class vNRSolarSource(fd_nest.nestNRSource):
 
 
 @export
-class vNROtherSource(fd_nest.nestNRSource):
-    """CEvNS background source from Atmospheric + DSNB neutrinos.
+class vNROtherLNGSSource(fd_nest.nestNRSource):
+    """CEvNS background source from Atmospheric (LNGS flux) + DSNB neutrinos.
     Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
     Normalise such that the spectrum predicts 0.071 events in 1 tonne year.
     """
@@ -149,6 +149,26 @@ class vNROtherSource(fd_nest.nestNRSource):
 
         self.energies = tf.convert_to_tensor(df_CEvNS_other['energy_keV'].values, dtype=fd.float_type())
         scale = fid_mass * livetime * 0.071
+        self.rates_vs_energy = tf.convert_to_tensor(df_CEvNS_other['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class vNROtherSURFSource(fd_nest.nestNRSource):
+    """CEvNS background source from Atmospheric (SURF flux) + DSNB neutrinos.
+    Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
+    Normalise such that the spectrum predicts 0.094 events in 1 tonne year.
+    """
+
+    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        df_CEvNS_other = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/CEvNS_other_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_CEvNS_other['energy_keV'].values, dtype=fd.float_type())
+        scale = fid_mass * livetime * 0.094
         self.rates_vs_energy = tf.convert_to_tensor(df_CEvNS_other['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
