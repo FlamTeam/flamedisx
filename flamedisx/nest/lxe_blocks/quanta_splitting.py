@@ -72,7 +72,6 @@ class MakePhotonsElectronsNR(fd.Block):
             # Compute the block for a single energy.
             # Set approx to True for an approximate computation at higher energies
             energy = args[0]
-            rate_vs_energy = args[1]
             ions_min = args[2]
 
             ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
@@ -171,23 +170,15 @@ class MakePhotonsElectronsNR(fd.Block):
                                       bonus_arg=energy)
                 nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
                                      bonus_arg=(energy, nel_mean))
-                fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
-                                  bonus_arg=nq_mean)
                 ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
-                alpha = 1. / (1. + ex_ratio)
+ 
             else:
                 yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
                                     bonus_arg=energy)
                 nel_mean = yields[0]
                 nq_mean = yields[1]
                 ex_ratio = yields[2]
-                alpha = 1. / (1. + ex_ratio)
-
-                yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
-                                        bonus_arg=nq_mean)
-                ni_fano = yield_fano[0]
-                nex_fano = yield_fano[1]
 
             nel_2D=tf.repeat(unique_nel[:,o],tf.shape(_ions_produced_1D)[0],axis=1)
             ni_nel_2D=tf.repeat(_ions_produced_1D[o,:],tf.shape(unique_nel)[0],axis=0)
