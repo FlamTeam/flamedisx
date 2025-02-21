@@ -62,12 +62,12 @@ class MakePhotonsElectronsNR(fd.Block):
                  ions_produced,
                  # Dependency domain and value
                  energy, rate_vs_energy):
-        def compute_single_energy(args, approx=False):
+        
+
+        def compute_single_energy_2D(args, approx=False):
             """
-                args: tuple containing energy,rate and ions passed in vectorized sum
-                approx: wether or not to use a continuity correction (CC) (True: no CC, False: CC)
-                This follows the NEST model for recombination, the  ionisation and excitation of
-                ERs and NRs, hence the separation. 
+                This function aims to calculate the unique_quanta x n_ions component
+                of the central block without using gather.
             """
             # Compute the block for a single energy.
             # Set approx to True for an approximate computation at higher energies
@@ -102,20 +102,12 @@ class MakePhotonsElectronsNR(fd.Block):
                     normal_dist_nq = tfp.distributions.Normal(loc=nq_mean,
                                                               scale=tf.sqrt(nq_mean * fano) + 1e-10) 
                     p_nq_1D=normal_dist_nq.cdf(unique_quanta + 0.5) - normal_dist_nq.cdf(unique_quanta - 0.5)
-                #restore p_ni from unique_nq x n_ions -> unique_nel x n_electrons x n_photons (does not need n_ions)
-                p_nq=tf.gather_nd(params=p_nq_1D,indices=index_nq[:,o],batch_dims=0)
-                p_nq=tf.reshape(p_nq,[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2]])
-                
-
                 ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
                                       bonus_arg=energy)
                 alpha = 1. / (1. + ex_ratio)
 
                 p_ni_2D=tfp.distributions.Binomial(total_count=nq_2D, probs=alpha).prob(ni_2D)
-                #restore p_ni from unique_nq x n_ions -> unique_nel x n_electrons x n_photons x n_ions
-                p_ni=tf.gather_nd(params=p_ni_2D,indices=index_nq[:,o],batch_dims=0)
-                p_ni=tf.reshape(tf.reshape(p_ni,[-1]),[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2],tf.shape(nq)[3]])
-
+                return p_ni_2D*p_nq_1D[:,o]
             else:
                 yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
                                     bonus_arg=energy)
@@ -147,12 +139,55 @@ class MakePhotonsElectronsNR(fd.Block):
                                                               scale=tf.sqrt(nq_mean*alpha*ex_ratio*nex_fano) + 1e-10)
                     p_nq_2D = normal_dist_nq.cdf(nq_2D - ni_2D + 0.5) \
                         - normal_dist_nq.cdf(nq_2D - ni_2D - 0.5)
-
-                # restore p_nq from unique_nq x n_ions -> unique_nel x n_electrons x n_photons x n_ions
-                p_nq=tf.gather_nd(params=p_nq_2D,indices=index_nq[:,o],batch_dims=0)
-                p_nq=tf.reshape(tf.reshape(p_nq,[-1]),[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2],tf.shape(nq)[3]])
+                return p_nq_2D*p_ni_1D[o,:]
                 
 
+        def compute_single_energy(args, approx=False):
+            """
+                args: tuple containing energy,rate and ions passed in vectorized sum
+                approx: wether or not to use a continuity correction (CC) (True: no CC, False: CC)
+                This follows the NEST model for recombination, the  ionisation and excitation of
+                ERs and NRs, hence the separation. 
+            """
+            # Compute the block for a single energy.
+            # Set approx to True for an approximate computation at higher energies
+            energy = args[0]
+            rate_vs_energy = args[1]
+            ions_min = args[2]
+
+            ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
+            ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
+            ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
+
+            # Calculate the ion domain tensor for this energy
+            _ions_produced = ions_produced_add + ions_min
+            #every event in the batch shares E therefore ions domain
+            _ions_produced_1D=_ions_produced[0,0,0,:]
+            
+            # should not need this p_mult_4D=tf.reshape(tf.reshape(p_mult_4D,[-1]),[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2],tf.shape(nq)[3]])
+
+            if self.is_ER:
+                nel_mean = self.gimme('mean_yield_electron', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=energy)
+                nq_mean = self.gimme('mean_yield_quanta', data_tensor=data_tensor, ptensor=ptensor,
+                                     bonus_arg=(energy, nel_mean))
+                fano = self.gimme('fano_factor', data_tensor=data_tensor, ptensor=ptensor,
+                                  bonus_arg=nq_mean)
+                ex_ratio = self.gimme('exciton_ratio', data_tensor=data_tensor, ptensor=ptensor,
+                                      bonus_arg=energy)
+                alpha = 1. / (1. + ex_ratio)
+            else:
+                yields = self.gimme('mean_yields', data_tensor=data_tensor, ptensor=ptensor,
+                                    bonus_arg=energy)
+                nel_mean = yields[0]
+                nq_mean = yields[1]
+                ex_ratio = yields[2]
+                alpha = 1. / (1. + ex_ratio)
+
+                yield_fano = self.gimme('yield_fano', data_tensor=data_tensor, ptensor=ptensor,
+                                        bonus_arg=nq_mean)
+                ni_fano = yield_fano[0]
+                nex_fano = yield_fano[1]
 
             nel_2D=tf.repeat(unique_nel[:,o],tf.shape(_ions_produced_1D)[0],axis=1)
             ni_nel_2D=tf.repeat(_ions_produced_1D[o,:],tf.shape(unique_nel)[0],axis=0)
@@ -177,36 +212,27 @@ class MakePhotonsElectronsNR(fd.Block):
                 owens_t_terms = 5
 
             if approx:
-                p_nel_1D = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
+                p_nel_2D = fd.tfp_files.SkewGaussian(loc=mean, scale=std_dev,
                                                 skewness=skew,
                                                 owens_t_terms=owens_t_terms).prob(nel_2D)
             else:
-                p_nel_1D = fd.tfp_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
+                p_nel_2D = fd.tfp_files.TruncatedSkewGaussianCC(loc=mean, scale=std_dev,
                                                                         skewness=skew,
                                                                         limit=ni_nel_2D,
                                                                         owens_t_terms=owens_t_terms).prob(nel_2D)
+            #Important, do this ONCE!!!
+            return p_nel_2D * rate_vs_energy
+        
 
-            
-            #Restore p_nel unique_nel x nions-> unique_nel x n_electrons x n_photons x n_ions
-            p_nel=tf.gather_nd(params=p_nel_1D,indices=index_nel[:,o],batch_dims=0)
-            p_nel=tf.reshape(tf.reshape(p_nel,[-1]),[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[3]])
-            p_nel=tf.repeat(p_nel[:,:,o,:],tf.shape(nq)[2],axis=2)
-            
-            #modified contractions remove need for costly repeats in ions dimension.
-            if self.is_ER:
-                p_mult = p_ni * p_nel
-                p_final = tf.reduce_sum(p_mult, 3)*p_nq
-            else:
-                p_mult = p_nq*p_nel
-                p_final = tf.tensordot(p_mult,p_ni_1D,axes=[[3],[0]])
-
-            r_final = p_final * rate_vs_energy
-
-            r_final = tf.where(tf.math.is_nan(r_final),
-                               tf.zeros_like(r_final, dtype=fd.float_type()),
-                               r_final)
-
-            return r_final
+        def compute_single_energy_2D_full(args):
+            # Compute the block for a single energy, without approximations
+            return compute_single_energy_2D(args, approx=False)
+        
+        def compute_single_energy_2D_approx(args):
+            # Compute the block for a single energy, without continuity corrections
+            # or truncated skew Gaussian
+            return compute_single_energy_2D(args, approx=True)
+        
 
         def compute_single_energy_full(args):
             # Compute the block for a single energy, without approximations
@@ -221,6 +247,8 @@ class MakePhotonsElectronsNR(fd.Block):
         #remove degenerate dimensions
         #nevtxnelxnph->nq
         unique_quanta,index_nq=tf.unique(tf.reshape(nq[:,:,:,0],[-1]))
+        #needed to expand unique_nq x nions-> 4D
+        index_nq_3D=tf.reshape(index_nq,tf.shape(nq[:,:,:,0]))
         #nevtxnel->nel'
         unique_nel,index_nel=tf.unique(tf.reshape(electrons_produced[:,:,0,0],[-1]))
         
@@ -255,19 +283,49 @@ class MakePhotonsElectronsNR(fd.Block):
 
         # Sum the block result per energy over energies, separately for the
         # energies below the cutoff and the energies above the cutoff
-        result_full = tf.reduce_sum(tf.vectorized_map(compute_single_energy_full,
-                                                      elems=[energy_full,
-                                                             rate_vs_energy_full,
-                                                             tf.transpose(ion_bounds_min_full)], fallback_to_while_loop=False),
-                                    0)
-        result_approx = tf.reduce_sum(tf.vectorized_map(compute_single_energy_approx,
-                                                        elems=[energy_approx,
-                                                               rate_vs_energy_approx,
-                                                               tf.transpose(ion_bounds_min_approx)], fallback_to_while_loop=False),
-                                      0)
+        elems_full = [energy_full,rate_vs_energy_full,tf.transpose(ion_bounds_min_full)]
+        elems_approx = [energy_approx,rate_vs_energy_approx,tf.transpose(ion_bounds_min_approx)]
+        p_mult_2D_full = tf.vectorized_map(compute_single_energy_2D_full,elems_full,fallback_to_while_loop=False)
+        p_mult_2D_approx = tf.vectorized_map(compute_single_energy_2D_approx,elems_approx, fallback_to_while_loop=False)
+        
+        p_nel_2D_full = tf.vectorized_map(compute_single_energy_full,elems_full,fallback_to_while_loop=False)
+        p_nel_2D_approx = tf.vectorized_map(compute_single_energy_approx,elems_approx, fallback_to_while_loop=False)
+        # prepare indices from nq'->nevts x nel x nph to E x nq'->E x nevts x nel x nph
+        index_nq_3D_E_full = tf.repeat(index_nq_3D[o,:,:,:],tf.shape(energy_full)[0],axis=0)
+        index_nq_3D_E_approx = tf.repeat(index_nq_3D[o,:,:,:],tf.shape(energy_approx)[0],axis=0)
+        p_mult_4D_full=tf.gather_nd(p_mult_2D_full,index_nq_3D_E_full[:,:,:,:,o],batch_dims=1)
+        p_mult_4D_approx=tf.gather_nd(p_mult_2D_approx,index_nq_3D_E_approx[:,:,:,:,o],batch_dims=1)
 
-        return (result_full + result_approx)
+        
 
+        # prepare indices from nel'->flat(nevts x nel x nph) to E x nel'->E x flat(nevts x nel x nph)
+        index_nel_full=tf.repeat(index_nel[o,:],tf.shape(energy_full)[0],axis=0)
+        index_nel_approx=tf.repeat(index_nel[o,:],tf.shape(energy_approx)[0],axis=0)
+        #Restore p_nel E x unique_nel x nions -> E x unique_nel x n_electrons x n_photons x n_ions
+        p_nel_full=tf.gather_nd(params=p_nel_2D_full,indices=index_nel_full[:,:,o],batch_dims=1)
+        p_nel_approx=tf.gather_nd(params=p_nel_2D_approx,indices=index_nel_approx[:,:,o],batch_dims=1)
+        p_nel_full =tf.reshape(tf.reshape(p_nel_full,[-1]),[tf.shape(energy_full)[0],tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[3]])
+        p_nel_approx =tf.reshape(tf.reshape(p_nel_approx,[-1]),[tf.shape(energy_approx)[0],tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[3]])
+        #restore photon dimension?
+        p_nel_full = tf.repeat(p_nel_full[:,:,:,o,:],tf.shape(nq)[2],axis=3) 
+        p_nel_approx = tf.repeat(p_nel_approx[:,:,:,o,:],tf.shape(nq)[2],axis=3) 
+        
+        
+
+        p_final_full = p_nel_full*p_mult_4D_full
+        r_final_E_full = tf.reduce_sum(p_final_full,axis=4)
+        r_final_full = tf.reduce_sum(r_final_E_full,axis=0)
+
+        p_final_approx = p_nel_approx * p_mult_4D_approx
+        r_final_E_approx = tf.reduce_sum(p_final_approx, axis=4)
+        r_final_approx = tf.reduce_sum(r_final_E_approx, axis=0)
+
+        r_final = r_final_full + r_final_approx
+
+        r_final = tf.where(tf.math.is_nan(r_final),
+                            tf.zeros_like(r_final, dtype=fd.float_type()),
+                            r_final)
+        return r_final
     def _compute_with_drift_field(self,
                  data_tensor, ptensor,
                  # Domain
@@ -332,7 +390,7 @@ class MakePhotonsElectronsNR(fd.Block):
                     normal_dist_nq = tfp.distributions.Normal(loc=nq_mean,
                                                               scale=tf.sqrt(nq_mean * fano) + 1e-10) 
                     p_nq_2D=normal_dist_nq.cdf(unique_quanta + 0.5) - normal_dist_nq.cdf(nq_2D - 0.5)
-                #restore p_ni from unique_nq x n_ions -> unique_nel x n_electrons x n_photons (does not need n_ions)
+                #restore p_ni from unique_nq x n_ions -> nel x n_electrons x n_photons (does not need n_ions)
                 p_nq=tf.gather_nd(params=p_nq_2D,indices=index_nq_3D[:,:,:,o],batch_dims=1)
                 # p_nq=tf.reshape(p_nq,[tf.shape(nq)[0],tf.shape(nq)[1],tf.shape(nq)[2]])
                 

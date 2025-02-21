@@ -124,7 +124,7 @@ class Block:
             f"{self}._compute returned tensor of wrong dtype!"
         if not self.ignore_shape_assertion:
             assert len(result.shape) == len(self.dimensions) + 1, \
-                f"{self}._compute returned tensor of wrong rank!"
+                f"{self}._compute returned tensor of wrong rank! Got {result.shape} expected {self.dimensions}+1"
         return result
 
     def simulate(self, d: pd.DataFrame):
