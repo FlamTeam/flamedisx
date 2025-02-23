@@ -32,21 +32,25 @@ def ensure_token(token=None):
     return user, token
 
 
-def ensure_repo(repo_name, repo_path, user=None, token=None):
+def ensure_repo(repo_name, repo_path, branch=None, user=None, token=None):
     """Clones private repository (prompting for credentials) if we do not have it"""
     if not os.path.exists(repo_path):
         print("Private data requested, we must clone repository folder.")
         user, token = ensure_token()
         temp_folder = ''.join(random.choices(string.ascii_lowercase, k=8))
-        fd.run_command(f'git clone https://{user}:{token}'
-                    f'@gitlab.com/{repo_name} {temp_folder}')
+        if branch is None:
+            fd.run_command(f'git clone https://{user}:{token}'
+                           f'@gitlab.com/{repo_name} {temp_folder}')
+        else:
+            fd.run_command(f'git clone --branch {branch} https://{user}:{token}'
+                           f'@gitlab.com/{repo_name} {temp_folder}')
         fd.run_command(f'mv {temp_folder}/{repo_path} .')
         fd.run_command(f'rm -r -f {temp_folder}')
 
 
 @export
-def get_lz_file(data_file_name):
+def get_lz_file(data_file_name, branch=None):
     """Return information from file in lz_private_data/...
     """
-    ensure_repo('luxzeplin/stats/LZFlameFit.git', PATH)
+    ensure_repo('luxzeplin/stats/LZFlameFit.git', PATH, branch=branch)
     return fd.get_resource(f'{PATH}/{data_file_name}')
