@@ -74,10 +74,7 @@ class MakePhotonsElectronsNR(fd.Block):
             energy = args[0]
             ions_min = args[2]
 
-            ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
-            ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
-            ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
-
+            ions_min = ions_skeleton * ions_min[:,o,o,o]
             # Calculate the ion domain tensor for this energy
             _ions_produced = ions_produced_add + ions_min
             #every event in the batch shares E therefore ions domain
@@ -154,10 +151,7 @@ class MakePhotonsElectronsNR(fd.Block):
             rate_vs_energy = args[1]
             ions_min = args[2]
 
-            ions_min = tf.repeat(ions_min[:, o], tf.shape(ions_produced)[1], axis=1)
-            ions_min = tf.repeat(ions_min[:, :, o], tf.shape(ions_produced)[2], axis=2)
-            ions_min = tf.repeat(ions_min[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
-
+            ions_min = ions_skeleton * ions_min[:,o,o,o]
             # Calculate the ion domain tensor for this energy
             _ions_produced = ions_produced_add + ions_min
             #every event in the batch shares E therefore ions domain
@@ -248,7 +242,7 @@ class MakePhotonsElectronsNR(fd.Block):
         ions_min_initial = tf.repeat(ions_min_initial, tf.shape(ions_produced)[1], axis=1)
         ions_min_initial = tf.repeat(ions_min_initial[:, :, o], tf.shape(ions_produced)[2], axis=2)
         ions_min_initial = tf.repeat(ions_min_initial[:, :, :, o], tf.shape(ions_produced)[3], axis=3)
-
+        ions_skeleton = tf.ones_like(ions_min_initial, fd.float_type())
         # Work out the difference between each point in the ion domain and the lower bound,
         # for the lowest energy
         ions_produced_add = ions_produced - ions_min_initial
