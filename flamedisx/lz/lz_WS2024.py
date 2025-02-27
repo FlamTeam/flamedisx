@@ -4,7 +4,7 @@
 import numpy as np
 import math as m
 import tensorflow as tf
-
+import scipy
 import configparser
 import os
 import pandas as pd
@@ -17,13 +17,6 @@ import pickle as pkl
 from multihist import Histdd
 from scipy import interpolate
 
-import scipy
-from multihist import Histdd
-
-from flamedisx.lz.lz import LZSource
-from flamedisx.lz.lz import LZXe124Source
-from flamedisx.nest import nestGammaSource
-from flamedisx.nest import nestERSource
 
 export, __all__ = fd.exporter()
 pi = tf.constant(m.pi)
@@ -445,6 +438,28 @@ class LZ24ERGammaWeightedSource(LZWS2024Source, fd.nest.nestERGammaWeightedSourc
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
+    
+    def mean_yield_electron(self, energy,b=1.3):
+        # Weighted ER model
+        weight_param_a = 0.23
+        weight_param_b = 0.77
+        weight_param_c = 2.95
+        weight_param_d = -1.44
+        weight_param_e = 421.15
+        weight_param_f = 3.27
+
+        weightG = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
+                          (tf.math.log(energy) + weight_param_d)) *
+                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
+                          fd.float_type())
+        weightB = tf.cast(1. - weightG, fd.float_type())
+
+        nel_gamma = tf.cast(fd.lz.LZ24GammaSource.mean_yield_electron(self, energy), fd.float_type())
+        nel_beta = tf.cast(fd.lz.LZ24ERSource.mean_yield_electron(self, energy), fd.float_type())
+
+        nel = nel_gamma * weightG + nel_beta * weightB
+
+        return nel
 
 
 @export
@@ -771,32 +786,14 @@ class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source):#, fd.nest.nestSpatia
 
 
 @export
-class LZXe124Source(LZWS2024Source, fd.nest.Xe124Source):
+class LZ24Xe124Source(LZWS2024Source, fd.nest.Xe124Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
 
     def mean_yield_electron(self, energy,b=1.3):
-        # Default EC model (Weighted ER)
-        weight_param_a = 0.23
-        weight_param_b = 0.77
-        weight_param_c = 2.95
-        weight_param_d = -1.44
-        weight_param_e = 421.15
-        weight_param_f = 3.27
-
-        weightG = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
-                          (tf.math.log(energy) + weight_param_d)) *
-                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
-                          fd.float_type())
-        weightB = tf.cast(1. - weightG, fd.float_type())
-
-        nel_gamma = tf.cast(nestGammaSource.mean_yield_electron(self, energy), fd.float_type())
-        nel_beta = tf.cast(nestERSource.mean_yield_electron(self, energy), fd.float_type())
-
-        nel_raw = nel_gamma * weightG + nel_beta * weightB
-        # ===============END OF EC MODEL===================
+        nel_raw = tf.cast(fd.lz.LZ24ERGammaWeightedSource.mean_yield_electron(self, energy), fd.float_type())
         # Based on xi and b, calculate scaling factor s
         xi_L=7.52
         
