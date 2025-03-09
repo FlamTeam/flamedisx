@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import wimprates as wr
-
+import warnings
 from scipy import stats
 
 import flamedisx as fd
@@ -49,7 +49,9 @@ class EnergySpectrum(fd.FirstBlock):
         """
         if self.drift_map_dt is None:
             return (self.z_topDrift - data['z']) / self.drift_velocity
-
+        if type(data['r']) not in [np.ndarray, list, pd.Series,tf.Tensor]:
+            warnings.warn("Scalar input for derive_drift_time, returning scalar output")
+            return self.drift_map_dt(np.array([data['r'], data['z']]).T)[0]
         return self.drift_map_dt(np.array([data['r'], data['z']]).T)
 
     drift_map_x = None
@@ -77,6 +79,10 @@ class EnergySpectrum(fd.FirstBlock):
         if self.field_map_E is None:
             return self.source.drift_field *np.ones_like(data['r_obs'])
         field=self.field_map_E(np.array([data['r_obs'], data['drift_time']]).T)
+        #if the inputs were a scalar, return a single value
+        if type(data['r_obs']) not in [np.ndarray, list, pd.Series,tf.Tensor]:
+            warnings.warn("Scalar input for derive_drift_field, returning scalar output")
+            field=field[0]
         #set zero field to default, should not be in FV
         #limit extreme variation in the field 
         return tf.where((field>self.source.drift_field/5)&(field<=self.source.drift_field*5),field,self.source.drift_field) 
