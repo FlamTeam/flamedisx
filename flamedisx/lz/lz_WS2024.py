@@ -342,13 +342,14 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
-    def mean_yield_electron(self, energy):
+    def mean_yield_electron(self, *args):
         """
             Update the mean yields to WS2024 LZLAMA (!397)
             ERYieldParams from NEST/LZLAMA
             Constants are direct over-rides of eqn 6 in Arxiv: 2211.10726 
             Energy: energy in keV
         """
+        energy = args[0]
         m1 = 12.4886
         m2 = 85.0   
         m3 = 0.6050 
@@ -454,13 +455,14 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
         
-    def mean_yields(self, energy):
+    def mean_yields(self, *args):
         """
             Update the mean yields to WS2024 LZLAMA (!397)
             NRYieldParams from NEST/LZLAMA
             See section C. in Arxiv: 2211.10726 
             Energy: energy in keV
         """
+        energy = args[0]
         nr_nuis_alpha = 10.19
         nr_nuis_beta = 1.11
         nr_nuis_gamma = 0.0498
