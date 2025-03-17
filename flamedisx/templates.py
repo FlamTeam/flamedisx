@@ -216,6 +216,8 @@ class MultiTemplateSource(fd.Source):
             TemplateWrapper(
                 template, bin_edges, axis_names, events_per_bin, interpolate)
             for _, template in params_and_templates]
+        assert len(params_and_templates[0][0]) == 1, "This implementation currently only supports moprhing of 1 parameter"
+        self.param_name = list(params_and_templates[0][0].keys())[0]
 
         # We will include mu variation separately
         self.mu = self._templates[0].mu
