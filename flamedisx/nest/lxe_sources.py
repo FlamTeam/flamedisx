@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 import configparser
 import os
@@ -586,3 +587,24 @@ class nestWIMPSource(nestNRSource):
         self.array_columns = (('energy_spectrum', len(e_centers)),)
 
         super().__init__(*args, **kwargs)
+
+@export
+class DummySource(fd.nest.nestERSource):
+    model_blocks = (
+        fd_nest.FixedShapeEnergySpectrumER,
+        fd_nest.MakePhotonsElectronER,
+        fd_nest.DetectPhotons,
+        fd_nest.MakeS1RQs,
+        fd_nest.MakeS1Photoelectrons,
+        fd_nest.DetectS1Photoelectrons,
+        fd_nest.MakeS1,
+        fd_nest.DetectElectrons,
+        fd_nest.MakeS2Photons,
+        fd_nest.DetectS2Photons,
+        fd_nest.MakeS2Photoelectrons,
+        fd_nest.MakeS2)
+    
+    def double_pe_fraction(self):
+        """read dpe_channel from text file"""
+        dpe = np.loadtxt('/global/cfs/cdirs/lz/users/weizha/2025_Spring/S1_RQs/TPCPMT_DPE_12Mar24.txt')
+        return dpe
