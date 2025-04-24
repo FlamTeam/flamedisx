@@ -379,7 +379,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         elif (self.r_dt):
             self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
         else:
-            assert (axes == ('x', 'y', 'drift_time')), \
+            assert (axes == ('x', 'y', 'drift_time') or axes == ('x_obs', 'y_obs', 'drift_time')), \
                 ("axis_names of spatial_rate_hist must be "
                  "['r', 'theta', 'drift_time'], ['r', 'drift_time'] "
                  "or ['x', 'y', 'drift_time']")
