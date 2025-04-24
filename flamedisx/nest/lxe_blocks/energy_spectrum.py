@@ -368,6 +368,9 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         axes = tuple(self.spatial_hist.axis_names)
         self.polar = (axes == ('r', 'theta', 'drift_time'))
         self.r_dt = (axes == ('r', 'drift_time'))
+        #leave in old defintion so NEST can still be used on SR1.
+        self.polar = (axes == ('r_obs', 'theta_obs', 'drift_time'))
+        self.r_dt = (axes == ('r_obs', 'drift_time'))
 
         self.bin_volumes = self.spatial_hist.bin_volumes()
         # Volume element in cylindrical coords = r * (dr dq dz)
