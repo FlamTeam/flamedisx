@@ -427,6 +427,55 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
         return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
     
 
+
+
+class LZ24CH3TSource(fd.lz.LZ24ERSource,fd.nest.CH3TSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+
+        super().__init__(*args, **kwargs)
+
+class LZ24C14Source(fd.lz.LZ24ERSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+        m_e = 510.9989461  # e- rest mass-energy [keV]
+        aa = 0.0072973525664;          # fine structure constant
+        ZZ = 7.;
+        V0 = 0.495;  # effective offset in T due to screening of the nucleus by electrons
+        qValue = 156.
+        #energy range to avoid nans
+        energies = tf.linspace(0.01, qValue, 1000)
+
+        Ee=energies+m_e
+        pe=np.sqrt(np.square(Ee)-np.square(m_e))
+        dNdE_phasespace=pe * Ee * (qValue - energies)**2
+        Ee_screen = Ee - V0
+        W_screen = (Ee_screen) / m_e
+        p_screen = np.sqrt(W_screen * W_screen - 1)
+        p_screen=np.where(W_screen<1,0.,p_screen)
+        WW = (Ee) / m_e
+        pp = np.sqrt(WW * WW - 1)
+        G_screen = (Ee_screen) / (m_e)  ## Gamma, Total energy(KE+M) over M
+        B_screen = np.sqrt((G_screen * G_screen - 1)*(G_screen * G_screen))  # v/c of electron. Ratio of
+        B_screen=np.where(G_screen<1,0.,B_screen)
+        x_screen = (2 * pi * ZZ * aa) / B_screen
+        F_nr_screen = W_screen * p_screen / (WW * pp) * x_screen * (1 / (1 - np.exp(-x_screen)))
+        F_nr_screen=np.where(p_screen<=0. ,0. ,F_nr_screen)
+        F_bb_screen =F_nr_screen *np.power(W_screen * W_screen * (1 + 4 * (aa * ZZ) * (aa * ZZ)) - 1,np.sqrt(1 - aa * aa * ZZ * ZZ) - 1)
+        spectrum = dNdE_phasespace * F_bb_screen
+        spectrum=spectrum/np.sum(spectrum)
+        energies = tf.cast(energies, fd.float_type())
+        rates_vs_energy = tf.cast(spectrum, fd.float_type())
+        self.energies = tf.cast(energies, fd.float_type())
+        self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
+        super().__init__(*args, **kwargs)
+
+
+
+
+
 @export
 class LZ24GammaSource(LZWS2024Source, fd.nest.nestGammaSource):
     def __init__(self, *args, **kwargs):
@@ -950,13 +999,17 @@ class LZ24C14Source(LZ24ERSource):
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
         super().__init__(*args, **kwargs)
 
+
 @export
 class LZ24AccidentalsSource(fd.TemplateSource):
+    """
+        Adapted to allow set_data to work for toys
+    """
     path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
     path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
 
     def __init__(self, *args, simulate_safety_factor=2., **kwargs):
-        hist = fd.get_lz_file('WS2024/accidentals_model.pkl', branch=BRANCH)
+        hist = fd.get_lz_file('WS2024/accidentals_model.pkl')
 
         hist_values = hist['hist_values']
         s1_edges = hist['cs1_phd_edges']
@@ -969,8 +1022,8 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         self.simulate_safety_factor = simulate_safety_factor
 
         try:
-            self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest, BRANCH))
-            self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest, BRANCH))
+            self.s1_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s1_corr_latest))
+            self.s2_map_latest = fd.InterpolatingMap(fd.get_lz_file(self.path_s2_corr_latest))
         except Exception:
             print("Could not load maps; setting position corrections to 1")
             self.s1_map_latest = None
@@ -986,7 +1039,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         """
         super()._annotate(**kwargs)
 
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
         self.data[self.column] /= (1 + lz_source.double_pe_fraction)
         self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
         self.data[self.column] /= self.data['s1_pos_corr_latest'].values
@@ -999,7 +1052,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
                               full_annotate=full_annotate, keep_padding=keep_padding, **params)
 
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
         df_pos = pd.DataFrame(lz_source.model_blocks[0].draw_positions(len(df)))
         df = df.join(df_pos)
 
@@ -1049,7 +1102,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
             d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
             d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
 
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
 
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
             d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
@@ -1065,7 +1118,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
             d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
 
     def estimate_position_acceptance(self, n_trials=int(1e5)):
-        lz_source = LZ24ERSource()
+        lz_source = fd.lz.LZ24ERSource()
         df = pd.DataFrame(lz_source.model_blocks[0].draw_positions(n_trials))
         df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
         df = df.join(df_time)
@@ -1074,6 +1127,31 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
 
         return np.sum(df['acceptance'].values) / n_trials
+    def set_data(self,data=None,
+                 data_is_annotated=False,
+                 ignore_priors=False,
+                 input_column_index=None,
+                 input_data_tensor=None,
+                 output_data_tensor=None,
+                 _skip_tf_init=False,
+                 _skip_bounds_computation=False,
+                 **params):
+        if data_is_annotated:
+            #the data passed to this
+            for k in data:
+                if 'template_diff_rate_' not in k:
+                    continue
+                data[self.column] = data[k]
+                data.pop(k)
+        super().set_data(data=data,
+                 data_is_annotated=data_is_annotated,
+                 ignore_priors=ignore_priors,
+                 input_column_index=input_column_index,
+                 input_data_tensor=input_data_tensor,
+                 output_data_tensor=output_data_tensor,
+                 _skip_tf_init=_skip_tf_init,
+                 _skip_bounds_computation=_skip_bounds_computation,
+                 **params)
 
 
 ##
