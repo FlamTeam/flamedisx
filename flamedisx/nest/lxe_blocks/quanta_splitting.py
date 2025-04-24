@@ -516,12 +516,17 @@ class MakePhotonsElectronsNR(fd.Block):
     def _simulate(self, d):
         # If you forget the .values here, you may get a Python core dump...
         if self.is_ER:
+            
             if self.has_driftField:
                 nel = self.gimme_numpy('mean_yield_electron', (d['energy'].values, d['drift_field'].values))
+                nq = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nel))
+                fano = self.gimme_numpy('fano_factor', (nq, d['drift_field'].values))
             else:
                 nel = self.gimme_numpy('mean_yield_electron', d['energy'].values)
-            nq = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nel))
-            fano = self.gimme_numpy('fano_factor', nq)
+                nq = self.gimme_numpy('mean_yield_quanta', (d['energy'].values, nel))
+                fano = self.gimme_numpy('fano_factor', nq)
+            
+            
 
             nq_actual_temp = np.round(stats.norm.rvs(nq, np.sqrt(fano*nq))).astype(int)
             # Don't let number of quanta go negative
@@ -597,10 +602,12 @@ class MakePhotonsElectronsNR(fd.Block):
             if self.has_driftField:
                 drift_field=self.source.drift_field #TEMPORARY FIX!!! NOT ACCURATE
                 nel = self.gimme_numpy('mean_yield_electron', (energy,drift_field))
+                nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
+                fano = self.gimme_numpy('fano_factor', (nq,drift_field))
             else:
                 nel = self.gimme_numpy('mean_yield_electron', energy)
-            nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
-            fano = self.gimme_numpy('fano_factor', nq)
+                nq = self.gimme_numpy('mean_yield_quanta', (energy, nel))
+                fano = self.gimme_numpy('fano_factor', nq)
             nq_actual_upper = nq + np.sqrt(fano * nq) * self.source.max_sigma
             nq_actual_lower = nq - np.sqrt(fano * nq) * self.source.max_sigma
 
