@@ -429,14 +429,14 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
 
 
 
-class LZ24CH3TSource(fd.lz.LZ24ERSource,fd.nest.CH3TSource):
+class LZ24CH3TSource(LZ24ERSource,fd.nest.CH3TSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
 
         super().__init__(*args, **kwargs)
 
-class LZ24C14Source(fd.lz.LZ24ERSource):
+class LZ24C14Source(LZ24ERSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
