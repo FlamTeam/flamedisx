@@ -359,7 +359,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
     spatial_hist: Histdd
-
+    
     def setup(self):
         assert isinstance(self.spatial_hist, Histdd)
 
@@ -368,9 +368,6 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         axes = tuple(self.spatial_hist.axis_names)
         self.polar = (axes == ('r', 'theta', 'drift_time'))
         self.r_dt = (axes == ('r', 'drift_time'))
-        #leave in old defintion so NEST can still be used on SR1.
-        self.polar = (axes == ('r_obs', 'theta_obs', 'drift_time'))
-        self.r_dt = (axes == ('r_obs', 'drift_time'))
 
         self.bin_volumes = self.spatial_hist.bin_volumes()
         # Volume element in cylindrical coords = r * (dr dq dz)
@@ -379,7 +376,7 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         elif (self.r_dt):
             self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
         else:
-            assert (axes == ('x', 'y', 'drift_time') or axes == ('x_obs', 'y_obs', 'drift_time')), \
+            assert axes == ('x', 'y', 'drift_time'), \
                 ("axis_names of spatial_rate_hist must be "
                  "['r', 'theta', 'drift_time'], ['r', 'drift_time'] "
                  "or ['x', 'y', 'drift_time']")
@@ -403,15 +400,17 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         else:
             positions = [x, y, drift_time]
         return self.local_rate_multiplier.lookup(*positions)
-
+        
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
         drawn from the spatial rate histogram.
         """
         data = dict()
         positions = self.spatial_hist.get_random(size=n_events)
+        
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
+            
         if self.polar:
             data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
         elif self.r_dt:
@@ -556,6 +555,144 @@ class TemporalRateEnergySpectrumOscillationNR(TemporalRateEnergySpectrumOscillat
 class TemporalRateEnergySpectrumOscillationER(TemporalRateEnergySpectrumOscillation):
     max_dim_size = {'energy': 100}
 
+##
+# Observed position spatial rate energy spectrum
+##
+@export
+class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
+    model_attributes = (('spatial_hist',)
+                        + FixedShapeEnergySpectrum.model_attributes)
+    frozen_model_functions = ('energy_spectrum_rate_multiplier',)
+
+    spatial_hist: Histdd
+    observed: bool
+    def setup(self):
+        assert isinstance(self.spatial_hist, Histdd)
+
+        # Are we Cartesian (x, y, dt), polar (r, theta, dt), 2D (r, dt),
+        # or in trouble?
+        axes = tuple(self.spatial_hist.axis_names)
+        #leave in old defintion so NEST can still be used on SR1.
+        self.polar = (axes == ('r_obs', 'theta_obs', 'drift_time'))
+        self.r_dt = (axes == ('r_obs', 'drift_time'))
+
+        self.bin_volumes = self.spatial_hist.bin_volumes()
+        # Volume element in cylindrical coords = r * (dr dq dz)
+        if self.polar:
+            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
+        elif (self.r_dt):
+            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
+        else:
+            assert axes == ('x_obs', 'y_obs', 'drift_time'), \
+                ("axis_names of spatial_rate_hist must be "
+                 "['r_obs', 'theta', 'drift_time'], ['r_obs', 'drift_time'] "
+                 "or ['x_obs', 'y_obs', 'drift_time']")
+
+        # Normalize the histogram
+        self.spatial_hist.histogram = \
+            self.spatial_hist.histogram.astype(float) / self.spatial_hist.n
+
+        # Local rate multiplier = PDF / uniform PDF
+        # = ((normed_hist/bin_volumes) / (1/total_volume))
+        self.local_rate_multiplier = self.spatial_hist.similar_blank_hist()
+        self.local_rate_multiplier.histogram = (
+            (self.spatial_hist.histogram / self.bin_volumes)
+            * self.bin_volumes.sum())
+
+    def energy_spectrum_rate_multiplier(self, x_obs, y_obs, drift_time):
+        if self.polar:
+            positions = list(fd.cart_to_pol(x_obs, y_obs)) + [drift_time]
+        elif self.r_dt:
+            positions = [fd.cart_to_pol(x_obs, y_obs)[0]] + [drift_time]
+        else:
+            positions = [x_obs, y_obs, drift_time]
+        return self.local_rate_multiplier.lookup(*positions)
+        
+    def draw_positions(self, n_events, **params):
+        """Return dictionary with x, y, z, r, theta, drift_time
+        drawn from the spatial rate histogram.
+        """
+        data = dict()
+        positions = self.spatial_hist.get_random(size=n_events)
+        
+        for idx, col in enumerate(self.spatial_hist.axis_names):
+            data[col] = positions[:, idx]
+
+            
+        if self.polar:
+            data['x_obs'], data['y_obs'] = fd.pol_to_cart(data['r_obs'], data['theta_obs'])
+        elif self.r_dt and observed:
+            theta = np.random.uniform(0, 2*np.pi, size=n_events)
+            data['x_obs'], data['y_obs'] = fd.pol_to_cart(data['r_obs'], theta)
+        else:
+            data['r_obs'], data['theta_obs'] = fd.cart_to_pol(data['x_obs'], data['y_obs'])
+
+        return data
+
+
+
+@export
+class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySpectrum):
+    model_attributes = (('time_constant_ns',)
+                        + SpatialRateEnergySpectrum.model_attributes)
+
+    def temporal_rate_multiplier(self, event_time):
+        pdf = np.exp(-(event_time - self.t_start.value) / self.time_constant_ns)
+        normalisation = 1. / (self.time_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.time_constant_ns)))
+        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
+
+        return normalisation * pdf / uniform_pdf
+
+    def energy_spectrum_rate_multiplier(self, x_obs, y_obs, drift_time, event_time):
+        if self.polar:
+            positions = list(fd.cart_to_pol(x_obs,y_obs)) + [z]
+        elif self.r_z:
+            positions = [fd.cart_to_pol(x_obs, y_obs)[0]] + [z]
+        elif self.r_dt:
+            positions = [fd.cart_to_pol(x_obs, y_obs)[0]] + [drift_time]
+        else:
+            positions = [x_obs, y_obs, drift_time]
+        return self.local_rate_multiplier.lookup(*positions) * self.temporal_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        """
+        """
+        b = (self.t_stop.value - self.t_start.value) / self.time_constant_ns
+        return stats.truncexpon.rvs(b,
+                                    loc=self.t_start.value, scale=self.time_constant_ns,
+                                    size=n_events)
+
+
+
+
+@export
+class SpatialRateEnergySpectrumNR(ObservedSpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class SpatialRateEnergySpectrumER(ObservedSpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
+@export
+class SpatialTemporalRateEnergySpectrumDecayNR(ObvervedSpatialTemporalRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class SpatialTemporalRateEnergySpectrumDecayER(ObvervedSpatialTemporalRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 100}
+
+
+
+
+
+
+
+
+
+
+
 
 
 ##
@@ -697,3 +834,7 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     @staticmethod
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
+
+
+
+
