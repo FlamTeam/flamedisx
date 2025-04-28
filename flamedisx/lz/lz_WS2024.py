@@ -720,7 +720,20 @@ class LZ24WIMPSource(LZ24NRSource, fd.nest.nestWIMPSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
-
+@export
+class LZ24WIMPSource(LZ24NRSource, fd.nest.nestSpatialWIMPSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+        # == Need a new DMCalc Import for this
+        # t_start = pd.to_datetime('2023-06-05T09:37:51')
+        # self.t_start = t_start.tz_localize(tz='America/Denver')
+    
+        # t_stop = pd.to_datetime('2024-05-14T07:58:01')
+        # self.t_stop = t_stop.tz_localize(tz='America/Denver')
+        self.spatial_hist = load_position_map_hist('WS2024/spatial_maps/Uniform_spatial_map.pkl')
+        super().__init__(*args, **kwargs)
+        
 
 @export
 class LZ24FermionicDMSource(LZ24ERSource, fd.nest.FermionicDMSource):

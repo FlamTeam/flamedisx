@@ -612,3 +612,6 @@ class nestWIMPSource(nestNRSource):
         self.array_columns = (('energy_spectrum', len(e_centers)),)
 
         super().__init__(*args, **kwargs)
+@export
+class nestSpatialWIMPSource(nestWIMPSource):
+    model_blocks = (fd_nest.SpatialWimpEnergySpectrum,) + nestWIMPSource.model_blocks[1:]

@@ -565,7 +565,7 @@ class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
     spatial_hist: Histdd
-    observed: bool
+
     def setup(self):
         assert isinstance(self.spatial_hist, Histdd)
 
@@ -664,7 +664,7 @@ class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySp
 
 
 
-
+# == TO Do, Go through and Create OBSERVED versions for back-compatibility ===
 @export
 class SpatialRateEnergySpectrumNR(ObservedSpatialRateEnergySpectrum):
     max_dim_size = {'energy': 150}
@@ -834,6 +834,24 @@ class WIMPEnergySpectrum(VariableEnergySpectrum):
     @staticmethod
     def bin_centers(x):
         return 0.5 * (x[1:] + x[:-1])
+
+@export
+class SpatialWimpEnergySpectrum(WIMPEnergySpectrum,SpatialRateEnergySpectrumNR):
+    """
+        Allows for a spatial spectrum *and* WIMP spectra:
+        Useful for observed position distributions.
+    """
+    max_dim_size = {'energy': 150}
+
+    model_attributes = ('n_time_bins',
+                        'energy_hist','spatial_hist',) + WIMPEnergySpectrum.model_attributes
+
+    frozen_model_functions = ('energy_spectrum_rate_multiplier','energy_spectrum',)
+        
+    def energy_spectrum(self, event_time,x_obs,y_obs,drift_time):
+        temporal_spectrum = super().energy_spectrum(event_time)
+        modifier = super().energy_spectrum_rate_multiplier(x_obs,y_obs,drift_time)
+        return temporal_spectrum*modifier
 
 
 
