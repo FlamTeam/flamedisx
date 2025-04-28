@@ -4,7 +4,7 @@ import tensorflow as tf
 from copy import deepcopy
 
 import glob
-
+from  . import lxe_source_groups as nest_sg
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -128,3 +128,38 @@ class SourceGroup:
             diff_rates.extend(self.scale_by_spectrum(energies_diff_rates, spectrum_values))
 
         return diff_rates
+
+@export
+class nestModifiedERSourceGroup(nest_sg.nestERSourceGroup):
+    model_blocks_read_in=()
+    
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        if type(self.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER:
+            self.model_blocks = (self.model_blocks[0],) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self,ignore_shape_assertion=True),) + \
+                self.model_blocks[2:]
+            self.model_blocks_centre=(self.model_blocks[0].__class__,fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER,)
+        elif type(self.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsNR:
+            self.model_blocks = (self.model_blocks[0],) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self,
+                 ignore_shape_assertion=True),) + \
+                self.model_blocks[2:]
+
+@export
+class nestModifiedNRSourceGroup(nest_sg.nestNRSourceGroup):
+    model_blocks_read_in=()
+    
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        if type(self.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER:
+            self.model_blocks = (self.model_blocks[0],) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self, ignore_shape_assertion=True),) + \
+                self.model_blocks[2:]
+            self.model_blocks_centre=(self.model_blocks[0].__class__,fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER,)
+        elif type(self.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronsNR:
+            self.model_blocks = (self.model_blocks[0],) + \
+                (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self,
+                 ignore_shape_assertion=True),) + \
+                self.model_blocks[2:]
+
