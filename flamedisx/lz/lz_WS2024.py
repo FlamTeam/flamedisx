@@ -316,12 +316,15 @@ class LZWS2024Source:
             y = d['y_obs'].values
             dt=d['drift_time'].values/1e3
             d['fv_acceptance']=WS2024_fiducial_volume_cut(x,y,dt)
+            if self.ignore_all_cuts:
+                d['fv_acceptance']=np.ones_like(d['fv_acceptance'],dtype=bool)
 
         if 'resistor_acceptance' not in d.columns:
             x = d['x_obs'].values
             y = d['y_obs'].values
             d['resistor_acceptance'] = WS2024_resistor_XY_cut(x,y)
-            
+            if self.ignore_all_cuts:
+                d['resistor_acceptance']=np.ones_like(d['resistor_acceptance'],dtype=bool)
         if 'timestamp_acceptance' not in d.columns:
             d['timestamp_acceptance'] = np.ones_like(d['event_time'],dtype=bool)
         
