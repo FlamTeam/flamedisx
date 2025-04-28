@@ -935,9 +935,9 @@ class LZ24Xe124Source(LZWS2024Source, fd.nest.Xe124Source):
                           (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
                           fd.float_type())
         weightB = tf.cast(1. - weightG, fd.float_type())
-
-        nel_gamma = tf.cast(nestGammaSource.mean_yield_electron(self, energy), fd.float_type())
-        nel_beta = tf.cast(nestERSource.mean_yield_electron(self, energy), fd.float_type())
+        #Would need to be careful on how to handle with floated parameters
+        nel_gamma = tf.cast(LZ24GammaSource.mean_yield_electron(self, energy), fd.float_type())
+        nel_beta = tf.cast(LZ24ERSource.mean_yield_electron(self, energy), fd.float_type())
 
         nel_raw = nel_gamma * weightG + nel_beta * weightB
         # ===============END OF EC MODEL===================
@@ -1178,6 +1178,20 @@ class LZ24ERGammaWeightedSourceGroup(LZWS2024Source, fd.nest.nestERGammaWeighted
 @export
 class LZ24NRSourceGroup(LZWS2024Source, fd.nest.nestNRSourceGroup):
     def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+        super().__init__(*args, **kwargs)
+
+
+@export            
+class LZ24ModifiedERSourceGroup(LZ24ERSource,fd.nest.nestModifiedERSourceGroup):
+     def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'lz_WS2024'
+        super().__init__(*args, **kwargs)
+@export
+class LZ24ModifiedNRSourceGroup(LZ24NRSource,fd.nest.nestModifiedNRSourceGroup):
+     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
