@@ -1136,13 +1136,11 @@ class LZ24AccidentalsSource(fd.TemplateSource):
                  _skip_tf_init=False,
                  _skip_bounds_computation=False,
                  **params):
-        if data_is_annotated:
-            #the data passed to this
-            for k in data:
-                if 'template_diff_rate_' not in k:
-                    continue
-                data[self.column] = data[k]
-                data.pop(k)
+        """
+            Anntotating Templates incredibly fast, best just let it create a new diff rates
+            column. 
+        """
+        data_is_annotated = False
         super().set_data(data=data,
                  data_is_annotated=data_is_annotated,
                  ignore_priors=ignore_priors,
