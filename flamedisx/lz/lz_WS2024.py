@@ -931,7 +931,7 @@ class LZ24DetNRSource(LZ24NRSource):#, fd.nest.nestSpatialRateNRSource):
 
 
 @export
-class LZ24Xe124Source(LZWS2024Source, fd.nest.Xe124Source):
+class LZ24Xe124Source(LZ24ERSource, fd.nest.Xe124Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
