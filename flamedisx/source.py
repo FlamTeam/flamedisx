@@ -364,11 +364,11 @@ class Source:
                  _skip_bounds_computation=False,
                  **params):
         self.set_defaults(**params)
-
         if data is None:
             self.data = self.n_batches = self.n_padding = None
             return
         self.data = data
+        n_events_input = len(data)
         del data
 
         # Annotate requests n_events, currently no padding
@@ -376,7 +376,6 @@ class Source:
         self.n_events = len(self.data)
         self.n_batches = np.ceil(
             self.n_events / self.batch_size).astype(int)
-
         if not _skip_tf_init:
             # Extend dataframe with events to nearest batch_size multiple
             # We're using actual events for padding, since using zeros or
@@ -399,11 +398,12 @@ class Source:
             if not _skip_bounds_computation:
                 self._annotate(ignore_priors=ignore_priors)
                 self._calculate_dimsizes()
-
         if not _skip_tf_init:
             self._check_data()
             self._populate_tensor_cache(output_data_tensor=output_data_tensor)
-
+        #need to re-calculate the padding at the end
+        if not _skip_tf_init:
+            self.n_padding = int(self.n_batches * self.batch_size  - n_events_input)
     def _check_data(self):
         """Do any final checks on the self.data dataframe,
         before passing it on to the tensorflow layer.
