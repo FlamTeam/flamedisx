@@ -488,31 +488,35 @@ class LZ24GammaSource(LZWS2024Source, fd.nest.nestGammaSource):
 
 
 @export
-class LZ24ERGammaWeightedSource(LZWS2024Source, fd.nest.nestERGammaWeightedSource):
+class LZ24ERGammaWeightedSource(LZ24ERSource, fd.nest.nestERGammaWeightedSource):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
-    
+        
     def mean_yield_electron(self, energy,b=1.3):
         # Weighted ER model
-        weight_param_a = 0.23
-        weight_param_b = 0.77
-        weight_param_c = 2.95
-        weight_param_d = -1.44
+        # New Parameters for L-shell used here: LZLAMA/include/Modules/ModuleNest.hh#L193
+        # Defined here: LZLLAMA/src/Detectors/LzTpcDetector.cc#L283
+        weight_param_a = 0.71 #0.23
+        weight_param_b = 0. #0.77
+        weight_param_c = 0. #2.95
+        weight_param_d = 0. #-1.44
+        #field dependence ignored (with zeros above)
         weight_param_e = 421.15
         weight_param_f = 3.27
 
-        weightG = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
+        gamma_weight = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
                           (tf.math.log(energy) + weight_param_d)) *
                           (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
                           fd.float_type())
-        weightB = tf.cast(1. - weightG, fd.float_type())
+        beta_weight = tf.cast(1. - gamma_weight, fd.float_type())
+
 
         nel_gamma = tf.cast(fd.lz.LZ24GammaSource.mean_yield_electron(self, energy), fd.float_type())
         nel_beta = tf.cast(fd.lz.LZ24ERSource.mean_yield_electron(self, energy), fd.float_type())
 
-        nel = nel_gamma * weightG + nel_beta * weightB
+        nel = nel_gamma * gamma_weight + nel_beta * beta_weight
 
         return nel
 
@@ -645,13 +649,13 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
         return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
 
 ##
+# New sources!
 # This is an architectural problem!
 # can't specific changes like this, would need to make a whole new NEST!
 # Maybe I can play with the inheritance
 ##
-##
-# Calibration sources
-##
+
+
 
 @export
 class LZ24CH3TSource(LZ24ERSource,fd.nest.CH3TSource):
@@ -696,6 +700,69 @@ class LZ24C14Source(LZ24ERSource):
         self.energies = tf.cast(energies, fd.float_type())
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
         super().__init__(*args, **kwargs)
+
+@export
+class LZ24RnBetaSource(LZ24ERSource):
+    """Radon Beta background source combining 212Pb and 218Po.
+    Reads in energy spectra from .pkl files. Normalise such that the sum of
+    rates_vs_energy is 1.
+    ToDo: 
+        - Add in 218Po spectra (10% of counts to RnBetas), for now ignore
+    Arguments:
+        - weights: tuple (length 2) of weights to apply to the spectra,
+        in the order given above. 212Pb relative to 1 uBq / kg.
+    """
+
+    def __init__(self, *args, weights=(1, 1,), **kwargs):
+        assert len(weights) == 2, "Weights must be a tuple of length 3"
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        df_212Pb = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/212Pb_spectrum.pkl'))
+        # df_85Kr = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/85Kr_spectrum.pkl'))
+
+        # assert (df_212Pb['energy_keV'].values == df_85Kr['energy_keV'].values).all(), \
+        #     "Energy spectrum components must have equal energies"
+
+        # Weight the spectra according to the weights provided, then combine
+        df_212Pb_values = df_212Pb['spectrum_value_norm'].values #* weights[0]
+        # df_85Kr_values = df_85Kr['spectrum_value_norm'].values * weights[1]
+
+        # combined_rates_vs_energy = df_212Pb_values + df_85Kr_values
+
+        # Re-normalise the summed spectra
+        # combined_rates_vs_energy = combined_rates_vs_energy / sum(combined_rates_vs_energy)
+
+        self.energies = tf.convert_to_tensor(df_212Pb['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_212Pb['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
+
+
+@export
+class LZ24Kr85Source(LZ24ERSource):
+    """Technically in the paper this is Kr85 + Ar39 + DetER/Rock Gammas
+        The other two make 6% of the counts and are functionally degenerate so omit for now
+        TODO:
+             -Ar39 and Flat-ER contributions
+    """
+
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        df_85Kr = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/85Kr_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_85Kr['energy_keV'].values, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(df_85Kr['spectrum_value_norm'].values, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
+
+
+
+##
+# Calibration sources
+##
 
 
 @export
@@ -835,7 +902,7 @@ class LZ24Ar37Source(LZ24ERSource, fd.nest.Ar37Source, fd.nest.nestTemporalRateD
 
 
 @export
-class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source):#, fd.nest.nestSpatialTemporalRateDecayERSource):
+class LZ24Xe127Source(LZ24ERSource,fd.nest.Xe127Source):#, fd.nest.nestSpatialTemporalRateDecayERSource):
     def __init__(self, *args, bins=None, time_constant_ns=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
@@ -854,18 +921,63 @@ class LZ24Xe127Source(LZWS2024Source, fd.nest.Xe127Source):#, fd.nest.nestSpatia
 
         super().__init__(*args, **kwargs)
 
+    def mean_yield_electron(self, energy,b=1.3):
+        # Weighted ER model different for L-shell ECs and Xe127
+        # New Parameters for L-shell used here: LZLAMA/include/Modules/ModuleNest.hh#L193
+        # Defined here: LZLLAMA/src/Detectors/LzTpcDetector.cc#L283
+        weight_param_a = 0.23
+        weight_param_b = 0.77
+        weight_param_c = 2.95
+        weight_param_d = -1.44
+        #field dependence ignored (with zeros above)
+        weight_param_e = 421.15
+        weight_param_f = 3.27
+
+        gamma_weight = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
+                          (tf.math.log(energy) + weight_param_d)) *
+                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
+                          fd.float_type())
+        beta_weight = tf.cast(1. - gamma_weight, fd.float_type())
+
+
+        nel_gamma = tf.cast(fd.lz.LZ24GammaSource.mean_yield_electron(self, energy), fd.float_type())
+        nel_beta = tf.cast(fd.lz.LZ24ERSource.mean_yield_electron(self, energy), fd.float_type())
+        return nel_gamma * gamma_weight + nel_beta * beta_weight
+
 
 @export
-class LZ24Xe124Source(LZWS2024Source, fd.nest.Xe124Source):
+class LZ24Xe124Source(LZ24ERSource, fd.nest.Xe124Source):
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
 
     def mean_yield_electron(self, energy,b=1.3):
-        nel_raw = tf.cast(fd.lz.LZ24ERGammaWeightedSource.mean_yield_electron(self, energy), fd.float_type())
+        # Weighted ER model different for L-shell ECs and Xe127
+        # New Parameters for L-shell used here: LZLAMA/include/Modules/ModuleNest.hh#L193
+        # Defined here: LZLLAMA/src/Detectors/LzTpcDetector.cc#L283
+        weight_param_a = 0.71 #0.23
+        weight_param_b = 0. #0.77
+        weight_param_c = 0. #2.95
+        weight_param_d = 0. #-1.44
+        #field dependence ignored (with zeros above)
+        weight_param_e = 421.15
+        weight_param_f = 3.27
+
+        gamma_weight = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
+                          (tf.math.log(energy) + weight_param_d)) *
+                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
+                          fd.float_type())
+        beta_weight = tf.cast(1. - gamma_weight, fd.float_type())
+
+
+        nel_gamma = tf.cast(fd.lz.LZ24GammaSource.mean_yield_electron(self, energy), fd.float_type())
+        nel_beta = tf.cast(fd.lz.LZ24ERSource.mean_yield_electron(self, energy), fd.float_type())
+
+        nel_raw = nel_gamma * gamma_weight + nel_beta * beta_weight
+        
         # Based on xi and b, calculate scaling factor s
-        xi_L=7.52
+        xi_L=8.064#7.52
         
         s=tf.math.log(1+b*xi_L) / tf.math.log(1+xi_L) /b
         nel_DEC = nel_raw * s
@@ -923,54 +1035,6 @@ class LZ24DetNRSource(LZ24NRSource):#, fd.nest.nestSpatialRateNRSource):
         super().__init__(*args, **kwargs)
 
 
-## TO DO:
-## ADD in accidentals source
-
-
-
-
-
-@export
-class LZ24Xe124Source(LZ24ERSource, fd.nest.Xe124Source):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz_WS2024'
-        super().__init__(*args, **kwargs)
-
-    def mean_yield_electron(self, energy,b=1.3):
-        # Default EC model (Weighted ER)
-        weight_param_a = 0.23
-        weight_param_b = 0.77
-        weight_param_c = 2.95
-        weight_param_d = -1.44
-        weight_param_e = 421.15
-        weight_param_f = 3.27
-
-        weightG = tf.cast(weight_param_a + weight_param_b * tf.math.erf(weight_param_c *
-                          (tf.math.log(energy) + weight_param_d)) *
-                          (1. - (1. / (1. + pow(self.drift_field / weight_param_e, weight_param_f)))),
-                          fd.float_type())
-        weightB = tf.cast(1. - weightG, fd.float_type())
-        #Would need to be careful on how to handle with floated parameters
-        nel_gamma = tf.cast(LZ24GammaSource.mean_yield_electron(self, energy), fd.float_type())
-        nel_beta = tf.cast(LZ24ERSource.mean_yield_electron(self, energy), fd.float_type())
-
-        nel_raw = nel_gamma * weightG + nel_beta * weightB
-        # ===============END OF EC MODEL===================
-        # Based on xi and b, calculate scaling factor s
-        xi_L=7.52
-        
-        s=tf.math.log(1+b*xi_L) / tf.math.log(1+xi_L) /b
-        nel_DEC = nel_raw * s
-        
-        nel_temp = tf.where(tf.logical_and((energy >9.7), (energy <10.1)), nel_DEC, nel_raw) # select LL shell based on energy
-        # Don't let number of electrons go negative
-        nel = tf.where(nel_temp < 0,
-                       0 * nel_temp,
-                       nel_temp)
-
-        return nel
-    
 @export
 class LZ24CH3TSource(LZ24ERSource,fd.nest.CH3TSource):
     def __init__(self, *args, **kwargs):
