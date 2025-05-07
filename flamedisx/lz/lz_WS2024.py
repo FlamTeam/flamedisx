@@ -498,7 +498,7 @@ class LZ24ERGammaWeightedSource(LZ24ERSource, fd.nest.nestERGammaWeightedSource)
         # Weighted ER model
         # New Parameters for L-shell used here: LZLAMA/include/Modules/ModuleNest.hh#L193
         # Defined here: LZLLAMA/src/Detectors/LzTpcDetector.cc#L283
-        weight_param_a = 0.71 #0.23
+        weight_param_a = 0.48 #0.23
         weight_param_b = 0. #0.77
         weight_param_c = 0. #2.95
         weight_param_d = 0. #-1.44
@@ -716,9 +716,9 @@ class LZ24RnBetaSource(LZ24ERSource):
     def __init__(self, *args, weights=(1, 1,), **kwargs):
         assert len(weights) == 2, "Weights must be a tuple of length 3"
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'default'
+            kwargs['detector'] = 'lz_WS2024'
 
-        df_212Pb = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/212Pb_spectrum.pkl'))
+        df_212Pb = pd.read_pickle(os.path.join(os.path.dirname(__file__), '../nest/background_spectra/212Pb_spectrum.pkl'))
         # df_85Kr = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/85Kr_spectrum.pkl'))
 
         # assert (df_212Pb['energy_keV'].values == df_85Kr['energy_keV'].values).all(), \
@@ -749,9 +749,9 @@ class LZ24Kr85Source(LZ24ERSource):
 
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
-            kwargs['detector'] = 'default'
+            kwargs['detector'] = 'lz_WS2024'
 
-        df_85Kr = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/85Kr_spectrum.pkl'))
+        df_85Kr = pd.read_pickle(os.path.join(os.path.dirname(__file__), '../nest/background_spectra/85Kr_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df_85Kr['energy_keV'].values, dtype=fd.float_type())
         self.rates_vs_energy = tf.convert_to_tensor(df_85Kr['spectrum_value_norm'].values, dtype=fd.float_type())
@@ -925,10 +925,10 @@ class LZ24Xe127Source(LZ24ERSource,fd.nest.Xe127Source):#, fd.nest.nestSpatialTe
         # Weighted ER model different for L-shell ECs and Xe127
         # New Parameters for L-shell used here: LZLAMA/include/Modules/ModuleNest.hh#L193
         # Defined here: LZLLAMA/src/Detectors/LzTpcDetector.cc#L283
-        weight_param_a = 0.23
-        weight_param_b = 0.77
-        weight_param_c = 2.95
-        weight_param_d = -1.44
+        weight_param_a = 0.48 #0.23
+        weight_param_b = 0. #0.77
+        weight_param_c = 0. #2.95
+        weight_param_d = 0. #-1.44
         #field dependence ignored (with zeros above)
         weight_param_e = 421.15
         weight_param_f = 3.27
@@ -956,7 +956,7 @@ class LZ24Xe124Source(LZ24ERSource, fd.nest.Xe124Source):
         # Weighted ER model different for L-shell ECs and Xe127
         # New Parameters for L-shell used here: LZLAMA/include/Modules/ModuleNest.hh#L193
         # Defined here: LZLLAMA/src/Detectors/LzTpcDetector.cc#L283
-        weight_param_a = 0.71 #0.23
+        weight_param_a = 0.48 #0.23
         weight_param_b = 0. #0.77
         weight_param_c = 0. #2.95
         weight_param_d = 0. #-1.44
