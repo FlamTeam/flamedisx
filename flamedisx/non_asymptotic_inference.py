@@ -31,9 +31,11 @@ class TestStatistic():
         guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
 
         # Conditional fit
-        bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True)
+        bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True,
+                                                 allow_failure=True)
         # Uncnditional fit
-        bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True)
+        bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True,
+                                                   allow_failure=True)
 
         # Return the test statistic, unconditional fit and conditional fit
         if not asymptotic:
