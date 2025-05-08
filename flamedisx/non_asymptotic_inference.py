@@ -390,27 +390,37 @@ class TSEvaluation():
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
             # Set data
+            empty_dataframe = False
             if hasattr(likelihood, 'likelihoods'):
                 for component, data in toy_data_SB.items():
-                    likelihood.set_data(data, component)
+                    if len(data) == 0:
+                        empty_dataframe = True
             else:
-                likelihood.set_data(toy_data_SB)
-            # Create test statistic
-            test_statistic_SB = self.test_statistic(likelihood)
-            # Guesses for fit
-            guess_dict_SB = simulate_dict_SB.copy()
-            for key, value in guess_dict_SB.items():
-                if value < 0.1:
-                    guess_dict_SB[key] = 0.1
-            # Evaluate test statistics
-            ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
-            ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
-            # Save test statistics, and possibly fits
-            ts_values_SB.append(ts_result_SB[0])
-            ts_values_SB_disco.append(ts_result_SB_disco[0])
-            if save_fits:
-                unconditional_bfs_SB.append(ts_result_SB[1])
-                conditional_bfs_SB.append(ts_result_SB[2])
+                if len(toy_data_SB) == 0:
+                    empty_dataframe = True
+
+            if not empty_dataframe:
+                if hasattr(likelihood, 'likelihoods'):
+                    for component, data in toy_data_SB.items():
+                        likelihood.set_data(data, component)
+                else:
+                    likelihood.set_data(toy_data_SB)
+                # Create test statistic
+                test_statistic_SB = self.test_statistic(likelihood)
+                # Guesses for fit
+                guess_dict_SB = simulate_dict_SB.copy()
+                for key, value in guess_dict_SB.items():
+                    if value < 0.1:
+                        guess_dict_SB[key] = 0.1
+                # Evaluate test statistics
+                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
+                ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
+                # Save test statistics, and possibly fits
+                ts_values_SB.append(ts_result_SB[0])
+                ts_values_SB_disco.append(ts_result_SB_disco[0])
+                if save_fits:
+                    unconditional_bfs_SB.append(ts_result_SB[1])
+                    conditional_bfs_SB.append(ts_result_SB[2])
 
             # B-only toys
 
@@ -429,20 +439,30 @@ class TSEvaluation():
             # Shift the constraint in the likelihood based on the background RMs we drew
             likelihood.set_constraint_extra_args(**constraint_extra_args_B)
             # Set data
+            empty_dataframe = False
             if hasattr(likelihood, 'likelihoods'):
                 for component, data in toy_data_B.items():
-                    likelihood.set_data(data, component)
+                    if len(data) == 0:
+                        empty_dataframe = True
             else:
-                likelihood.set_data(toy_data_B)
-            # Create test statistic
-            test_statistic_B = self.test_statistic(likelihood)
-            # Evaluate test statistic
-            ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
-            # Save test statistic, and possibly fits
-            ts_values_B.append(ts_result_B[0])
-            if save_fits:
-                unconditional_bfs_B.append(ts_result_SB[1])
-                conditional_bfs_B.append(ts_result_SB[2])
+                if len(toy_data_B) == 0:
+                    empty_dataframe = True
+
+            if not empty_dataframe:
+                if hasattr(likelihood, 'likelihoods'):
+                    for component, data in toy_data_B.items():
+                        likelihood.set_data(data, component)
+                else:
+                    likelihood.set_data(toy_data_B)
+                # Create test statistic
+                test_statistic_B = self.test_statistic(likelihood)
+                # Evaluate test statistic
+                ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
+                # Save test statistic, and possibly fits
+                ts_values_B.append(ts_result_B[0])
+                if save_fits:
+                    unconditional_bfs_B.append(ts_result_SB[1])
+                    conditional_bfs_B.append(ts_result_SB[2])
 
         # Add to the test statistic distributions
         test_stat_dists_SB.add_ts_dist(mu_test, ts_values_SB)
