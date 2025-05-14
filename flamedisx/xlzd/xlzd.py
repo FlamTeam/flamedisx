@@ -18,10 +18,12 @@ export, __all__ = fd.exporter()
 # Flamedisx sources
 ##
 
-
 class XLZDSource:
     def __init__(self, *args,
-                 drift_field_V_cm=100., gas_field_kV_cm=8., elife_ns=10000e3, g1=0.27,
+                 drift_field_V_cm=80., gas_field_kV_cm=7.5, elife_ns=10000e3, g1=0.31,
+                 temperature_K=174.1, pressure_bar=1.79, num_pmts=902, double_pe_fraction=0.2,
+                 g1_gas=0.1, s2Fano=2., spe_res=0.38, spe_thr=0.375, spe_eff=1.,
+                 s2_thr=198., coin_level=4,
                  ignore_maps_acc=False, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -38,11 +40,6 @@ class XLZDSource:
         config.read(os.path.join(os.path.dirname(__file__), '../nest/config/',
                                  kwargs['detector'] + '.ini'))
 
-        self.cS1_min = config.getfloat('NEST', 'cS1_min_config')
-        self.cS1_max = config.getfloat('NEST', 'cS1_max_config')
-        self.log10_cS2_min = config.getfloat('NEST', 'log10_cS2_min_config')
-        self.log10_cS2_max = config.getfloat('NEST', 'log10_cS2_max_config')
-
         self.radius = config.getfloat(kwargs['configuration'], 'radius_config')
         self.z_topDrift = config.getfloat(kwargs['configuration'], 'z_topDrift_config')
         self.z_top = config.getfloat(kwargs['configuration'], 'z_top_config')
@@ -54,16 +51,32 @@ class XLZDSource:
         self.gas_field = gas_field_kV_cm
         self.elife = elife_ns
         self.g1 = g1 # this represents PMT QE
+        self.temperature = temperature_K
+        self.pressure = pressure_bar
+        self.num_pmts = num_pmts
+        self.double_pe_fraction = double_pe_fraction
+        self.g1_gas = g1_gas
+        self.s2Fano = s2Fano
+        self.spe_res = spe_res
+        self.spe_thr = spe_thr
+        self.spe_eff = spe_eff
 
+        self.density = fd_nest.calculate_density(
+            self.temperature, self.pressure)
+        self.density_gas = fd_nest.calculate_density_gas(
+            self.temperature, self.pressure)
         self.drift_velocity = fd_nest.calculate_drift_velocity(
             self.drift_field, self.density, self.temperature)
         self.extraction_eff = fd_nest.calculate_extraction_eff(self.gas_field, self.temperature)
         self.g2 = fd_nest.calculate_g2(self.gas_field, self.density_gas, self.gas_gap,
                                        self.g1_gas, self.extraction_eff)
 
+        self.s2_thr = s2_thr
+        self.coin_level = coin_level
+
     def s1_acceptance(self, s1, cs1):
 
-        acceptance = tf.where((s1 >= self.spe_thr) & (cs1 >= self.cS1_min) & (cs1 <= self.cS1_max),
+        acceptance = tf.where(s1 >= self.spe_thr,
                               tf.ones_like(s1, dtype=fd.float_type()),  # if condition non-zero
                               tf.zeros_like(s1, dtype=fd.float_type()))  # if false
 
@@ -73,8 +86,7 @@ class XLZDSource:
 
         log10_cs2 = np.log10(cs2 + 1e-10)
 
-        acceptance = tf.where((s2 >= self.s2_thr) &
-                              (log10_cs2 >= self.log10_cS2_min) & (log10_cs2 <= self.log10_cS2_max),
+        acceptance = tf.where(s2 >= self.s2_thr,
                               tf.ones_like(s2, dtype=fd.float_type()),  # if condition non-zero
                               tf.zeros_like(s2, dtype=fd.float_type()))  # if false
 
