@@ -81,16 +81,16 @@ class Xe124Source(fd_nest.nestERSource):
 @export
 class Pb214Source(fd_nest.nestERSource):
     """Beta background source from 214Pb.
-    Normalise such that the spectrum predicts 11.41 events in 1 tonne year.
+    Normalise such that the spectrum predicts 11.41 events in 1 tonne year (0.1 mBq/kg).
     """
 
-    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+    def __init__(self, *args, fid_mass=1., livetime=1., activity_mBq_kg=0.1, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         self.energies = tf.cast(np.arange(0.4, 33.01, 0.1), fd.float_type())
         self.rates_vs_energy = tf.ones_like(self.energies, fd.float_type()) / sum(np.ones_like(self.energies))
-        scale = fid_mass * livetime * 11.41
+        scale = fid_mass * livetime * (activity_mBq_kg / 0.1) *  11.41
         self.rates_vs_energy = self.rates_vs_energy * tf.cast(scale, fd.float_type())
 
         super().__init__(*args, **kwargs)
@@ -99,16 +99,16 @@ class Pb214Source(fd_nest.nestERSource):
 @export
 class Kr85Source(fd_nest.nestERSource):
     """Beta background source from 85Kr.
-    Normalise such that the spectrum predicts 46.944 events in 1 tonne year.
+    Normalise such that the spectrum predicts 46.944 events in 1 tonne year (0.1 ppt).
     """
 
-    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+    def __init__(self, *args, fid_mass=1., livetime=1., activity_ppt=0.1, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         self.energies = tf.cast(np.arange(0.4, 33.01, 0.1), fd.float_type())
         self.rates_vs_energy = tf.ones_like(self.energies, fd.float_type()) / sum(np.ones_like(self.energies))
-        scale = fid_mass * livetime * 46.944
+        scale = fid_mass * (activity_ppt / 0.1) * livetime * 46.944
         self.rates_vs_energy = self.rates_vs_energy * tf.cast(scale, fd.float_type())
 
         super().__init__(*args, **kwargs)
