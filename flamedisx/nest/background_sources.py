@@ -172,3 +172,23 @@ class vNROtherSURFSource(fd_nest.nestNRSource):
         self.rates_vs_energy = tf.convert_to_tensor(df_CEvNS_other['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
+
+
+@export
+class NeutronSource(fd_nest.nestNRSource):
+    """NR background source from external neutrons.
+    Reads in energy spectrum from .pkl file, generated with XLZD GEANT4 simulations.
+    Normalise such that the spectrum predicts 1 event in 1 tonne year.
+    """
+
+    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'default'
+
+        df_neutron = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/neutron_spectrum.pkl'))
+
+        self.energies = tf.convert_to_tensor(df_neutron['energy_keV'].values, dtype=fd.float_type())
+        scale = fid_mass * livetime
+        self.rates_vs_energy = tf.convert_to_tensor(df_neutron['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        super().__init__(*args, **kwargs)
