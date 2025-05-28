@@ -429,56 +429,6 @@ class LZ24ERSource(LZWS2024Source, fd.nest.nestERSource):
 
         return recomb_p * (1. - recomb_p) * ni + omega * omega * ni * ni
     
-
-
-
-class LZ24CH3TSource(LZ24ERSource,fd.nest.CH3TSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz_WS2024'
-
-        super().__init__(*args, **kwargs)
-
-class LZ24C14Source(LZ24ERSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz_WS2024'
-        m_e = 510.9989461  # e- rest mass-energy [keV]
-        aa = 0.0072973525664;          # fine structure constant
-        ZZ = 7.;
-        V0 = 0.495;  # effective offset in T due to screening of the nucleus by electrons
-        qValue = 156.
-        #energy range to avoid nans
-        energies = tf.linspace(0.01, qValue, 1000)
-
-        Ee=energies+m_e
-        pe=np.sqrt(np.square(Ee)-np.square(m_e))
-        dNdE_phasespace=pe * Ee * (qValue - energies)**2
-        Ee_screen = Ee - V0
-        W_screen = (Ee_screen) / m_e
-        p_screen = np.sqrt(W_screen * W_screen - 1)
-        p_screen=np.where(W_screen<1,0.,p_screen)
-        WW = (Ee) / m_e
-        pp = np.sqrt(WW * WW - 1)
-        G_screen = (Ee_screen) / (m_e)  ## Gamma, Total energy(KE+M) over M
-        B_screen = np.sqrt((G_screen * G_screen - 1)*(G_screen * G_screen))  # v/c of electron. Ratio of
-        B_screen=np.where(G_screen<1,0.,B_screen)
-        x_screen = (2 * pi * ZZ * aa) / B_screen
-        F_nr_screen = W_screen * p_screen / (WW * pp) * x_screen * (1 / (1 - np.exp(-x_screen)))
-        F_nr_screen=np.where(p_screen<=0. ,0. ,F_nr_screen)
-        F_bb_screen =F_nr_screen *np.power(W_screen * W_screen * (1 + 4 * (aa * ZZ) * (aa * ZZ)) - 1,np.sqrt(1 - aa * aa * ZZ * ZZ) - 1)
-        spectrum = dNdE_phasespace * F_bb_screen
-        spectrum=spectrum/np.sum(spectrum)
-        energies = tf.cast(energies, fd.float_type())
-        rates_vs_energy = tf.cast(spectrum, fd.float_type())
-        self.energies = tf.cast(energies, fd.float_type())
-        self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
-        super().__init__(*args, **kwargs)
-
-
-
-
-
 @export
 class LZ24GammaSource(LZWS2024Source, fd.nest.nestGammaSource):
     def __init__(self, *args, **kwargs):
