@@ -1,5 +1,9 @@
 import tensorflow as tf
 
+import numpy as np
+import wimprates as wr
+from multihist import Histdd
+
 import configparser
 import os
 
@@ -571,13 +575,28 @@ class nestWIMPSource(nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        self.energy_hist = pkl.load(open(os.path.join(os.path.dirname(__file__), 'wimp_spectra/WIMP_spectra.pkl'), 'rb'))[wimp_mass]
-        scale = fid_mass * livetime
-        self.energy_hist *= scale
-
-        self.n_time_bins = len(self.energy_hist.bin_edges[0]) - 1
-        e_centers = fd_nest.WIMPEnergySpectrum.bin_centers(self.energy_hist.bin_edges[1])
+        energy_edges = np.geomspace(0.7, 50, 100)
+        e_centers = 0.5 * (energy_edges[1:] + energy_edges[:-1])
         self.energies = fd.np_to_tf(e_centers)
+
+        self.n_time_bins = 24
+        times = np.linspace(wr.j2000(self.model_blocks[0].t_start.value),
+                            wr.j2000(self.model_blocks[0].t_stop.value),
+                            self.n_time_bins + 1)
+        time_centers = 0.5 * (times[1:] + times[:-1])
+
+        wimp_kwargs = dict(mw=wimp_mass,
+                           sigma_nucleon=1e-45)
+        spectra = np.array([wr.rate_wimp_std(t=t,
+                                             es=e_centers,
+                                             **wimp_kwargs)
+                            * np.diff(energy_edges)
+                            for t in time_centers])
+        assert spectra.shape == (len(time_centers), len(e_centers))
+
+        self.energy_hist = Histdd.from_histogram(
+            spectra,
+            bin_edges=(times, energy_edges)) * (fid_mass * livetime)
 
         self.array_columns = (('energy_spectrum', len(e_centers)),)
 
