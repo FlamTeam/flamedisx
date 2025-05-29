@@ -560,12 +560,12 @@ class TemporalRateEnergySpectrumOscillationER(TemporalRateEnergySpectrumOscillat
 ##
 @export
 class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
-    model_attributes = (('spatial_hist',)
+    model_attributes = (('spatial_hist','interpolate',)
                         + FixedShapeEnergySpectrum.model_attributes)
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
     spatial_hist: Histdd
-
+    interpolate = False
     def setup(self):
         assert isinstance(self.spatial_hist, Histdd)
 
@@ -588,25 +588,41 @@ class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
                  "['r_obs', 'theta', 'drift_time'], ['r_obs', 'drift_time'] "
                  "or ['x_obs', 'y_obs', 'drift_time']")
 
+        
         # Normalize the histogram
         self.spatial_hist.histogram = \
             self.spatial_hist.histogram.astype(float) / self.spatial_hist.n
-
         # Local rate multiplier = PDF / uniform PDF
         # = ((normed_hist/bin_volumes) / (1/total_volume))
         self.local_rate_multiplier = self.spatial_hist.similar_blank_hist()
         self.local_rate_multiplier.histogram = (
             (self.spatial_hist.histogram / self.bin_volumes)
             * self.bin_volumes.sum())
+        #use TemplateWrapper to Handle, allows interpolation
+        self.local_rate_multiplier = fd.TemplateWrapper(self.local_rate_multiplier,
+                                                        interpolate=self.interpolate,
+                                                        events_per_bin = False)
+            
 
     def energy_spectrum_rate_multiplier(self, x_obs, y_obs, drift_time):
+        """
+            hacky conversion to DataFrame, maybe fix in the future!
+        """
+        positions = pd.DataFrame()
         if self.polar:
-            positions = list(fd.cart_to_pol(x_obs, y_obs)) + [drift_time]
+            polars = list(fd.cart_to_pol(x_obs, y_obs))
+            positions['r_obs'] = polars[0]
+            positions['theta_obs'] = polars[1]
+            positions['drift_time'] = drift_time
         elif self.r_dt:
-            positions = [fd.cart_to_pol(x_obs, y_obs)[0]] + [drift_time]
+            positions['r_obs'] = list(fd.cart_to_pol(x_obs, y_obs))[0]
+            positions['drift_time'] = drift_time
         else:
-            positions = [x_obs, y_obs, drift_time]
-        return self.local_rate_multiplier.lookup(*positions)
+            positions['x_obs'] = x_obs
+            positions['y_obs'] = y_obs
+            positions['drift_time'] = drift_time
+
+        return self.local_rate_multiplier.differential_rates_numpy(positions)
         
     def draw_positions(self, n_events, **params):
         """Return dictionary with x, y, z, r, theta, drift_time
