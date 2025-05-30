@@ -650,7 +650,7 @@ class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
 @export
 class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySpectrum):
     model_attributes = (('time_constant_ns',)
-                        + SpatialRateEnergySpectrum.model_attributes)
+                        + ObservedSpatialRateEnergySpectrum.model_attributes)
 
     def temporal_rate_multiplier(self, event_time):
         pdf = np.exp(-(event_time - self.t_start.value) / self.time_constant_ns)
