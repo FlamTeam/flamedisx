@@ -282,9 +282,11 @@ class MultiTemplateSource(fd.Source):
                                                    fd.float_type())
 
         # Assume equi-spacing!
-        self.dstep=self.pvals[1]-self.pvals[0]
+        self.dstep = self.pvals[1] - self.pvals[0]
         # Need to pad domain.. four might be excessive
-        self.pvals=list(np.arange(self.pvals[0]-4*(self.dstep),self.pvals[-1]+5*(self.dstep),self.dstep))
+        old_length = len(self.pvals)
+        self.pvals=list(np.arange(self.pvals[0] - 4. * self.dstep, self.pvals[-1] + 4. * self.dstep, self.dstep))
+        assert len(self.pvals) == (old_length + 8), "Something went wrong with the padding!"
         self.array_columns = ((self.column, n_templates+8),)
 
         super().__init__(*args, **kwargs)
