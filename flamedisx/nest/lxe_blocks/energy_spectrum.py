@@ -660,15 +660,7 @@ class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySp
         return normalisation * pdf / uniform_pdf
 
     def energy_spectrum_rate_multiplier(self, x_obs, y_obs, drift_time, event_time):
-        if self.polar:
-            positions = list(fd.cart_to_pol(x_obs,y_obs)) + [z]
-        elif self.r_z:
-            positions = [fd.cart_to_pol(x_obs, y_obs)[0]] + [z]
-        elif self.r_dt:
-            positions = [fd.cart_to_pol(x_obs, y_obs)[0]] + [drift_time]
-        else:
-            positions = [x_obs, y_obs, drift_time]
-        return self.local_rate_multiplier.lookup(*positions) * self.temporal_rate_multiplier(event_time)
+        return super().energy_spectrum_rate_multiplier(x_obs, y_obs, drift_time) * self.temporal_rate_multiplier(event_time)
 
     def draw_time(self, n_events, **params):
         """
@@ -678,7 +670,25 @@ class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySp
                                     loc=self.t_start.value, scale=self.time_constant_ns,
                                     size=n_events)
 
+class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySpectrum):
+    model_attributes = (('time_constant_ns',)
+                        + ObservedSpatialRateEnergySpectrum.model_attributes)
+    decay_start : float
+    def temporal_rate_multiplier(self, event_time):
+        pdf = np.exp(-(event_time - self.t_start.value) / self.time_constant_ns)
+        normalisation = 1. / (self.time_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.time_constant_ns)))
+        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
 
+        return normalisation * pdf / uniform_pdf
+
+    def energy_spectrum_rate_multiplier(self, x_obs, y_obs, drift_time, event_time):
+        return super().energy_spectrum_rate_multiplier(x_obs, y_obs, drift_time) * self.temporal_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        b = (self.t_stop.value - self.t_start.value) / self.time_constant_ns
+        return stats.truncexpon.rvs(b,
+                                    loc=self.t_start.value, scale=self.time_constant_ns,
+                                    size=n_events)
 
 # == TO Do, Go through and Create OBSERVED versions for back-compatibility ===
 @export
