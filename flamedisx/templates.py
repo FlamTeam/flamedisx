@@ -275,18 +275,22 @@ class MultiTemplateSource(fd.Source):
         param_vals = np.asarray([list(params.values())[0] for params, _ in params_and_templates])
         self.pmin = tf.constant(min(param_vals), fd.float_type())
         self.pmax = tf.constant(max(param_vals), fd.float_type())
-        self.pvals = tf.convert_to_tensor(param_vals, fd.float_type())
+        pvals = tf.convert_to_tensor(param_vals, fd.float_type())
 
         normalisations = np.array([norm for _, norm in params_and_normalisations])
         self.normalisations = tf.convert_to_tensor(normalisations / normalisations[0],
                                                    fd.float_type())
 
         # Assume equi-spacing!
-        self.dstep = self.pvals[1] - self.pvals[0]
+        self.dstep = pvals[1] - pvals[0]
         # Need to pad domain.. four might be excessive
-        old_length = len(self.pvals)
-        self.pvals=list(np.arange(self.pvals[0] - 4. * self.dstep, self.pvals[-1] + 4. * self.dstep, self.dstep))
-        assert len(self.pvals) == (old_length + 8), "Something went wrong with the padding!"
+        try:
+            self.pvals = list(np.arange(pvals[0] - 4. * self.dstep, pvals[-1] + 4. * self.dstep, self.dstep))
+            assert len(self.pvals) == len(pvals) + 8, "Something went wrong with the padding!"
+        except:
+            self.pvals = list(np.arange(pvals[0] - 4. * self.dstep, pvals[-1] + 5. * self.dstep, self.dstep))
+            assert len(self.pvals) == len(pvals) + 8, "Something went wrong with the padding!"
+
         self.array_columns = ((self.column, n_templates+8),)
 
         super().__init__(*args, **kwargs)
