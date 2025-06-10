@@ -579,9 +579,9 @@ class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         self.bin_volumes = self.spatial_hist.bin_volumes()
         # Volume element in cylindrical coords = r * (dr dq dz)
         if self.polar:
-            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None, None]
+            self.bin_volumes *= self.spatial_hist.bin_centers('r_obs')[:, None, None]
         elif (self.r_dt):
-            self.bin_volumes *= self.spatial_hist.bin_centers('r')[:, None]
+            self.bin_volumes *= self.spatial_hist.bin_centers('r_obs')[:, None]
         else:
             assert axes == ('x_obs', 'y_obs', 'drift_time'), \
                 ("axis_names of spatial_rate_hist must be "
@@ -637,15 +637,32 @@ class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
             
         if self.polar:
             data['x_obs'], data['y_obs'] = fd.pol_to_cart(data['r_obs'], data['theta_obs'])
-        elif self.r_dt and observed:
-            theta = np.random.uniform(0, 2*np.pi, size=n_events)
-            data['x_obs'], data['y_obs'] = fd.pol_to_cart(data['r_obs'], theta)
+        elif self.r_dt:
+            theta_obs = np.random.uniform(0, 2*np.pi, size=n_events)
+            data['x_obs'], data['y_obs'] = fd.pol_to_cart(data['r_obs'], theta_obs)
         else:
             data['r_obs'], data['theta_obs'] = fd.cart_to_pol(data['x_obs'], data['y_obs'])
 
         return data
 
 
+
+
+@export
+class ObvervedSpatialTemporalRateEnergySpectrumPeriod(ObservedSpatialRateEnergySpectrum):
+
+    def temporal_rate_multiplier(self, event_time):
+        #1. / (self.t_stop.value - self.t_start.value)
+        #prevent a -inf with 1e-11 (though not sure how well this works)
+        return  tf.where((event_time<self.t_stop.value)&(event_time>=self.t_start.value),1.,1e-11)
+
+    def energy_spectrum_rate_multiplier(self, x_obs, y_obs, drift_time, event_time):
+        return super().energy_spectrum_rate_multiplier(x_obs, y_obs, drift_time) * self.temporal_rate_multiplier(event_time)
+
+    def draw_time(self, n_events, **params):
+        """
+        """
+        return stats.uniform.rvs(loc = self.t_start.value, scale = self.t_stop.value-self.t_start.value, size= n_events)
 
 @export
 class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySpectrum):
@@ -665,26 +682,6 @@ class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySp
     def draw_time(self, n_events, **params):
         """
         """
-        b = (self.t_stop.value - self.t_start.value) / self.time_constant_ns
-        return stats.truncexpon.rvs(b,
-                                    loc=self.t_start.value, scale=self.time_constant_ns,
-                                    size=n_events)
-
-class ObvervedSpatialTemporalRateEnergySpectrumDecay(ObservedSpatialRateEnergySpectrum):
-    model_attributes = (('time_constant_ns',)
-                        + ObservedSpatialRateEnergySpectrum.model_attributes)
-    decay_start : float
-    def temporal_rate_multiplier(self, event_time):
-        pdf = np.exp(-(event_time - self.t_start.value) / self.time_constant_ns)
-        normalisation = 1. / (self.time_constant_ns * (1. - np.exp(-(self.t_stop.value - self.t_start.value) / self.time_constant_ns)))
-        uniform_pdf = 1. / (self.t_stop.value - self.t_start.value)
-
-        return normalisation * pdf / uniform_pdf
-
-    def energy_spectrum_rate_multiplier(self, x_obs, y_obs, drift_time, event_time):
-        return super().energy_spectrum_rate_multiplier(x_obs, y_obs, drift_time) * self.temporal_rate_multiplier(event_time)
-
-    def draw_time(self, n_events, **params):
         b = (self.t_stop.value - self.t_start.value) / self.time_constant_ns
         return stats.truncexpon.rvs(b,
                                     loc=self.t_start.value, scale=self.time_constant_ns,
@@ -709,9 +706,13 @@ class SpatialTemporalRateEnergySpectrumDecayNR(ObvervedSpatialTemporalRateEnergy
 class SpatialTemporalRateEnergySpectrumDecayER(ObvervedSpatialTemporalRateEnergySpectrumDecay):
     max_dim_size = {'energy': 100}
 
+@export
+class SpatialTemporalRateEnergySpectrumPeriodER(ObvervedSpatialTemporalRateEnergySpectrumPeriod):
+    max_dim_size = {'energy': 100}
 
-
-
+@export
+class SpatialTemporalRateEnergySpectrumPeriodNR(ObvervedSpatialTemporalRateEnergySpectrumPeriod):
+    max_dim_size = {'energy': 150}
 
 
 
