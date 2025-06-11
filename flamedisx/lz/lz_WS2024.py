@@ -871,7 +871,7 @@ class LZ24Xe127Source(LZ24ERSource,fd.nest.Xe127Source):#, fd.nest.nestSpatialTe
 
         super().__init__(*args, **kwargs)
 
-    def mean_yield_electron(self, energy,b=1.3):
+    def mean_yield_electron(self, energy):
         # Weighted ER model different for L-shell ECs and Xe127
         # New Parameters for L-shell used here: LZLAMA/include/Modules/ModuleNest.hh#L193
         # Defined here: LZLLAMA/src/Detectors/LzTpcDetector.cc#L283
