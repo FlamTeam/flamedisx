@@ -23,7 +23,7 @@ class MuEstimator:
     options: dict
     bounds: dict
     param_options: dict  # dict param -> dict of options per parameter
-
+    
     def __init__(
             self,
             source: fd.Source,
@@ -60,7 +60,6 @@ class MuEstimator:
         # Consistent with Source.__init__, don't complain / discard silently.
         # MuEstimator.__call__, however, expects to be called with filtered params
         param_specs = {k: v for k, v in param_specs.items() if k in source.defaults}
-
         # Build the necessary interpolators
         self.build(source)
 
@@ -97,6 +96,9 @@ class CrossInterpolatedMu(MuEstimator):
 
     def __call__(self, **kwargs):
         mu = self.base_mu
+
+        kwargs = {param_name: kwargs[param_name] for param_name in self.bounds if param_name in kwargs}
+        
         for pname, v in kwargs.items():
             mu *= tfp.math.interp_regular_1d_grid(
                 x=v,
@@ -284,8 +286,7 @@ class GridInterpolatedMu(MuEstimator):
     def __call__(self, **kwargs):
         # Match kwargs order to grid param order
         # (LogLikelihood.mu already filtered params)
-        kwargs = {param_name: kwargs[param_name] for param_name in self.bounds}
-
+        kwargs = {param_name: kwargs[param_name] for param_name in self.bounds if param_name in kwargs}
         return tfp.math.batch_interp_regular_nd_grid(
             [list(kwargs.values())],
             x_ref_min=self.param_lowers,
