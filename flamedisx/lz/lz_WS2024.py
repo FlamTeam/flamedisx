@@ -85,7 +85,10 @@ class LZWS2024Source:
                  ignore_all_cuts=False, ignore_drift_map=False, 
                  cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
-
+        #set up start and end time
+        self.t_start = pd.to_datetime('2023-03-28 09:00:00')
+        self.t_stop = pd.to_datetime('2024-03-31 23:00:00')
+        
         self.cap_upper_cs1 = cap_upper_cs1
         self.ignore_all_cuts = ignore_all_cuts
         assert kwargs['detector'] in ('lz_WS2024',)
@@ -717,11 +720,11 @@ class LZ24Kr85Source(LZ24ERSource):
 
 @export
 class LZ24DDSource(LZ24NRSource, fd.nest.DDSource):
-    t_start = pd.to_datetime('2022-04-19T00:00:00')
-    t_start = t_start.tz_localize(tz='America/Denver')
+    # t_start = pd.to_datetime('2022-04-19T00:00:00')
+    # t_start = t_start.tz_localize(tz='America/Denver')
 
-    t_stop = pd.to_datetime('2022-04-19T00:00:00')
-    t_stop = t_stop.tz_localize(tz='America/Denver')
+    # t_stop = pd.to_datetime('2022-04-19T00:00:00')
+    # t_stop = t_stop.tz_localize(tz='America/Denver')
 
     def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
