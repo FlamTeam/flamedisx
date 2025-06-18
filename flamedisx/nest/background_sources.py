@@ -79,17 +79,17 @@ class Xe124Source(fd_nest.nestERSource):
 class Pb214Source(fd_nest.nestERSource):
     """Beta background source from 214Pb.
     Reads in energy spectrum from .pkl file.
-    Normalised to 0.1 mBq/kg.
+    Normalised to 0.1 uBq/kg.
     """
 
-    def __init__(self, *args, fid_mass=1., livetime=1., activity_mBq_kg=0.1, **kwargs):
+    def __init__(self, *args, fid_mass=1., livetime=1., activity_uBq_kg=0.1, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         df = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/214Pb_spectrum.pkl'))
 
         self.energies = tf.convert_to_tensor(df['energy_keV'].values, dtype=fd.float_type())
-        scale = fid_mass * livetime * (activity_mBq_kg / 0.1)
+        scale = fid_mass * livetime * (activity_uBq_kg / 0.1)
         self.rates_vs_energy = tf.convert_to_tensor(df['spectrum_value_norm'].values * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
