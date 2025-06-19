@@ -373,11 +373,13 @@ class TSEvaluation():
 
             # Sample constraint centers
             if param_name in self.sample_other_constraints.keys():
+                # Given the parameter center, use {sample_other_constraint} as draw
                 draw = self.sample_other_constraints[param_name](param_expect)
                 constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
             else:
-                # Hard-coded for now. Needs fixing. 
-                draw = stats.norm.rvs(loc=param_expect, scale=0.04)
+                # Hard-coded for now. If {sample_other_constraint} not provided, use 10% of bounds
+                param_range = tf.math.reduce_max(param_bounds) - tf.math.reduce_min(param_bounds)
+                draw = stats.norm.rvs(loc=param_expect, scale=0.1*param_range)
                 constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
 
 
