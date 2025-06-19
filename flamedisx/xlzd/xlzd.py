@@ -198,6 +198,26 @@ class XLZDEFTScalarO6Source(XLZDSource, fd.nest.EFTScalarO6Source):
         super().__init__(*args, **kwargs)
 
 
+@export
+class XLZDALPGalacticDMSource(XLZDSource, fd.nest.ALPGalacticDMSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = '80t'
+        super().__init__(*args, **kwargs)
+
+
+@export
+class XLZDHiddenPhotonSource(XLZDSource, fd.nest.HiddenPhotonSource):
+    def __init__(self, *args, **kwargs):
+        if ('detector' not in kwargs):
+            kwargs['detector'] = 'xlzd'
+        if ('configuration' not in kwargs):
+            kwargs['configuration'] = '80t'
+        super().__init__(*args, **kwargs)
+
+
 ##
 # Background sources
 ##
