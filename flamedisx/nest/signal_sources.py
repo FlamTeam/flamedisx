@@ -20,7 +20,8 @@ export, __all__ = fd.exporter()
 
 @export
 class EFTScalarO6Source(fd_nest.nestNRSource):
-    """
+    """Reads in energy spectra from .pkl file (spectra used are from LZ).
+    Normalised assuming a coupling strength of unity.
     """
 
     def __init__(self, *args, mass_GeV=1000, fid_mass=1., livetime=1., **kwargs):
