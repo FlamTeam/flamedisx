@@ -349,6 +349,38 @@ class TSEvaluation():
             simulate_dict[f'{background_source}_rate_multiplier'] = tf.cast(expected_background_counts, fd.float_type())
             simulate_dict[f'{signal_source_name}_rate_multiplier'] = tf.cast(mu_test, fd.float_type())
 
+        for param_name in likelihood.param_names:
+            # For all other parameters
+            if '_rate_multiplier' in param_name:
+                continue
+            
+            # Initialize default parameter and bounds. Needs improvement later on.
+            try:
+                param_expect = likelihood.param_defaults[param_name]
+            except Exception:
+                raise RuntimeError(f"Default value of parameter {param_name} not found")
+            try:
+                param_bounds = likelihood.default_bounds[param_name]
+            except Exception:
+                raise RuntimeError(f"Bounds of parameter {param_name} not found")
+            
+            # Case of the conditional best fits
+            if self.observed_test_stats is not None:
+                try:
+                    param_expect = conditional_bfs_observed[mu_test][param_name]
+                except Exception:
+                    raise RuntimeError(f"Could not find observed conditional best fits for parameter {param_name}")
+
+            # Sample constraint centers
+            if param_name in self.sample_other_constraints.keys():
+                draw = self.sample_other_constraints[param_name](param_expect)
+                constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
+            else:
+                # Hard-coded for now. Needs fixing. 
+                draw = stats.norm.rvs(loc=param_expect, scale=0.04)
+                constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
+
+
         if self.observed_test_stats is not None:
             conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits[mu_test]
             non_rate_params_added = []
