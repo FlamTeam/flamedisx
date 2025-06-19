@@ -382,6 +382,8 @@ class TSEvaluation():
                 draw = stats.norm.rvs(loc=param_expect, scale=0.1*param_range)
                 constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
 
+            simulate_dict[param_name] = tf.cast(param_expect, fd.float_type())
+
 
         if self.observed_test_stats is not None:
             conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits[mu_test]
