@@ -1,8 +1,6 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-import pickle as pkl
-
 import flamedisx as fd
 from .. import sabre as fd_sabre
 
@@ -16,10 +14,9 @@ class SABRESource(fd.BlockModelSource):
         fd_sabre.PhotonsPhotoelectrons,
         fd_sabre.MakeFinalSignal)
 
-    def __init__(self, *args, spectrum_path=None, **kwargs):
-        energy_spectrum = pkl.load(open(spectrum_path, 'rb'))
-        self.energies= tf.cast(energy_spectrum[0], dtype=fd.float_type())
-        self.rates_vs_energy = tf.cast(energy_spectrum[1], dtype=fd.float_type())
+    def __init__(self, *args, energies=None, rates_vs_energy=None, **kwargs):
+        self.energies= tf.cast(energies, dtype=fd.float_type())
+        self.rates_vs_energy = tf.cast(rates_vs_energy, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
 
