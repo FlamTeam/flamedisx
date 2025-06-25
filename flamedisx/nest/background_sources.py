@@ -24,15 +24,23 @@ class vERSource(fd_nest.nestERSource):
     Reads in energy spectrum from .pkl file, generated with LZ's DMCalc.
     """
 
-    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+    def __init__(self, *args, fid_mass=1., livetime=1., energy_max=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         df = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/vER_spectrum.pkl'))
 
-        self.energies = tf.convert_to_tensor(df['energy_keV'].values, dtype=fd.float_type())
+        energies = df['energy_keV'].values
+        rates_vs_energy = df['spectrum_value_norm'].values
+
         scale = fid_mass * livetime
-        self.rates_vs_energy = tf.convert_to_tensor(df['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        if energy_max is not None:
+            rates_vs_energy  = np.transpose(rates_vs_energy[np.argwhere(energies < energy_max)])[0]
+            energies  = np.transpose(energies[np.argwhere(energies < energy_max)])[0]
+
+        self.energies = tf.convert_to_tensor(energies, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(rates_vs_energy * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
 
@@ -43,15 +51,23 @@ class Xe136Source(fd_nest.nestERSource):
     Reads in energy spectrum from .pkl file.
     """
 
-    def __init__(self, *args, fid_mass=1., livetime=1., **kwargs):
+    def __init__(self, *args, fid_mass=1., livetime=1., energy_max=None, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         df = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/136Xe_spectrum.pkl'))
 
-        self.energies = tf.convert_to_tensor(df['energy_keV'].values, dtype=fd.float_type())
+        energies = df['energy_keV'].values
+        rates_vs_energy = df['spectrum_value_norm'].values
+
         scale = fid_mass * livetime
-        self.rates_vs_energy = tf.convert_to_tensor(df['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        if energy_max is not None:
+            rates_vs_energy  = np.transpose(rates_vs_energy[np.argwhere(energies < energy_max)])[0]
+            energies  = np.transpose(energies[np.argwhere(energies < energy_max)])[0]
+
+        self.energies = tf.convert_to_tensor(energies, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(rates_vs_energy * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
 
@@ -68,9 +84,13 @@ class Xe124Source(fd_nest.nestERSource):
 
         df = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/124Xe_spectrum.pkl'))
 
-        self.energies = tf.convert_to_tensor(df['energy_keV'].values, dtype=fd.float_type())
+        energies = df['energy_keV'].values
+        rates_vs_energy = df['spectrum_value_norm'].values
+
         scale = fid_mass * livetime
-        self.rates_vs_energy = tf.convert_to_tensor(df['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        self.energies = tf.convert_to_tensor(energies, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(rates_vs_energy * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
 
@@ -82,15 +102,23 @@ class Pb214Source(fd_nest.nestERSource):
     Normalised to 0.1 uBq/kg.
     """
 
-    def __init__(self, *args, fid_mass=1., livetime=1., activity_uBq_kg=0.1, **kwargs):
+    def __init__(self, *args, fid_mass=1., livetime=1., energy_max=None, activity_uBq_kg=0.1, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         df = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/214Pb_spectrum.pkl'))
 
-        self.energies = tf.convert_to_tensor(df['energy_keV'].values, dtype=fd.float_type())
+        energies = df['energy_keV'].values
+        rates_vs_energy = df['spectrum_value_norm'].values
+
         scale = fid_mass * livetime * (activity_uBq_kg / 0.1)
-        self.rates_vs_energy = tf.convert_to_tensor(df['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        if energy_max is not None:
+            rates_vs_energy  = np.transpose(rates_vs_energy[np.argwhere(energies < energy_max)])[0]
+            energies  = np.transpose(energies[np.argwhere(energies < energy_max)])[0]
+
+        self.energies = tf.convert_to_tensor(energies, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(rates_vs_energy * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
 
@@ -102,15 +130,23 @@ class Kr85Source(fd_nest.nestERSource):
     Normalised to 0.1 ppt.
     """
 
-    def __init__(self, *args, fid_mass=1., livetime=1., activity_ppt=0.1, **kwargs):
+    def __init__(self, *args, fid_mass=1., livetime=1., energy_max=None, activity_ppt=0.1, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
         df = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/85Kr_spectrum.pkl'))
 
-        self.energies = tf.convert_to_tensor(df['energy_keV'].values, dtype=fd.float_type())
+        energies = df['energy_keV'].values
+        rates_vs_energy = df['spectrum_value_norm'].values
+
         scale = fid_mass * livetime * (activity_ppt / 0.1)
-        self.rates_vs_energy = tf.convert_to_tensor(df['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+
+        if energy_max is not None:
+            rates_vs_energy  = np.transpose(rates_vs_energy[np.argwhere(energies < energy_max)])[0]
+            energies  = np.transpose(energies[np.argwhere(energies < energy_max)])[0]
+
+        self.energies = tf.convert_to_tensor(energies, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(rates_vs_energy * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)
 
