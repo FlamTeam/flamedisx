@@ -22,11 +22,20 @@ class TestStatistic():
     def __init__(self, likelihood):
         self.likelihood = likelihood
 
-    def __call__(self, mu_test, signal_source_name, guess_dict,
+    def __call__(self, mu_test, signal_source_name, guess_dict, other_fix_dict,
                  asymptotic=False):
+
+        # If we want to fix parameters other than the signal RM in the conditional fit, 
+        # pop them first from the guess dictionary.
+        for k in other_fix_dict.keys():
+            if not k in guess_dict.keys():
+                continue
+            guess_dict.pop(k)
+        
         # To fix the signal RM in the conditional fit
         fix_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(mu_test, fd.float_type())}
-
+        fix_dict = {**fix_dict, **other_fix_dict}
+        
         guess_dict_nuisance = guess_dict.copy()
         guess_dict_nuisance.pop(f'{signal_source_name}_rate_multiplier')
 
@@ -34,7 +43,7 @@ class TestStatistic():
         bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True,
                                                  allow_failure=True)
         # Uncnditional fit
-        bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True,
+        bf_unconditional = self.likelihood.bestfit(fix=other_fix_dict, guess=guess_dict, suppress_warnings=True,
                                                    allow_failure=True)
 
         # Return the test statistic, unconditional fit and conditional fit
@@ -178,10 +187,14 @@ class TSEvaluation():
             background_source_names: ty.Tuple[str],
             expected_background_counts: ty.Dict[str, float] = None,
             gaussian_constraint_widths: ty.Dict[str, float] = None,
+            fixed_parameters: ty.Dict[str, float] = None,
             sample_other_constraints: ty.Dict[str, ty.Callable] = None,
             likelihood=None,
             ntoys=1000):
 
+        if fixed_parameters is None:
+            fixed_parameters = dict()
+            
         if gaussian_constraint_widths is None:
             gaussian_constraint_widths = dict()
 
@@ -198,6 +211,7 @@ class TSEvaluation():
 
         self.expected_background_counts = expected_background_counts
         self.gaussian_constraint_widths = gaussian_constraint_widths
+        self.fixed_parameters = fixed_parameters
         self.sample_other_constraints = sample_other_constraints
 
     def run_routine(self, mus_test=None, save_fits=False,
@@ -375,6 +389,16 @@ class TSEvaluation():
             simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
                 self.sample_data_constraints(mu_test, signal_source_name, likelihood)
 
+            # Putting this in for now, but have to think about stats implications on this though;
+            # i.e. if it's a fixed parameter for stability reasons, does that mean we keep it fixed 
+            # at the same value as for observed TS fits? Or do we sample the fixed value... I think
+            # the latter at this point in time.
+            toy_fixed_parameters = dict()
+            for k in self.fixed_parameters.keys():
+                k_expected = k.replace('_rate_multiplier','_expected_counts')
+                if k_expected in constraint_extra_args_SB.keys():
+                    toy_fixed_parameters[k] = constraint_extra_args_SB.pop(k_expected)
+                    
             # S+B toys
 
             # Shift the constraint in the likelihood based on the background RMs we drew
@@ -403,8 +427,8 @@ class TSEvaluation():
                     if value < 0.1:
                         guess_dict_SB[key] = 0.1
                 # Evaluate test statistics
-                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
-                ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
+                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB, toy_fixed_parameters)
+                ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB, toy_fixed_parameters)
                 # Save test statistics, and possibly fits
                 ts_values_SB.append(ts_result_SB[0])
                 ts_values_SB_disco.append(ts_result_SB_disco[0])
@@ -423,6 +447,10 @@ class TSEvaluation():
                         guess_dict_B[key] = 0.1
                 toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
                 constraint_extra_args_B = self.constraint_extra_args_B[toy+(self.toy_batch*self.ntoys)]
+                for k in self.fixed_parameters.keys():
+                    k_expected = k.replace('_rate_multiplier','_expected_counts')
+                    if k_expected in constraint_extra_args_B.keys():
+                        toy_fixed_parameters[k] = constraint_extra_args_B.pop(k_expected)
             except Exception:
                 raise RuntimeError("Could not find background-only datasets")
 
@@ -448,7 +476,7 @@ class TSEvaluation():
                 # Create test statistic
                 test_statistic_B = self.test_statistic(likelihood)
                 # Evaluate test statistic
-                ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
+                ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B, toy_fixed_parameters)
                 # Save test statistic, and possibly fits
                 ts_values_B.append(ts_result_B[0])
                 if save_fits:
@@ -493,7 +521,7 @@ class TSEvaluation():
             if value < 0.1:
                 guess_dict[key] = tf.cast(0.1, fd.float_type())
         # Evaluate test statistic
-        ts_result = test_statistic(mu_test, signal_source_name, guess_dict,
+        ts_result = test_statistic(mu_test, signal_source_name, guess_dict, self.fixed_parameters,
                                    asymptotic=asymptotic)
 
         # Add to the test statistic collection
