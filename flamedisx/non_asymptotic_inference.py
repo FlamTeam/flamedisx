@@ -202,7 +202,7 @@ class TSEvaluation():
         self.expected_background_counts = expected_background_counts
         self.gaussian_constraint_widths = gaussian_constraint_widths
         self.sample_other_constraints = sample_other_constraints
-        self.fix_dict = fix_dict
+        self.fix_dict_param = fix_dict
 
     def run_routine(self, mus_test=None, save_fits=False,
                     observed_data=None,
@@ -327,6 +327,11 @@ class TSEvaluation():
         """
         simulate_dict = dict()
         constraint_extra_args = dict()
+        if self.fix_dict_param = None:
+            fix_dict_param = dict()
+        else:
+            fix_dict_param = self.fix_dict_param
+
         for background_source in self.background_source_names:
             # Case where we use the conditional best fits as constraint centers and simulated values
             if self.observed_test_stats is not None:
@@ -378,21 +383,21 @@ class TSEvaluation():
             # Sample constraint centers
             if param_name in self.sample_other_constraints.keys():
                 # Given the parameter center, use {sample_other_constraint} as draw
-                if param_name not in self.fix_dict.keys():
+                if param_name not in fix_dict_param.keys():
                     draw = self.sample_other_constraints[param_name](param_expect)
                 else: 
-                    draw = self.fix_dict[param_name]
+                    draw = fix_dict_param[param_name]
                 constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
             else:
                 # Hard-coded for now. If {sample_other_constraint} not provided, use 10% of bounds as gaussian width
-                if param_name not in self.fix_dict.keys():
+                if param_name not in fix_dict_param.keys():
                     param_range = tf.math.reduce_max(param_bounds) - tf.math.reduce_min(param_bounds)
                     draw = stats.norm.rvs(loc=param_expect, scale=0.1*param_range)
                 else: 
-                    draw = self.fix_dict[param_name]
+                    draw = fix_dict_param[param_name]
                 constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
 
-            if param_name not in self.fix_dict.keys():
+            if param_name not in fix_dict_param.keys():
                 simulate_dict[param_name] = tf.cast(param_expect, fd.float_type())
 
 
@@ -460,8 +465,8 @@ class TSEvaluation():
                     if value < 0.1:
                         guess_dict_SB[key] = 0.1
                 # Evaluate test statistics
-                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB, fix_dict_param = self.fix_dict)
-                ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB, fix_dict_param = self.fix_dict)
+                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB, fix_dict_param = self.fix_dict_param)
+                ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB, fix_dict_param = self.fix_dict_param)
                 # Save test statistics, and possibly fits
                 ts_values_SB.append(ts_result_SB[0])
                 ts_values_SB_disco.append(ts_result_SB_disco[0])
@@ -504,7 +509,7 @@ class TSEvaluation():
                 # Create test statistic
                 test_statistic_B = self.test_statistic(likelihood)
                 # Evaluate test statistic
-                ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B, fix_dict_param = self.fix_dict)
+                ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B, fix_dict_param = self.fix_dict_param)
                 # Save test statistic, and possibly fits
                 ts_values_B.append(ts_result_B[0])
                 if save_fits:
