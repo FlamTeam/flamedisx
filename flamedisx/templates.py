@@ -378,14 +378,14 @@ class MultiTemplateSource(fd.Source):
 
     def _differential_rate(self, data_tensor, ptensor):
         norm = tfp.math.batch_interp_regular_1d_grid(
-                x=ptensor[None, :],
+                x=self._fetch_param(self.param_name, ptensor),
                 x_ref_min=self.pmin,
                 x_ref_max=self.pmax,
                 y_ref=self.normalisations,
                 )
-
-        knots_per_event=tf.convert_to_tensor([self.tensor_xvals,self._fetch(self.column, data_tensor)],dtype=fd.float_type())
-        bspline_diff_rates=self.bspline_interpolate_per_bin(ptensor[None, :], tf.transpose(knots_per_event,perm=[1,0,2]))
+        
+        knots_per_event=tf.convert_to_tensor([self.tensor_xvals, self._fetch(self.column, data_tensor)],dtype=fd.float_type())
+        bspline_diff_rates=self.bspline_interpolate_per_bin(self._fetch_param(self.param_name, ptensor), tf.transpose(knots_per_event,perm=[1,0,2]))
         dr=tf.squeeze(norm)*bspline_diff_rates
 
         return dr
