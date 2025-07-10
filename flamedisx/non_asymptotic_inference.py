@@ -327,7 +327,7 @@ class TSEvaluation():
         """
         simulate_dict = dict()
         constraint_extra_args = dict()
-        if self.fix_dict_param = None:
+        if self.fix_dict_param is None:
             fix_dict_param = dict()
         else:
             fix_dict_param = self.fix_dict_param
