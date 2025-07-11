@@ -383,16 +383,21 @@ class TSEvaluation():
                     raise RuntimeError(f"Could not find observed conditional best fits for parameter {param_name}")
 
             # Sample constraint centers
-            if param_name in self.gaussian_constraint_widths.keys():
+"""             if param_name in self.gaussian_constraint_widths.keys():
                 # Given the parameter center, use {gaussian_constraint_widths} to get draw
                 if param_name not in fix_dict_param.keys():
                     draw = stats.norm.rvs(loc=param_expect,
                                         scale=self.gaussian_constraint_widths[param_name])
                 else: 
                     draw = fix_dict_param[param_name]
+                constraint_extra_args[param_name] = tf.cast(draw, fd.float_type()) """
+
+            if param_name in self.sample_other_constraints.keys():
+                # Given the parameter center, use {sample_other_constraint} as draw
+                draw = self.sample_other_constraints[param_name](param_expect)
                 constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
             else:
-                # If {gaussian_constraint_widths} not provided, use 10% of parameter bound as gaussian width
+                # If not provided, use 10% of parameter bound as gaussian width
                 if param_name not in fix_dict_param.keys():
                     param_range = tf.math.reduce_max(param_bounds) - tf.math.reduce_min(param_bounds)
                     draw = stats.norm.rvs(loc=param_expect, scale=0.1*param_range)
