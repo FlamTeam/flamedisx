@@ -323,6 +323,8 @@ class TSEvaluation():
         """
         simulate_dict = dict()
         constraint_extra_args = dict()
+
+        # For rate multipliers
         for background_source in self.background_source_names:
             # Case where we use the conditional best fits as constraint centers and simulated values
             if self.observed_test_stats is not None:
@@ -348,6 +350,29 @@ class TSEvaluation():
 
             simulate_dict[f'{background_source}_rate_multiplier'] = tf.cast(expected_background_counts, fd.float_type())
             simulate_dict[f'{signal_source_name}_rate_multiplier'] = tf.cast(mu_test, fd.float_type())
+
+        # For all other parameters
+        for param_name in likelihood.param_names:
+            if '_rate_multiplier' in param_name:
+                continue
+
+            if param_name not in self.sample_other_constraints.keys():
+                continue
+
+            # Case where we use the conditional best fits as constraint centers and simulated values
+            if self.observed_test_stats is not None:
+                try:
+                    conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits
+                    param_val_expected = conditional_bfs_observed[mu_test][param_name]
+                except Exception:
+                    raise RuntimeError("Could not find observed conditional best fits")
+            # Case where we use the prior expected counts as constraint centers and simualted values
+            else:
+                param_val_expected = likelihood.param_defaults[param_name]
+
+            # Sample constraint centers
+            draw = self.sample_other_constraints[param_name](param_val_expected)
+            constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
 
         if self.observed_test_stats is not None:
             conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits[mu_test]
