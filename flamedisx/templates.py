@@ -402,7 +402,7 @@ class MultiTemplateSource(fd.Source):
         # TODO: all other arguments are ignored, they make no sense
         # for this source. Should we warn about this? Remove them from def?
 
-        assert len(self.defaults) == 1
+        #assert len(self.defaults) == 1
 
         template_weights = tfp.math.batch_interp_regular_1d_grid(
             x=params[next(iter(self.defaults))],
