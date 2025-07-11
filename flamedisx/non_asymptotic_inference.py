@@ -210,7 +210,8 @@ class TSEvaluation():
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
-                    asymptotic=False):
+                    asymptotic=False,
+                    vary_signal_dict=None):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -305,7 +306,8 @@ class TSEvaluation():
                     self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
                                                  test_stat_dists_SB_disco,
                                                  mu_test, signal_source, likelihood,
-                                                 save_fits=save_fits)
+                                                 save_fits=save_fits, 
+                                                 vary_signal_dict=vary_signal_dict)
 
             if observed_data is not None:
                 observed_test_stats_collection[signal_source] = observed_test_stats
@@ -420,7 +422,7 @@ class TSEvaluation():
     def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
                                 test_stat_dists_SB_disco,
                                 mu_test, signal_source_name, likelihood,
-                                save_fits=False):
+                                save_fits=False, vary_signal_dict=None):
         """Internal function to get test statistic distribution.
         """
         ts_values_SB = []
@@ -434,8 +436,12 @@ class TSEvaluation():
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
+            if vary_signal_dict is not None:
+                mu_sim = sps.norm.rvs(loc=mu_test, scale=vary_signal_dict[signal_source_name])
+            else:
+                mu_sim = mu_test
             simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
-                self.sample_data_constraints(mu_test, signal_source_name, likelihood)
+                self.sample_data_constraints(mu_sim, signal_source_name, likelihood)
 
             # S+B toys
 
