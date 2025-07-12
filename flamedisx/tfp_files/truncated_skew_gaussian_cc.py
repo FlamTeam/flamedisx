@@ -71,7 +71,8 @@ class TruncatedSkewGaussianCC(distribution.Distribution):
     """
     parameters = dict(locals())
     with tf.name_scope(name) as name:
-      dtype = dtype_util.common_dtype([loc, scale, skewness, limit], dtype_hint=tf.float32)
+      #dtype = dtype_util.common_dtype([loc, scale, skewness, limit], dtype_hint=tf.float32)
+      dtype = dtype_util.common_dtype([loc, scale, skewness, limit], dtype_hint=fd.float_type())
       self._loc = tensor_util.convert_nonref_to_tensor(
           loc, dtype=dtype, name='loc')
       self._scale = tensor_util.convert_nonref_to_tensor(

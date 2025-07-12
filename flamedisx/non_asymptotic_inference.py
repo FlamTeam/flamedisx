@@ -397,8 +397,8 @@ class TSEvaluation():
             for k in self.fixed_parameters.keys():
                 k_expected = k.replace('_rate_multiplier','_expected_counts')
                 if k_expected in constraint_extra_args_SB.keys():
-                    toy_fixed_parameters[k] = constraint_extra_args_SB.pop(k_expected)
-                    
+                    toy_fixed_parameters[k] = constraint_extra_args_SB[k_expected]
+
             # S+B toys
 
             # Shift the constraint in the likelihood based on the background RMs we drew
@@ -450,7 +450,7 @@ class TSEvaluation():
                 for k in self.fixed_parameters.keys():
                     k_expected = k.replace('_rate_multiplier','_expected_counts')
                     if k_expected in constraint_extra_args_B.keys():
-                        toy_fixed_parameters[k] = constraint_extra_args_B.pop(k_expected)
+                        toy_fixed_parameters[k] = constraint_extra_args_B[k_expected]
             except Exception:
                 raise RuntimeError("Could not find background-only datasets")
 

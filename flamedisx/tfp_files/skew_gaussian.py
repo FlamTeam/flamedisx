@@ -78,7 +78,8 @@ class SkewGaussian(distribution.Distribution):
     """
     parameters = dict(locals())
     with tf.name_scope(name) as name:
-      dtype = dtype_util.common_dtype([loc, scale, skewness], dtype_hint=tf.float32)
+      #dtype = dtype_util.common_dtype([loc, scale, skewness], dtype_hint=tf.float32)
+      dtype = dtype_util.common_dtype([loc, scale, skewness], dtype_hint=fd.float_type())
       self._loc = tensor_util.convert_nonref_to_tensor(
           loc, dtype=dtype, name='loc')
       self._scale = tensor_util.convert_nonref_to_tensor(
@@ -155,8 +156,10 @@ class SkewGaussian(distribution.Distribution):
     val = tf.math.atan(a) * tf.ones_like(hs)
 
     for i in range(terms):
-        val += ci * tf.math.pow(a,2*tf.cast(i,'float32')+1) / (2*tf.cast(i,'float32')+1)
-        ci = -ci + tf.math.pow(hs,tf.cast(i+1,'float32')) / tf.exp(tf.math.lgamma(tf.cast(i+2,'float32'))) * exp_hs
+        # val += ci * tf.math.pow(a,2*tf.cast(i,'float32')+1) / (2*tf.cast(i,'float32')+1)
+        # ci = -ci + tf.math.pow(hs,tf.cast(i+1,'float32')) / tf.exp(tf.math.lgamma(tf.cast(i+2,'float32'))) * exp_hs
+        val += ci * tf.math.pow(a,2*tf.cast(i,'float64')+1) / (2*tf.cast(i,'float64')+1)
+        ci = -ci + tf.math.pow(hs,tf.cast(i+1,'float64')) / tf.exp(tf.math.lgamma(tf.cast(i+2,'float64'))) * exp_hs
 
     val = val / (2 * np.pi)
 
@@ -166,13 +169,17 @@ class SkewGaussian(distribution.Distribution):
     scale = tf.convert_to_tensor(self.scale)
     skewness = tf.convert_to_tensor(self.skewness)
 
-    h = tf.cast((x - self.loc)/scale,'float32')
-    a = tf.cast(skewness,'float32')
-
+    # h = tf.cast((x - self.loc)/scale,'float32')
+    # a = tf.cast(skewness,'float32')
+    h = tf.cast((x - self.loc)/scale,'float64')
+    a = tf.cast(skewness,'float64')
+      
     owens_t_eval = 0.5 * normal.Normal(loc=0.,scale=1.).cdf(h) + 0.5 * normal.Normal(loc=0.,scale=1.).cdf(a*h) - normal.Normal(loc=0.,scale=1.).cdf(h) * normal.Normal(loc=0.,scale=1.).cdf(a*h)
 
+    # return 0.5 * (1. + tf.math.erf(1./(np.sqrt(2.)*scale) * (x - self.loc))) - \
+    # tf.cast(tf.where(a > tf.ones_like(a), 2. * (owens_t_eval - self.owensT1(a*h,1./a,self.owens_t_terms)), 2. * self.owensT1(h,a,self.owens_t_terms)),'float32')
     return 0.5 * (1. + tf.math.erf(1./(np.sqrt(2.)*scale) * (x - self.loc))) - \
-    tf.cast(tf.where(a > tf.ones_like(a), 2. * (owens_t_eval - self.owensT1(a*h,1./a,self.owens_t_terms)), 2. * self.owensT1(h,a,self.owens_t_terms)),'float32')
+    tf.cast(tf.where(a > tf.ones_like(a), 2. * (owens_t_eval - self.owensT1(a*h,1./a,self.owens_t_terms)), 2. * self.owensT1(h,a,self.owens_t_terms)),'float64')
 
   def _parameter_control_dependencies(self, is_init):
     assertions = []

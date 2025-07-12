@@ -37,7 +37,8 @@ class ReconstructSignals(fd.Block):
         # clipping this to (1e-15, float32max) to be symmetric with _compute
         smear = self.gimme_numpy(f'reconstruction_smear_{self.signal_name}_simulate',
                                  bonus_arg=d[self.raw_signal_name].values)
-        smear = np.clip(smear, 1e-15, tf.float32.max)
+        #smear = np.clip(smear, 1e-15, tf.float32.max)
+        smear = np.clip(smear, 1e-15, fd.float_type().max)
         # TODO: why some raw signals <=0?
         # checked 1e7 events and didn't see any raw_signals<=0..
 

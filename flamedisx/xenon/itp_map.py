@@ -126,7 +126,8 @@ class InterpolatingMap:
               dtype=dtype).reshape(*shape)
             del self.data['compressed']
         if 'quantized' in self.data:
-            self.data['map'] = self.data['quantized'] * self.data['map'].astype(np.float32)
+            #self.data['map'] = self.data['quantized'] * self.data['map'].astype(np.float32)
+            self.data['map'] = self.data['quantized'] * self.data['map'].astype(np.float64)
             del self.data['quantized']
 
         csys = self.data['coordinate_system']

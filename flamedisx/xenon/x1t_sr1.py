@@ -461,7 +461,8 @@ class SR1Source:
         # data is int64 in ns. But need this to be float32 to interpolate.
         if 'elife' not in d.columns:
             if self.variable_elife:
-                d['event_time'] = d['event_time'].astype('float32')
+                #d['event_time'] = d['event_time'].astype('float32')
+                d['event_time'] = d['event_time'].astype('float64')
                 d['elife'] = interpolate_tf(d['event_time'], self.elife_tf[0],
                                         self.domain_def_elife)
             else:
