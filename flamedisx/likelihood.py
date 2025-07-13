@@ -271,6 +271,8 @@ class LogLikelihood:
                               UserWarning)
             for s in self.sources.values():
                 s.set_data(None)
+                s.n_batches = 0
+                self.batch_info = None
                 return
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=int)

@@ -22,8 +22,7 @@ class TestStatistic():
     def __init__(self, likelihood):
         self.likelihood = likelihood
 
-    def __call__(self, mu_test, signal_source_name, guess_dict,
-                 asymptotic=False):
+    def __call__(self, mu_test, signal_source_name, guess_dict):
         # To fix the signal RM in the conditional fit
         fix_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(mu_test, fd.float_type())}
 
@@ -38,11 +37,7 @@ class TestStatistic():
                                                    allow_failure=True)
 
         # Return the test statistic, unconditional fit and conditional fit
-        if not asymptotic:
-            return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
-        else:
-            return self.evaluate_asymptotic_pval(bf_unconditional, bf_conditional,
-                                                 mu_test), bf_unconditional, bf_conditional
+        return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
 
 
 @export
@@ -61,23 +56,6 @@ class TestStatisticTMuTilde(TestStatistic):
             return 0.
         else:
             return ts
-
-    def evaluate_asymptotic_pval(self, bf_unconditional, bf_conditional, mu_test):
-        ll_conditional = self.likelihood(**bf_conditional)
-        ll_unconditional = self.likelihood(**bf_unconditional)
-
-        ts = -2. * (ll_conditional - ll_unconditional)
-
-        cov = 2. * self.likelihood.inverse_hessian(bf_unconditional)
-        sigma_mu = np.sqrt(cov[0][0])
-
-        if ts < (mu_test**2 / sigma_mu**2):
-            F = 2. * stats.norm.cdf(np.sqrt(ts)) - 1.
-        else:
-            F = stats.norm.cdf(np.sqrt(ts)) + stats.norm.cdf((ts + (mu_test**2 / sigma_mu**2)) / (2. * mu_test / sigma_mu)) - 1.
-
-        pval = 1. - F
-        return pval
 
 
 @export
@@ -206,7 +184,7 @@ class TSEvaluation():
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
-                    asymptotic=False):
+                    SB_toys=False, B_toys=False, discovery_TS=False):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -251,16 +229,20 @@ class TSEvaluation():
             self.toy_batch = toy_batch
 
         observed_test_stats_collection = dict()
+
         test_stat_dists_SB_collection = dict()
         test_stat_dists_SB_disco_collection = dict()
         test_stat_dists_B_collection = dict()
+        test_stat_dists_B_disco_collection = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
             observed_test_stats = ObservedTestStatistics()
+
             test_stat_dists_SB = TestStatisticDistributions()
             test_stat_dists_SB_disco = TestStatisticDistributions()
             test_stat_dists_B = TestStatisticDistributions()
+            test_stat_dists_B_disco = TestStatisticDistributions()
 
             # Get likelihood
             likelihood = deepcopy(self.likelihood)
@@ -294,14 +276,14 @@ class TSEvaluation():
                 # Case where we want observed test statistics
                 if observed_data is not None:
                     self.get_observed_test_stat(observed_test_stats, observed_data,
-                                                mu_test, signal_source, likelihood, save_fits=save_fits,
-                                                asymptotic=asymptotic)
+                                                mu_test, signal_source, likelihood, save_fits=save_fits)
                 # Case where we want test statistic distributions
                 else:
-                    self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_B,
-                                                 test_stat_dists_SB_disco,
+                    self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_SB_disco,
+                                                 test_stat_dists_B, test_stat_dists_B_disco,
                                                  mu_test, signal_source, likelihood,
-                                                 save_fits=save_fits)
+                                                 save_fits=save_fits,
+                                                 SB_toys=SB_toys, B_toys=B_toys, discovery_TS=discovery_TS)
 
             if observed_data is not None:
                 observed_test_stats_collection[signal_source] = observed_test_stats
@@ -309,12 +291,13 @@ class TSEvaluation():
                 test_stat_dists_SB_collection[signal_source] = test_stat_dists_SB
                 test_stat_dists_SB_disco_collection[signal_source] = test_stat_dists_SB_disco
                 test_stat_dists_B_collection[signal_source] = test_stat_dists_B
+                test_stat_dists_B_disco_collection[signal_source] = test_stat_dists_B_disco
 
         if observed_data is not None:
             return observed_test_stats_collection
         else:
             return test_stat_dists_SB_collection, test_stat_dists_SB_disco_collection, \
-                test_stat_dists_B_collection
+                test_stat_dists_B_collection, test_stat_dists_B_disco_collection
 
     def sample_data_constraints(self, mu_test, signal_source_name, likelihood):
         """Internal function to sample the toy data and constraint central values
@@ -334,7 +317,7 @@ class TSEvaluation():
                         conditional_bfs_observed[mu_test][f'{background_source}_rate_multiplier']
                 except Exception:
                     raise RuntimeError("Could not find observed conditional best fits")
-            # Case where we use the prior expected counts as constraint centers and simualted values
+            # Case where we use the prior expected counts as constraint centers and simulated values
             else:
                 expected_background_counts = self.expected_background_counts[background_source]
 
@@ -366,7 +349,7 @@ class TSEvaluation():
                     param_val_expected = conditional_bfs_observed[mu_test][param_name]
                 except Exception:
                     raise RuntimeError("Could not find observed conditional best fits")
-            # Case where we use the prior expected counts as constraint centers and simualted values
+            # Case where we use the prior expected counts as constraint centers and simulated values
             else:
                 param_val_expected = likelihood.param_defaults[param_name]
 
@@ -390,15 +373,19 @@ class TSEvaluation():
 
         return simulate_dict, toy_data, constraint_extra_args
 
-    def toy_test_statistic_dist(self, test_stat_dists_SB, test_stat_dists_B,
-                                test_stat_dists_SB_disco,
+    def toy_test_statistic_dist(self,
+                                test_stat_dists_SB, test_stat_dists_SB_disco,
+                                test_stat_dists_B, test_stat_dists_B_disco,
                                 mu_test, signal_source_name, likelihood,
-                                save_fits=False):
+                                save_fits=False,
+                                SB_toys=False, B_toys=False, discovery_TS=False):
         """Internal function to get test statistic distribution.
         """
         ts_values_SB = []
         ts_values_SB_disco = []
         ts_values_B = []
+        ts_values_B_disco = []
+
         if save_fits:
             unconditional_bfs_SB = []
             conditional_bfs_SB = []
@@ -407,24 +394,14 @@ class TSEvaluation():
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
-            simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
-                self.sample_data_constraints(mu_test, signal_source_name, likelihood)
-
             # S+B toys
+            if SB_toys:
+                simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
+                    self.sample_data_constraints(mu_test, signal_source_name, likelihood)
 
-            # Shift the constraint in the likelihood based on the background RMs we drew
-            likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
-            # Set data
-            empty_dataframe = False
-            if hasattr(likelihood, 'likelihoods'):
-                for component, data in toy_data_SB.items():
-                    if len(data) == 0:
-                        empty_dataframe = True
-            else:
-                if len(toy_data_SB) == 0:
-                    empty_dataframe = True
-
-            if not empty_dataframe:
+                # Shift the constraint in the likelihood based on the background RMs we drew
+                likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
+                # Set data
                 if hasattr(likelihood, 'likelihoods'):
                     for component, data in toy_data_SB.items():
                         likelihood.set_data(data, component)
@@ -437,43 +414,35 @@ class TSEvaluation():
                 for key, value in guess_dict_SB.items():
                     if value < 0.1:
                         guess_dict_SB[key] = 0.1
-                # Evaluate test statistics
-                ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
-                ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
-                # Save test statistics, and possibly fits
-                ts_values_SB.append(ts_result_SB[0])
-                ts_values_SB_disco.append(ts_result_SB_disco[0])
+                # Evaluate and save test statistics
+                if discovery_TS:
+                    ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
+                    ts_values_SB_disco.append(ts_result_SB_disco[0])
+                else:
+                    ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
+                    ts_values_SB.append(ts_result_SB[0])
+                # Possibly save fits
                 if save_fits:
                     unconditional_bfs_SB.append(ts_result_SB[1])
                     conditional_bfs_SB.append(ts_result_SB[2])
 
             # B-only toys
+            if B_toys:
+                try:
+                    # Guesses for fit
+                    guess_dict_B = self.simulate_dict_B.copy()
+                    guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
+                    for key, value in guess_dict_B.items():
+                        if value < 0.1:
+                            guess_dict_B[key] = 0.1
+                    toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
+                    constraint_extra_args_B = self.constraint_extra_args_B[toy+(self.toy_batch*self.ntoys)]
+                except Exception:
+                    raise RuntimeError("Could not find background-only datasets")
 
-            try:
-                # Guesses for fit
-                guess_dict_B = self.simulate_dict_B.copy()
-                guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
-                for key, value in guess_dict_B.items():
-                    if value < 0.1:
-                        guess_dict_B[key] = 0.1
-                toy_data_B = self.toy_data_B[toy+(self.toy_batch*self.ntoys)]
-                constraint_extra_args_B = self.constraint_extra_args_B[toy+(self.toy_batch*self.ntoys)]
-            except Exception:
-                raise RuntimeError("Could not find background-only datasets")
-
-            # Shift the constraint in the likelihood based on the background RMs we drew
-            likelihood.set_constraint_extra_args(**constraint_extra_args_B)
-            # Set data
-            empty_dataframe = False
-            if hasattr(likelihood, 'likelihoods'):
-                for component, data in toy_data_B.items():
-                    if len(data) == 0:
-                        empty_dataframe = True
-            else:
-                if len(toy_data_B) == 0:
-                    empty_dataframe = True
-
-            if not empty_dataframe:
+                # Shift the constraint in the likelihood based on the background RMs we drew
+                likelihood.set_constraint_extra_args(**constraint_extra_args_B)
+                # Set data
                 if hasattr(likelihood, 'likelihoods'):
                     for component, data in toy_data_B.items():
                         likelihood.set_data(data, component)
@@ -481,10 +450,14 @@ class TSEvaluation():
                     likelihood.set_data(toy_data_B)
                 # Create test statistic
                 test_statistic_B = self.test_statistic(likelihood)
-                # Evaluate test statistic
-                ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
-                # Save test statistic, and possibly fits
-                ts_values_B.append(ts_result_B[0])
+                # Evaluate and save test statistics
+                if discovery_TS:
+                    ts_result_B_disco = test_statistic_B(0., signal_source_name, guess_dict_B)
+                    ts_values_B_disco.append(ts_result_B_disco[0])
+                else:
+                    ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
+                    ts_values_B.append(ts_result_B[0])
+                # Possibly save fits
                 if save_fits:
                     unconditional_bfs_B.append(ts_result_SB[1])
                     conditional_bfs_B.append(ts_result_SB[2])
@@ -493,6 +466,7 @@ class TSEvaluation():
         test_stat_dists_SB.add_ts_dist(mu_test, ts_values_SB)
         test_stat_dists_SB_disco.add_ts_dist(mu_test, ts_values_SB_disco)
         test_stat_dists_B.add_ts_dist(mu_test, ts_values_B)
+        test_stat_dists_B_disco.add_ts_dist(mu_test, ts_values_B_disco)
 
         # Possibly save the fits
         if save_fits:
@@ -502,8 +476,7 @@ class TSEvaluation():
             test_stat_dists_B.add_conditional_best_fit(mu_test, conditional_bfs_B)
 
     def get_observed_test_stat(self, observed_test_stats, observed_data,
-                               mu_test, signal_source_name, likelihood, save_fits=False,
-                               asymptotic=False):
+                               mu_test, signal_source_name, likelihood, save_fits=False):
         """Internal function to evaluate observed test statistic.
         """
         # The constraints are centered on the expected values
@@ -531,8 +504,7 @@ class TSEvaluation():
             if value < 0.1:
                 guess_dict[key] = tf.cast(0.1, fd.float_type())
         # Evaluate test statistic
-        ts_result = test_statistic(mu_test, signal_source_name, guess_dict,
-                                   asymptotic=asymptotic)
+        ts_result = test_statistic(mu_test, signal_source_name, guess_dict)
 
         # Add to the test statistic collection
         observed_test_stats.add_test_stat(mu_test, ts_result[0])
@@ -595,7 +567,7 @@ class IntervalCalculator():
         else:
             return (crit_val - x_left) * gradient + y_left
 
-    def get_p_vals(self, conf_level, use_CLs=False, asymptotic=False):
+    def get_p_vals(self, conf_level, use_CLs=False):
         """Internal function to get p-value curves.
         """
         p_sb_collection = dict()
@@ -603,10 +575,6 @@ class IntervalCalculator():
         p_b_collection = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
-            if asymptotic:
-                p_sb_collection[signal_source] = self.observed_test_stats[signal_source]
-                continue
-
             # Get test statistic distribitions and observed test statistics
             test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
             test_stat_dists_B = self.test_stat_dists_B[signal_source]
@@ -623,17 +591,13 @@ class IntervalCalculator():
                 powers = test_stat_dists_B.get_p_vals(crit_vals)
                 powers_collection[signal_source] = powers
 
-        if asymptotic:
-            return p_sb_collection
-
         if use_CLs:
             return p_sb_collection, p_b_collection
         else:
             return p_sb_collection, powers_collection
 
     def get_interval(self, conf_level=0.1, pcl_level=0.16,
-                     use_CLs=False,
-                     asymptotic=False):
+                     use_CLs=False):
         """Get frequentist confidence interval.
 
         Arguments:
@@ -645,34 +609,27 @@ class IntervalCalculator():
                 (https://inspirehep.net/literature/599622), and the final return value
                 will be the p-value curves under H1
         """
-        if not asymptotic:
-            if use_CLs:
-                p_sb, p_b = self.get_p_vals(conf_level, use_CLs=True)
-            else:
-                p_sb, powers = self.get_p_vals(conf_level, use_CLs=False)
+        if use_CLs:
+            p_sb, p_b = self.get_p_vals(conf_level, use_CLs=True)
         else:
-            p_sb = self.get_p_vals(conf_level, use_CLs=True, asymptotic=True)
+            p_sb, powers = self.get_p_vals(conf_level, use_CLs=False)
 
         lower_lim_all = dict()
         upper_lim_all = dict()
         upper_lim_all_raw = dict()
         # Loop over signal sources
         for signal_source in self.signal_source_names:
-            if not asymptotic:
-                these_p_sb = p_sb[signal_source]
-            else:
-                these_p_sb = p_sb[signal_source].test_stats
+            these_p_sb = p_sb[signal_source]
             mus = np.array(list(these_p_sb.keys()))
             p_vals = np.array(list(these_p_sb.values()))
 
-            if not asymptotic:
-                if use_CLs:
-                    these_p_b = p_b[signal_source]
-                    p_vals_b = np.array(list(these_p_b.values()))
-                    p_vals = p_vals / (1. - p_vals_b + 1e-10)
-                else:
-                    these_powers = powers[signal_source]
-                    pws = np.array(list(these_powers.values()))
+            if use_CLs:
+                these_p_b = p_b[signal_source]
+                p_vals_b = np.array(list(these_p_b.values()))
+                p_vals = p_vals / (1. - p_vals_b + 1e-10)
+            else:
+                these_powers = powers[signal_source]
+                pws = np.array(list(these_powers.values()))
 
             # Find points where the p-value curve cross the critical value, decreasing
             upper_lims = np.argwhere(np.diff(np.sign(p_vals - np.ones_like(p_vals) * conf_level)) < 0.).flatten()
@@ -693,7 +650,7 @@ class IntervalCalculator():
                                            rising_edge=False, inverse=True)
             upper_lim_raw = upper_lim
 
-            if use_CLs is False and not asymptotic:
+            if use_CLs is False:
                 M0 = self.interp_helper(mus, pws, upper_lims, upper_lim,
                                         rising_edge=False, inverse=False)
                 if M0 < pcl_level:
@@ -707,8 +664,6 @@ class IntervalCalculator():
             upper_lim_all[signal_source] = upper_lim
             upper_lim_all_raw[signal_source] = upper_lim_raw
 
-        if asymptotic:
-            return lower_lim_all, upper_lim_all
         if use_CLs is False:
             return lower_lim_all, upper_lim_all, upper_lim_all_raw, p_sb, powers
         else:
