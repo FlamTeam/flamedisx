@@ -422,9 +422,9 @@ class TSEvaluation():
                 test_statistic_SB = self.test_statistic(likelihood)
                 # Guesses for fit
                 guess_dict_SB = simulate_dict_SB.copy()
-                # for key, value in guess_dict_SB.items():
-                #     if value < 0.1:
-                #         guess_dict_SB[key] = 0.1
+                for key, value in guess_dict_SB.items():
+                    if value < 0.1:
+                        guess_dict_SB[key] = 0.1
                 # Evaluate and save test statistics
                 if discovery_TS:
                     ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
