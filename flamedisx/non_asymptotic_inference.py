@@ -365,6 +365,10 @@ class TSEvaluation():
                     simulate_dict[pname] = fitval
                     non_rate_params_added.append(pname)
 
+        if 'combined_rate_scaling_expected' in constraint_extra_args:
+            simulate_dict['combined_rate_scaling'] = constraint_extra_args['combined_rate_scaling_expected']
+            constraint_extra_args['combined_rate_scaling_expected'] = 0.
+
         toy_data = likelihood.simulate(**simulate_dict)
 
         if self.observed_test_stats is not None:
