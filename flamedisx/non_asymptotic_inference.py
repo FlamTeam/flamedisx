@@ -355,7 +355,7 @@ class TSEvaluation():
 
             # Sample constraint centers
             draw = self.sample_other_constraints[param_name](param_val_expected)
-            constraint_extra_args[param_name] = tf.cast(draw, fd.float_type())
+            constraint_extra_args[f'{param_name}_expected'] = tf.cast(draw, fd.float_type())
 
         if self.observed_test_stats is not None:
             conditional_bfs_observed = self.observed_test_stats[signal_source_name].conditional_best_fits[mu_test]
@@ -389,8 +389,15 @@ class TSEvaluation():
         if save_fits:
             unconditional_bfs_SB = []
             conditional_bfs_SB = []
+
+            unconditional_bfs_SB_disco = []
+            conditional_bfs_SB_disco = []
+
             unconditional_bfs_B = []
             conditional_bfs_B = []
+
+            unconditional_bfs_B_disco = []
+            conditional_bfs_B_disco = []
 
         # Loop over toys
         for toy in tqdm(range(self.ntoys), desc='Doing toys'):
@@ -411,9 +418,9 @@ class TSEvaluation():
                 test_statistic_SB = self.test_statistic(likelihood)
                 # Guesses for fit
                 guess_dict_SB = simulate_dict_SB.copy()
-                for key, value in guess_dict_SB.items():
-                    if value < 0.1:
-                        guess_dict_SB[key] = 0.1
+                # for key, value in guess_dict_SB.items():
+                #     if value < 0.1:
+                #         guess_dict_SB[key] = 0.1
                 # Evaluate and save test statistics
                 if discovery_TS:
                     ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
@@ -423,8 +430,12 @@ class TSEvaluation():
                     ts_values_SB.append(ts_result_SB[0])
                 # Possibly save fits
                 if save_fits:
-                    unconditional_bfs_SB.append(ts_result_SB[1])
-                    conditional_bfs_SB.append(ts_result_SB[2])
+                    if discovery_TS:
+                        unconditional_bfs_SB_disco.append(ts_result_SB_disco[1])
+                        conditional_bfs_SB_disco.append(ts_result_SB_disco[2])
+                    else:
+                        unconditional_bfs_SB.append(ts_result_SB[1])
+                        conditional_bfs_SB.append(ts_result_SB[2])
 
             # B-only toys
             if B_toys:
@@ -459,8 +470,12 @@ class TSEvaluation():
                     ts_values_B.append(ts_result_B[0])
                 # Possibly save fits
                 if save_fits:
-                    unconditional_bfs_B.append(ts_result_SB[1])
-                    conditional_bfs_B.append(ts_result_SB[2])
+                    if discovery_TS:
+                        unconditional_bfs_B_disco.append(ts_result_B_disco[1])
+                        conditional_bfs_B_disco.append(ts_result_B_disco[2])
+                    else:
+                        unconditional_bfs_B.append(ts_result_SB[1])
+                        conditional_bfs_B.append(ts_result_SB[2])
 
         # Add to the test statistic distributions
         test_stat_dists_SB.add_ts_dist(mu_test, ts_values_SB)
@@ -472,8 +487,15 @@ class TSEvaluation():
         if save_fits:
             test_stat_dists_SB.add_unconditional_best_fit(mu_test, unconditional_bfs_SB)
             test_stat_dists_SB.add_conditional_best_fit(mu_test, conditional_bfs_SB)
+
+            test_stat_dists_SB_disco.add_unconditional_best_fit(mu_test, unconditional_bfs_SB_disco)
+            test_stat_dists_SB_disco.add_conditional_best_fit(mu_test, conditional_bfs_SB_disco)
+
             test_stat_dists_B.add_unconditional_best_fit(mu_test, unconditional_bfs_B)
             test_stat_dists_B.add_conditional_best_fit(mu_test, conditional_bfs_B)
+
+            test_stat_dists_B_disco.add_unconditional_best_fit(mu_test, unconditional_bfs_B_disco)
+            test_stat_dists_B_disco.add_conditional_best_fit(mu_test, conditional_bfs_B_disco)
 
     def get_observed_test_stat(self, observed_test_stats, observed_data,
                                mu_test, signal_source_name, likelihood, save_fits=False):
