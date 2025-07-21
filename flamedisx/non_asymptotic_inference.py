@@ -25,6 +25,8 @@ class TestStatistic():
     def __call__(self, mu_test, signal_source_name, guess_dict, other_fix_dict,
                  asymptotic=False):
 
+        guess_dict = {k: tf.cast(v, fd.float_type()) for k, v in guess_dict.items()}
+        other_fix_dict = {k: tf.cast(v, fd.float_type()) for k, v in other_fix_dict.items()}
         # If we want to fix parameters other than the signal RM in the conditional fit, 
         # pop them first from the guess dictionary.
         for k in other_fix_dict.keys():

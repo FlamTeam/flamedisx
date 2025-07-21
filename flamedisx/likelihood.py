@@ -405,6 +405,7 @@ class LogLikelihood:
                     batch_data_tensor = None
                 else:
                     batch_data_tensor = tf.gather(self.data_tensors[dsetname], i_batch)
+
                 results = self._log_likelihood(
                     i_batch,
                     dsetname=dsetname,
