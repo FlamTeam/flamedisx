@@ -552,7 +552,8 @@ class Source:
 
     def ptensor_from_kwargs(self, **kwargs):
         return tf.convert_to_tensor([kwargs.get(k, self.defaults[k])
-                                     for k in self.defaults])
+                                     for k in self.defaults],
+                                    dtype=fd.float_type())
 
     ##
     # Simulation methods and helpers
