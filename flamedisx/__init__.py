@@ -45,3 +45,7 @@ from . import tfp_files
 # SABRE models
 # Access through fd.sabre.xxx
 from . import sabre
+
+# Simple version of SABRE models
+# Access through fd.sabre_simple.xxx
+from . import sabre_simple
