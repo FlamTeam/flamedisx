@@ -184,7 +184,8 @@ class TSEvaluation():
                     generate_B_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
-                    SB_toys=False, B_toys=False, discovery_TS=False):
+                    SB_toys=False, B_toys=False, discovery_TS=False,
+                    sample_certain_nuisance=False):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
 
@@ -264,7 +265,8 @@ class TSEvaluation():
                 constraint_extra_args_B_all = []
                 for i in tqdm(range(self.ntoys), desc='Background-only toys'):
                     simulate_dict_B, toy_data_B, constraint_extra_args_B = \
-                        self.sample_data_constraints(0., signal_source, likelihood)
+                        self.sample_data_constraints(0., signal_source, likelihood,
+                                                     sample_certain_nuisance=sample_certain_nuisance)
                     toy_data_B_all.append(toy_data_B)
                     constraint_extra_args_B_all.append(constraint_extra_args_B)
                 simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
@@ -283,7 +285,8 @@ class TSEvaluation():
                                                  test_stat_dists_B, test_stat_dists_B_disco,
                                                  mu_test, signal_source, likelihood,
                                                  save_fits=save_fits,
-                                                 SB_toys=SB_toys, B_toys=B_toys, discovery_TS=discovery_TS)
+                                                 SB_toys=SB_toys, B_toys=B_toys, discovery_TS=discovery_TS,
+                                                 sample_certain_nuisance=sample_certain_nuisance)
 
             if observed_data is not None:
                 observed_test_stats_collection[signal_source] = observed_test_stats
@@ -299,7 +302,8 @@ class TSEvaluation():
             return test_stat_dists_SB_collection, test_stat_dists_SB_disco_collection, \
                 test_stat_dists_B_collection, test_stat_dists_B_disco_collection
 
-    def sample_data_constraints(self, mu_test, signal_source_name, likelihood):
+    def sample_data_constraints(self, mu_test, signal_source_name, likelihood,
+                                sample_certain_nuisance=False):
         """Internal function to sample the toy data and constraint central values
         following a frequentist procedure. Method taken depends on whether conditional
         best fits were passed.
@@ -365,9 +369,10 @@ class TSEvaluation():
                     simulate_dict[pname] = fitval
                     non_rate_params_added.append(pname)
 
-        if 'combined_rate_scaling_expected' in constraint_extra_args:
-            simulate_dict['combined_rate_scaling'] = constraint_extra_args['combined_rate_scaling_expected']
-            constraint_extra_args['combined_rate_scaling_expected'] = 0.
+        if sample_certain_nuisance:
+            if 'combined_rate_scaling_expected' in constraint_extra_args:
+                simulate_dict['combined_rate_scaling'] = constraint_extra_args['combined_rate_scaling_expected']
+                constraint_extra_args['combined_rate_scaling_expected'] = 0.
 
         toy_data = likelihood.simulate(**simulate_dict)
 
@@ -382,7 +387,8 @@ class TSEvaluation():
                                 test_stat_dists_B, test_stat_dists_B_disco,
                                 mu_test, signal_source_name, likelihood,
                                 save_fits=False,
-                                SB_toys=False, B_toys=False, discovery_TS=False):
+                                SB_toys=False, B_toys=False, discovery_TS=False,
+                                sample_certain_nuisance=False):
         """Internal function to get test statistic distribution.
         """
         ts_values_SB = []
@@ -408,7 +414,8 @@ class TSEvaluation():
             # S+B toys
             if SB_toys:
                 simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
-                    self.sample_data_constraints(mu_test, signal_source_name, likelihood)
+                    self.sample_data_constraints(mu_test, signal_source_name, likelihood,
+                                                 sample_certain_nuisance)
 
                 # Shift the constraint in the likelihood based on the background RMs we drew
                 likelihood.set_constraint_extra_args(**constraint_extra_args_SB)
