@@ -22,6 +22,8 @@ setuptools.setup(
     include_package_data=True,
     package_data={
         'flamedisx': ['nest/config/*.ini'],
+        'flamedisx': ['nest/background_spectra/*.pkl'],
+        'flamedisx': ['nest/signal_spectra/*.pkl'],
     },
     setup_requires=['pytest-runner'],
     install_requires=requires,
