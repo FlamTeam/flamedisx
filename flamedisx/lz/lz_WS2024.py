@@ -71,6 +71,7 @@ def build_position_map_from_data(map_file, axis_names, bins):
 
 @export
 class LZWS2024Source:
+
     path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
     path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
 
@@ -79,15 +80,18 @@ class LZWS2024Source:
     path_drift_map_dt='WS2024/drift_map_dt_WS2024.json'
     path_drift_map_x= 'WS2024/drift_map_x_WS2024.json'
     path_field_map_E= 'WS2024/WS2024_field_map.json'
+    
     def __init__(self, *args, 
                  ignore_field_map=False, 
                  ignore_LCE_maps=False, ignore_acc_maps=False,
                  ignore_all_cuts=False, ignore_drift_map=False, 
                  cap_upper_cs1=False, **kwargs):
-        super().__init__(*args, **kwargs)
         #set up start and end time
         self.t_start = pd.to_datetime('2023-03-28 09:00:00')
         self.t_stop = pd.to_datetime('2024-03-31 23:00:00')
+        
+        super().__init__(*args, **kwargs)
+        
         
         self.cap_upper_cs1 = cap_upper_cs1
         self.ignore_all_cuts = ignore_all_cuts
@@ -609,14 +613,6 @@ class LZ24NRSource(LZWS2024Source, fd.nest.nestNRSource):
 ##
 
 
-
-@export
-class LZ24CH3TSource(LZ24ERSource,fd.nest.CH3TSource):
-    def __init__(self, *args, **kwargs):
-        if ('detector' not in kwargs):
-            kwargs['detector'] = 'lz_WS2024'
-
-        super().__init__(*args, **kwargs)
 @export
 class LZ24C14Source(LZ24ERSource):
     def __init__(self, *args, **kwargs):
