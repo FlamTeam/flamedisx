@@ -13,11 +13,12 @@ o = tf.newaxis
 @export
 class EnergySpectrum(fd.FirstBlock):
     dimensions = ('energy',)
+    model_functions = ('event_time_mask',)
     model_attributes = (
         'energies','max_dim_size',
         'radius', 'z_top', 'z_bottom', 'z_topDrift',
         'drift_velocity',
-        't_start', 't_stop',
+        't_start', 't_stop','t_scale',
         'drift_map_dt', 'drift_map_x','field_map_E')
 
     # The default boundaries are at points where the WIMP wind is at its
@@ -28,7 +29,7 @@ class EnergySpectrum(fd.FirstBlock):
 
     t_stop = pd.to_datetime('2022-04-18T07:58:01')
     t_stop = t_stop.tz_localize(tz='America/Denver')
-
+    t_scale = 1.
     # Just a dummy 0-10 keV spectrum
     energies = tf.cast(tf.linspace(0., 10., 1000),
                        dtype=fd.float_type())
@@ -280,6 +281,16 @@ class EnergySpectrum(fd.FirstBlock):
                              f"and/or 'energy', but it contains: {d.keys()}")
         return d
 
+    
+    def event_time_mask(self,event_time):
+        """
+            This allows a source to be set to 0. outside a period
+            For very niche implementation, should not be used typically
+            Instead just build appropriate multiple likelihood.
+            t_scale:  ratio of times between two periods.
+        """
+        return tf.cast(tf.where((event_time<=self.t_stop.value)&(event_time>=self.t_start.value),self.t_scale,0.),fd.float_type())
+    
     def _compute(self, data_tensor, ptensor, **kwargs):
         raise NotImplementedError
 
@@ -302,7 +313,7 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     """
 
     model_attributes = ('rates_vs_energy',) + EnergySpectrum.model_attributes
-    model_functions = ('energy_spectrum_rate_multiplier',)
+    model_functions = ('energy_spectrum_rate_multiplier',) + EnergySpectrum.model_functions
 
     rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
 
@@ -330,7 +341,7 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
                              axis=0)
         rate_multiplier = self.gimme('energy_spectrum_rate_multiplier',
                                      data_tensor=data_tensor, ptensor=ptensor)
-        return spectrum * rate_multiplier[:, o]
+        return spectrum * rate_multiplier[:, o]*self.gimme('event_time_mask',data_tensor=data_tensor)[:,o]
 
     def mu_before_efficiencies(self, **params):
         return np.sum(fd.np_to_tf(self.rates_vs_energy))
@@ -737,7 +748,7 @@ class VariableEnergySpectrum(EnergySpectrum):
      energies, if your energy spectrum depends on positions/time.
     """
 
-    model_functions = ('energy_spectrum',)
+    model_functions = ('energy_spectrum',) + EnergySpectrum.model_functions
 
     def energy_spectrum(self, event_time):
         # Note this returns a 2d tensor!
@@ -766,7 +777,7 @@ class VariableEnergySpectrum(EnergySpectrum):
 
         spectrum = spectrum_trim_step * stepping_multiplier[o, o]
 
-        return spectrum
+        return spectrum*self.gimme('event_time_mask',data_tensor=data_tensor)[:,o]
 
     def random_truth(self, n_events, fix_truth=None, **params):
         raise NotImplementedError
