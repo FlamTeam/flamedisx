@@ -246,10 +246,16 @@ class MakePhotonsElectronsNR(fd.Block):
         # We split the sum over energies to implement the approximate computation
         # above the cutoff energy
         energy_full, energy_approx = tf.split(energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
+        #this logic only works for a fixed-rate energy spectrum
+        # The ideas is to use a rate vs energy summed over events then renomalize
         rate_vs_energy_full, rate_vs_energy_approx = \
-            tf.split(rate_vs_energy[0, :], [energies_below_cutoff, energies_above_cutoff], 0)
+            tf.split(tf.reduce_sum(rate_vs_energy,0), [energies_below_cutoff, energies_above_cutoff], 0)
+        rates_vs_events = rate_vs_energy[:,0]/tf.reduce_sum(rate_vs_energy,0)[0]
+        #if all events in the batch are 0. rate (time masking) then we set the rates to 0.
+        rates_vs_events = tf.where(tf.reduce_sum(rate_vs_energy,0)[0]>0.,rates_vs_events,0.)
         # Want to get rid of the padding of 0s at the end
         ion_bounds_min = self.source._fetch('ions_produced_min', data_tensor=data_tensor)[:, 0:tf.size(energy[0, :])]
+        
         ion_bounds_min_full, ion_bounds_min_approx = \
             tf.split(ion_bounds_min, [energies_below_cutoff, energies_above_cutoff], 1)
 
@@ -266,7 +272,7 @@ class MakePhotonsElectronsNR(fd.Block):
                                                                tf.transpose(ion_bounds_min_approx)], fallback_to_while_loop=False),
                                       0)
 
-        return (result_full + result_approx)
+        return (result_full + result_approx)*rates_vs_events[:,o,o]
 
     def _compute_with_drift_field(self,
                  data_tensor, ptensor,
