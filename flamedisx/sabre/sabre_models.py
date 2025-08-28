@@ -5,6 +5,7 @@ import flamedisx as fd
 from .. import sabre as fd_sabre
 
 import numpy as np
+import pandas as pd
 from scipy import integrate
 
 export, __all__ = fd.exporter()
@@ -36,7 +37,8 @@ class SABREBetaSource(fd.BlockModelSource):
 
         return eff_ly * ly_relative_interp
 
-    def light_yield_relative_interp(self, ly_relative_energies_keV):
+    @staticmethod
+    def light_yield_relative_interp(ly_relative_energies_keV):
         """
         """
         #: Fixed model parameters: materials
@@ -89,4 +91,101 @@ class SABREBetaSource(fd.BlockModelSource):
 
 @export
 class SABREGammaSource(SABREBetaSource):
-    pass
+    @staticmethod
+    def light_yield_relative_interp(ly_relative_energies_keV):
+        electron_table = {
+            "K_bind": [33.17, 33.17, 33.17, 0.0, 0.0, 0.0, 0.0],
+            "K_x": [28.32, 28.61, 32.30, 0.0, 0.0, 0.0, 0.0],
+            "L_bind": [0.0, 0.0, 0.0, 5.19, 4.85, 4.56, 0.0],
+            "M_bind": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.87],
+            "M_aug": [3.59, 3.32, 0.0, 3.45, 3.59, 3.32, 0.0],
+            "valence_aug_1": [0.63, 0.62, 0.87, 0.87, 0.63, 0.62, 0.87],
+            "valence_aug_2": [0.63, 0.62, 0.0, 0.87, 0.63, 0.62, 0.0],
+            "prob": [0.24, 0.46, 0.13, 0.023, 0.037, 0.07, 0.04]
+        }
+        electron_table_df = pd.DataFrame(electron_table)
+
+        def gamma_light_yield_j(E_keV, j, electron_table_df):
+            row = electron_table_df.iloc[j]
+
+            prob = row['prob']
+            row = row.drop('prob')
+
+            energies = []
+
+            if (E_keV < row['L_bind']) and (j in [3, 4, 5]):
+                return 0., prob
+
+            if (E_keV < row['K_bind']) and (j in [0, 1, 2]):
+                return 0., prob
+
+            if j in [0, 1, 2]:
+                pe_energy = E_keV - row['K_bind']
+                energies.append(pe_energy)
+                row = row.drop('K_bind')
+                other_energies = [e for e in row if e > 0.]
+                energies.extend(other_energies)
+            elif j in [3, 4, 5]:
+                pe_energy = E_keV - row['L_bind']
+                energies.append(pe_energy)
+                row = row.drop('L_bind')
+                other_energies = [e for e in row if e > 0.]
+                energies.extend(other_energies)
+            elif j == 6:
+                pe_energy = E_keV - row['M_bind']
+                energies.append(pe_energy)
+                row = row.drop('M_bind')
+                other_energies = [e for e in row if e > 0.]
+                energies.extend(other_energies)
+            else:
+                raise ValueError('Invalid value of j: must be 0-6')
+
+            weighted_ly = 0.
+            for interaction_energy in energies:
+                weighted_ly += interaction_energy * SABREBetaSource.light_yield_relative_interp(interaction_energy) / E_keV
+
+            return weighted_ly, prob
+
+        def gamma_light_yield(E_keV, electron_table_df):
+            electron_table_df = electron_table_df.copy()
+
+            if E_keV < 33.17:
+                probs = electron_table_df['prob'].copy()
+                probs[0:3] = 0.
+                sum_probs = np.sum(probs)
+                probs = probs / sum_probs
+                electron_table_df['prob'] = probs
+
+            if E_keV < 5.19:
+                probs = electron_table_df['prob'].copy()
+                probs[0:4] = 0.
+                sum_probs = np.sum(probs)
+                probs = probs / sum_probs
+                electron_table_df['prob'] = probs
+
+            if E_keV < 4.85:
+                probs = electron_table_df['prob'].copy()
+                probs[0:5] = 0.
+                sum_probs = np.sum(probs)
+                probs = probs / sum_probs
+                electron_table_df['prob'] = probs
+
+            if E_keV < 4.56:
+                probs = electron_table_df['prob'].copy()
+                probs[0:6] = 0.
+                sum_probs = np.sum(probs)
+                probs = probs / sum_probs
+                electron_table_df['prob'] = probs
+
+            gamma_ly = 0.
+            for j in range(7):
+                weighted_ly_j, prob_j = gamma_light_yield_j(E_keV, j, electron_table_df)
+                gamma_ly += (weighted_ly_j * prob_j)
+
+            return gamma_ly
+
+        vgamma_light_yield = np.vectorize(gamma_light_yield, excluded={'electron_table_df'})
+
+        ly_relative = vgamma_light_yield(ly_relative_energies_keV, electron_table_df=electron_table_df)
+
+        return ly_relative
