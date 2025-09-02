@@ -189,3 +189,28 @@ class SABREGammaSource(SABREBetaSource):
         ly_relative = vgamma_light_yield(ly_relative_energies_keV, electron_table_df=electron_table_df)
 
         return ly_relative
+
+
+@export
+class SABREAlphaSource(SABREBetaSource):
+    def __init__(self, *args, energies=None, rates_vs_energy=None, **kwargs):
+        super().__init__(*args, energies=energies, rates_vs_energy=rates_vs_energy, **kwargs)
+
+        self.energies= tf.cast(energies, dtype=fd.float_type())
+        self.rates_vs_energy = tf.cast(rates_vs_energy, dtype=fd.float_type())
+
+        self.ly_relative_energies_keV = tf.cast(np.geomspace(5., 4000., 100),
+                                                dtype=fd.float_type())
+        self.ly_relative = tf.cast(self.light_yield_relative_interp(self.ly_relative_energies_keV),
+                                   dtype=fd.float_type())
+
+    def eff_light_yield(self, energy, *, eff_ly=11.25, a=0.4, b=0.02):
+        """
+        """
+        quenching_factor = a + b * (energy / 1000.)
+        energy_quenched = energy * quenching_factor
+
+        ly_relative_interp = tfp.math.interp_regular_1d_grid(energy_quenched, self.ly_relative_energies_keV[0],
+                                                             self.ly_relative_energies_keV[-1], self.ly_relative)
+
+        return eff_ly * ly_relative_interp
