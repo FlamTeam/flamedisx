@@ -9,7 +9,7 @@ from .inference import *
 from .bounds import *
 from .mu_estimation import *
 from .frozen_reservoir import *
-from .non_asymptotic_inference import *
+from .asymptotic_inference import *
 from .likelihood_container import *
 
 # Original flamedisx models

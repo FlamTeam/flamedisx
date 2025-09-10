@@ -181,8 +181,9 @@ def calculate_s1_mean_mult(spe_res):
 
 @export
 def get_coin_table(coin_level, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fraction):
-    assert coin_level <= 4, 'This logic will not work well for coincidence levels higher than 3'
-    print(f'Running coing level: {coin_level}-fold')
+
+    assert coin_level <= 4, 'This logic will not work well for coincidence levels higher than 4'
+
     coin_dict = dict()
     coin_table = []
 

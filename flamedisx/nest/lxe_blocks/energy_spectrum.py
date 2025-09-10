@@ -4,6 +4,8 @@ import pandas as pd
 import tensorflow as tf
 import wimprates as wr
 
+from scipy import stats
+
 import flamedisx as fd
 export, __all__ = fd.exporter()
 o = tf.newaxis
@@ -338,12 +340,57 @@ class TemporalRateEnergySpectrumOscillation(FixedShapeEnergySpectrum):
 
 
 @export
+class SpatialRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
+    model_attributes = (('decay_constant',)
+                        + FixedShapeEnergySpectrum.model_attributes)
+    frozen_model_functions = ('energy_spectrum_rate_multiplier',)
+
+    # def local_rate_multiplier(self, r):
+    #     delta_r = self.radius.value - r
+    #     pdf = np.exp(-delta_r / self.decay_constant)
+    #     normalisation = 1. / (self.decay_constant * (1. - np.exp(-self.radius.value / self.decay_constant)))
+    #     uniform_pdf = 1. / self.radius.value
+
+    #     return normalisation * pdf / uniform_pdf
+
+    # def energy_spectrum_rate_multiplier(self, r):
+    #     return self.local_rate_multiplier(r)
+
+    def draw_positions(self, n_events, **params):
+        """
+        """
+        data = dict()
+
+        delta_r = stats.expon.rvs(scale=self.decay_constant,
+                                  size=n_events)
+        data['r'] = self.radius - delta_r
+
+        data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
+        data['z'] = np.random.uniform(self.z_bottom, self.z_top,
+                                      size=n_events)
+        data['x'], data['y'] = fd.pol_to_cart(data['r'], data['theta'])
+
+        data['drift_time'] = (self.z_topDrift-data['z']) / self.drift_velocity
+        return data
+
+
+@export
 class SpatialRateEnergySpectrumNR(SpatialRateEnergySpectrum):
     max_dim_size = {'energy': 150}
 
 
 @export
 class SpatialRateEnergySpectrumER(SpatialRateEnergySpectrum):
+    max_dim_size = {'energy': 100}
+
+
+@export
+class SpatialRateEnergySpectrumDecayNR(SpatialRateEnergySpectrumDecay):
+    max_dim_size = {'energy': 150}
+
+
+@export
+class SpatialRateEnergySpectrumDecayER(SpatialRateEnergySpectrumDecay):
     max_dim_size = {'energy': 100}
 
 
