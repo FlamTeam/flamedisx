@@ -181,16 +181,17 @@ def calculate_s1_mean_mult(spe_res):
 
 @export
 def get_coin_table(coin_level, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fraction):
-    assert coin_level <= 3, 'This logic will not work well for coincidence levels higher than 3'
+    assert coin_level <= 4, 'This logic will not work well for coincidence levels higher than 3'
+    print(f'Running coing level: {coin_level}-fold')
     coin_dict = dict()
     coin_table = []
 
     if (coin_level == 0):
-        for ph_det in np.arange(0, 6):
+        for ph_det in np.arange(0, 11):
             coin_table.append(1.)
         return coin_table
 
-    for spike in np.arange(1, 6):
+    for spike in np.arange(1, 11):
         numer = 0.
         denom = 0.
         i = spike
@@ -212,7 +213,7 @@ def get_coin_table(coin_level, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fr
     belowThresh_percentile = sPE_belowThresh_percentile * (1. - double_pe_fraction) + \
         dPE_belowThresh_percentile * double_pe_fraction
 
-    for ph_det in np.arange(0, 6):
+    for ph_det in np.arange(0, 11):
         spe_eff_mod = spe_eff
         if (spe_eff_mod < 1.):
             spe_eff_mod += (1. - spe_eff_mod) / (2. * num_pmts) * ph_det
@@ -221,7 +222,7 @@ def get_coin_table(coin_level, num_pmts, spe_res, spe_thr, spe_eff, double_pe_fr
         p = spe_eff_mod * (1. - belowThresh_percentile)
 
         binom_prob = 0
-        for spike in np.arange(1, 6):
+        for spike in np.arange(1, 11):
             binom_prob += stats.binom.pmf(spike, ph_det, p) * coin_dict[spike]
 
         coin_table.append(binom_prob)
