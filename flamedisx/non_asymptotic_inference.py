@@ -718,10 +718,11 @@ class IntervalCalculator():
                                   rising_edge=True, inverse=True)
 
     def get_bands(self, conf_level=0.1, quantiles=[0, 1, -1, 2, -2],
-                  use_CLs=False):
+                  use_CLs=False, return_toy_indices=False):
         """
         """
         bands = dict()
+        toy_indices = dict()
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
@@ -747,16 +748,26 @@ class IntervalCalculator():
             p_val_curves = np.transpose(np.stack(p_val_curves, axis=0))
             upper_lims_bands = np.apply_along_axis(self.upper_lims_bands, 1, p_val_curves, mus, conf_level)
 
+            upper_lims_bands_all = upper_lims_bands
             if len(upper_lims_bands[upper_lims_bands == 0.]) > 0.:
                 print(f'Found {len(upper_lims_bands[upper_lims_bands == 0.])} failed toy for {signal_source}; removing...')
                 upper_lims_bands = upper_lims_bands[upper_lims_bands > 0.]
 
             these_bands = dict()
+            these_toy_indices = dict()
             for quantile in quantiles:
                 these_bands[quantile] = np.quantile(np.sort(upper_lims_bands), stats.norm.cdf(quantile))
-            bands[signal_source] = these_bands
 
-        return bands
+                nearest_index = np.argmin(np.abs(upper_lims_bands_all - these_bands[quantile]))
+                these_toy_indices[quantile] = nearest_index
+
+            bands[signal_source] = these_bands
+            toy_indices[signal_source] = these_toy_indices
+
+        if return_toy_indices:
+            return bands, toy_indices
+        else:
+            return bands
 
     def get_disco_sig(self):
         """
