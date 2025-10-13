@@ -417,7 +417,11 @@ class SpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         drawn from the spatial rate histogram.
         """
         data = dict()
-        positions = self.spatial_hist.get_random(size=n_events)
+        #Though it should be near identical, some events in the
+        #local rate multiplier will be normalised to zero 
+        #(atleast with regards to tf.float32)
+        #Thereofre simulate from that and *not* spatial hist.
+        positions = self.local_rate_multiplier.get_random(size=n_events)
         
         for idx, col in enumerate(self.spatial_hist.axis_names):
             data[col] = positions[:, idx]
@@ -640,10 +644,14 @@ class ObservedSpatialRateEnergySpectrum(FixedShapeEnergySpectrum):
         drawn from the spatial rate histogram.
         """
         data = dict()
-        positions = self.spatial_hist.get_random(size=n_events)
+        #Though it should be near identical, some events in the
+        #local rate multiplier will be normalised to zero 
+        #(atleast with regards to tf.float32)
+        #Thereofre simulate from that and *not* spatial hist.
+        data = self.local_rate_multiplier.simulate(int(n_events))
         
-        for idx, col in enumerate(self.spatial_hist.axis_names):
-            data[col] = positions[:, idx]
+        # for idx, col in enumerate(self.spatial_hist.axis_names):
+        #     data[col] = positions[:, idx]
 
             
         if self.polar:
