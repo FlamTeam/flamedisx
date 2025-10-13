@@ -1037,9 +1037,13 @@ class LZ24AccidentalsSource(fd.TemplateSource):
     path_s1_corr_latest = 'WS2024/s1Area_Correction_TPC_WS2024_radon_31Jan2024.json'
     path_s2_corr_latest = 'WS2024/s2Area_Correction_TPC_WS2024_radon_31Jan2024.json'
 
-    def __init__(self, *args, simulate_safety_factor=2., **kwargs):
+    def __init__(self, *args, simulate_safety_factor=2.,lz_source = None, **kwargs):
         hist = fd.get_lz_file('WS2024/accidentals_model.pkl')
-
+        if lz_source is None:
+            print("No source given, generating generic one")
+            self.lz_source = LZ24ERSource()
+        else:
+            self.lz_source = lz_source
         hist_values = hist['hist_values']
         s1_edges = hist['cs1_phd_edges']
         s2_edges = hist['log10_cs2_phd_edges']
@@ -1068,8 +1072,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         """
         super()._annotate(**kwargs)
 
-        lz_source = fd.lz.LZ24ERSource()
-        self.data[self.column] /= (1 + lz_source.double_pe_fraction)
+        self.data[self.column] /= (1 + self.lz_source.double_pe_fraction)
         self.data[self.column] /= (np.log(10) * self.data['cs2'].values)
         self.data[self.column] /= self.data['s1_pos_corr_latest'].values
         self.data[self.column] *= (np.exp(self.data['drift_time'].values /
@@ -1081,25 +1084,24 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df = super().simulate(int(n_events * self.simulate_safety_factor), fix_truth=fix_truth,
                               full_annotate=full_annotate, keep_padding=keep_padding, **params)
 
-        lz_source = fd.lz.LZ24ERSource()
-        df_pos = pd.DataFrame(lz_source.model_blocks[0].draw_positions(len(df)))
+        df_pos = pd.DataFrame(self.lz_source.model_blocks[0].draw_positions(len(df)))
         df = df.join(df_pos)
-
-        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(len(df)), columns=['event_time'])
+        #ISSUE WITH OVER-RIDING THE ACCIDENTALS SOURCE AAAHHHHH
+        df_time = pd.DataFrame(self.lz_source.model_blocks[0].draw_time(len(df)), columns=['event_time'])
         df = df.join(df_time)
 
-        lz_source.add_extra_columns(df)
+        self.lz_source.add_extra_columns(df)
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
 
-        df['cs1'] = df['cs1_phd'] * (1 + lz_source.double_pe_fraction)
-        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + lz_source.double_pe_fraction)
+        df['cs1'] = df['cs1_phd'] * (1 + self.lz_source.double_pe_fraction)
+        df['cs2'] = 10**df['log10_cs2_phd'] * (1 + self.lz_source.double_pe_fraction)
         df['s1'] = df['cs1'] * df['s1_pos_corr_latest']
         df['s2'] = (
             df['cs2']
             * df['s2_pos_corr_latest']
             / np.exp(df['drift_time'] / df['electron_lifetime']))
 
-        df['acceptance'] *= (df['s2'].values >= lz_source.S2_min)
+        df['acceptance'] *= (df['s2'].values >= self.lz_source.S2_min)
 
         df = df[df['acceptance'] == 1.]
         df = df.reset_index(drop=True)
@@ -1112,7 +1114,7 @@ class LZ24AccidentalsSource(fd.TemplateSource):
         df = df.drop(columns=['fv_acceptance', 'resistor_acceptance', 'timestamp_acceptance',
                               'acceptance'])
 
-        lz_source.add_extra_columns(df)
+        self.lz_source.add_extra_columns(df)
 
         return df
 
@@ -1131,28 +1133,28 @@ class LZ24AccidentalsSource(fd.TemplateSource):
             d['s1_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
             d['s2_pos_corr_latest'] = np.ones_like(d['x_obs'].values)
 
-        lz_source = fd.lz.LZ24ERSource()
+        self.lz_source = fd.lz.LZ24ERSource()
 
         if 'event_time' in d.columns and 'electron_lifetime' not in d.columns:
-            d['electron_lifetime'] = lz_source.get_elife(d['event_time'].values)
+            d['electron_lifetime'] = self.lz_source.get_elife(d['event_time'].values)
 
         if 's1' in d.columns and 'cs1' not in d.columns:
             d['cs1'] = d['s1'] / d['s1_pos_corr_latest']
-            d['cs1_phd'] = d['cs1'] / (1 + lz_source.double_pe_fraction)
+            d['cs1_phd'] = d['cs1'] / (1 + self.lz_source.double_pe_fraction)
         if 's2' in d.columns and 'cs2' not in d.columns:
             d['cs2'] = (
                 d['s2']
                 / d['s2_pos_corr_latest']
                 * np.exp(d['drift_time'] / d['electron_lifetime']))
-            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + lz_source.double_pe_fraction))
+            d['log10_cs2_phd'] = np.log10(d['cs2'] / (1 + self.lz_source.double_pe_fraction))
 
     def estimate_position_acceptance(self, n_trials=int(1e5)):
-        lz_source = fd.lz.LZ24ERSource()
-        df = pd.DataFrame(lz_source.model_blocks[0].draw_positions(n_trials))
-        df_time = pd.DataFrame(lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
+        
+        df = pd.DataFrame(self.lz_source.model_blocks[0].draw_positions(n_trials))
+        df_time = pd.DataFrame(self.lz_source.model_blocks[0].draw_time(n_trials), columns=['event_time'])
         df = df.join(df_time)
 
-        lz_source.add_extra_columns(df)
+        self.lz_source.add_extra_columns(df)
         df['acceptance'] = df['fv_acceptance'].values * df['resistor_acceptance'].values * df['timestamp_acceptance'].values
 
         return np.sum(df['acceptance'].values) / n_trials
