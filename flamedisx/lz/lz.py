@@ -64,13 +64,13 @@ def build_position_map_from_data(map_file, axis_names, bins):
 
 
 class LZSource:
-    path_s1_corr_LZAP = 's1_map_22Apr22.json'
-    path_s2_corr_LZAP = 's2_map_30Mar22.json'
-    path_s1_corr_latest = 's1_map_latest.json'
-    path_s2_corr_latest = 's2_map_latest.json'
+    path_s1_corr_LZAP = 'sr1/s1_map_22Apr22.json'
+    path_s2_corr_LZAP = 'sr1/s2_map_30Mar22.json'
+    path_s1_corr_latest = 'sr1/s1_map_latest.json'
+    path_s2_corr_latest = 'sr1/s2_map_latest.json'
 
-    path_s1_acc_curve = 'cS1_acceptance_curve.pkl'
-    path_s2_acc_curve = 'cS2_acceptance_curve.pkl'
+    path_s1_acc_curve = 'sr1/cS1_acceptance_curve.pkl'
+    path_s2_acc_curve = 'sr1/cS2_acceptance_curve.pkl'
 
     def __init__(self, *args, ignore_maps_acc=False, cap_upper_cs1=False, **kwargs):
         super().__init__(*args, **kwargs)
