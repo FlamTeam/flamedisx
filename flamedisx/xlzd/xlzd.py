@@ -111,23 +111,23 @@ class XLZDSource:
         Requires z to be in cm, and in the FV.
         """
         if self.configuration == '80t':
-            a = 4.93526997e-01
-            b = 5.58488459e-04
-            c = -1.06051830e-07
-            d = -1.02545243e-08
-            e = -1.30897496e-11
+            a = 5.01480764786202e-01
+            b = 1.0987171117870357e-03
+            c = 2.6949708579314157e-06
+            d = -4.6066555019055335e-09
+            e = -3.1658521366562203e-12
         elif self.configuration == '60t':
-            a = 5.00828879e-01
-            b = 4.25478465e-04
-            c = 2.02171646e-07
-            d = -1.31075129e-08
-            e = -2.29858516e-11
+            a = 5.550088308957059e-01
+            b = 7.959774439474241e-04
+            c = 1.9863250116287806e-06
+            d = -1.4497010098307493e-08
+            e = -2.028805722848711e-11
         elif self.configuration == '40t':
-            a = 5.68299226e-01
-            b = 7.29787915e-05
-            c = -4.37731127e-06
-            d = -6.39383595e-08
-            e = -1.87387400e-10
+            a = 6.324164580843357e-01
+            b = 3.980052004436636e-04
+            c = 8.151870713156558e-07
+            d = -4.238165802951504e-08
+            e = -1.0960362072784391e-10
 
         LCE = a + b * z + c * z**2 + d * z**3 + e * z**4
 
@@ -137,11 +137,11 @@ class XLZDSource:
         super().add_extra_columns(d)
 
         if self.configuration == '80t':
-            LCE_average = 0.471
+            LCE_average = 0.4829
         elif self.configuration == '60t':
-            LCE_average = 0.493
+            LCE_average = 0.5601
         elif self.configuration == '40t':
-            LCE_average = 0.570
+            LCE_average = 0.6532
         d['s1_pos_corr'] = self.s1_posDependence(d['z'].values) / LCE_average # normalise to volume-averaged LCE
 
         if 's1' in d.columns and 'cs1' not in d.columns:
