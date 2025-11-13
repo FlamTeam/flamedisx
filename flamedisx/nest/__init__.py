@@ -1,4 +1,5 @@
 from .parameter_calc import *
+from .get_energy_hist import *
 
 from .lxe_blocks.energy_spectrum import *
 from .lxe_blocks.secondary_quanta_generation import *
