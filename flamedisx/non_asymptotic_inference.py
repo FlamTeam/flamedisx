@@ -391,7 +391,23 @@ class TSEvaluation():
                                 save_fits=False,
                                 SB_toys=False, B_toys=False, discovery_TS=False,
                                 sample_certain_nuisance=False):
-        """Internal function to get test statistic distribution.
+        """
+            Internal function to get test statistic distribution given a signal and POI value. |
+            test_stat_dists_SB:        TestStatisticDistributions, t(mu_test|mu=mu_test) * |
+            test_stat_dists_SB_disco:  TestStatisticDistributions, t(0.|mu=mu_test) * |
+            test_stat_dists_B:         TestStatisticDistributions, t(mu_test|mu=0.) * |
+            test_stat_dists_B_disco:   TestStatisticDistributions, t(0.|mu=0.) * |
+            mu_test:                   float, POI test value (usually signal counts). |
+            signal_source_name:        string, the source that takes the POI. |
+            likelihood:                LogLikelihood,the likelihood object. |
+            save_fits:                 bool, whether or not to save cond/uncond fits, stored in 
+                                             TestStatisticDistributions. |
+            SB_toys:                   bool, whether or not to simulate S+B toys. |
+            B_toys:                    bool, whether or not to simulate B toys. |
+            discovery_TS:              bool, wether to **only** evaluate test_stat_dists_SB_disco 
+                                             and not test_stat_dists_SB. |
+            return:                    None, updates flamedisx TestStatisticDistributions objects in first
+                                             inputs (*). |
         """
         ts_values_SB = []
         ts_values_SB_disco = []
@@ -436,9 +452,13 @@ class TSEvaluation():
                         guess_dict_SB[key] = 0.1
                 # Evaluate and save test statistics
                 if discovery_TS:
+                    # If we're doing significance, lots of toys
                     ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
                     ts_values_SB_disco.append(ts_result_SB_disco[0])
                 else:
+                    # If we're doing significance limits, can afford the extra eval.
+                    ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
+                    ts_values_SB_disco.append(ts_result_SB_disco[0])
                     ts_result_SB = test_statistic_SB(mu_test, signal_source_name, guess_dict_SB)
                     ts_values_SB.append(ts_result_SB[0])
                 # Possibly save fits
