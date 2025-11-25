@@ -833,9 +833,6 @@ class IntervalCalculator():
 
             disco_sig_curves = np.stack(disco_sig_curves, axis=0)
             median_disco_sigs = [np.median(disco_sigs) for disco_sigs in disco_sig_curves]
-            print("median_disco_sigs")
-            print(median_disco_sigs)
-            print(f"sigma_level: {sigma_level}")
             median_crossing_point = self.critical_disco_value(median_disco_sigs, mus, sigma_level)
             medians[signal_source] = median_crossing_point
 
