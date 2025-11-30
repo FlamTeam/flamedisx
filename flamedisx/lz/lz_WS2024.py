@@ -87,7 +87,11 @@ class LZWS2024Source:
                  ignore_field_map=False, 
                  ignore_LCE_maps=False, ignore_acc_maps=False,
                  ignore_all_cuts=False, ignore_drift_map=False, 
-                 cap_upper_cs1=False, **kwargs):
+                 cap_upper_cs1=False, 
+                 S2_splitting_max_OOB=False,
+                 **kwargs):
+        #how to interpret splitting efficiency
+        self.S2_splitting_max_OOB = S2_splitting_max_OOB
         #set up start and end time
         self.t_start = pd.to_datetime('2023-03-28 09:00:00')
         self.t_stop = pd.to_datetime('2024-03-31 23:00:00')
@@ -312,9 +316,10 @@ class LZWS2024Source:
         if 'cs2' in d.columns and 'cs2_acc_curve' not in d.columns:
             if self.cS2_drift_acceptance_hist is not None:
                 d['cs2_acc_curve'] = WS2024_S2splitting_reconstruction_efficiency(
-                                                            d['cs2'].values/(1+self.double_pe_fraction),#phe->phd
-                                                            d['drift_time'].values/1e3,#ns->us
-                                                            self.cS2_drift_acceptance_hist)
+                                                    d['cs2'].values/(1+self.double_pe_fraction),#phe->phd
+                                                    d['drift_time'].values/1e3,#ns->us
+                                                    self.cS2_drift_acceptance_hist,
+                                                    max_OOB = self.S2_splitting_max_OOB)
                 d['cs2_acc_curve'] *=WS2024_trigger_acceptance(d['s2'].values/(1+self.double_pe_fraction))
 
             else:
