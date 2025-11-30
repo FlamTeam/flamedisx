@@ -37,7 +37,9 @@ def interpolate_acceptance(arg, domain, acceptances):
     :param acceptances: acceptance values from interpolation map
     :return: Tensor of interpolated map values (same shape as x)
     """
-    return np.interp(x=arg, xp=domain, fp=acceptances)
+    interpolation_kwargs = dict(kind='slinear', bounds_error=False,
+                                fill_value="extrapolate")
+    return interpolate.interp1d(domain, acceptances,**interpolation_kwargs)(arg)
 
 def build_position_map_from_data(map_file, axis_names, bins):
     """
