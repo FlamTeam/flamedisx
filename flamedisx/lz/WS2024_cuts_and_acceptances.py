@@ -10,6 +10,7 @@ def WS2024_S2splitting_reconstruction_efficiency(S2c, driftTime_us, hist):
         adapted from BGSkimmer
     """
     ## Make values more python friendly
+    hist[0][:,-1] = hist[0][:,-2] #The very last drift time bin is 0, causes issues!
     weights = np.reshape(hist[0], hist[0].size)
     zmax =  np.max(weights)
     zmin = np.min(weights[weights>0.])
