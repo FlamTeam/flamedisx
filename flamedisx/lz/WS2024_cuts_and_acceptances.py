@@ -1,13 +1,16 @@
 from scipy.interpolate import RegularGridInterpolator
 import numpy as np
 ##=============Cuts and acceptances===========
-def WS2024_S2splitting_reconstruction_efficiency(S2c, driftTime_us, hist):
+def WS2024_S2splitting_reconstruction_efficiency(S2c, driftTime_us, hist, max_OOB = True):
     """
         Returns the reconstruction efficiency based on S2 splitting
         S2c: cs2 from data [phd]
         dritTime_us: drift time from data [us]
         hist: input histogram of S2c[Ne-] vs Drift Time [us]
+        max_OOB: True, set to Out of bounds to max in domain. If False, set to 0 or 100%.
         adapted from BGSkimmer
+
+        The max_OOB (True) was used in the final paper, unsure which was used in the final model
     """
     ## Make values more python friendly
     hist[0][:,-1] = hist[0][:,-2] #The very last drift time bin is 0, causes issues!
@@ -17,28 +20,43 @@ def WS2024_S2splitting_reconstruction_efficiency(S2c, driftTime_us, hist):
     ## Read into interpolator
     xentries_vals = np.array(hist[1][:-1])
     yentries_vals = np.array(hist[2][:-1])
-    Interp = RegularGridInterpolator((xentries_vals,yentries_vals), hist[0])
+    Interp = RegularGridInterpolator((xentries_vals,yentries_vals), hist[0],
+                                     method='linear', bounds_error=True)
     
     ## Convert S2c to mean N_e
     mean_SE_area = 44.5 # phd/e-
     mean_Ne = S2c/mean_SE_area
-
+    temp_Ne = mean_Ne
     ## Initialize acceptance values
     acceptance = np.ones_like(mean_Ne)
-    ## curves not defined for above 100 e- 
-    ## Assume 100% eff. (probably ok...)
-    acceptance[mean_Ne>np.max(xentries_vals)] = 1.
-    ## Also not defined for < 10e-
-    ## ok with 15e- ROI threshold
-    acceptance[mean_Ne<np.min(xentries_vals)] = 0.
+    mask = np.ones_like(acceptance,dtype=bool)
+    if max_OOB:
+        ## Handle events outside bounds
+        temp_Ne = mean_Ne
+        temp_Ne[temp_Ne<=xentries_vals[1]] = xentries_vals[1]
+        temp_Ne[temp_Ne>=xentries_vals[-2]] = xentries_vals[-2]
+        
+        temp_drift = driftTime_us
+        temp_drift[temp_drift<=yentries_vals[1]] = yentries_vals[1]
+        temp_drift[temp_drift>=yentries_vals[-2]] = yentries_vals[-2]
+
+    else:
+        ## curves not defined for above 100 e- 
+        ## Assume 100% eff. (probably ok...)
+        acceptance[mean_Ne>np.max(xentries_vals)] = 1.
+        ## Also not defined for < 10e-
+        ## ok with 15e- ROI threshold
+        acceptance[mean_Ne<np.min(xentries_vals)] = 0.
+        mask = (mean_Ne>=np.min(xentries_vals)) & (mean_Ne<=np.max(xentries_vals))
     
+   
     temp_drift = driftTime_us
     temp_drift[temp_drift<np.min(yentries_vals)] = np.min(yentries_vals)
     temp_drift[temp_drift>np.max(yentries_vals)] = np.max(yentries_vals)
     
-    mask = (mean_Ne>=np.min(xentries_vals)) & (mean_Ne<=np.max(xentries_vals))
+    
     ## Acceptances are provided in percent - divide by 100.
-    acceptance[mask] = Interp(np.vstack([mean_Ne[mask],temp_drift[mask]]).T)/100.
+    acceptance[mask] = Interp(np.vstack([temp_Ne[mask],temp_drift[mask]]).T)/100.
     
     
     return acceptance
