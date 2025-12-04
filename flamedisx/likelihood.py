@@ -271,6 +271,8 @@ class LogLikelihood:
                               UserWarning)
             for s in self.sources.values():
                 s.set_data(None)
+                s.n_batches = 0
+                self.batch_info = None
                 return
 
         batch_info = np.zeros((len(self.dsetnames), 3), dtype=int)
@@ -340,7 +342,8 @@ class LogLikelihood:
                 np.concatenate([[0], stop_idx[:-1]]),
                 stop_idx])
 
-    def simulate(self, fix_truth=None, **params):
+    def simulate(self, fix_truth=None, alter_source_mus=False,
+                 **params):
         """Simulate events from sources.
         """
         params = self.prepare_params(params, free_all_rates=True)
@@ -352,6 +355,8 @@ class LogLikelihood:
             rm = self._get_rate_mult(sname, params)
             mu = rm * s.mu_before_efficiencies(
                 **self._filter_source_kwargs(params, sname))
+            if alter_source_mus:
+                mu *= self.mu_estimators[sname](**self._filter_source_kwargs(params, sname))
             # Simulate this many events from source
             n_to_sim = np.random.poisson(mu)
             if n_to_sim == 0:
@@ -380,9 +385,6 @@ class LogLikelihood:
                        omit_grads=tuple(), **kwargs):
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
-        ll = 0.
-        llgrad = np.zeros(n_grads, dtype=np.float64)
-        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
 
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
@@ -395,14 +397,18 @@ class LogLikelihood:
             else:
                 empty_batch = False
 
+            ll = {i_batch: 0. for i_batch in range(n_batches)}
+            llgrad = np.zeros(n_grads, dtype=np.float64)
+            llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
+
             for i_batch in range(n_batches):
                 # Iterating over tf.range seems much slower!
                 if empty_batch:
                     batch_data_tensor = None
                 else:
-                    batch_data_tensor = self.data_tensors[dsetname][i_batch]
+                    batch_data_tensor = tf.gather(self.data_tensors[dsetname], i_batch)
                 results = self._log_likelihood(
-                    tf.constant(i_batch, dtype=fd.int_type()),
+                    i_batch,
                     dsetname=dsetname,
                     data_tensor=batch_data_tensor,
                     batch_info=self.batch_info,
@@ -411,18 +417,18 @@ class LogLikelihood:
                     empty_batch=empty_batch,
                     constraint_extra_args=self.constraint_extra_args,
                     **params)
-                ll += results[0].numpy().astype(np.float64)
+                ll[i_batch] = results[0]
 
                 if self.param_names:
                     if results[1] is None:
                         raise ValueError("TensorFlow returned None as gradient!")
-                    llgrad += results[1].numpy().astype(np.float64)
+                    llgrad += results[1]
                     if second_order:
-                        llgrad2 += results[2].numpy().astype(np.float64)
+                        llgrad2 += results[2]
 
         if second_order:
-            return ll, llgrad, llgrad2
-        return ll, llgrad, None
+            return np.sum(list(ll.values())), llgrad, llgrad2
+        return np.sum(list(ll.values())), llgrad, None
 
     def minus2_ll(self, *, omit_grads=tuple(), **kwargs):
         result = self.log_likelihood(omit_grads=omit_grads, **kwargs)
@@ -431,11 +437,6 @@ class LogLikelihood:
         return -2 * ll, -2 * grad, hess
 
     def prepare_params(self, kwargs, free_all_rates=False):
-        for k in kwargs:
-            if k not in self.param_defaults:
-                if k.endswith('_rate_multiplier') and free_all_rates:
-                    continue
-                raise ValueError(f"Unknown parameter {k}")
         return {**self.param_defaults, **fd.values_to_constants(kwargs)}
 
     def _get_rate_mult(self, sname, kwargs):
@@ -468,7 +469,9 @@ class LogLikelihood:
         :param dataset_name: ... for just this dataset
         :param source_name: ... for just this source.
         You must provide either dsetname or source, since it makes no sense to
-        add events from multiple datasets
+        add events from multiple datasets.
+        For rate multipliers (always linear) add a 0 x r.m**2 term to give a 0
+        hessian instead of None.
         """
         kwargs = {**self.param_defaults, **kwargs}
         if dataset_name is None and source_name is None:
@@ -481,8 +484,10 @@ class LogLikelihood:
             if source_name is not None and sname != source_name:
                 continue
             filtered_params = self._filter_source_kwargs(kwargs, sname)
-            mu += (self._get_rate_mult(sname, kwargs)
-                   * self.mu_estimators[sname](**filtered_params))
+            _rate_multiplier = self._get_rate_mult(sname, kwargs)
+            mu += (_rate_multiplier
+                   * self.mu_estimators[sname](**filtered_params) 
+                   + tf.constant(0.,fd.float_type())*_rate_multiplier**2)
         return mu
 
     @tf.function
@@ -521,10 +526,14 @@ class LogLikelihood:
             0.)
         if dsetname == self.dsetnames[0]:
             if constraint_extra_args is None:
-                ll += self.log_constraint(**params_unstacked)
+                ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
+                               self.log_constraint(**params_unstacked),
+                               0.)
             else:
                 kwargs = {**params_unstacked, **constraint_extra_args}
-                ll += self.log_constraint(**kwargs)
+                ll += tf.where(tf.equal(i_batch, tf.constant(0, dtype=fd.int_type())),
+                               self.log_constraint(**kwargs),
+                               0.)
 
         # Autodifferentiation. This is why we use tensorflow:
         grad = tf.gradients(ll, grad_par_stack)[0]

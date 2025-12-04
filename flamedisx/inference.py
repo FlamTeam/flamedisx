@@ -176,10 +176,13 @@ class Objective:
 
     def _array_to_dict(self, x: ty.Union[np.ndarray, tf.Tensor]) -> dict:
         """Convert from array/tensor to {parameter: value} dictionary"""
+        x = tf.cast(x, fd.float_type())
         assert isinstance(x, (np.ndarray, tf.Tensor))
         assert len(x) == len(self.arg_names)
-        return {k: x[i]
-                for i, k in enumerate(self.arg_names)}
+        param_dict = dict()
+        for i, k in enumerate(self.arg_names):
+            param_dict[k] = tf.gather(x, i)
+        return param_dict
 
     def normalize(self,
                   x: ty.Union[dict, np.ndarray],
