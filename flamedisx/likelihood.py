@@ -469,7 +469,9 @@ class LogLikelihood:
         :param dataset_name: ... for just this dataset
         :param source_name: ... for just this source.
         You must provide either dsetname or source, since it makes no sense to
-        add events from multiple datasets
+        add events from multiple datasets.
+        For rate multipliers (always linear) add a 0 x r.m**2 term to give a 0
+        hessian instead of None.
         """
         kwargs = {**self.param_defaults, **kwargs}
         if dataset_name is None and source_name is None:
@@ -482,8 +484,10 @@ class LogLikelihood:
             if source_name is not None and sname != source_name:
                 continue
             filtered_params = self._filter_source_kwargs(kwargs, sname)
-            mu += (self._get_rate_mult(sname, kwargs)
-                   * self.mu_estimators[sname](**filtered_params))
+            _rate_multiplier = self._get_rate_mult(sname, kwargs)
+            mu += (_rate_multiplier
+                   * self.mu_estimators[sname](**filtered_params) 
+                   + tf.constant(0.,fd.float_type())*_rate_multiplier**2)
         return mu
 
     @tf.function
