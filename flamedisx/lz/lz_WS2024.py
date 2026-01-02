@@ -88,9 +88,10 @@ class LZWS2024Source:
                  ignore_LCE_maps=False, ignore_acc_maps=False,
                  ignore_all_cuts=False, ignore_drift_map=False, 
                  cap_upper_cs1=False, 
-                 S2_splitting_max_OOB=False,
+                 S2_splitting_max_OOB=True,
                  **kwargs):
         #how to interpret splitting efficiency
+        #Default True matches the paper NR efficiency curve
         self.S2_splitting_max_OOB = S2_splitting_max_OOB
         #set up start and end time
         self.t_start = pd.to_datetime('2023-03-28 09:00:00')
