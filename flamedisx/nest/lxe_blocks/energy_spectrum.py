@@ -312,11 +312,12 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
     By default, this uses a flat 0 - 10 keV spectrum, sampled at 1000 points.
     """
 
-    model_attributes = ('rates_vs_energy',) + EnergySpectrum.model_attributes
+    model_attributes = ('rates_vs_energy','in_group',) + EnergySpectrum.model_attributes
     model_functions = ('energy_spectrum_rate_multiplier',) + EnergySpectrum.model_functions
 
     rates_vs_energy = tf.ones(1000, dtype=fd.float_type())
-
+    in_group = False
+    
     energy_spectrum_rate_multiplier = 1.
 
     def _compute(self, data_tensor, ptensor, *, energy):
@@ -335,7 +336,8 @@ class FixedShapeEnergySpectrum(EnergySpectrum):
         else:
             spectrum_trim_step = spectrum_trim
         stepping_multiplier = tf.cast(tf.shape(spectrum_trim) / tf.shape(spectrum_trim_step), fd.float_type())
-
+        if self.in_group:
+            stepping_multiplier = tf.cast(1.,fd.float_type())
         spectrum = tf.repeat(spectrum_trim_step[o, :] * stepping_multiplier,
                              self.source.batch_size,
                              axis=0)

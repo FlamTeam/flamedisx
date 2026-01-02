@@ -52,7 +52,7 @@ class SourceGroup:
         else:
             raise RuntimeError(f"Cannot handle the current block logic passing {type(source_group_type).__name__} "
                                "to SourceGroup")
-
+        
         if data is not None:
             self.set_data(data)
 
@@ -135,6 +135,7 @@ class nestModifiedERSourceGroup(nest_sg.nestERSourceGroup):
     
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
+        self.in_group = True
         if type(self.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER:
             self.model_blocks = (self.model_blocks[0],) + \
                 (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self,ignore_shape_assertion=True),) + \
@@ -152,6 +153,7 @@ class nestModifiedNRSourceGroup(nest_sg.nestNRSourceGroup):
     
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
+        self.in_group = True
         if type(self.model_blocks[1]) is fd.nest.lxe_blocks.quanta_splitting.MakePhotonsElectronER:
             self.model_blocks = (self.model_blocks[0],) + \
                 (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronER(self, ignore_shape_assertion=True),) + \
