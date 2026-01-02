@@ -28,14 +28,15 @@ class CH3TSource(fd_nest.nestFasterERSource):
         ZZ = 2.
         qValue = 18.5898
 
-        energies = tf.linspace(0.01, qValue, 1000)
+        energies = tf.linspace(0.01, 22., 215) # match the tritium
 
         B = tf.sqrt(energies**2 + 2. * energies * m_e) / (energies + m_e)
         x = (2. * pi * ZZ * aa) * (energies + m_e) / tf.sqrt(energies**2 + 2. * energies * m_e)
         spectrum = tf.sqrt(2. * energies * m_e) * (energies + m_e) * (qValue - energies) * \
             (qValue - energies) * x * (1. / (1. - tf.exp(-x))) * (1.002037 - 0.001427 * B)
+        spectrum = tf.where(energies<qValue,spectrum,0.)
         spectrum = spectrum / tf.reduce_sum(spectrum)
-
+        
         self.energies = tf.cast(energies, fd.float_type())
         self.rates_vs_energy = tf.cast(spectrum, fd.float_type())
 
