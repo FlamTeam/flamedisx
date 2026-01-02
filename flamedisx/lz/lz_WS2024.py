@@ -1221,13 +1221,15 @@ class LZ24NRSourceGroup(LZWS2024Source, fd.nest.nestNRSourceGroup):
 
 @export            
 class LZ24ModifiedERSourceGroup(LZ24ERSource,fd.nest.nestModifiedERSourceGroup):
-     def __init__(self, *args, **kwargs):
+    model_functions = LZ24ERSource.model_functions + ('get_batch_index',) #fix this
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)
 @export
 class LZ24ModifiedNRSourceGroup(LZ24NRSource,fd.nest.nestModifiedNRSourceGroup):
-     def __init__(self, *args, **kwargs):
+    model_functions = LZ24NRSource.model_functions + ('get_batch_index',) #fix this
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'lz_WS2024'
         super().__init__(*args, **kwargs)

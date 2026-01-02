@@ -23,12 +23,15 @@ class SGMakePhotonsElectronsNR(fd.Block):
     exclude_data_tensor = ('ions_produced_max',)
 
     special_model_functions = ('mean_yields', 'yield_fano', 'recomb_prob', 'skewness',
-                               'variance', 'width_correction', 'mu_correction')
+                               'variance', 'width_correction', 'mu_correction','get_batch_index')
     model_functions = special_model_functions
 
     ions_produced_min_full= None
     ions_produced_max_full= None
-
+    #allow the CB tensor to be stored
+    central_block_tensor = None
+    model_attributes = ('central_block_tensor',)
+    
     def setup(self):
         if 'energy' not in self.source.no_step_dimensions:
             self.array_columns = (('ions_produced_min',
@@ -51,7 +54,14 @@ class SGMakePhotonsElectronsNR(fd.Block):
                  quanta_tensors=None,
                  electrons_full=None,
                  photons_full=None):
-
+        if self.central_block_tensor is not None:
+            #If the central block has been cached, use that
+            batch_index = self.gimme('get_batch_index',data_tensor=data_tensor) # get the batch index
+            #Cannot index, this is just as good
+            n_batches = tf.cast(len(self.central_block_tensor),fd.float_type())
+            all_batch_indices = tf.range(0,n_batches,dtype=fd.float_type())
+            mask =  tf.where(all_batch_indices == batch_index[0],1.,0.)
+            return tf.reduce_sum(self.central_block_tensor*mask[:,o,o,o,o],axis=0)
         def compute_single_energy_read_in(args):
             """Compute the block for a given energy when reading in stored values.
             """

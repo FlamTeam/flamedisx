@@ -132,7 +132,7 @@ class SourceGroup:
 @export
 class nestModifiedERSourceGroup(nest_sg.nestERSourceGroup):
     model_blocks_read_in=()
-    
+    model_functions = nest_sg.nestERSourceGroup.model_functions + ('get_batch_index',)
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.in_group = True
@@ -146,11 +146,18 @@ class nestModifiedERSourceGroup(nest_sg.nestERSourceGroup):
                 (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self,
                  ignore_shape_assertion=True),) + \
                 self.model_blocks[2:]
+            
+    def get_batch_index(self,batch_index):
+        return batch_index
+        
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+        d['batch_index'] = np.arange(len(d))//self.batch_size
 
 @export
 class nestModifiedNRSourceGroup(nest_sg.nestNRSourceGroup):
     model_blocks_read_in=()
-    
+    model_functions = nest_sg.nestNRSourceGroup.model_functions + ('get_batch_index',)
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.in_group = True
@@ -164,4 +171,10 @@ class nestModifiedNRSourceGroup(nest_sg.nestNRSourceGroup):
                 (fd.nest.lxe_blocks.quanta_splitting_source_group.SGMakePhotonsElectronsNR(self,
                  ignore_shape_assertion=True),) + \
                 self.model_blocks[2:]
-
+            
+    def get_batch_index(self,batch_index):
+        return batch_index
+        
+    def add_extra_columns(self, d):
+        super().add_extra_columns(d)
+        d['batch_index'] = np.arange(len(d))//self.batch_size
