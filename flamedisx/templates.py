@@ -203,7 +203,7 @@ class MultiTemplateSource(fd.Source):
     def __init__(
             self,
             params_and_templates: ty.Tuple[ty.Dict[str, float], ty.Any],
-            params_and_normalisations:ty.Tuple[ty.Dict[str, float], float],
+            params_and_normalisations:ty.Tuple[ty.Dict[str, float], float] = None,
             bin_edges=None,
             axis_names=None,
             events_per_bin=False,
@@ -277,7 +277,9 @@ class MultiTemplateSource(fd.Source):
         self.pmax = tf.constant(max(param_vals), fd.float_type())
         pvals = tf.convert_to_tensor(param_vals, fd.float_type())
 
-        normalisations = np.array([norm for _, norm in params_and_normalisations])
+        normalisations = np.array([norm.mu.numpy() for norm in self._templates])
+        if params_and_normalisations is not None:
+            normalisations = np.array([norm for _, norm in params_and_normalisations])
         self.normalisations = tf.convert_to_tensor(normalisations / normalisations[0],
                                                    fd.float_type())
 
