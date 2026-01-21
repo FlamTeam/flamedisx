@@ -199,7 +199,7 @@ class MultiTemplateSource(fd.Source):
             in addition to the interpolation between templates that happens
             regardless.
     """
-
+    _method = 'linear'
     def __init__(
             self,
             params_and_templates: ty.Tuple[ty.Dict[str, float], ty.Any],
@@ -209,6 +209,7 @@ class MultiTemplateSource(fd.Source):
             events_per_bin=False,
             interpolate=False,
             _skip_tf_init=False,
+            method = 'BSpline',
             *args,
             **kwargs):
 
@@ -216,7 +217,10 @@ class MultiTemplateSource(fd.Source):
             TemplateWrapper(
                 template, bin_edges, axis_names, events_per_bin, interpolate)
             for _, template in params_and_templates]
-        assert len(params_and_templates[0][0]) == 1, "This implementation currently only supports moprhing of 1 parameter"
+        assert method in ('linear','BSpline'), "Only 'linear' and 'BSpline' methods are supported"
+        self._method = method
+        assert self._method == 'BSpline' and len(params_and_templates[0][0]) == 1, "BSpline only supports moprhing of 1 parameter"
+        assert self._method == 'linear', "Linear nD interpolation is not yet implemented"
         self.param_name = list(params_and_templates[0][0].keys())[0]
 
         # We will include mu variation separately

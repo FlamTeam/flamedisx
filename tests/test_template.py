@@ -93,6 +93,7 @@ def test_multi_template():
             ({'a': 1., 'b': 0.}, mhs[2]),
             ({'a': 1., 'b': 1.}, mhs[3]),
         ],
+        method = 'linear',
         interpolate=False)
     s.set_data(data)
 
