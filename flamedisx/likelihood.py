@@ -385,7 +385,9 @@ class LogLikelihood:
                        omit_grads=tuple(), **kwargs):
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
-
+        ll = np.float64(0.)
+        llgrad = np.zeros(n_grads, dtype=np.float64)
+        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
             n_batches = self.sources[self.sources_in_dset[dsetname][0]].n_batches
@@ -396,10 +398,6 @@ class LogLikelihood:
                 empty_batch = True
             else:
                 empty_batch = False
-
-            ll = {i_batch: 0. for i_batch in range(n_batches)}
-            llgrad = np.zeros(n_grads, dtype=np.float64)
-            llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
 
             for i_batch in range(n_batches):
                 # Iterating over tf.range seems much slower!
@@ -417,7 +415,7 @@ class LogLikelihood:
                     empty_batch=empty_batch,
                     constraint_extra_args=self.constraint_extra_args,
                     **params)
-                ll[i_batch] = results[0]
+                ll += results[0]
 
                 if self.param_names:
                     if results[1] is None:
@@ -427,8 +425,8 @@ class LogLikelihood:
                         llgrad2 += results[2]
 
         if second_order:
-            return np.sum(list(ll.values())), llgrad, llgrad2
-        return np.sum(list(ll.values())), llgrad, None
+            return ll, llgrad, llgrad2
+        return ll, llgrad, None
 
     def minus2_ll(self, *, omit_grads=tuple(), **kwargs):
         result = self.log_likelihood(omit_grads=omit_grads, **kwargs)
