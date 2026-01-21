@@ -737,12 +737,19 @@ class IntervalObjective(Objective):
         objective = diff ** 2
 
         grad_diff = grad
-        grad_diff[tp_index] -= self.t_ppf_grad(x)
+        index = tf.range(len(self.arg_names))
+        grad_diff = tf.where(index == tp_index, grad_diff - self.t_ppf_grad(x), grad_diff)
         grad_objective = 2 * diff * grad_diff
 
         if self.use_hessian:
             hess_of_diff = hess
-            hess_of_diff[tp_index, tp_index] -= self.t_ppf_hess(x)
+            row_index = tf.range(tf.shape(hess)[0])[:, None]
+            mask = row_index == tp_index
+            hess_of_diff = tf.where(
+                            mask,
+                            hess_of_diff - self.t_ppf_grad(x),
+                            hess_of_diff
+                        )
             hess_objective = 2 * (
                     diff * hess_of_diff
                     + np.outer(grad_diff, grad_diff))
@@ -753,7 +760,9 @@ class IntervalObjective(Objective):
         # interest. Without this, we would find any solution on the ellipsoid
         # where our likelihood equals the target amplitude.
         objective -= self.direction * self.tilt * x_norm
-        grad_objective[tp_index] -= self.direction * self.tilt / self.sigma_guess
+        grad_objective = tf.where(index==tp_index,
+                                  grad_objective - self.direction * self.tilt / self.sigma_guess ,
+                                  grad_objective)
         # The tilt is linear, so the Hessian is unaffected
 
         return objective + self._offset, grad_objective, hess_objective
