@@ -315,7 +315,7 @@ def test_hessian_rateonly(xes: fd.ERSource):
 
     inv_hess = lf.inverse_hessian(guess)
     assert inv_hess.shape == (2, 2)
-    assert inv_hess.dtype in (fd.float_type(), np.float64)
+    assert inv_hess.dtype == fd.float_type()
     # Check symmetry of hessian
     # The hessian is explicitly symmetrized before being passed to
     # the optimizer in bestfit
@@ -339,7 +339,7 @@ def test_hessian_rate_and_shape(xes: fd.ERSource):
 
     inv_hess = lf.inverse_hessian(guess)
     assert inv_hess.shape == (2, 2)
-    assert inv_hess.dtype in (fd.float_type(), np.float64)
+    assert inv_hess.dtype == fd.float_type()
     a = inv_hess[0, 1]
     b = inv_hess[1, 0]
     assert abs(a - b)/(a+b) < 1e-3
