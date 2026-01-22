@@ -763,8 +763,8 @@ class IntervalObjective(Objective):
         # interest. Without this, we would find any solution on the ellipsoid
         # where our likelihood equals the target amplitude.
         objective -= self.direction * self.tilt * x_norm
-        grad_objective = tf.where(index==tp_index,
-                                  grad_objective - self.direction * self.tilt / self.sigma_guess ,
+        grad_objective = tf.where(index == tp_index,
+                                  grad_objective - self.direction * self.tilt / self.sigma_guess,
                                   grad_objective)
         # The tilt is linear, so the Hessian is unaffected
 

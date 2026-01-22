@@ -484,8 +484,8 @@ class LogLikelihood:
             filtered_params = self._filter_source_kwargs(kwargs, sname)
             _rate_multiplier = self._get_rate_mult(sname, kwargs)
             mu += (_rate_multiplier
-                   * self.mu_estimators[sname](**filtered_params) 
-                   + tf.constant(0.,fd.float_type())*_rate_multiplier**2)
+                   * self.mu_estimators[sname](**filtered_params)
+                   + tf.constant(0., fd.float_type())*_rate_multiplier**2)
         return mu
 
     @tf.function

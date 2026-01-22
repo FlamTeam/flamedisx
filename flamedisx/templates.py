@@ -200,16 +200,17 @@ class MultiTemplateSource(fd.Source):
             regardless.
     """
     _method = 'linear'
+
     def __init__(
             self,
             params_and_templates: ty.Tuple[ty.Dict[str, float], ty.Any],
-            params_and_normalisations:ty.Tuple[ty.Dict[str, float], float] = None,
+            params_and_normalisations: ty.Tuple[ty.Dict[str, float], float] = None,
             bin_edges=None,
             axis_names=None,
             events_per_bin=False,
             interpolate=False,
             _skip_tf_init=False,
-            method = 'BSpline',
+            method='BSpline',
             *args,
             **kwargs):
         """
@@ -230,7 +231,7 @@ class MultiTemplateSource(fd.Source):
                 - _skip_tf_init: if True, skip tensorflow initialization (for subclassing).
                 - method: interpolation method between templates, either 'linear' or 'BSpline'.
                           normalisations are always linaerly interpolated.
-        """      
+        """
         self._templates = [
             TemplateWrapper(
                 template, bin_edges, axis_names, events_per_bin, interpolate)
@@ -250,28 +251,28 @@ class MultiTemplateSource(fd.Source):
         defaults = params_and_templates[0][0]
         for params, _ in params_and_templates:
             assert tuple(params.keys()) == tuple(defaults.keys())
-
-        #where BSpline code diverges
+        # Where BSpline code diverges
         if self._method == 'BSpline':
-            return self._init_BSpline( params_and_templates, params_and_normalisations, bin_edges,
-                axis_names, events_per_bin, interpolate, _skip_tf_init,
-                n_templates,
-                defaults,
-                *args,**kwargs)
-        elif self._method == 'linear':
-            return self._init_linear(params_and_templates, params_and_normalisations, bin_edges,
-                axis_names, events_per_bin, interpolate, _skip_tf_init,
-                n_templates,
-                defaults,
-                *args,**kwargs)
-        else:
-            raise NotImplementedError("Only 'linear' and 'BSpline' methods are supported, how did you get here?")
-
-    def _init_linear(self, params_and_templates, params_and_normalisations, bin_edges,
+            return self._init_BSpline(
+                            params_and_templates, params_and_normalisations, bin_edges,
                             axis_names, events_per_bin, interpolate, _skip_tf_init,
                             n_templates,
                             defaults,
-                            *args,**kwargs):
+                            *args, **kwargs)
+        if self._method == 'linear':
+            return self._init_linear(
+                params_and_templates, params_and_normalisations, bin_edges,
+                axis_names, events_per_bin, interpolate, _skip_tf_init,
+                n_templates,
+                defaults,
+                *args, **kwargs)
+        raise NotImplementedError("Only 'linear' and 'BSpline' methods are supported, how did you get here?")
+
+    def _init_linear(self, params_and_templates, params_and_normalisations, bin_edges,
+                    axis_names, events_per_bin, interpolate, _skip_tf_init,
+                    n_templates,
+                    defaults,
+                    *args, **kwargs):
         """
             Initialize the original linear interpolation method. Works for many parameters, not C2 continuous.
             TODO: implement params_and_normalisations support.
@@ -354,10 +355,10 @@ class MultiTemplateSource(fd.Source):
             self.trace_differential_rate()
 
     def _init_BSpline(self, params_and_templates, params_and_normalisations, bin_edges,
-                            axis_names, events_per_bin, interpolate, _skip_tf_init,
-                            n_templates,
-                            defaults,
-                            *args,**kwargs):
+                        axis_names, events_per_bin, interpolate, _skip_tf_init,
+                        n_templates,
+                        defaults,
+                        *args, **kwargs):
         """
             Initiliaztion the BSpline method, which works for 1 parameter only, but is C2 continuous.
             Args & Kwargs:
@@ -422,7 +423,7 @@ class MultiTemplateSource(fd.Source):
 
         # Assume equi-spacing!
         self.dstep = pvals[1] - pvals[0]
-        # Need to pad domain.. four might be excessive
+        # Need to pad domain.. four might be excessive. ToDo: what is this exception?
         try:
             self.pvals = list(np.arange(pvals[0] - 4. * self.dstep, pvals[-1] + 4. * self.dstep, self.dstep))
             assert len(self.pvals) == len(pvals) + 8, "Something went wrong with the padding!"

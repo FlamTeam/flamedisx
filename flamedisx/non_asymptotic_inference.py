@@ -400,11 +400,11 @@ class TSEvaluation():
             mu_test:                   float, POI test value (usually signal counts). |
             signal_source_name:        string, the source that takes the POI. |
             likelihood:                LogLikelihood,the likelihood object. |
-            save_fits:                 bool, whether or not to save cond/uncond fits, stored in 
+            save_fits:                 bool, whether or not to save cond/uncond fits, stored in
                                              TestStatisticDistributions. |
             SB_toys:                   bool, whether or not to simulate S+B toys. |
             B_toys:                    bool, whether or not to simulate B toys. |
-            discovery_TS:              bool, wether to **only** evaluate test_stat_dists_SB_disco 
+            discovery_TS:              bool, wether to **only** evaluate test_stat_dists_SB_disco
                                              and not test_stat_dists_SB. |
             return:                    None, updates flamedisx TestStatisticDistributions objects in first
                                              inputs (*). |
@@ -553,8 +553,8 @@ class TSEvaluation():
         test_statistic = self.test_statistic(likelihood)
         # Guesses for fit
         guess_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(0.1, fd.float_type())}
-        for background_source in self.background_source_names:
-            guess_dict[f'{background_source}_rate_multiplier'] = tf.cast(self.expected_background_counts[background_source], fd.float_type())
+        for name in self.background_source_names:
+            guess_dict[f'{name}_rate_multiplier'] = tf.cast(self.expected_background_counts[name], fd.float_type())
         for key, value in guess_dict.items():
             if value < 0.1:
                 guess_dict[key] = tf.cast(0.1, fd.float_type())
@@ -594,7 +594,7 @@ class IntervalCalculator():
             observed_test_stats: ObservedTestStatistics,
             test_stat_dists_SB: TestStatisticDistributions,
             test_stat_dists_B: TestStatisticDistributions,
-            test_stat_dists_SB_disco: TestStatisticDistributions=None):
+            test_stat_dists_SB_disco: TestStatisticDistributions = None):
 
         self.signal_source_names = signal_source_names
         self.observed_test_stats = observed_test_stats
@@ -726,14 +726,16 @@ class IntervalCalculator():
 
     def upper_lims_bands(self, pval_curve, mus, conf_level):
         try:
-            upper_lims = np.argwhere(np.diff(np.sign(pval_curve - np.ones_like(pval_curve) * conf_level)) < 0.).flatten()
+            upper_lims = np.argwhere(np.diff(np.sign(pval_curve - np.ones_like(pval_curve) * conf_level)) < 0.)
+            upper_lims = upper_lims.flatten()
             return self.interp_helper(mus, pval_curve, upper_lims, conf_level,
-                                    rising_edge=False, inverse=True)
+                                      rising_edge=False, inverse=True)
         except Exception:
             return 0.
 
     def critical_disco_value(self, disco_pot_curve, mus, discovery_sigma):
-        crossing_point = np.argwhere(np.diff(np.sign(disco_pot_curve - np.ones_like(disco_pot_curve) * discovery_sigma)) > 0.).flatten()
+        crossing_point = np.argwhere(np.diff(np.sign(disco_pot_curve - np.ones_like(disco_pot_curve) * discovery_sigma)) > 0.)
+        crossing_point = crossing_point.flatten()
         return self.interp_helper(mus, disco_pot_curve, crossing_point, discovery_sigma,
                                   rising_edge=True, inverse=True)
 
@@ -770,7 +772,7 @@ class IntervalCalculator():
 
             upper_lims_bands_all = upper_lims_bands
             if len(upper_lims_bands[upper_lims_bands == 0.]) > 0.:
-                print(f'Found {len(upper_lims_bands[upper_lims_bands == 0.])} failed toy for {signal_source}; removing...')
+                print(f'Removing {len(upper_lims_bands[upper_lims_bands == 0.])} failed toy for {signal_source}')
                 upper_lims_bands = upper_lims_bands[upper_lims_bands > 0.]
 
             these_bands = dict()
