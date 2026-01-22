@@ -734,8 +734,8 @@ class IntervalCalculator():
             return 0.
 
     def critical_disco_value(self, disco_pot_curve, mus, discovery_sigma):
-        crossing_point = np.argwhere(np.diff(np.sign(disco_pot_curve - np.ones_like(disco_pot_curve) * discovery_sigma)) > 0.)
-        crossing_point = crossing_point.flatten()
+        crossing_values = np.diff(np.sign(disco_pot_curve - np.ones_like(disco_pot_curve) * discovery_sigma)) > 0.
+        crossing_point = np.argwhere(crossing_values).flatten()
         return self.interp_helper(mus, disco_pot_curve, crossing_point, discovery_sigma,
                                   rising_edge=True, inverse=True)
 

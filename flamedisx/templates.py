@@ -236,7 +236,7 @@ class MultiTemplateSource(fd.Source):
             TemplateWrapper(
                 template, bin_edges, axis_names, events_per_bin, interpolate)
             for _, template in params_and_templates]
-        assert method in ('linear','BSpline'), "Only 'linear' and 'BSpline' methods are supported"
+        assert method in ('linear', 'BSpline'), "Only 'linear' and 'BSpline' methods are supported"
         self._method = method
         if self._method == 'BSpline':
             assert len(params_and_templates[0][0]) == 1, "BSpline only supports moprhing of 1 parameter"
@@ -247,7 +247,7 @@ class MultiTemplateSource(fd.Source):
         # We will include mu variation separately
         self.mu = self._templates[0].mu
         if params_and_normalisations is not None:
-            assert self.mu ==1, "If providing normalisations, template mu must be 1"
+            assert self.mu == 1, "If providing normalisations, template mu must be 1"
         defaults = params_and_templates[0][0]
         for params, _ in params_and_templates:
             assert tuple(params.keys()) == tuple(defaults.keys())
@@ -268,11 +268,12 @@ class MultiTemplateSource(fd.Source):
                 *args, **kwargs)
         raise NotImplementedError("Only 'linear' and 'BSpline' methods are supported, how did you get here?")
 
-    def _init_linear(self, params_and_templates, params_and_normalisations, bin_edges,
-                    axis_names, events_per_bin, interpolate, _skip_tf_init,
-                    n_templates,
-                    defaults,
-                    *args, **kwargs):
+    def _init_linear(
+            self, params_and_templates, params_and_normalisations, bin_edges,
+            axis_names, events_per_bin, interpolate, _skip_tf_init,
+            n_templates,
+            defaults,
+            *args, **kwargs):
         """
             Initialize the original linear interpolation method. Works for many parameters, not C2 continuous.
             TODO: implement params_and_normalisations support.
@@ -349,16 +350,17 @@ class MultiTemplateSource(fd.Source):
         self._grid_coordinates = tuple([fd.np_to_tf(np.asarray(g)) for g in _grid_coordinates])
         self._grid_weights = fd.np_to_tf(_grid_weights)
         super().__init__(*args, **kwargs)
-        self.defaults = {**defaults,**{k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}}
+        self.defaults = {**defaults, **{k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}}
         self.parameter_index = fd.index_lookup_dict(self.defaults.keys())
         if not _skip_tf_init:
             self.trace_differential_rate()
 
-    def _init_BSpline(self, params_and_templates, params_and_normalisations, bin_edges,
-                        axis_names, events_per_bin, interpolate, _skip_tf_init,
-                        n_templates,
-                        defaults,
-                        *args, **kwargs):
+    def _init_BSpline(
+            self, params_and_templates, params_and_normalisations, bin_edges,
+            axis_names, events_per_bin, interpolate, _skip_tf_init,
+            n_templates,
+            defaults,
+            *args, **kwargs):
         """
             Initiliaztion the BSpline method, which works for 1 parameter only, but is C2 continuous.
             Args & Kwargs:
@@ -378,7 +380,7 @@ class MultiTemplateSource(fd.Source):
         _template_weights = scipy.interpolate.interp1d(
             x=np.asarray([list(params.values())[0] for params, _ in params_and_templates]),
             y=np.eye(n_templates))
-        
+
         # Unfortunately TensorFlow has no equivalent of LinearNDInterpolator,
         # only interpolators that work on rectilinear grids. Thus, instead of
         # calling something like the above interpolator directly, we have to
@@ -423,18 +425,18 @@ class MultiTemplateSource(fd.Source):
 
         # Assume equi-spacing!
         self.dstep = pvals[1] - pvals[0]
-        # Need to pad domain.. four might be excessive. ToDo: what is this exception?
+        # Need to pad domain.. four might be excessive. TODO: what is this exception?
         try:
             self.pvals = list(np.arange(pvals[0] - 4. * self.dstep, pvals[-1] + 4. * self.dstep, self.dstep))
             assert len(self.pvals) == len(pvals) + 8, "Something went wrong with the padding!"
-        except:
+        except Exception:
             self.pvals = list(np.arange(pvals[0] - 4. * self.dstep, pvals[-1] + 5. * self.dstep, self.dstep))
             assert len(self.pvals) == len(pvals) + 8, "Something went wrong with the padding!"
 
         self.array_columns = ((self.column, n_templates+8),)
 
         super().__init__(*args, **kwargs)
-        self.defaults = {**defaults,**{k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}}
+        self.defaults = {**defaults, **{k: tf.cast(v, fd.float_type()) for k, v in defaults.items()}}
         self.parameter_index = fd.index_lookup_dict(self.defaults.keys())
         if not _skip_tf_init:
             self.trace_differential_rate()
@@ -454,50 +456,50 @@ class MultiTemplateSource(fd.Source):
             return 0
         elif self._method != 'BSpline':
             raise NotImplementedError("Only 'linear' and 'BSpline' methods are supported for annotation")
-        #construct tensor of knots
-        #requires a tensor of elements
-        #data is stored as [[d_evt1^h1,d_evt1^h2..],[d_evt2^h1,d_evt2^h2..]]
+        # Construct tensor of knots
+        # requires a tensor of elements
+        # data is stored as [[d_evt1^h1,d_evt1^h2..],[d_evt2^h1,d_evt2^h2..]]
         # so just need to construct and x-values object and let data column handle y-values
-        #with some padding for the domain!
-        Nk=len(self.pvals)
-        knot_range=self.pvals[-1]-self.pvals[0]
-        linear_shift=2*self.dstep/knot_range
-        start=min(self.pvals)
-        end=max(self.pvals)
-        self.original_range=tf.constant(end-start,dtype=fd.float_type())
-        self.max_pos=tf.constant(Nk- 2,dtype=fd.float_type())
+        # with some padding for the domain!
+        Nk = len(self.pvals)
+        knot_range = self.pvals[-1]-self.pvals[0]
+        linear_shift = 2 * self.dstep/knot_range
+        start = min(self.pvals)
+        end = max(self.pvals)
+        self.original_range = tf.constant(end - start, dtype=fd.float_type())
+        self.max_pos = tf.constant(Nk - 2, dtype=fd.float_type())
 
-        self.start=tf.constant(start,dtype=fd.float_type())
-        self.linear_shift=tf.constant(linear_shift,dtype=fd.float_type())
-        self.linear_shift_shift=tf.constant(knot_range/2,dtype=fd.float_type())
+        self.start = tf.constant(start, dtype=fd.float_type())
+        self.linear_shift = tf.constant(linear_shift, dtype=fd.float_type())
+        self.linear_shift_shift = tf.constant(knot_range / 2, dtype=fd.float_type())
 
         self.data[self.column] = list(np.asarray([
             template.differential_rates_numpy(self.data)
             for template in self._templates]).T)
 
-        linear_interp_padded_diff_rates=[]
+        linear_interp_padded_diff_rates = []
         for diff_rate_per_hist in self.data[self.column]:
 
-            if np.sum(diff_rate_per_hist[:2])>0:
-                left_edge=scipy.interpolate.interp1d(
-                    self.pvals[4:6],diff_rate_per_hist[:2],
-                    kind='linear',fill_value="extrapolate",
+            if np.sum(diff_rate_per_hist[:2]) > 0:
+                left_edge = scipy.interpolate.interp1d(
+                    self.pvals[4:6], diff_rate_per_hist[:2],
+                    kind='linear', fill_value="extrapolate",
                     bounds_error=False)(self.pvals[:4])
             else:
-                left_edge=list(np.repeat(diff_rate_per_hist[0],4))
+                left_edge = list(np.repeat(diff_rate_per_hist[0], 4))
 
-            if np.sum(diff_rate_per_hist[-2:])>0:
-                right_edge=scipy.interpolate.interp1d(
-                    self.pvals[-6:-4],diff_rate_per_hist[-2:],
-                    kind='linear',fill_value="extrapolate",
+            if np.sum(diff_rate_per_hist[-2:]) > 0:
+                right_edge = scipy.interpolate.interp1d(
+                    self.pvals[-6:-4], diff_rate_per_hist[-2:],
+                    kind='linear', fill_value="extrapolate",
                     bounds_error=False)(self.pvals[-4:])
             else:
-                right_edge=list(np.repeat(diff_rate_per_hist[-1],4))
+                right_edge = list(np.repeat(diff_rate_per_hist[-1], 4))
 
-            linear_interp_padded_diff_rates.append(np.concatenate([left_edge,diff_rate_per_hist,right_edge]))
+            linear_interp_padded_diff_rates.append(np.concatenate([left_edge, diff_rate_per_hist, right_edge]))
 
-        self.data[self.column]=linear_interp_padded_diff_rates
-        self.tensor_xvals=tf.convert_to_tensor([self.pvals for _ in range(self.batch_size)],dtype=fd.float_type())
+        self.data[self.column] = linear_interp_padded_diff_rates
+        self.tensor_xvals = tf.convert_to_tensor([self.pvals for _ in range(self.batch_size)], dtype=fd.float_type())
 
     def mu_before_efficiencies(self, **params):
         return self.mu
@@ -518,19 +520,20 @@ class MultiTemplateSource(fd.Source):
 
         return tf.reshape(norm, shape=[]) * self.mu
 
-    def bspline_interpolate_per_bin(self, param,knots):
+    def bspline_interpolate_per_bin(self, param, knots):
         def interp(knots_for_event):
-            #second order non-cyclical b-spline with varying knots
-            #returns [x,y] so ignore x
-            #hackiest shit ever
+            # Second order non-cyclical b-spline with varying knots
+            # returns [x,y] so ignore x
+            # hackiest shit ever
             shift = self.linear_shift*(param-self.linear_shift_shift)
             knot_coord = self.max_pos*(param-self.start)/self.original_range+shift
-            return tf.reduce_sum(bspline.interpolate(knots_for_event,
-                                                     knot_coord,
-                                                        2, False) \
-                                * tf.constant([0,1],dtype=fd.float_type()))
-        #vectorized map over all events
-        y=tf.vectorized_map(interp,elems=knots)
+            return tf.reduce_sum(
+                                bspline.interpolate(knots_for_event,
+                                                    knot_coord,
+                                                    2, False)
+                                * tf.constant([0, 1], dtype=fd.float_type()))
+        # Vectorized map over all events
+        y = tf.vectorized_map(interp, elems=knots)
         return y
 
     def _differential_rate_BSpline(self, data_tensor, ptensor):
@@ -540,14 +543,15 @@ class MultiTemplateSource(fd.Source):
                 x_ref_max=self.pmax,
                 y_ref=self.normalisations,
                 )
-        
-        knots_per_event=tf.convert_to_tensor([self.tensor_xvals, self._fetch(self.column, data_tensor)],dtype=fd.float_type())
-        bspline_diff_rates=self.bspline_interpolate_per_bin(self._fetch_param(self.param_name, ptensor), 
-                                                            tf.transpose(knots_per_event,perm=[1,0,2]))
-        dr=tf.squeeze(norm)*bspline_diff_rates
+
+        knots_per_event = tf.convert_to_tensor([self.tensor_xvals, self._fetch(self.column, data_tensor)],
+                                               dtype=fd.float_type())
+        bspline_diff_rates = self.bspline_interpolate_per_bin(self._fetch_param(self.param_name, ptensor),
+                                                              tf.transpose(knots_per_event, perm=[1, 0, 2]))
+        dr = tf.squeeze(norm) * bspline_diff_rates
 
         return dr
-    
+
     def _differential_rate_linear(self, data_tensor, ptensor):
         # Compute template weights at this parameter point
         # (n_templates,) tensor
@@ -573,14 +577,14 @@ class MultiTemplateSource(fd.Source):
         return tf.reduce_sum(
             template_diffrates * template_weights[None, :],
             axis=1)
-    
+
     def _differential_rate(self, data_tensor, ptensor):
         if self._method == 'linear':
             return self._differential_rate_linear(data_tensor, ptensor)
         elif self._method == 'BSpline':
             return self._differential_rate_BSpline(data_tensor, ptensor)
         else:
-            raise NotImplementedError("Only 'linear' and 'BSpline' methods are supported for differential rate estimation")
+            raise NotImplementedError("Only 'linear' and 'BSpline' methods are supported for differential rate")
 
     def simulate(self, n_events, fix_truth=None, full_annotate=False,
                  keep_padding=False, **params):
