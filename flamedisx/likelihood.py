@@ -385,9 +385,9 @@ class LogLikelihood:
                        omit_grads=tuple(), **kwargs):
         params = self.prepare_params(kwargs)
         n_grads = len(self.param_defaults) - len(omit_grads)
-        ll = np.float64(0.)
-        llgrad = np.zeros(n_grads, dtype=np.float64)
-        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float64)
+        ll = np.float32(0.)
+        llgrad = np.zeros(n_grads, dtype=np.float32)
+        llgrad2 = np.zeros((n_grads, n_grads), dtype=np.float32)
         for dsetname in self.dsetnames:
             # Getting this from the batch_info tensor is much slower
             n_batches = self.sources[self.sources_in_dset[dsetname][0]].n_batches
