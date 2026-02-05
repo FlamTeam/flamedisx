@@ -181,7 +181,7 @@ class Objective:
         param_dict = dict()
         if isinstance(x, np.ndarray):
             for i, k in enumerate(self.arg_names):
-                param_dict[k] = x[i]
+                param_dict[k] = tf.convert_to_tensor(x[i],fd.float_type())
             return param_dict
         for i, k in enumerate(self.arg_names):
             param_dict[k] = tf.gather(x, i)
