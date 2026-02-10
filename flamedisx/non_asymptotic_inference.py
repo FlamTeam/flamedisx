@@ -32,11 +32,10 @@ class TestStatistic():
         # Conditional fit
         bf_conditional = self.likelihood.bestfit(fix=fix_dict, guess=guess_dict_nuisance, suppress_warnings=True,
                                                  allow_failure=True)
-        bf_conditional = {k: v.numpy() for k, v in bf_conditional.items()}
+
         # Uncnditional fit
         bf_unconditional = self.likelihood.bestfit(guess=guess_dict, suppress_warnings=True,
                                                    allow_failure=True)
-        bf_unconditional = {k: v.numpy() for k, v in bf_unconditional.items()}
 
         # Return the test statistic, unconditional fit and conditional fit
         return self.evaluate(bf_unconditional, bf_conditional), bf_unconditional, bf_conditional
