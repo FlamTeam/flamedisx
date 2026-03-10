@@ -57,6 +57,24 @@ class TestStatisticTMuTilde(TestStatistic):
             return 0.
         else:
             return ts
+    
+    def evaluate_asymptotic_pval(self, bf_unconditional, bf_conditional, mu_test):
+        """Calcualte asymptotic p-value according to Equation 45 in https://arxiv.org/abs/1007.1727."""
+        ll_conditional = self.likelihood(**bf_conditional)
+        ll_unconditional = self.likelihood(**bf_unconditional)
+
+        ts = -2. * (ll_conditional - ll_unconditional)
+
+        cov = 2. * self.likelihood.inverse_hessian(bf_unconditional)
+        sigma_mu = np.sqrt(cov[0][0])
+
+        if ts < (mu_test**2 / sigma_mu**2):
+            F = 2. * stats.norm.cdf(np.sqrt(ts)) - 1.
+        else:
+            F = stats.norm.cdf(np.sqrt(ts)) + stats.norm.cdf((ts + (mu_test**2 / sigma_mu**2)) / (2. * mu_test / sigma_mu)) - 1.
+
+        pval = 1. - F
+        return pval
 
 
 @export
@@ -186,6 +204,7 @@ class TSEvaluation():
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
                     SB_toys=False, B_toys=False, discovery_TS=False,
+                    asymptotic = False,
                     sample_certain_nuisance=False):
         """If observed_data is passed, evaluate observed test statistics. Otherwise,
         obtain test statistic distributions (for both S+B and B-only).
@@ -279,7 +298,8 @@ class TSEvaluation():
                 # Case where we want observed test statistics
                 if observed_data is not None:
                     self.get_observed_test_stat(observed_test_stats, observed_data,
-                                                mu_test, signal_source, likelihood, save_fits=save_fits)
+                                                mu_test, signal_source, likelihood, save_fits=save_fits, 
+                                                asymptotic = asymptotic)
                 # Case where we want test statistic distributions
                 else:
                     self.toy_test_statistic_dist(test_stat_dists_SB, test_stat_dists_SB_disco,
@@ -287,6 +307,7 @@ class TSEvaluation():
                                                  mu_test, signal_source, likelihood,
                                                  save_fits=save_fits,
                                                  SB_toys=SB_toys, B_toys=B_toys, discovery_TS=discovery_TS,
+                                                 asymptotic=asymptotic,
                                                  sample_certain_nuisance=sample_certain_nuisance)
 
             if observed_data is not None:
@@ -389,25 +410,36 @@ class TSEvaluation():
                                 mu_test, signal_source_name, likelihood,
                                 save_fits=False,
                                 SB_toys=False, B_toys=False, discovery_TS=False,
+                                asymptotic = False,
                                 sample_certain_nuisance=False):
-        """
-            Internal function to get test statistic distribution given a signal and POI value. |
-            test_stat_dists_SB:        TestStatisticDistributions, t(mu_test|mu=mu_test) * |
-            test_stat_dists_SB_disco:  TestStatisticDistributions, t(0.|mu=mu_test) * |
-            test_stat_dists_B:         TestStatisticDistributions, t(mu_test|mu=0.) * |
-            test_stat_dists_B_disco:   TestStatisticDistributions, t(0.|mu=0.) * |
-            mu_test:                   float, POI test value (usually signal counts). |
-            signal_source_name:        string, the source that takes the POI. |
-            likelihood:                LogLikelihood,the likelihood object. |
+        """ Caclculate test statistic distribution given a signal and POI value. 
+            
+        Parameters:
+            test_stat_dists_SB:        TestStatisticDistributions, t(mu_test|mu=mu_test) * 
+            test_stat_dists_SB_disco:  TestStatisticDistributions, t(0.|mu=mu_test) * 
+            test_stat_dists_B:         TestStatisticDistributions, t(mu_test|mu=0.) * 
+            test_stat_dists_B_disco:   TestStatisticDistributions, t(0.|mu=0.) * 
+            mu_test:                   float, POI test value (usually signal counts). 
+            signal_source_name:        string, the source that takes the POI. 
+            likelihood:                LogLikelihood,the likelihood object. 
             save_fits:                 bool, whether or not to save cond/uncond fits, stored in
-                                             TestStatisticDistributions. |
-            SB_toys:                   bool, whether or not to simulate S+B toys. |
-            B_toys:                    bool, whether or not to simulate B toys. |
+                                             TestStatisticDistributions. 
+
+            SB_toys:                   bool, whether or not to simulate S+B toys. 
+            B_toys:                    bool, whether or not to use simulated B toys. 
+            
+            asymptotic:                bool,  Evaluate P-VALUES for test_stat_dists_B & test_stat_dists_SB_disco
+                                              for asymptotic calculations. You need to do those yourself.
             discovery_TS:              bool, wether to **only** evaluate test_stat_dists_SB_disco
-                                             and not test_stat_dists_SB. |
+                                             and test_stat_dists_B_disco . 
             return:                    None, updates flamedisx TestStatisticDistributions objects in first
-                                             inputs (*). |
+                                             inputs (*).
+
         """
+
+        assert not (asymptotic and discovery_TS), "Redundant to run both asymptotic=True and discovery_TS=True: "\
+                                                " Either run asymptotic (for discovery/limits controlled by toy flags)"\
+                                                " OR run discovery_TS non asymtpotically."
         ts_values_SB = []
         ts_values_SB_disco = []
         ts_values_B = []
@@ -450,7 +482,11 @@ class TSEvaluation():
                     if value < 0.1:
                         guess_dict_SB[key] = 0.1
                 # Evaluate and save test statistics
-                if discovery_TS:
+                if asymptotic:
+                    ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
+                    pvalue = 1 - stats.norm.cdf(np.sqrt(ts_result_SB_disco[0]))
+                    ts_values_SB_disco.append(pvalue)
+                elif discovery_TS:
                     # If we're doing significance, lots of toys
                     ts_result_SB_disco = test_statistic_SB(0., signal_source_name, guess_dict_SB)
                     ts_values_SB_disco.append(ts_result_SB_disco[0])
@@ -494,7 +530,10 @@ class TSEvaluation():
                 # Create test statistic
                 test_statistic_B = self.test_statistic(likelihood)
                 # Evaluate and save test statistics
-                if discovery_TS:
+                if asymptotic:
+                    ts_result_B = test_statistic_B(mu_test, signal_source_name, guess_dict_B)
+                    ts_values_B.append(test_statistic_B.evaluate_asymptotic_pval(ts_result_B[1],ts_result_B[2],mu_test))
+                elif discovery_TS:
                     ts_result_B_disco = test_statistic_B(0., signal_source_name, guess_dict_B)
                     ts_values_B_disco.append(ts_result_B_disco[0])
                 else:
@@ -530,7 +569,8 @@ class TSEvaluation():
             test_stat_dists_B_disco.add_conditional_best_fit(mu_test, conditional_bfs_B_disco)
 
     def get_observed_test_stat(self, observed_test_stats, observed_data,
-                               mu_test, signal_source_name, likelihood, save_fits=False):
+                               mu_test, signal_source_name, likelihood, save_fits=False,
+                               asymptotic = False ):
         """Internal function to evaluate observed test statistic.
         """
         # The constraints are centered on the expected values
@@ -561,7 +601,11 @@ class TSEvaluation():
         ts_result = test_statistic(mu_test, signal_source_name, guess_dict)
 
         # Add to the test statistic collection
-        observed_test_stats.add_test_stat(mu_test, ts_result[0])
+        if asymptotic:
+            pvalue = test_statistic.evaluate_asymptotic_pval(ts_result[1],ts_result[2],mu_test)
+            observed_test_stats.add_test_stat(mu_test, pvalue)
+        else:
+            observed_test_stats.add_test_stat(mu_test, ts_result[0])
 
         # Possibly save the fits
         if save_fits:
@@ -586,6 +630,8 @@ class IntervalCalculator():
         - test_stat_dists_B: dictionary {sourcename: TestStatisticDistributions} returned
             by running TSEvaluation routine to get test statistic distirbutions under
             the B-only hypothesis
+        
+        - asymptotic: expect that the test_stat_dists_SB test_stat_dists_B be appropriate p-values.
     """
     def __init__(
             self,
@@ -593,13 +639,16 @@ class IntervalCalculator():
             observed_test_stats: ObservedTestStatistics,
             test_stat_dists_SB: TestStatisticDistributions,
             test_stat_dists_B: TestStatisticDistributions,
-            test_stat_dists_SB_disco: TestStatisticDistributions = None):
+            test_stat_dists_SB_disco: TestStatisticDistributions = None,
+            asymptotic = False):
 
         self.signal_source_names = signal_source_names
         self.observed_test_stats = observed_test_stats
         self.test_stat_dists_SB = test_stat_dists_SB
         self.test_stat_dists_B = test_stat_dists_B
         self.test_stat_dists_SB_disco = test_stat_dists_SB_disco
+        self.asymptotic = asymptotic
+
 
     @staticmethod
     def interp_helper(x, y, crossing_points, crit_val,
@@ -624,6 +673,7 @@ class IntervalCalculator():
     def get_p_vals(self, conf_level, use_CLs=False):
         """Internal function to get p-value curves.
         """
+        assert not (use_CLs and self.asymptotic), "Cannot currently use CLs with Asymptotic"
         p_sb_collection = dict()
         powers_collection = dict()
         p_b_collection = dict()
@@ -742,6 +792,7 @@ class IntervalCalculator():
                   use_CLs=False, return_toy_indices=False):
         """
         """
+        assert not (use_CLs and self.asymptotic), "Cannot currently use CLs with asymptotics."
         bands = dict()
         toy_indices = dict()
 
@@ -755,9 +806,12 @@ class IntervalCalculator():
             p_val_curves = []
             # Loop over signal rate multipliers
             for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
-                these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
-                                                               ts_values,
-                                                               kind='weak')) / 100.
+                if self.asymtpotic:
+                    these_p_vals = ts_values
+                else:
+                    these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
+                                                                ts_values,
+                                                                kind='weak')) / 100.
                 if use_CLs:
                     these_p_vals_b = stats.percentileofscore(test_stat_dists_B.ts_dists[mu_test],
                                                              ts_values,
@@ -797,6 +851,8 @@ class IntervalCalculator():
 
         # Loop over signal sources
         for signal_source in self.signal_source_names:
+            if self.asymptotic:
+                disco_sigs[signal_source] = np.sqrt(self.observed_test_stats[signal_source].test_stats[0.])
             # Get observed (mu = 0) test statistic and B (m = 0) test statistic distribition
             try:
                 observed_test_stat = self.observed_test_stats[signal_source].test_stats[0.]
@@ -827,6 +883,8 @@ class IntervalCalculator():
             disco_sig_curves = []
             # Loop over signal rate multipliers
             for mu_test, ts_values in test_stat_dists_SB_disco.ts_dists.items():
+                if self.asymptotic:
+                    these_disco_sigs = stats.norm.cdf(1-ts_values)
                 these_disco_sigs = np.sqrt(ts_values)
 
                 mus.append(mu_test)
@@ -838,3 +896,4 @@ class IntervalCalculator():
             medians[signal_source] = median_crossing_point
 
         return medians
+        
