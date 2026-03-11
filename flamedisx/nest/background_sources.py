@@ -6,6 +6,8 @@ import tensorflow as tf
 import os
 import numpy as np
 import pandas as pd
+import uproot
+import awkward as ak
 
 import flamedisx as fd
 from . import lxe_sources as fd_nest
@@ -208,6 +210,7 @@ class vNROtherSURFSource(fd_nest.nestNRSource):
         super().__init__(*args, **kwargs)
 
 
+
 @export
 class NeutronSource(fd_nest.nestNRSource):
     """NR background source from external neutrons.
@@ -219,10 +222,15 @@ class NeutronSource(fd_nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        df_neutron = pd.read_pickle(os.path.join(os.path.dirname(__file__), 'background_spectra/neutron_spectrum.pkl'))
+        neutron_file = np.load(os.path.join(os.path.dirname(__file__), 'background_spectra/hedgehog_neutronClusters.npz'))
+        Edep = neutron_file["Edep"]
+        spectrum, energy_bins = np.histogram(Edep, bins = 100)
+        energy_bin_centres = (energy_bins[:-1] + energy_bins[1:]) / 2
+        spectrum_norm = spectrum/np.sum(spectrum)
 
-        self.energies = tf.convert_to_tensor(df_neutron['energy_keV'].values, dtype=fd.float_type())
+
+        self.energies = tf.convert_to_tensor(energy_bin_centres, dtype=fd.float_type())
         scale = fid_mass * livetime
-        self.rates_vs_energy = tf.convert_to_tensor(df_neutron['spectrum_value_norm'].values * scale, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(spectrum_norm * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)

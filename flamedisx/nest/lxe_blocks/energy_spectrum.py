@@ -1,10 +1,12 @@
 from multihist import Histdd
+
+import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 import wimprates as wr
+import awkward as ak
 
-from scipy import stats
 
 import flamedisx as fd
 export, __all__ = fd.exporter()
@@ -341,8 +343,7 @@ class TemporalRateEnergySpectrumOscillation(FixedShapeEnergySpectrum):
 
 @export
 class SpatialRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
-    model_attributes = (('decay_constant',)
-                        + FixedShapeEnergySpectrum.model_attributes)
+    model_attributes = (FixedShapeEnergySpectrum.model_attributes)
     frozen_model_functions = ('energy_spectrum_rate_multiplier',)
 
     # def local_rate_multiplier(self, r):
@@ -361,9 +362,10 @@ class SpatialRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
         """
         data = dict()
 
-        delta_r = stats.expon.rvs(scale=self.decay_constant,
-                                  size=n_events)
-        data['r'] = self.radius - delta_r
+
+        neutron_file = np.load(os.path.join(os.path.dirname(__file__), '../background_spectra/hedgehog_neutronClusters.npz'))
+        radial_data = neutron_file["R"] #length ~18k points
+        data['r'] = np.random.choice(radial_data, size=n_events, replace=True)
 
         data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
         data['z'] = np.random.uniform(self.z_bottom, self.z_top,

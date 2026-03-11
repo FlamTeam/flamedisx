@@ -337,15 +337,9 @@ class XLZDvNROtherSURFSource(XLZDSource, fd.nest.vNROtherSURFSource):
 
 @export
 class XLZDNeutronSource(XLZDSource, fd.nest.NeutronSource, fd.nest.nestSpatialRateDecayNRSource):
-    def __init__(self, *args, decay_constant=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'xlzd'
         if ('configuration' not in kwargs):
             kwargs['configuration'] = '80t'
-
-        if decay_constant is None:
-            self.decay_constant = 3.57 # cm; from XLZD GEANT4 simulations
-        else:
-            self.decay_constant = decay_constant
-
         super().__init__(*args, **kwargs)
