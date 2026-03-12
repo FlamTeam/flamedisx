@@ -210,26 +210,26 @@ class TSEvaluation():
         obtain test statistic distributions (for both S+B and B-only).
 
         Arguments:
-            - mus_test: dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate
+            - mus_test : dictionary {sourcename: np.array([mu1, mu2, ...])} of signal rate
                 multipliers to be tested for each signal source
-            - save_fits: if True, unconditional and conditional fits will be saved along with
+            - save_fits : if True, unconditional and conditional fits will be saved along with
                 the test statistic value
-            - observed_data: pass this to evaluate the observed test statistics
-            - observed_test_stats: if obtaining test statistic distributions, and this is
+            - observed_data : pass this to evaluate the observed test statistics
+            - observed_test_stats : if obtaining test statistic distributions, and this is
                 passed, and the conditional best fits were saved for the observed data, the
                 background counts for the toys will be fixed to the observed conditional best fits,
                 and the constraint centers which are randomised for each toy will be centered
                 around the conditional best fits. Otherwise, the prior expected counts will be used
                 in place
-            - generate_B_toys: if true, the routine run will be a generation of background-only
+            - generate_B_toys : if true, the routine run will be a generation of background-only
                 datasets
-            - simulate_dict_B: first return argument of the result of calling this function with
+            - simulate_dict_B : first return argument of the result of calling this function with
                 generate_B_toys=True)
-            - toy_data_B: second return argument of the result of calling this function with
+            - toy_data_B : second return argument of the result of calling this function with
                 generate_B_toys=True)
-            - toy_data_B: third return argument of the result of calling this function with
+            - toy_data_B : third return argument of the result of calling this function with
                 generate_B_toys=True)
-            - toy_batch: if parallelising toys, this should correspond to the parallel batch index
+            - toy_batch : if parallelising toys, this should correspond to the parallel batch index
                 (starting at 0) being run, to ensure the correct background-only toys are accessed
         """
         if observed_test_stats is not None:
@@ -510,7 +510,7 @@ class TSEvaluation():
                 try:
                     # Guesses for fit
                     guess_dict_B = self.simulate_dict_B.copy()
-                    guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 0.
+                    guess_dict_B[f'{signal_source_name}_rate_multiplier'] = 1e-9
                     for key, value in guess_dict_B.items():
                         if value < 0.1:
                             guess_dict_B[key] = 0.1
