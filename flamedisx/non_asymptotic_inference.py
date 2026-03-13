@@ -631,15 +631,16 @@ class IntervalCalculator():
             by running TSEvaluation routine to get test statistic distirbutions under
             the B-only hypothesis
         
-        - asymptotic: expect that the test_stat_dists_SB test_stat_dists_B be appropriate p-values.
+        - asymptotic: expect that the test_stat_dists_SB_disco test_stat_dists_B be
+                      the appropriate p-values and not TS_dists.
     """
     def __init__(
             self,
             signal_source_names: ty.Tuple[str],
             observed_test_stats: ObservedTestStatistics,
-            test_stat_dists_SB: TestStatisticDistributions,
-            test_stat_dists_B: TestStatisticDistributions,
-            test_stat_dists_SB_disco: TestStatisticDistributions = None,
+            test_stat_dists_SB: TestStatisticDistributions|None = None,
+            test_stat_dists_B: TestStatisticDistributions|None = None,
+            test_stat_dists_SB_disco: TestStatisticDistributions|None = None,
             asymptotic = False):
 
         self.signal_source_names = signal_source_names
@@ -648,6 +649,8 @@ class IntervalCalculator():
         self.test_stat_dists_B = test_stat_dists_B
         self.test_stat_dists_SB_disco = test_stat_dists_SB_disco
         self.asymptotic = asymptotic
+        if self.asymptotic and (test_stat_dists_SB is not None):
+            print("Warning: test_stat_dists_SB is not used in asymptotics.")
 
 
     @staticmethod
@@ -683,7 +686,11 @@ class IntervalCalculator():
             test_stat_dists_SB = self.test_stat_dists_SB[signal_source]
             test_stat_dists_B = self.test_stat_dists_B[signal_source]
             observed_test_stats = self.observed_test_stats[signal_source]
-
+            # Asymptotic, no CLs method and ts_dists == p-values
+            if self.asymptotic:
+                p_sb_collection[signal_source]  = observed_test_stats.ts_dists
+                powers_collection[signal_source] = test_stat_dists_B.ts_dists
+                continue
             p_sb = test_stat_dists_SB.get_p_vals(observed_test_stats)
             p_sb_collection[signal_source] = p_sb
 
