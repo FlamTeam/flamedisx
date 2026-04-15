@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import uproot
 import awkward as ak
+import yaml
 
 import flamedisx as fd
 from . import lxe_sources as fd_nest
@@ -222,15 +223,67 @@ class NeutronSource(fd_nest.nestNRSource):
         if ('detector' not in kwargs):
             kwargs['detector'] = 'default'
 
-        neutron_file = np.load(os.path.join(os.path.dirname(__file__), 'background_spectra/hedgehog_neutronClusters.npz'))
-        Edep = neutron_file["Edep"]
-        spectrum, energy_bins = np.histogram(Edep, bins = 100)
-        energy_bin_centres = (energy_bins[:-1] + energy_bins[1:]) / 2
-        spectrum_norm = spectrum/np.sum(spectrum)
+        template_path = os.path.join(os.path.dirname(__file__), 'background_spectra/60t_downloads/')
+
+        components_file = os.path.join(os.path.dirname(__file__), 'config/components_60.yaml')
+
+        with open(components_file) as f:
+            components = yaml.safe_load(f)["components"]
+
+
+        energy_range = (6, 30)
+
+        combined_energy_spectra = None
+        energy_spectrum_bins = None
+
+        for comp in components:
+
+            path = comp["path"]
+
+            if "mass" in comp:
+                scale = comp["mass"] * comp["rate"]
+            elif "units" in comp:
+                scale = comp["units"] * comp["rate"]
+            else:
+                continue
+
+            if scale == 0:
+                continue
+
+            neutron_file = uproot.open(template_path + path)
+
+            if "SSneutronClusterInformation;1" not in neutron_file:
+                print(f"Skipping {path} (no key)")
+                continue
+
+            neutroncluster = neutron_file["SSneutronClusterInformation;1"].arrays()
+            energy_data = ak.to_numpy(neutroncluster["Edep"])
+
+            energy_spectrum, energy_bins = np.histogram(energy_data, bins=100, range=energy_range)
+
+
+            # Applying scaling
+
+            scaled_energy_spectrum = energy_spectrum * scale
+
+
+            # Summing the spectra
+            if combined_energy_spectra is None:
+                combined_energy_spectra = scaled_energy_spectrum
+            else:
+                combined_energy_spectra += scaled_energy_spectrum
+
+            if energy_spectrum_bins is None:
+                energy_spectrum_bins = energy_bins
+                
+
+        norm_energy_spectrum = combined_energy_spectra / np.sum(combined_energy_spectra)
+        energy_bin_centres = 0.5 * (energy_spectrum_bins[:-1] + energy_spectrum_bins[1:])
+
 
 
         self.energies = tf.convert_to_tensor(energy_bin_centres, dtype=fd.float_type())
         scale = fid_mass * livetime
-        self.rates_vs_energy = tf.convert_to_tensor(spectrum_norm * scale, dtype=fd.float_type())
+        self.rates_vs_energy = tf.convert_to_tensor(norm_energy_spectrum * scale, dtype=fd.float_type())
 
         super().__init__(*args, **kwargs)

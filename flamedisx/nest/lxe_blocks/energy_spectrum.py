@@ -6,6 +6,8 @@ import pandas as pd
 import tensorflow as tf
 import wimprates as wr
 import awkward as ak
+import yaml
+import uproot
 
 
 import flamedisx as fd
@@ -360,12 +362,83 @@ class SpatialRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
     def draw_positions(self, n_events, **params):
         """
         """
+
+        home_path = os.path.join(os.path.dirname(__file__), '../background_spectra/60t_downloads/')
+        
+        components_path = os.path.join(os.path.dirname(__file__), '../config/components_60.yaml')
+
+        with open(components_path) as f:
+            components = yaml.safe_load(f)["components"]
+
+
+        hist_range = (0, 1450)
+
+        combined_radial_spectra = None
+        radial_spectrum_bins = None
+
+        for comp in components:
+
+            path = comp["path"]
+
+            if "mass" in comp:
+                scale = comp["mass"] * comp["rate"]
+            elif "units" in comp:
+                scale = comp["units"] * comp["rate"]
+            else:
+                continue
+
+            if scale == 0:
+                continue
+
+            neutron_file = uproot.open(home_path + path)
+
+            if "SSneutronClusterInformation;1" not in neutron_file:
+                print(f"Skipping {path} (no key)")
+                continue
+
+            neutroncluster = neutron_file["SSneutronClusterInformation;1"].arrays()
+            r_data = ak.to_numpy(neutroncluster["R"])
+
+            radial_spectrum, radial_bins = np.histogram(r_data, bins=50, range=hist_range)
+
+
+            # Applying scaling
+
+            scaled_radial_spectrum = radial_spectrum * scale
+
+
+            # Summing the spectra
+            if combined_radial_spectra is None:
+                combined_radial_spectra = scaled_radial_spectrum
+            else:
+                combined_radial_spectra += scaled_radial_spectrum
+
+            if radial_spectrum_bins is None:
+                radial_spectrum_bins = radial_bins
+                
+
+        norm_radial_spectrum = combined_radial_spectra / np.sum(combined_radial_spectra)
+        radial_bin_centers = 0.5 * (radial_spectrum_bins[:-1] + radial_spectrum_bins[1:])
+
+
+        # pick bins according to the target probabilities
+        sampled_indices = np.random.choice(
+            len(radial_bin_centers),
+            size=n_events,
+            p=norm_radial_spectrum
+        )
+
+        # sample uniformly within the chosen bins
+        bin_widths = np.diff(radial_spectrum_bins)
+        samples = (
+            radial_spectrum_bins[sampled_indices]
+            + np.random.rand(n_events) * bin_widths[sampled_indices]
+        )
+
+
         data = dict()
 
-
-        neutron_file = np.load(os.path.join(os.path.dirname(__file__), '../background_spectra/hedgehog_neutronClusters.npz'))
-        radial_data = neutron_file["R"] #length ~18k points
-        data['r'] = np.random.choice(radial_data, size=n_events, replace=True)
+        data['r'] = samples
 
         data['theta'] = np.random.uniform(0, 2*np.pi, size=n_events)
         data['z'] = np.random.uniform(self.z_bottom, self.z_top,

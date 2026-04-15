@@ -1,0 +1,132 @@
+components:
+  - path: FFRresistor_Th-an.root 
+    units: 120
+    rate:  0
+
+  - path: FFRresistor_U-early-an.root
+    units: 120
+    rate:  0
+
+  - path: FFRresistor_U-late-an.root
+    units: 120
+    rate:  0
+
+  - path: FieldCage_Th-an.root
+    mass: 635.88
+    rate: 8.61E-12
+
+  - path: FieldCage_U-early-an.root
+    mass: 635.88
+    rate: 1.05E-12
+
+  - path: FieldCage_U-late-an.root
+    mass: 635.88
+    rate: 4.64E-12
+
+  - path: ICV_Th-an.root
+    mass: 6200
+    rate: 1.22E-12
+
+  - path: ICV_U-early-an.root
+    mass: 6200
+    rate: 1.53E-13
+
+  - path: ICV_U-late-an.root
+    mass: 6200
+    rate: 1.75E-13
+
+  - path: OCV_Th-an.root
+    mass: 6100
+    rate: 1.24E-12
+
+  - path: OCV_U-early-an.root
+    mass: 6100
+    rate: 1.37E-13
+
+  - path: OCV_U-late-an.root
+    mass: 6100
+    rate: 1.60E-13
+
+  - path: RFRresistor_Th-an.root
+    units: 12
+    rate:  0
+
+  - path: RFRresistor_U-early-an.root
+    units: 12
+    rate:  0
+
+  - path: RFRresistor_U-late-an.root
+    units: 12
+    rate:  0
+
+  - path: ffrRing_Th-an.root
+    mass: 552.23
+    rate: 4.70E-12
+
+  - path: ffrRing_U-early-an.root
+    mass: 552.23
+    rate: 5.83E-13
+
+  - path: ffrRing_U-late-an.root
+    mass: 552.23
+    rate: 7.43E-13
+
+  - path: rfrRing_Th-an.root
+    mass: 36.52
+    rate: 2.02E-12
+
+  - path: rfrRing_U-early-an.root
+    mass: 36.52
+    rate: 2.14E-13
+
+  - path: rfrRing_U-late-an.root
+    mass: 36.52
+    rate: 2.62E-13
+
+  - path: cathodeRing_Th-an.root
+    mass: 10.2
+    rate: 2.98E-12
+
+  - path: cathodeRing_U-early-an.root
+    mass: 10.2
+    rate: 3.52E-13
+
+  - path: cathodeRing_U-late-an.root
+    mass: 10.2
+    rate: 4.41E-13
+
+  - path: ICVPTFE_Th-an.root
+    mass: 40.55
+    rate: 4.67E-12
+
+  - path: ICVPTFE_U-early-an.root
+    mass: 40.55
+    rate: 5.04E-13
+
+  - path: ICVPTFE_U-late-an.root
+    mass: 40.55
+    rate: 2.42E-12
+
+  - path: TPC_PMT_bottomArray_Th-an.root
+    units: 1066
+    rate:  8.12E-13
+
+  - path: TPC_PMT_bottomArray_U-early-an.root
+    units: 1066
+    rate:  1.10E-12
+
+  - path: TPC_PMT_bottomArray_U-late-an.root
+    units: 1066
+    rate:  1.58E-12
+
+  - path: TPC_PMT_topArray_Th-an.root
+    units: 1066
+    rate:  7.68E-13
+
+  - path: TPC_PMT_topArray_U-early-an.root
+    units: 1066
+    rate:  2.31E-12
+
+  - path: TPC_PMT_topArray_U-late-an.root
+    units: 1066
+    rate:  1.48E-12

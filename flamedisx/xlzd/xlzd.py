@@ -21,7 +21,7 @@ export, __all__ = fd.exporter()
 class XLZDSource:
     def __init__(self, *args,
                  drift_field_V_cm=80., gas_field_kV_cm=7.5, elife_ns=10000e3, g1=0.31,
-                 temperature_K=174.1, pressure_bar=1.79, num_pmts=902, double_pe_fraction=0.2,
+                 temperature_K=174.1, pressure_bar=1.79, num_pmts=2132, double_pe_fraction=0.2,
                  g1_gas=0.1, s2Fano=2., spe_res=0.38, spe_thr=0.375, spe_eff=1.,
                  cS1_min=0., cS1_max=100., log10_cS2_min=2.5, log10_cS2_max=4.,
                  s2_thr=198., coin_level=4,
