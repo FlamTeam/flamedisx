@@ -18,6 +18,7 @@ export, __all__ = fd.exporter()
 # Flamedisx sources
 ##
 
+
 class XLZDSource:
     def __init__(self, *args,
                  drift_field_V_cm=80., gas_field_kV_cm=7.5, elife_ns=10000e3, g1=0.31,

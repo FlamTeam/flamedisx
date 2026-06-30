@@ -371,7 +371,7 @@ class SpatialRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
             components = yaml.safe_load(f)["components"]
 
 
-        hist_range = (0, 1450)
+        hist_range = (0, 145)
 
         combined_radial_spectra = None
         radial_spectrum_bins = None
@@ -397,7 +397,7 @@ class SpatialRateEnergySpectrumDecay(FixedShapeEnergySpectrum):
                 continue
 
             neutroncluster = neutron_file["SSneutronClusterInformation;1"].arrays()
-            r_data = ak.to_numpy(neutroncluster["R"])
+            r_data = ak.to_numpy(neutroncluster["R"])/10
 
             radial_spectrum, radial_bins = np.histogram(r_data, bins=50, range=hist_range)
 

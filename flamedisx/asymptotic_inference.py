@@ -131,6 +131,7 @@ class TSEvaluation():
 
     def run_routine(self, mus_test=None,
                     generate_B_toys=False,
+                    generate_SB_toys=False,
                     simulate_dict_B=None, toy_data_B=None, constraint_extra_args_B=None,
                     toy_batch=0,
                     mode='sensitivity', vary_signal_dict=None):
@@ -194,6 +195,48 @@ class TSEvaluation():
                 simulate_dict_B.pop(f'{signal_source}_rate_multiplier')
                 return simulate_dict_B, toy_data_B_all, constraint_extra_args_B_all
 
+
+            ###
+            
+            # Where we want to generate S+B toys
+            if generate_SB_toys:
+                if mus_test is None:
+                    raise ValueError("mus_test must be provided when generate_SB_toys=True")
+
+                toy_data_SB_collection = dict()
+                simulate_dict_SB_collection = dict()
+                constraint_extra_args_SB_collection = dict()
+
+                these_mus_test = mus_test[signal_source]
+
+                for mu_test in tqdm(these_mus_test, desc='Generating S+B toys over mus'):
+                    toy_data_SB_all = []
+                    simulate_dict_SB_all = []
+                    constraint_extra_args_SB_all = []
+
+                    for toy in tqdm(range(self.ntoys), desc=f'S+B toys, mu={mu_test}'):
+                        if vary_signal_dict is not None:
+                            mu_sim = sps.norm.rvs(
+                                loc=mu_test,
+                                scale=vary_signal_dict[signal_source]
+                            )
+                        else:
+                            mu_sim = mu_test
+
+                        simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
+                            self.sample_data_constraints(mu_sim, signal_source, likelihood)
+
+                        toy_data_SB_all.append(toy_data_SB)
+                        simulate_dict_SB_all.append(simulate_dict_SB)
+                        constraint_extra_args_SB_all.append(constraint_extra_args_SB)
+
+                    toy_data_SB_collection[mu_test] = toy_data_SB_all
+                    simulate_dict_SB_collection[mu_test] = simulate_dict_SB_all
+                    constraint_extra_args_SB_collection[mu_test] = constraint_extra_args_SB_all
+
+                return simulate_dict_SB_collection, toy_data_SB_collection, constraint_extra_args_SB_collection
+            ###
+
             these_mus_test = mus_test[signal_source]
             # Loop over signal rate multipliers
             for mu_test in tqdm(these_mus_test, desc='Scanning over mus'):
@@ -248,6 +291,7 @@ class TSEvaluation():
 
                 simulate_dict_SB, toy_data_SB, constraint_extra_args_SB = \
                     self.sample_data_constraints(mu_sim, signal_source_name, likelihood)
+
                 # Guesses for fit
                 guess_dict_SB = simulate_dict_SB.copy()
                 for key, value in guess_dict_SB.items():
