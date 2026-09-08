@@ -22,8 +22,8 @@ class LogLikelihood:
     sources: ty.Dict[str, fd.Source]     # Source name -> Source instance
 
     # Track which source takes which dataset, and converse
-    dset_for_source: ty.Dict[str, str]
-    sources_in_dset: ty.Dict[str, str]
+    dset_for_source: dict[str, str]
+    sources_in_dset: dict[str, list[str]]
 
     # Tensor with batch info
     # First dimension runs over datasets (same indices as dsetnames)
