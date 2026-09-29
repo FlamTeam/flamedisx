@@ -439,7 +439,7 @@ class TSEvaluation():
 
         assert not (asymptotic and discovery_TS), "Redundant to run both asymptotic=True and discovery_TS=True: "\
                                                 " Either run asymptotic (for discovery/limits controlled by toy flags)"\
-                                                " OR run discovery_TS non asymtpotically."
+                                                " OR run discovery_TS non asymptotically."
         ts_values_SB = []
         ts_values_SB_disco = []
         ts_values_B = []
@@ -813,7 +813,7 @@ class IntervalCalculator():
             p_val_curves = []
             # Loop over signal rate multipliers
             for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
-                if self.asymtpotic:
+                if self.:
                     these_p_vals = ts_values
                 else:
                     these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
