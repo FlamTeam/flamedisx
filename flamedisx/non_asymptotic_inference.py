@@ -813,7 +813,7 @@ class IntervalCalculator():
             p_val_curves = []
             # Loop over signal rate multipliers
             for mu_test, ts_values in test_stat_dists_B.ts_dists.items():
-                if self.:
+                if self.asymptotic:
                     these_p_vals = ts_values
                 else:
                     these_p_vals = (100. - stats.percentileofscore(test_stat_dists_SB.ts_dists[mu_test],
