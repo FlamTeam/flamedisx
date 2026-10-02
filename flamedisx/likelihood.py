@@ -480,6 +480,10 @@ class LogLikelihood:
             if source_name is not None and sname != source_name:
                 continue
             filtered_params = self._filter_source_kwargs(kwargs, sname)
+            ### MT debugging addition
+            curr_rm = self._get_rate_mult(sname, kwargs)
+            curr_mu_est = self.mu_estimators[sname](**filtered_params)
+
             mu += (self._get_rate_mult(sname, kwargs)
                    * self.mu_estimators[sname](**filtered_params))
         return mu

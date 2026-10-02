@@ -263,16 +263,40 @@ class TSEvaluation():
             # Get likelihood
             likelihood = deepcopy(self.likelihood)
 
-            assert hasattr(likelihood, 'likelihoods'), 'Logic only currently works for combined likelihood'
-            for ll in likelihood.likelihoods.values():
-                sources_remove = []
-                params_remove = []
-                for sname in ll.sources:
+            # Remove unused signal sources
+            sources_remove = []
+            params_remove = []
+
+            if hasattr(likelihood, 'likelihoods'):
+                # CombinedLikelihoods: scan sub-likelihoods for sources to remove
+                for ll in likelihood.likelihoods.values():
+                    for sname in ll.sources:
+                        if (sname != signal_source) and (sname not in self.background_source_names):
+                            sources_remove.append(sname)
+                            params_remove.append(f'{sname}_rate_multiplier')
+                likelihood.rebuild(sources_remove=sources_remove,
+                                   params_remove=params_remove)
+            else:
+                # Single LogLikelihood: remove sources directly
+                for sname in list(likelihood.sources.keys()):
                     if (sname != signal_source) and (sname not in self.background_source_names):
                         sources_remove.append(sname)
                         params_remove.append(f'{sname}_rate_multiplier')
-            likelihood.rebuild(sources_remove=sources_remove,
-                               params_remove=params_remove)
+
+                for sname in sources_remove:
+                    likelihood.sources.pop(sname, None)
+                    likelihood.dset_for_source.pop(sname, None)
+                    if hasattr(likelihood, 'mu_estimators'):
+                        likelihood.mu_estimators.pop(sname, None)
+                for dsetname in likelihood.sources_in_dset:
+                    likelihood.sources_in_dset[dsetname] = [
+                        s for s in likelihood.sources_in_dset[dsetname]
+                        if s not in sources_remove]
+                for pname in params_remove:
+                    likelihood.param_defaults.pop(pname, None)
+                    likelihood.default_bounds.pop(pname, None)
+                likelihood.param_names = [p for p in likelihood.param_names
+                                          if p not in params_remove]
 
             # Where we want to generate B-only toys
             if generate_B_toys:
@@ -476,8 +500,18 @@ class TSEvaluation():
 
         # Create test statistic
         test_statistic = self.test_statistic(likelihood)
+        
         # Guesses for fit
-        guess_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(0.1, fd.float_type())}
+        #guess_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(0.1, fd.float_type())}
+
+        ############# MT CHANGE #############
+        default_signal_guess = 0.1
+        if 'WIMP' not in signal_source_name:
+            if hasattr(likelihood, 'expected_signal_counts'):
+                default_signal_guess = float(likelihood.expected_signal_counts.get(signal_source_name, 0.1))
+        guess_dict = {f'{signal_source_name}_rate_multiplier': tf.cast(max(default_signal_guess, 0.1), fd.float_type())}
+        ############# MT CHANGE #############
+
         for background_source in self.background_source_names:
             guess_dict[f'{background_source}_rate_multiplier'] = tf.cast(self.expected_background_counts[background_source], fd.float_type())
         for key, value in guess_dict.items():
